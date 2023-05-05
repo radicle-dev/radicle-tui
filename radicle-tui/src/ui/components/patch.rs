@@ -8,6 +8,7 @@ use crate::ui::widget::{Widget, WidgetComponent};
 
 use super::common::context::{ContextBar, Shortcuts};
 use super::common::label::Label;
+use super::common::list::Table;
 
 pub struct Activity {
     label: Widget<Label>,
@@ -64,19 +65,19 @@ impl WidgetComponent for Activity {
 }
 
 pub struct Files {
-    label: Widget<Label>,
+    diff: Widget<Table>,
     context: Widget<ContextBar>,
     shortcuts: Widget<Shortcuts>,
 }
 
 impl Files {
     pub fn new(
-        label: Widget<Label>,
+        diff: Widget<Table>,
         context: Widget<ContextBar>,
         shortcuts: Widget<Shortcuts>,
     ) -> Self {
         Self {
-            label,
+            diff,
             context,
             shortcuts,
         }
@@ -85,11 +86,6 @@ impl Files {
 
 impl WidgetComponent for Files {
     fn view(&mut self, _properties: &Props, frame: &mut Frame, area: Rect) {
-        let label_w = self
-            .label
-            .query(Attribute::Width)
-            .unwrap_or(AttrValue::Size(1))
-            .unwrap_size();
         let context_h = self
             .context
             .query(Attribute::Height)
@@ -102,8 +98,7 @@ impl WidgetComponent for Files {
             .unwrap_size();
         let layout = layout::root_component_with_context(area, context_h, shortcuts_h);
 
-        self.label
-            .view(frame, layout::centered_label(label_w, layout[0]));
+        self.diff.view(frame, layout[0]);
         self.context.view(frame, layout[1]);
         self.shortcuts.view(frame, layout[2]);
     }
@@ -112,7 +107,7 @@ impl WidgetComponent for Files {
         State::None
     }
 
-    fn perform(&mut self, _properties: &Props, _cmd: Cmd) -> CmdResult {
-        CmdResult::None
+    fn perform(&mut self, _properties: &Props, cmd: Cmd) -> CmdResult {
+        self.diff.perform(cmd)
     }
 }

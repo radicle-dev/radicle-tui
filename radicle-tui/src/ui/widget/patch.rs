@@ -1,7 +1,20 @@
+use radicle_surf::diff::Diff;
+
 use radicle::Profile;
+use radicle_term as term;
+
+use term::Line;
+use term::Paint;
 use tuirealm::props::Color;
+use tuirealm::AttrValue;
 
 use radicle::cob::patch::{Patch, PatchId};
+use tuirealm::props::PropPayload;
+use tuirealm::props::PropValue;
+use tuirealm::props::TextModifiers;
+use tuirealm::props::TextSpan;
+use tuirealm::tui::widgets::Cell;
+use tuirealm::tui::widgets::Row;
 
 use super::common;
 use super::Widget;
@@ -9,8 +22,37 @@ use super::Widget;
 use crate::ui::cob::patch;
 use crate::ui::components::common::container::Tabs;
 use crate::ui::components::common::context::ContextBar;
+use crate::ui::components::common::list::Table;
 use crate::ui::components::patch::Activity;
+use crate::ui::components::patch::Files;
 use crate::ui::theme::Theme;
+
+fn color_to_color(color: term::Color) -> Color {
+    match color {
+        term::Color::Green => Color::Green,
+        term::Color::Red => Color::Red,
+        term::Color::Fixed(236) => Color::DarkGray,
+        _ => Color::Reset,
+    }
+}
+
+fn line_to_span(line: &Line) -> TextSpan {
+    // for label in line.items() {
+    //     TextSpan::from(label)
+    // }
+    match line.items().get(0) {
+        Some(label) => {
+            let paint: Paint<String> = label.clone().into();
+            let style = paint.style();
+            TextSpan::from(paint.content())
+                .fg(color_to_color(style.fg_color()))
+            // if bold {
+            //     span = span.add_modifiers(TextModifiers::BOLD);
+            // }
+        }
+        None => TextSpan::from(""),
+    }
+}
 
 pub fn navigation(theme: &Theme) -> Widget<Tabs> {
     common::tabs(
@@ -40,8 +82,53 @@ pub fn activity(theme: &Theme, patch: (PatchId, &Patch), profile: &Profile) -> W
     Widget::new(activity)
 }
 
-pub fn files(theme: &Theme, patch: (PatchId, &Patch), profile: &Profile) -> Widget<Activity> {
+pub fn files(
+    theme: &Theme,
+    patch: (PatchId, &Patch),
+    diff: &Diff,
+    profile: &Profile,
+) -> Widget<Files> {
     let (id, patch) = patch;
+
+    let mut items = vec![];
+    let mut files = diff.files();
+    for file in files {
+        if let Ok(header) = term::format::diff::file_header(file) {
+            let cells = header
+                .iter()
+                .map(|line| line_to_span(line))
+                .collect::<Vec<_>>();
+            items.push(cells);
+
+            if let Ok(rows) = term::format::diff::file_rows(file) {
+                for row in rows {
+                    let cells = row
+                        .iter()
+                        .map(|line| line_to_span(line))
+                        .collect::<Vec<_>>();
+                    items.push(cells);
+                }
+            }
+        }
+    }
+
+    let labels = vec!["", "", ""];
+    let widths = vec![3u16, 3, 94];
+
+    let header = common::table_header(theme, &labels, &widths);
+    let table = Table::new(header);
+
+    let widths = AttrValue::Payload(PropPayload::Vec(
+        widths.iter().map(|w| PropValue::U16(*w)).collect(),
+    ));
+
+    let table = Widget::new(table)
+        .content(AttrValue::Table(items))
+        .custom("widths", widths)
+        .background(theme.colors.labeled_container_bg)
+        .highlight(theme.colors.item_list_highlighted_bg);
+
+    let context = context(theme, (id, patch), profile);
     let shortcuts = common::shortcuts(
         theme,
         vec![
@@ -50,10 +137,8 @@ pub fn files(theme: &Theme, patch: (PatchId, &Patch), profile: &Profile) -> Widg
             common::shortcut(theme, "q", "quit"),
         ],
     );
-    let context = context(theme, (id, patch), profile);
 
-    let not_implemented = common::label("not implemented").foreground(theme.colors.default_fg);
-    let files = Activity::new(not_implemented, context, shortcuts);
+    let files = Files::new(table, context, shortcuts);
 
     Widget::new(files)
 }

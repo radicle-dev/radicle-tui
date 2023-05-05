@@ -102,6 +102,16 @@ impl tuirealm::Component<Message, NoUserEvent> for Widget<patch::Files> {
             Event::Keyboard(KeyEvent { code: Key::Esc, .. }) => {
                 Some(Message::Patch(PatchMessage::Leave))
             }
+            Event::Keyboard(KeyEvent { code: Key::Up, .. }) => {
+                self.perform(Cmd::Move(MoveDirection::Up));
+                Some(Message::Tick)
+            }
+            Event::Keyboard(KeyEvent {
+                code: Key::Down, ..
+            }) => {
+                self.perform(Cmd::Move(MoveDirection::Down));
+                Some(Message::Tick)
+            }
             _ => None,
         }
     }

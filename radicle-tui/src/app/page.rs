@@ -1,4 +1,7 @@
 use anyhow::Result;
+
+use radicle_surf::Repository;
+
 use radicle_tui::ui::{layout, theme::Theme, widget};
 use tuirealm::{Frame, NoUserEvent};
 
@@ -116,10 +119,18 @@ impl ViewPage for PatchView {
         theme: &Theme,
     ) -> Result<()> {
         if let Some((id, patch)) = context.patches.get(context.selected_patch) {
+            let (workdir, _) = radicle::rad::cwd()?;
+            let (_, revision) = patch.latest().unwrap();
+            let repo = Repository::open(workdir.path())?;
+            let base = repo.commit(revision.base())?;
+            let head = repo.commit(revision.head())?;
+            let diff = repo.diff(base.id, head.id)?;
+
+
             let navigation = widget::patch::navigation(theme).to_boxed();
             let activity =
                 widget::patch::activity(theme, (*id, patch), &context.profile).to_boxed();
-            let files = widget::patch::files(theme, (*id, patch), &context.profile).to_boxed();
+            let files = widget::patch::files(theme, (*id, patch), &diff, &context.profile).to_boxed();
 
             app.remount(
                 Cid::Patch(PatchCid::Navigation),

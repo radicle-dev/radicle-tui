@@ -14,6 +14,7 @@ path = "src/main.rs"
 anyhow = { version = "1" }
 lexopt = { version = "0.2" }
 timeago = { version = "0.4.1" }
+radicle-surf = { version = "0.9.0", default-features = false, features = ["serde"] }
 tuirealm = { version = "1.8.0", default-features = false, features = [ "with-termion" ] }
 tui-realm-stdlib = { version = "1.2.0", default-features = false, features = [ "with-termion" ] }
 
