@@ -1508,6 +1508,7 @@ dependencies = [
  "radicle-cli",
  "radicle-surf",
  "radicle-term",
+ "textwrap 0.16.0",
  "timeago 0.4.1",
  "tui-realm-stdlib",
  "tuirealm",
@@ -2020,6 +2021,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "textwrap"
+version = "0.16.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "222a222a5bfe1bba4a77b45ec488a741b3cb8872e5e499451fd7d0129c9c7c3d"
+dependencies = [
+ "smawk",
+ "unicode-linebreak",
+ "unicode-width",
+]
+
+[[package]]
 name = "thiserror"
 version = "1.0.44"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2100,7 +2112,7 @@ version = "1.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "66f252bf8b07c6fd708ddd6349b5f044ae5b488b26929c745728d9c7e2cebfa6"
 dependencies = [
- "textwrap",
+ "textwrap 0.15.2",
  "tuirealm",
  "unicode-width",
 ]
