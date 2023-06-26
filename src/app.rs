@@ -41,7 +41,7 @@ pub enum PatchCid {
 pub enum IssueCid {
     Header,
     List,
-    Discussion,
+    Details,
     Shortcuts,
 }
 

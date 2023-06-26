@@ -8,7 +8,7 @@ pub struct AppHeader {
     pub line: Rect,
 }
 
-pub struct IssuePreview {
+pub struct IssuePage {
     pub header: Rect,
     pub left: Rect,
     pub right: Rect,
@@ -195,12 +195,9 @@ pub fn centered_rect(percent_x: u16, percent_y: u16, r: Rect) -> Rect {
         .split(popup_layout[1])[1]
 }
 
-pub fn issue_preview(area: Rect, shortcuts_h: u16) -> IssuePreview {
+pub fn issue_page(area: Rect, shortcuts_h: u16) -> IssuePage {
+    let content_h = area.height.saturating_sub(shortcuts_h);
     let header_h = 3u16;
-    let content_h = area
-        .height
-        .saturating_sub(header_h)
-        .saturating_sub(shortcuts_h);
 
     let root = Layout::default()
         .direction(Direction::Vertical)
@@ -220,7 +217,7 @@ pub fn issue_preview(area: Rect, shortcuts_h: u16) -> IssuePreview {
         .constraints([Constraint::Percentage(50), Constraint::Percentage(50)].as_ref())
         .split(root[1]);
 
-    IssuePreview {
+    IssuePage {
         header: root[0],
         left: split[0],
         right: split[1],

@@ -1,3 +1,5 @@
+use radicle::cob::thread::Comment;
+use radicle::cob::thread::CommentId;
 use radicle_cli::terminal::format;
 
 use radicle::cob::issue::Issue;
@@ -10,6 +12,7 @@ use tuirealm::tui::layout::Layout;
 
 use super::common::container::Container;
 use super::common::container::LabeledContainer;
+use super::common::label::Textarea;
 use super::common::list::List;
 use super::common::list::Property;
 use super::Widget;
@@ -77,11 +80,11 @@ impl WidgetComponent for LargeList {
     }
 }
 
-pub struct Details {
+pub struct IssueHeader {
     container: Widget<Container>,
 }
 
-impl Details {
+impl IssueHeader {
     pub fn new(context: &Context, theme: &Theme, issue: (IssueId, Issue)) -> Self {
         let repo = context.repository();
 
@@ -132,7 +135,7 @@ impl Details {
     }
 }
 
-impl WidgetComponent for Details {
+impl WidgetComponent for IssueHeader {
     fn view(&mut self, _properties: &Props, frame: &mut Frame, area: Rect) {
         self.container.view(frame, area);
     }
@@ -146,34 +149,87 @@ impl WidgetComponent for Details {
     }
 }
 
-pub struct IssueDiscussion {
-    details: Widget<Details>,
+pub struct IssueDetails {
+    header: Widget<IssueHeader>,
+    description: Widget<CommentBody>,
 }
 
-impl IssueDiscussion {
-    pub fn new(context: &Context, theme: &Theme, issue: (IssueId, Issue)) -> Self {
+impl IssueDetails {
+    pub fn new(
+        context: &Context,
+        theme: &Theme,
+        issue: (IssueId, Issue),
+        description: Option<(&CommentId, &Comment)>,
+    ) -> Self {
         Self {
-            details: details(context, theme, issue),
+            header: header(context, theme, issue),
+            description: issue::description(context, theme, description),
         }
     }
 }
 
-impl WidgetComponent for IssueDiscussion {
-    fn view(&mut self, _properties: &Props, frame: &mut Frame, area: Rect) {
+impl WidgetComponent for IssueDetails {
+    fn view(&mut self, properties: &Props, frame: &mut Frame, area: Rect) {
+        let focus = properties
+            .get_or(Attribute::Focus, AttrValue::Flag(false))
+            .unwrap_flag();
         let layout = Layout::default()
             .direction(Direction::Vertical)
             .constraints([Constraint::Length(6), Constraint::Min(1)])
             .split(area);
 
-        self.details.view(frame, layout[0]);
+        self.header.view(frame, layout[0]);
+
+        self.description
+            .attr(Attribute::Focus, AttrValue::Flag(focus));
+        self.description.view(frame, layout[1]);
     }
 
     fn state(&self) -> State {
         State::None
     }
 
-    fn perform(&mut self, _properties: &Props, _cmd: Cmd) -> CmdResult {
-        CmdResult::None
+    fn perform(&mut self, _properties: &Props, cmd: Cmd) -> CmdResult {
+        self.description.perform(cmd)
+    }
+}
+
+pub struct CommentBody {
+    textarea: Widget<Container>,
+}
+
+impl CommentBody {
+    pub fn new(_context: &Context, theme: &Theme, comment: Option<(&CommentId, &Comment)>) -> Self {
+        let content = match comment {
+            Some((_, comment)) => comment.body().to_string(),
+            None => String::new(),
+        };
+        let textarea = Widget::new(Textarea::new(theme.clone()))
+            .content(AttrValue::String(content))
+            .foreground(theme.colors.default_fg);
+
+        let textarea = common::container(theme, textarea.to_boxed());
+
+        Self { textarea }
+    }
+}
+
+impl WidgetComponent for CommentBody {
+    fn view(&mut self, properties: &Props, frame: &mut Frame, area: Rect) {
+        let focus = properties
+            .get_or(Attribute::Focus, AttrValue::Flag(false))
+            .unwrap_flag();
+
+        self.textarea.attr(Attribute::Focus, AttrValue::Flag(focus));
+        self.textarea.view(frame, area);
+    }
+
+    fn state(&self) -> State {
+        State::None
+    }
+
+    fn perform(&mut self, _properties: &Props, cmd: Cmd) -> CmdResult {
+        self.textarea.perform(cmd)
     }
 }
 
@@ -183,17 +239,27 @@ pub fn list(context: &Context, theme: &Theme, issue: (IssueId, Issue)) -> Widget
     Widget::new(list)
 }
 
-pub fn details(context: &Context, theme: &Theme, issue: (IssueId, Issue)) -> Widget<Details> {
-    let details = Details::new(context, theme, issue);
-    Widget::new(details)
+pub fn header(context: &Context, theme: &Theme, issue: (IssueId, Issue)) -> Widget<IssueHeader> {
+    let header = IssueHeader::new(context, theme, issue);
+    Widget::new(header)
 }
 
-pub fn issue_discussion(
+pub fn description(
+    context: &Context,
+    theme: &Theme,
+    comment: Option<(&CommentId, &Comment)>,
+) -> Widget<CommentBody> {
+    let body = CommentBody::new(context, theme, comment);
+    Widget::new(body)
+}
+
+pub fn details(
     context: &Context,
     theme: &Theme,
     issue: (IssueId, Issue),
-) -> Widget<IssueDiscussion> {
-    let discussion = IssueDiscussion::new(context, theme, issue);
+    comment: Option<(&CommentId, &Comment)>,
+) -> Widget<IssueDetails> {
+    let discussion = IssueDetails::new(context, theme, issue, comment);
     Widget::new(discussion)
 }
 
