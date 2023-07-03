@@ -47,6 +47,7 @@ pub enum IssueCid {
     List,
     Details,
     Context,
+    NewForm,
     Shortcuts,
 }
 
@@ -69,6 +70,8 @@ pub enum IssueMessage {
     Show(IssueId),
     Changed(IssueId),
     Focus(IssueCid),
+    OpenPopup(IssueCid),
+    ClosePopup(IssueCid),
     Leave,
 }
 

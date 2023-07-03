@@ -78,6 +78,11 @@ impl tuirealm::Component<Message, NoUserEvent> for Widget<issue::LargeList> {
             Event::Keyboard(KeyEvent {
                 code: Key::Enter, ..
             }) => Some(Message::Issue(IssueMessage::Focus(IssueCid::Details))),
+            Event::Keyboard(KeyEvent {
+                code: Key::Char('o'), ..
+            }) => {
+                Some(Message::Issue(IssueMessage::OpenPopup(IssueCid::NewForm)))
+            }
             _ => None,
         }
     }
@@ -98,6 +103,17 @@ impl tuirealm::Component<Message, NoUserEvent> for Widget<issue::IssueDetails> {
             }
             Event::Keyboard(KeyEvent { code: Key::Esc, .. }) => {
                 Some(Message::Issue(IssueMessage::Focus(IssueCid::List)))
+            }
+            _ => None,
+        }
+    }
+}
+
+impl tuirealm::Component<Message, NoUserEvent> for Widget<issue::NewForm> {
+    fn on(&mut self, event: Event<NoUserEvent>) -> Option<Message> {
+        match event {
+            Event::Keyboard(KeyEvent { code: Key::Esc, .. }) => {
+                Some(Message::Issue(IssueMessage::ClosePopup(IssueCid::NewForm)))
             }
             _ => None,
         }

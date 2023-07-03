@@ -427,6 +427,7 @@ impl ViewPage for IssuePage {
         app.umount(&Cid::Issue(IssueCid::List))?;
         app.umount(&Cid::Issue(IssueCid::Details))?;
         app.umount(&Cid::Issue(IssueCid::Context))?;
+        app.umount(&Cid::Issue(IssueCid::NewForm))?;
         app.umount(&Cid::Issue(IssueCid::Shortcuts))?;
         Ok(())
     }
@@ -457,6 +458,17 @@ impl ViewPage for IssuePage {
                 self.activate(app, cid)?;
                 self.update_shortcuts(app, self.active_component.clone())?;
             }
+            Message::Issue(IssueMessage::OpenPopup(cid)) => {
+                if cid == IssueCid::NewForm {
+                    let new_form = widget::issue::new_form(context, theme).to_boxed();
+                    app.remount(Cid::Issue(IssueCid::NewForm), new_form, vec![])?;
+                    app.active(&Cid::Issue(IssueCid::NewForm))?;
+                }
+            }
+            Message::Issue(IssueMessage::ClosePopup(cid)) => {
+                app.blur()?;
+                app.umount(&Cid::Issue(cid))?;
+            }
             _ => {}
         }
 
@@ -472,7 +484,13 @@ impl ViewPage for IssuePage {
 
         app.view(&Cid::Issue(IssueCid::Header), frame, layout.header);
         app.view(&Cid::Issue(IssueCid::List), frame, layout.left);
-        app.view(&Cid::Issue(IssueCid::Details), frame, layout.right);
+
+        if app.mounted(&Cid::Issue(IssueCid::NewForm)) {
+            app.view(&Cid::Issue(IssueCid::NewForm), frame, layout.right);
+        } else {
+            app.view(&Cid::Issue(IssueCid::Details), frame, layout.right);
+        }
+
         app.view(&Cid::Issue(IssueCid::Context), frame, layout.context);
         app.view(&Cid::Issue(IssueCid::Shortcuts), frame, layout.shortcuts);
     }

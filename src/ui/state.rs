@@ -83,3 +83,51 @@ impl From<&ItemState> for ListState {
         state
     }
 }
+
+#[derive(Clone)]
+pub struct FormState {
+    focus: Option<usize>,
+    len: usize,
+}
+
+impl FormState {
+    pub fn new(focus: Option<usize>, len: usize) -> Self {
+        Self { focus, len }
+    }
+
+    pub fn focus(&self) -> Option<usize> {
+        self.focus
+    }
+
+    pub fn focus_previous(&mut self) -> Option<usize> {
+        let old_index = self.focus();
+        let new_index = match old_index {
+            Some(focus) if focus == 0 => Some(0),
+            Some(focus) => Some(focus.saturating_sub(1)),
+            None => Some(0),
+        };
+
+        if old_index != new_index {
+            self.focus = new_index;
+            self.focus()
+        } else {
+            None
+        }
+    }
+
+    pub fn focus_next(&mut self) -> Option<usize> {
+        let old_index = self.focus();
+        let new_index = match old_index {
+            Some(focus) if focus >= self.len.saturating_sub(1) => Some(self.len.saturating_sub(1)),
+            Some(focus) => Some(focus.saturating_add(1)),
+            None => Some(0),
+        };
+
+        if old_index != new_index {
+            self.focus = new_index;
+            self.focus()
+        } else {
+            None
+        }
+    }
+}
