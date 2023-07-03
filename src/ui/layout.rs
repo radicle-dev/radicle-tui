@@ -10,9 +10,8 @@ pub struct AppHeader {
 
 pub struct IssuePreview {
     pub header: Rect,
-    pub list: Rect,
-    pub details: Rect,
-    pub discussion: Rect,
+    pub left: Rect,
+    pub right: Rect,
     pub shortcuts: Rect,
 }
 
@@ -221,16 +220,10 @@ pub fn issue_preview(area: Rect, shortcuts_h: u16) -> IssuePreview {
         .constraints([Constraint::Percentage(50), Constraint::Percentage(50)].as_ref())
         .split(root[1]);
 
-    let right = Layout::default()
-        .direction(Direction::Vertical)
-        .constraints([Constraint::Length(6), Constraint::Min(0)].as_ref())
-        .split(split[1]);
-
     IssuePreview {
         header: root[0],
-        list: split[0],
-        details: right[0],
-        discussion: right[1],
-        shortcuts: root[2],
+        left: split[0],
+        right: split[1],
+        shortcuts: root[1],
     }
 }

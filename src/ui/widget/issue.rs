@@ -4,6 +4,9 @@ use radicle::cob::issue::Issue;
 use radicle::cob::issue::IssueId;
 use radicle::Profile;
 use tuirealm::props::Color;
+use tuirealm::tui::layout::Constraint;
+use tuirealm::tui::layout::Direction;
+use tuirealm::tui::layout::Layout;
 
 use super::common::container::Container;
 use super::common::container::LabeledContainer;
@@ -143,6 +146,37 @@ impl WidgetComponent for Details {
     }
 }
 
+pub struct IssueDiscussion {
+    details: Widget<Details>,
+}
+
+impl IssueDiscussion {
+    pub fn new(context: &Context, theme: &Theme, issue: (IssueId, Issue)) -> Self {
+        Self {
+            details: details(context, theme, issue),
+        }
+    }
+}
+
+impl WidgetComponent for IssueDiscussion {
+    fn view(&mut self, _properties: &Props, frame: &mut Frame, area: Rect) {
+        let layout = Layout::default()
+            .direction(Direction::Vertical)
+            .constraints([Constraint::Length(6), Constraint::Min(1)])
+            .split(area);
+
+        self.details.view(frame, layout[0]);
+    }
+
+    fn state(&self) -> State {
+        State::None
+    }
+
+    fn perform(&mut self, _properties: &Props, _cmd: Cmd) -> CmdResult {
+        CmdResult::None
+    }
+}
+
 pub fn list(context: &Context, theme: &Theme, issue: (IssueId, Issue)) -> Widget<LargeList> {
     let list = LargeList::new(context, theme, Some(issue));
 
@@ -152,6 +186,15 @@ pub fn list(context: &Context, theme: &Theme, issue: (IssueId, Issue)) -> Widget
 pub fn details(context: &Context, theme: &Theme, issue: (IssueId, Issue)) -> Widget<Details> {
     let details = Details::new(context, theme, issue);
     Widget::new(details)
+}
+
+pub fn issue_discussion(
+    context: &Context,
+    theme: &Theme,
+    issue: (IssueId, Issue),
+) -> Widget<IssueDiscussion> {
+    let discussion = IssueDiscussion::new(context, theme, issue);
+    Widget::new(discussion)
 }
 
 pub fn context(theme: &Theme, issue: (IssueId, &Issue), profile: &Profile) -> Widget<ContextBar> {

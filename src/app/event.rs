@@ -78,7 +78,7 @@ impl tuirealm::Component<Message, NoUserEvent> for Widget<issue::LargeList> {
     }
 }
 
-impl tuirealm::Component<Message, NoUserEvent> for Widget<issue::Details> {
+impl tuirealm::Component<Message, NoUserEvent> for Widget<issue::IssueDiscussion> {
     fn on(&mut self, _event: Event<NoUserEvent>) -> Option<Message> {
         None
     }
