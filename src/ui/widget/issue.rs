@@ -250,7 +250,7 @@ impl WidgetComponent for CommentBody {
 }
 
 pub struct NewForm {
-    ///
+    /// The issue this form writes its input values to.
     _issue: Issue,
     // This form's fields: title, tags, assignees, description.
     inputs: Vec<Input>,
@@ -261,7 +261,7 @@ pub struct NewForm {
 impl NewForm {
     pub fn new(_context: &Context, theme: &Theme) -> Self {
         let foreground = theme.colors.default_fg;
-        let placeholder_style = Style::default().fg(theme.colors.container_border_fg);
+        let placeholder_style = Style::default().fg(theme.colors.input_placeholder_fg);
         let inactive_style = Style::default().fg(theme.colors.container_border_fg);
         let borders = Borders::default()
             .modifiers(BorderType::Rounded)
