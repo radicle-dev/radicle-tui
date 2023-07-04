@@ -300,7 +300,11 @@ impl NewForm {
 
 impl WidgetComponent for NewForm {
     fn view(&mut self, _properties: &Props, frame: &mut Frame, area: Rect) {
+        // Clear and set current focus
         let focus = self.state.focus().unwrap_or(0);
+        for input in &mut self.inputs {
+            input.attr(Attribute::Focus, AttrValue::Flag(false));
+        }
         if let Some(input) = self.inputs.get_mut(focus) {
             input.attr(Attribute::Focus, AttrValue::Flag(true));
         }
@@ -326,8 +330,19 @@ impl WidgetComponent for NewForm {
         State::None
     }
 
-    fn perform(&mut self, _properties: &Props, _cmd: Cmd) -> CmdResult {
-        CmdResult::None
+    fn perform(&mut self, _properties: &Props, cmd: Cmd) -> CmdResult {
+        use tuirealm::command::Direction;
+        match cmd {
+            Cmd::Move(Direction::Up) => {
+                self.state.focus_previous();
+                CmdResult::None
+            }
+            Cmd::Move(Direction::Down) => {
+                self.state.focus_next();
+                CmdResult::None
+            }
+            _ => CmdResult::None,
+        }
     }
 }
 

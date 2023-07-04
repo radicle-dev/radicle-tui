@@ -1,5 +1,5 @@
 use tuirealm::command::{Cmd, CmdResult, Direction as MoveDirection};
-use tuirealm::event::{Event, Key, KeyEvent};
+use tuirealm::event::{Event, Key, KeyEvent, KeyModifiers};
 use tuirealm::{MockComponent, NoUserEvent, State, StateValue};
 
 use radicle_tui::ui::widget::common::container::{
@@ -114,6 +114,23 @@ impl tuirealm::Component<Message, NoUserEvent> for Widget<issue::NewForm> {
         match event {
             Event::Keyboard(KeyEvent { code: Key::Esc, .. }) => {
                 Some(Message::Issue(IssueMessage::ClosePopup(IssueCid::NewForm)))
+            }
+            Event::Keyboard(KeyEvent {
+                code: Key::BackTab, ..
+            }) => {
+                self.perform(Cmd::Move(MoveDirection::Up));
+                Some(Message::Tick)
+            }
+            Event::Keyboard(KeyEvent { code: Key::Tab, .. }) => {
+                self.perform(Cmd::Move(MoveDirection::Down));
+                Some(Message::Tick)
+            }
+            Event::Keyboard(KeyEvent {
+                code: Key::Char('s'),
+                modifiers: KeyModifiers::ALT,
+            }) => {
+                self.perform(Cmd::Submit);
+                None
             }
             _ => None,
         }
