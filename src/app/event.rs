@@ -1,4 +1,4 @@
-use tuirealm::command::{Cmd, CmdResult, Direction as MoveDirection};
+use tuirealm::command::{Cmd, CmdResult, Direction as MoveDirection, Position};
 use tuirealm::event::{Event, Key, KeyEvent, KeyModifiers};
 use tuirealm::{MockComponent, NoUserEvent, State, StateValue};
 
@@ -112,6 +112,48 @@ impl tuirealm::Component<Message, NoUserEvent> for Widget<issue::IssueDetails> {
 impl tuirealm::Component<Message, NoUserEvent> for Widget<issue::NewForm> {
     fn on(&mut self, event: Event<NoUserEvent>) -> Option<Message> {
         match event {
+            Event::Keyboard(KeyEvent {
+                code: Key::Left, ..
+            }) => {
+                self.perform(Cmd::Move(MoveDirection::Left));
+                Some(Message::Tick)
+            }
+            Event::Keyboard(KeyEvent {
+                code: Key::Right, ..
+            }) => {
+                self.perform(Cmd::Move(MoveDirection::Right));
+                Some(Message::Tick)
+            }
+            Event::Keyboard(KeyEvent {
+                code: Key::Home, ..
+            }) => {
+                self.perform(Cmd::GoTo(Position::Begin));
+                Some(Message::Tick)
+            }
+            Event::Keyboard(KeyEvent { code: Key::End, .. }) => {
+                self.perform(Cmd::GoTo(Position::End));
+                Some(Message::Tick)
+            }
+            Event::Keyboard(KeyEvent {
+                code: Key::Delete, ..
+            }) => {
+                self.perform(Cmd::Cancel);
+                Some(Message::Tick)
+            }
+            Event::Keyboard(KeyEvent {
+                code: Key::Backspace,
+                ..
+            }) => {
+                self.perform(Cmd::Delete);
+                Some(Message::Tick)
+            }
+            Event::Keyboard(KeyEvent {
+                code: Key::Char(ch),
+                modifiers: KeyModifiers::NONE,
+            }) => {
+                self.perform(Cmd::Type(ch));
+                Some(Message::Tick)
+            }
             Event::Keyboard(KeyEvent { code: Key::Esc, .. }) => {
                 Some(Message::Issue(IssueMessage::ClosePopup(IssueCid::NewForm)))
             }

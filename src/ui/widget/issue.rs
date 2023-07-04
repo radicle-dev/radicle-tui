@@ -341,7 +341,14 @@ impl WidgetComponent for NewForm {
                 self.state.focus_next();
                 CmdResult::None
             }
-            _ => CmdResult::None,
+            _ => {
+                let focus = self.state.focus().unwrap_or(0);
+                if let Some(input) = self.inputs.get_mut(focus) {
+                    input.perform(cmd)
+                } else {
+                    CmdResult::None
+                }
+            }
         }
     }
 }
