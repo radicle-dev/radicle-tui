@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-use anyhow::{Ok, Result};
+use anyhow::Result;
 
 use radicle::cob::issue::{Issue, IssueId};
 use radicle::cob::patch::{Patch, PatchId};
@@ -281,8 +281,8 @@ pub struct IssuePage {
 }
 
 impl IssuePage {
-    pub fn new(theme: Theme, issue: (IssueId, Issue)) -> Self {
-        let shortcuts = Self::build_shortcuts(&theme);
+    pub fn new(_context: &Context, theme: &Theme, issue: (IssueId, Issue)) -> Self {
+        let shortcuts = Self::build_shortcuts(theme);
         let active_component = IssueCid::List;
 
         Self {
@@ -313,6 +313,7 @@ impl IssuePage {
                         widget::common::shortcut(theme, "esc", "back"),
                         widget::common::shortcut(theme, "↑/↓", "navigate"),
                         widget::common::shortcut(theme, "enter", "show"),
+                        widget::common::shortcut(theme, "n", "new issue"),
                         widget::common::shortcut(theme, "q", "quit"),
                     ],
                 ),
@@ -325,6 +326,17 @@ impl IssuePage {
                         widget::common::shortcut(theme, "esc", "back"),
                         widget::common::shortcut(theme, "↑/↓", "scroll"),
                         widget::common::shortcut(theme, "q", "quit"),
+                    ],
+                ),
+            ),
+            (
+                IssueCid::NewForm,
+                widget::common::shortcuts(
+                    theme,
+                    vec![
+                        widget::common::shortcut(theme, "esc", "back"),
+                        widget::common::shortcut(theme, "shift + tab / tab", "navigate"),
+                        widget::common::shortcut(theme, "alt + s", "submit"),
                     ],
                 ),
             ),
@@ -461,13 +473,17 @@ impl ViewPage for IssuePage {
             Message::Issue(IssueMessage::OpenPopup(cid)) => {
                 if cid == IssueCid::NewForm {
                     let new_form = widget::issue::new_form(context, theme).to_boxed();
-                    app.remount(Cid::Issue(IssueCid::NewForm), new_form, vec![])?;
-                    app.active(&Cid::Issue(IssueCid::NewForm))?;
+                    app.remount(Cid::Issue(cid.clone()), new_form, vec![])?;
+                    app.active(&Cid::Issue(cid.clone()))?;
+
+                    self.update_shortcuts(app, cid)?;
                 }
             }
             Message::Issue(IssueMessage::ClosePopup(cid)) => {
                 app.blur()?;
                 app.umount(&Cid::Issue(cid))?;
+
+                self.update_shortcuts(app, IssueCid::List)?;
             }
             _ => {}
         }

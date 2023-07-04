@@ -79,7 +79,7 @@ impl tuirealm::Component<Message, NoUserEvent> for Widget<issue::LargeList> {
                 code: Key::Enter, ..
             }) => Some(Message::Issue(IssueMessage::Focus(IssueCid::Details))),
             Event::Keyboard(KeyEvent {
-                code: Key::Char('o'), ..
+                code: Key::Char('n'), ..
             }) => {
                 Some(Message::Issue(IssueMessage::OpenPopup(IssueCid::NewForm)))
             }
