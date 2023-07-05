@@ -439,7 +439,9 @@ impl ViewPage for IssuePage {
         app.umount(&Cid::Issue(IssueCid::List))?;
         app.umount(&Cid::Issue(IssueCid::Details))?;
         app.umount(&Cid::Issue(IssueCid::Context))?;
-        app.umount(&Cid::Issue(IssueCid::NewForm))?;
+        if app.mounted(&Cid::Issue(IssueCid::NewForm)) {
+            app.umount(&Cid::Issue(IssueCid::NewForm))?;
+        }
         app.umount(&Cid::Issue(IssueCid::Shortcuts))?;
         Ok(())
     }

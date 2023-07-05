@@ -3,10 +3,6 @@ use radicle::cob::thread::CommentId;
 
 use radicle::cob::issue::Issue;
 use radicle::cob::issue::IssueId;
-use tui_realm_stdlib::Input;
-use tuirealm::props::BorderType;
-use tuirealm::props::Borders;
-use tuirealm::props::Style;
 use tuirealm::tui::layout::Constraint;
 use tuirealm::tui::layout::Direction;
 use tuirealm::tui::layout::Layout;
@@ -23,6 +19,7 @@ use crate::ui::cob;
 use crate::ui::cob::IssueItem;
 use crate::ui::context::Context;
 use crate::ui::theme::Theme;
+use crate::ui::widget::common::form::TextInput;
 
 use super::*;
 
@@ -258,38 +255,17 @@ impl NewForm {
     pub fn new(theme: &Theme) -> Self {
         use tuirealm::props::Layout;
 
-        let foreground = theme.colors.default_fg;
-        let placeholder_style = Style::default().fg(theme.colors.input_placeholder_fg);
-        let inactive_style = Style::default().fg(theme.colors.container_border_fg);
-        let borders = Borders::default()
-            .modifiers(BorderType::Rounded)
-            .color(theme.colors.container_border_focus_fg);
-
-        let title = Input::default()
-            .foreground(foreground)
-            .borders(borders.clone())
-            .inactive(inactive_style)
-            .placeholder("Title", placeholder_style);
-        let tags = Input::default()
-            .foreground(foreground)
-            .borders(borders.clone())
-            .inactive(inactive_style)
-            .placeholder("Tags", placeholder_style);
-        let assignees = Input::default()
-            .foreground(foreground)
-            .borders(borders.clone())
-            .inactive(inactive_style)
-            .placeholder("Assignees", placeholder_style);
-        let description = Input::default()
-            .foreground(foreground)
-            .borders(borders)
-            .inactive(inactive_style)
-            .placeholder("Description", placeholder_style);
+        let title = Widget::new(TextInput::new(theme.clone(), "Title"));
+        let tags = Widget::new(TextInput::new(theme.clone(), "Tags"));
+        let assignees = Widget::new(TextInput::new(theme.clone(), "Assignees"));
+        let description = Widget::new(TextInput::new(theme.clone(), "Description"))
+            .custom(TextInput::PROP_MULTILINE, AttrValue::Flag(true));
 
         let mut form = Widget::new(Form::new(
             theme.clone(),
             vec![title, tags, assignees, description],
         ));
+
         form.attr(
             Attribute::Layout,
             AttrValue::Layout(
@@ -322,7 +298,13 @@ impl WidgetComponent for NewForm {
     }
 
     fn perform(&mut self, _properties: &Props, cmd: Cmd) -> CmdResult {
-        self.form.perform(cmd)
+        match self.form.perform(cmd) {
+            CmdResult::Submit(State::Vec(values)) => {
+                println!("{:?}", values);
+                CmdResult::None
+            }
+            _ => CmdResult::None,
+        }
     }
 }
 

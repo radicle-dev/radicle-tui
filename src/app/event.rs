@@ -6,6 +6,7 @@ use radicle_tui::ui::widget::common::container::{
     AppHeader, GlobalListener, LabeledContainer, Popup,
 };
 use radicle_tui::ui::widget::common::context::{ContextBar, Shortcuts};
+use radicle_tui::ui::widget::common::form::TextInput;
 use radicle_tui::ui::widget::common::list::PropertyList;
 use radicle_tui::ui::widget::home::{Dashboard, IssueBrowser, PatchBrowser};
 use radicle_tui::ui::widget::{issue, patch};
@@ -148,11 +149,17 @@ impl tuirealm::Component<Message, NoUserEvent> for Widget<issue::NewForm> {
                 Some(Message::Tick)
             }
             Event::Keyboard(KeyEvent {
-                code: Key::Char(ch),
-                modifiers: KeyModifiers::NONE,
+                code: Key::Enter, ..
             }) => {
-                self.perform(Cmd::Type(ch));
+                self.perform(Cmd::Custom(TextInput::CMD_NEWLINE));
                 Some(Message::Tick)
+            }
+            Event::Keyboard(KeyEvent {
+                code: Key::Char('s'),
+                modifiers: KeyModifiers::ALT,
+            }) => {
+                self.perform(Cmd::Submit);
+                None
             }
             Event::Keyboard(KeyEvent { code: Key::Esc, .. }) => {
                 Some(Message::Issue(IssueMessage::ClosePopup(IssueCid::NewForm)))
@@ -168,11 +175,18 @@ impl tuirealm::Component<Message, NoUserEvent> for Widget<issue::NewForm> {
                 Some(Message::Tick)
             }
             Event::Keyboard(KeyEvent {
-                code: Key::Char('s'),
-                modifiers: KeyModifiers::ALT,
+                code: Key::Char(ch),
+                modifiers: KeyModifiers::SHIFT,
             }) => {
-                self.perform(Cmd::Submit);
-                None
+                self.perform(Cmd::Type(ch.to_ascii_uppercase()));
+                Some(Message::Tick)
+            }
+            Event::Keyboard(KeyEvent {
+                code: Key::Char(ch),
+                ..
+            }) => {
+                self.perform(Cmd::Type(ch));
+                Some(Message::Tick)
             }
             _ => None,
         }
