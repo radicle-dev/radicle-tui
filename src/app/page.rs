@@ -478,12 +478,19 @@ impl ViewPage for IssuePage {
                     app.remount(Cid::Issue(cid.clone()), new_form, vec![])?;
                     app.active(&Cid::Issue(cid.clone()))?;
 
+                    app.unsubscribe(&Cid::GlobalListener, subscription::global_clause())?;
+
                     self.update_shortcuts(app, cid)?;
                 }
             }
             Message::Issue(IssueMessage::ClosePopup(cid)) => {
                 app.blur()?;
                 app.umount(&Cid::Issue(cid))?;
+
+                app.subscribe(
+                    &Cid::GlobalListener,
+                    Sub::new(subscription::global_clause(), SubClause::Always),
+                )?;
 
                 self.update_shortcuts(app, IssueCid::List)?;
             }

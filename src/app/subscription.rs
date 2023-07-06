@@ -1,7 +1,5 @@
-use std::hash::Hash;
-
 use tuirealm::event::{Key, KeyEvent, KeyModifiers};
-use tuirealm::{Sub, SubClause, SubEventClause};
+use tuirealm::SubEventClause;
 
 pub fn navigation_clause<UserEvent>() -> SubEventClause<UserEvent>
 where
@@ -13,19 +11,12 @@ where
     })
 }
 
-pub fn global<Id, UserEvent>() -> Vec<Sub<Id, UserEvent>>
+pub fn global_clause<UserEvent>() -> SubEventClause<UserEvent>
 where
-    Id: Clone + Hash + Eq + PartialEq,
     UserEvent: Clone + Eq + PartialEq + PartialOrd,
 {
-    vec![
-        Sub::new(
-            SubEventClause::Keyboard(KeyEvent {
-                code: Key::Char('q'),
-                modifiers: KeyModifiers::NONE,
-            }),
-            SubClause::Always,
-        ),
-        Sub::new(SubEventClause::WindowResize, SubClause::Always),
-    ]
+    SubEventClause::Keyboard(KeyEvent {
+        code: Key::Char('q'),
+        modifiers: KeyModifiers::NONE,
+    })
 }

@@ -11,7 +11,7 @@ use radicle::profile::Profile;
 
 use radicle_tui::ui::widget;
 use tuirealm::application::PollStrategy;
-use tuirealm::{Application, Frame, NoUserEvent};
+use tuirealm::{Application, Frame, NoUserEvent, Sub, SubClause};
 
 use radicle_tui::ui::context::Context;
 use radicle_tui::ui::theme::{self, Theme};
@@ -288,7 +288,11 @@ impl Tui<Cid, Message> for App {
 
         // Add global key listener and subscribe to key events
         let global = ui::widget::common::global_listener().to_boxed();
-        app.mount(Cid::GlobalListener, global, subscription::global())?;
+        app.mount(
+            Cid::GlobalListener,
+            global,
+            vec![Sub::new(subscription::global_clause(), SubClause::Always)],
+        )?;
 
         Ok(())
     }
