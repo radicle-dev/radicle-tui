@@ -15,6 +15,7 @@ anyhow = { version = "1" }
 lexopt = { version = "0.2" }
 radicle-surf = { version = "0.14.0" }
 timeago = { version = "0.4.1" }
+textwrap = { version = "0.16.0" }
 tuirealm = { version = "1.8.0", default-features = false, features = [ "with-termion" ] }
 tui-realm-stdlib = { version = "1.2.0", default-features = false, features = [ "with-termion" ] }
 
