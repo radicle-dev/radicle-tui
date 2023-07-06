@@ -1,7 +1,7 @@
 use tuirealm::command::{Cmd, CmdResult};
 use tuirealm::props::{AttrValue, Attribute, BorderSides, BorderType, Props, Style, TextModifiers};
-use tuirealm::tui::layout::{Constraint, Direction, Layout, Rect};
-use tuirealm::tui::widgets::{Block, Cell, Row};
+use tuirealm::tui::layout::{Constraint, Direction, Layout, Margin, Rect};
+use tuirealm::tui::widgets::{Block, Cell, Clear, Row};
 use tuirealm::{Frame, MockComponent, State, StateValue};
 
 use crate::ui::ext::HeaderBlock;
@@ -363,6 +363,8 @@ impl WidgetComponent for Container {
                 .constraints(vec![Constraint::Length(1), Constraint::Min(0)].as_ref())
                 .split(area);
             // reverse draw order: child needs to be drawn first?
+            self.component
+                .attr(Attribute::Focus, AttrValue::Flag(focus));
             self.component.view(frame, layout[1]);
 
             let block = Block::default()
@@ -422,29 +424,73 @@ impl WidgetComponent for LabeledContainer {
         if display {
             let layout = Layout::default()
                 .direction(Direction::Vertical)
-                .constraints([Constraint::Length(header_height), Constraint::Length(0)].as_ref())
+                .constraints([Constraint::Length(header_height), Constraint::Min(1)].as_ref())
                 .split(area);
 
-            // Make some space on the left
-            let inner_layout = Layout::default()
-                .direction(Direction::Horizontal)
-                .horizontal_margin(1)
-                .constraints(vec![Constraint::Length(1), Constraint::Min(0)].as_ref())
-                .split(layout[1]);
-            // reverse draw order: child needs to be drawn first?
-
-            self.component
-                .attr(Attribute::Focus, AttrValue::Flag(focus));
-            self.component.view(frame, inner_layout[1]);
+            self.header.attr(Attribute::Focus, AttrValue::Flag(focus));
+            self.header.view(frame, layout[0]);
 
             let block = Block::default()
                 .borders(BorderSides::BOTTOM | BorderSides::LEFT | BorderSides::RIGHT)
                 .border_style(Style::default().fg(color))
                 .border_type(BorderType::Rounded);
-            frame.render_widget(block, layout[1]);
+            frame.render_widget(block.clone(), layout[1]);
 
-            self.header.attr(Attribute::Focus, AttrValue::Flag(focus));
-            self.header.view(frame, layout[0]);
+            self.component
+                .attr(Attribute::Focus, AttrValue::Flag(focus));
+            self.component.view(
+                frame,
+                block.inner(layout[1]).inner(&Margin {
+                    vertical: 0,
+                    horizontal: 1,
+                }),
+            );
+        }
+    }
+
+    fn state(&self) -> State {
+        State::None
+    }
+
+    fn perform(&mut self, _properties: &Props, cmd: Cmd) -> CmdResult {
+        self.component.perform(cmd)
+    }
+}
+
+pub struct Popup {
+    component: Widget<LabeledContainer>,
+}
+
+impl Popup {
+    pub fn new(_theme: Theme, component: Widget<LabeledContainer>) -> Self {
+        Self { component }
+    }
+}
+
+impl WidgetComponent for Popup {
+    fn view(&mut self, properties: &Props, frame: &mut Frame, _area: Rect) {
+        let display = properties
+            .get_or(Attribute::Display, AttrValue::Flag(true))
+            .unwrap_flag();
+        let focus = properties
+            .get_or(Attribute::Focus, AttrValue::Flag(false))
+            .unwrap_flag();
+        let width = properties
+            .get_or(Attribute::Width, AttrValue::Size(50))
+            .unwrap_size();
+        let height = properties
+            .get_or(Attribute::Height, AttrValue::Size(50))
+            .unwrap_size();
+
+        if display {
+            let size = frame.size();
+
+            let area = layout::centered_rect(width, height, size);
+            frame.render_widget(Clear, area);
+
+            self.component
+                .attr(Attribute::Focus, AttrValue::Flag(focus));
+            self.component.view(frame, area);
         }
     }
 

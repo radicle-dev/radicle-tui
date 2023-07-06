@@ -147,7 +147,7 @@ impl WidgetComponent for Textarea {
         // spans than plain text.
         let body = textwrap::wrap(&content, area.width.saturating_sub(2) as usize);
         let len = body.len();
-        let height = layout[0].height - 1;
+        let height = layout[0].height.saturating_sub(1);
 
         let body: String = body.iter().map(|line| format!("{}\n", line)).collect();
 

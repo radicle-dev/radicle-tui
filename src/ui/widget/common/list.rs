@@ -336,11 +336,6 @@ where
             .get_or(Attribute::HighlightedColor, AttrValue::Color(Color::Reset))
             .unwrap_color();
 
-        let layout = Layout::default()
-            .direction(Direction::Vertical)
-            .constraints(vec![Constraint::Min(1), Constraint::Length(1)])
-            .split(area);
-
         let rows: Vec<ListItem> = self
             .items
             .iter()
@@ -348,7 +343,7 @@ where
             .collect();
         let list = List::new(rows).highlight_style(Style::default().bg(highlight));
 
-        frame.render_stateful_widget(list, layout[0], &mut ListState::from(&self.state));
+        frame.render_stateful_widget(list, area, &mut ListState::from(&self.state));
     }
 
     fn state(&self) -> State {
