@@ -9,6 +9,7 @@ use radicle_tui::ui::widget::common::context::{ContextBar, Shortcuts};
 use radicle_tui::ui::widget::common::form::TextInput;
 use radicle_tui::ui::widget::common::list::PropertyList;
 use radicle_tui::ui::widget::home::{Dashboard, IssueBrowser, PatchBrowser};
+use radicle_tui::ui::widget::issue::NewForm;
 use radicle_tui::ui::widget::{issue, patch};
 
 use radicle_tui::ui::widget::Widget;
@@ -158,8 +159,53 @@ impl tuirealm::Component<Message, NoUserEvent> for Widget<issue::NewForm> {
                 code: Key::Char('s'),
                 modifiers: KeyModifiers::ALT,
             }) => {
-                self.perform(Cmd::Submit);
-                None
+                match self.perform(Cmd::Submit) {
+                    CmdResult::Submit(State::Map(inputs)) => {
+                        let mut missing_values = vec![];
+
+                        let title = match inputs.get(NewForm::INPUT_TITLE) {
+                            Some(StateValue::String(title)) if !title.is_empty() => {
+                                Some(title.clone())
+                            }
+                            _ => None,
+                        };
+                        let tags = match inputs.get(NewForm::INPUT_TAGS) {
+                            Some(StateValue::String(tags)) => Some(tags.clone()),
+                            _ => Some(String::from("[]")),
+                        };
+                        let assignees = match inputs.get(NewForm::INPUT_ASSIGNESS) {
+                            Some(StateValue::String(assignees)) => Some(assignees.clone()),
+                            _ => Some(String::from("[]")),
+                        };
+                        let description = match inputs.get(NewForm::INPUT_DESCRIPTION) {
+                            Some(StateValue::String(description)) if !description.is_empty() => {
+                                Some(description.clone())
+                            }
+                            _ => None,
+                        };
+
+                        if title.is_none() {
+                            missing_values.push(NewForm::INPUT_TITLE);
+                        }
+                        if description.is_none() {
+                            missing_values.push(NewForm::INPUT_DESCRIPTION);
+                        }
+
+                        // show error popup if missing.
+                        if !missing_values.is_empty() {
+                            let error = format!("Missing fields: {:?}", missing_values);
+                            Some(Message::Popup(PopupMessage::Error(error)))
+                        } else {
+                            Some(Message::Issue(IssueMessage::New(
+                                title.unwrap(),
+                                tags.unwrap(),
+                                assignees.unwrap(),
+                                description.unwrap(),
+                            )))
+                        }
+                    }
+                    _ => None,
+                }
             }
             Event::Keyboard(KeyEvent { code: Key::Esc, .. }) => {
                 Some(Message::Issue(IssueMessage::ClosePopup(IssueCid::NewForm)))

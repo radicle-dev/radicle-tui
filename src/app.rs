@@ -72,6 +72,7 @@ pub enum IssueMessage {
     Focus(IssueCid),
     OpenPopup(IssueCid),
     ClosePopup(IssueCid),
+    New(String, String, String, String),
     Leave,
 }
 
@@ -192,6 +193,7 @@ impl App {
                     _ => Ok(Some(Message::Batch(results))),
                 }
             }
+            Message::Issue(IssueMessage::New(_title, _tags, _assignees, _description)) => Ok(None),
             Message::Issue(IssueMessage::Show(id)) => {
                 self.view_issue(app, id, &theme)?;
                 Ok(None)
