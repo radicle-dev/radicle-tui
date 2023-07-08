@@ -48,7 +48,7 @@ pub enum IssueCid {
     List,
     Details,
     Context,
-    NewForm,
+    Form,
     Shortcuts,
 }
 
@@ -67,13 +67,24 @@ pub enum Cid {
 pub enum HomeMessage {}
 
 #[derive(Clone, Debug, Eq, PartialEq)]
+pub enum IssueCobMessage {
+    Create {
+        title: String,
+        tags: String,
+        assignees: String,
+        description: String,
+    },
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
 pub enum IssueMessage {
     Show(IssueId),
     Changed(IssueId),
     Focus(IssueCid),
-    OpenPopup(IssueCid),
-    ClosePopup(IssueCid),
-    New(String, String, String, String),
+    Created(IssueId),
+    Cob(IssueCobMessage),
+    OpenForm,
+    HideForm,
     Leave,
 }
 
@@ -194,7 +205,27 @@ impl App {
                     _ => Ok(Some(Message::Batch(results))),
                 }
             }
-            Message::Issue(IssueMessage::New(_title, _tags, _assignees, _description)) => Ok(None),
+            Message::Issue(IssueMessage::Cob(IssueCobMessage::Create {
+                title,
+                tags,
+                assignees,
+                description,
+            })) => match self.create_issue(title, description, tags, assignees) {
+                Ok(id) => {
+                    self.context.reload();
+
+                    Ok(Some(Message::Batch(vec![
+                        Message::Issue(IssueMessage::HideForm),
+                        Message::Issue(IssueMessage::Created(id)),
+                    ])))
+                }
+                Err(err) => {
+                    let error = format!("{:?}", err);
+                    self.show_error_popup(app, &theme, &error)?;
+
+                    Ok(None)
+                }
+            },
             Message::Issue(IssueMessage::Show(id)) => {
                 self.view_issue(app, id, &theme)?;
                 Ok(None)
@@ -282,6 +313,29 @@ impl App {
         app.umount(&Cid::Popup)?;
 
         Ok(())
+    }
+
+    fn create_issue(
+        &mut self,
+        title: String,
+        description: String,
+        tags: String,
+        assignees: String,
+    ) -> Result<IssueId> {
+        let repository = self.context.repository();
+        let signer = self.context.signer();
+
+        let tags = cob::parse_tags(tags);
+        let assignees = cob::parse_assigness(assignees);
+
+        cob::issue::create(
+            repository,
+            signer,
+            title,
+            description,
+            tags.as_slice(),
+            assignees.as_slice(),
+        )
     }
 }
 

@@ -60,4 +60,9 @@ impl Context {
     pub fn signer(&self) -> &Box<dyn Signer> {
         &self.signer
     }
+
+    pub fn reload(&mut self) {
+        self.issues = crate::cob::issue::all(&self.repository).unwrap_or_default();
+        self.patches = crate::cob::patch::all(&self.repository).unwrap_or_default();
+    }
 }

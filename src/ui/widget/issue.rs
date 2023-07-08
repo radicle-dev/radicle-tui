@@ -33,8 +33,9 @@ pub struct LargeList {
 impl LargeList {
     pub fn new(context: &Context, theme: &Theme, selected: Option<(IssueId, Issue)>) -> Self {
         let repo = context.repository();
-        let issues = crate::cob::issue::all(repo).unwrap_or_default();
-        let mut items = issues
+
+        let mut items = context
+            .issues()
             .iter()
             .map(|(id, issue)| IssueItem::from((context.profile(), repo, *id, issue.clone())))
             .collect::<Vec<_>>();
@@ -263,8 +264,11 @@ impl NewForm {
         use tuirealm::props::Layout;
 
         let title = Widget::new(TextInput::new(theme.clone(), "Title"));
-        let tags = Widget::new(TextInput::new(theme.clone(), "Tags"));
-        let assignees = Widget::new(TextInput::new(theme.clone(), "Assignees"));
+        let tags = Widget::new(TextInput::new(theme.clone(), "Tags (tag1, tag2, ...)"));
+        let assignees = Widget::new(TextInput::new(
+            theme.clone(),
+            "Assignees (z6MkvAdxCp1oLVVTsqYvev9YrhSN3gBQNUSM45hhy4pgkexk, ...)",
+        ));
         let description = Widget::new(TextInput::new(theme.clone(), "Description"))
             .custom(TextInput::PROP_MULTILINE, AttrValue::Flag(true));
 

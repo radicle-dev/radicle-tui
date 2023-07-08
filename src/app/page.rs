@@ -330,13 +330,13 @@ impl IssuePage {
                 ),
             ),
             (
-                IssueCid::NewForm,
+                IssueCid::Form,
                 widget::common::shortcuts(
                     theme,
                     vec![
                         widget::common::shortcut(theme, "esc", "back"),
                         widget::common::shortcut(theme, "shift + tab / tab", "navigate"),
-                        widget::common::shortcut(theme, "alt + s", "submit"),
+                        widget::common::shortcut(theme, "ctrl + s", "submit"),
                     ],
                 ),
             ),
@@ -439,8 +439,8 @@ impl ViewPage for IssuePage {
         app.umount(&Cid::Issue(IssueCid::List))?;
         app.umount(&Cid::Issue(IssueCid::Details))?;
         app.umount(&Cid::Issue(IssueCid::Context))?;
-        if app.mounted(&Cid::Issue(IssueCid::NewForm)) {
-            app.umount(&Cid::Issue(IssueCid::NewForm))?;
+        if app.mounted(&Cid::Issue(IssueCid::Form)) {
+            app.umount(&Cid::Issue(IssueCid::Form))?;
         }
         app.umount(&Cid::Issue(IssueCid::Shortcuts))?;
         Ok(())
@@ -454,6 +454,25 @@ impl ViewPage for IssuePage {
         message: Message,
     ) -> Result<Option<Message>> {
         match message {
+            Message::Issue(IssueMessage::Created(id)) => {
+                let repo = context.repository();
+
+                if let Some(issue) = cob::issue::find(repo, &id)? {
+                    let list = widget::issue::list(context, theme, (id, issue.clone())).to_boxed();
+                    let comments = issue.comments().collect::<Vec<_>>();
+
+                    let details = widget::issue::details(
+                        context,
+                        theme,
+                        (id, issue.clone()),
+                        comments.first().copied(),
+                    )
+                    .to_boxed();
+
+                    app.remount(Cid::Issue(IssueCid::List), list, vec![])?;
+                    app.remount(Cid::Issue(IssueCid::Details), details, vec![])?;
+                }
+            }
             Message::Issue(IssueMessage::Changed(id)) => {
                 let repo = context.repository();
                 if let Some(issue) = cob::issue::find(repo, &id)? {
@@ -472,20 +491,20 @@ impl ViewPage for IssuePage {
                 self.activate(app, cid)?;
                 self.update_shortcuts(app, self.active_component.clone())?;
             }
-            Message::Issue(IssueMessage::OpenPopup(cid)) => {
-                if cid == IssueCid::NewForm {
-                    let new_form = widget::issue::new_form(context, theme).to_boxed();
-                    app.remount(Cid::Issue(cid.clone()), new_form, vec![])?;
-                    app.active(&Cid::Issue(cid.clone()))?;
+            Message::Issue(IssueMessage::OpenForm) => {
+                let new_form = widget::issue::new_form(context, theme).to_boxed();
 
-                    app.unsubscribe(&Cid::GlobalListener, subscription::global_clause())?;
+                app.remount(Cid::Issue(IssueCid::Form), new_form, vec![])?;
+                app.active(&Cid::Issue(IssueCid::Form))?;
 
-                    self.update_shortcuts(app, cid)?;
-                }
+                app.unsubscribe(&Cid::GlobalListener, subscription::global_clause())?;
+
+                self.activate(app, IssueCid::Form)?;
+                self.update_shortcuts(app, IssueCid::Form)?;
             }
-            Message::Issue(IssueMessage::ClosePopup(cid)) => {
+            Message::Issue(IssueMessage::HideForm) => {
                 app.blur()?;
-                app.umount(&Cid::Issue(cid))?;
+                app.umount(&Cid::Issue(IssueCid::Form))?;
 
                 app.subscribe(
                     &Cid::GlobalListener,
@@ -510,8 +529,8 @@ impl ViewPage for IssuePage {
         app.view(&Cid::Issue(IssueCid::Header), frame, layout.header);
         app.view(&Cid::Issue(IssueCid::List), frame, layout.left);
 
-        if app.mounted(&Cid::Issue(IssueCid::NewForm)) {
-            app.view(&Cid::Issue(IssueCid::NewForm), frame, layout.right);
+        if app.mounted(&Cid::Issue(IssueCid::Form)) {
+            app.view(&Cid::Issue(IssueCid::Form), frame, layout.right);
         } else {
             app.view(&Cid::Issue(IssueCid::Details), frame, layout.right);
         }
