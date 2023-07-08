@@ -104,7 +104,7 @@ fn execute() -> anyhow::Result<()> {
     info!("Launching window...");
 
     let mut window = Window::default();
-    window.run(&mut app::App::new(profile, id, project), 1000 / FPS)?;
+    window.run(&mut app::App::new(profile, id, project, signer), 1000 / FPS)?;
 
     Ok(())
 }

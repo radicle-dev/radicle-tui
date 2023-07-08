@@ -7,6 +7,7 @@ use anyhow::Result;
 use radicle::cob::issue::IssueId;
 use radicle::cob::patch::PatchId;
 use radicle::identity::{Id, Project};
+use radicle::prelude::Signer;
 use radicle::profile::Profile;
 
 use radicle_tui::ui::widget;
@@ -113,9 +114,9 @@ pub struct App {
 /// Creates a new application using a tui-realm-application, mounts all
 /// components and sets focus to a default one.
 impl App {
-    pub fn new(profile: Profile, id: Id, project: Project) -> Self {
+    pub fn new(profile: Profile, id: Id, project: Project, signer: Box<dyn Signer>) -> Self {
         Self {
-            context: Context::new(profile, id, project),
+            context: Context::new(profile, id, project, signer),
             pages: PageStack::default(),
             theme: theme::default_dark(),
             quit: false,
