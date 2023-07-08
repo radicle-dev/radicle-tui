@@ -151,6 +151,40 @@ impl App {
             ))
         }
     }
+
+    fn process(
+        &mut self,
+        app: &mut Application<Cid, Message, NoUserEvent>,
+        message: Message,
+    ) -> Result<Option<Message>> {
+        let theme = theme::default_dark();
+        match message {
+            Message::Issue(IssueMessage::Show(id)) => {
+                self.view_issue(app, id, &theme)?;
+                Ok(None)
+            }
+            Message::Issue(IssueMessage::Leave) => {
+                self.pages.pop(app)?;
+                Ok(None)
+            }
+            Message::Patch(PatchMessage::Show(id)) => {
+                self.view_patch(app, id, &theme)?;
+                Ok(None)
+            }
+            Message::Patch(PatchMessage::Leave) => {
+                self.pages.pop(app)?;
+                Ok(None)
+            }
+            Message::Quit => {
+                self.quit = true;
+                Ok(None)
+            }
+            _ => self
+                .pages
+                .peek_mut()?
+                .update(app, &self.context, &theme, message),
+        }
+    }
 }
 
 impl Tui<Cid, Message> for App {
@@ -173,27 +207,10 @@ impl Tui<Cid, Message> for App {
     fn update(&mut self, app: &mut Application<Cid, Message, NoUserEvent>) -> Result<bool> {
         match app.tick(PollStrategy::Once) {
             Ok(messages) if !messages.is_empty() => {
-                let theme = theme::default_dark();
                 for message in messages {
-                    match message {
-                        Message::Issue(IssueMessage::Show(id)) => {
-                            self.view_issue(app, id, &theme)?;
-                        }
-                        Message::Issue(IssueMessage::Leave) => {
-                            self.pages.pop(app)?;
-                        }
-                        Message::Patch(PatchMessage::Show(id)) => {
-                            self.view_patch(app, id, &theme)?;
-                        }
-                        Message::Patch(PatchMessage::Leave) => {
-                            self.pages.pop(app)?;
-                        }
-                        Message::Quit => self.quit = true,
-                        _ => {
-                            self.pages
-                                .peek_mut()?
-                                .update(app, &self.context, &theme, message)?;
-                        }
+                    let mut msg = Some(message);
+                    while msg.is_some() {
+                        msg = self.process(app, msg.unwrap())?;
                     }
                 }
                 Ok(true)
