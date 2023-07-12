@@ -130,7 +130,7 @@ impl HomeView {
                 let state = app.state(&Cid::Home(HomeCid::IssueBrowser))?;
                 let progress = match state {
                     State::Tup2((StateValue::Usize(step), StateValue::Usize(total))) => {
-                        Progress::Step(step, total)
+                        Progress::Step(step.saturating_add(1), total)
                     }
                     _ => Progress::None,
                 };
@@ -141,7 +141,7 @@ impl HomeView {
                 let state = app.state(&Cid::Home(HomeCid::PatchBrowser))?;
                 let progress = match state {
                     State::Tup2((StateValue::Usize(step), StateValue::Usize(total))) => {
-                        Progress::Step(step, total)
+                        Progress::Step(step.saturating_add(1), total)
                     }
                     _ => Progress::None,
                 };

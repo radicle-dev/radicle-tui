@@ -116,10 +116,33 @@ pub fn context(context: &Context, theme: &Theme, patch: (PatchId, Patch)) -> Wid
     common::context::bar(theme, "Patch", &id, title, &author, &comments.to_string())
 }
 
-pub fn browse_context(
-    _context: &Context,
-    theme: &Theme,
-    _progress: Progress,
-) -> Widget<ContextBar> {
-    common::context::bar(theme, "Browse", "", "", "", "")
+pub fn browse_context(context: &Context, theme: &Theme, progress: Progress) -> Widget<ContextBar> {
+    use radicle::cob::patch::State;
+
+    let patches = context.patches();
+    let mut draft = 0;
+    let mut open = 0;
+    let mut archived = 0;
+    let mut merged = 0;
+
+    for (_, patch) in patches {
+        match patch.state() {
+            State::Draft => draft += 1,
+            State::Open { conflicts: _ } => open += 1,
+            State::Archived => archived += 1,
+            State::Merged {
+                commit: _,
+                revision: _,
+            } => merged += 1,
+        }
+    }
+
+    common::context::bar(
+        theme,
+        "Browse",
+        "",
+        "",
+        &format!("{draft} draft | {open} open | {archived} archived | {merged} merged"),
+        &progress.to_string(),
+    )
 }
