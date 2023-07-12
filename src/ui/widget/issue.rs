@@ -10,6 +10,7 @@ use tuirealm::tui::layout::Layout;
 use super::common::container::Container;
 use super::common::container::LabeledContainer;
 use super::common::context::ContextBar;
+use super::common::context::Progress;
 use super::common::label::Textarea;
 use super::common::list::List;
 use super::common::list::Property;
@@ -273,6 +274,27 @@ pub fn details(
     Widget::new(discussion)
 }
 
-pub fn browse_context(theme: &Theme) -> Widget<ContextBar> {
-    common::context::bar(theme, "Browse", "", "", "", "")
+pub fn browse_context(context: &Context, theme: &Theme, progress: Progress) -> Widget<ContextBar> {
+    use radicle::cob::issue::State;
+
+    let issues = context.issues();
+    let open = issues
+        .iter()
+        .filter(|issue| *issue.1.state() == State::Open)
+        .collect::<Vec<_>>()
+        .len();
+    let closed = issues
+        .iter()
+        .filter(|issue| *issue.1.state() != State::Open)
+        .collect::<Vec<_>>()
+        .len();
+
+    common::context::bar(
+        theme,
+        "Browse",
+        "",
+        "",
+        &format!("{open} open | {closed} closed"),
+        &progress.to_string(),
+    )
 }

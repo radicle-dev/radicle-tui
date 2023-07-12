@@ -271,7 +271,9 @@ where
     }
 
     fn state(&self) -> State {
-        State::None
+        let selected = self.state.selected().unwrap_or_default();
+        let len = self.items.len();
+        State::Tup2((StateValue::Usize(selected), StateValue::Usize(len)))
     }
 
     fn perform(&mut self, _properties: &Props, cmd: Cmd) -> CmdResult {

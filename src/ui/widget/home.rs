@@ -67,11 +67,9 @@ impl IssueBrowser {
         let repo = context.repository();
         let mut items = vec![];
 
-        if let Ok(issues) = cob::issue::all(repo) {
-            for (id, issue) in issues {
-                if let Ok(item) = IssueItem::try_from((context.profile(), repo, id, issue)) {
-                    items.push(item);
-                }
+        for (id, issue) in context.issues() {
+            if let Ok(item) = IssueItem::try_from((context.profile(), repo, *id, issue.clone())) {
+                items.push(item);
             }
         }
 

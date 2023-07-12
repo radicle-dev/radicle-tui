@@ -10,7 +10,7 @@ use super::{Widget, WidgetComponent};
 
 use super::common;
 use super::common::container::Tabs;
-use super::common::context::ContextBar;
+use super::common::context::{ContextBar, Progress};
 use super::common::label::Label;
 
 use crate::ui::context::Context;
@@ -116,6 +116,10 @@ pub fn context(context: &Context, theme: &Theme, patch: (PatchId, Patch)) -> Wid
     common::context::bar(theme, "Patch", &id, title, &author, &comments.to_string())
 }
 
-pub fn browse_context(theme: &Theme) -> Widget<ContextBar> {
+pub fn browse_context(
+    _context: &Context,
+    theme: &Theme,
+    _progress: Progress,
+) -> Widget<ContextBar> {
     common::context::bar(theme, "Browse", "", "", "", "")
 }

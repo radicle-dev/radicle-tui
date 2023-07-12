@@ -206,9 +206,9 @@ pub fn centered_rect(percent_x: u16, percent_y: u16, r: Rect) -> Rect {
 }
 
 pub fn issue_page(area: Rect, shortcuts_h: u16) -> IssuePage {
-    let content_h = area.height.saturating_sub(shortcuts_h);
     let header_h = 3u16;
-
+    let content_h = area.height.saturating_sub(header_h).saturating_sub(shortcuts_h);
+    
     let root = Layout::default()
         .direction(Direction::Vertical)
         .horizontal_margin(1)

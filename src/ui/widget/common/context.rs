@@ -9,6 +9,22 @@ use crate::ui::layout;
 use crate::ui::theme::Theme;
 use crate::ui::widget::{Widget, WidgetComponent};
 
+pub enum Progress {
+    Percentage(usize),
+    Step(usize, usize),
+    None,
+}
+
+impl ToString for Progress {
+    fn to_string(&self) -> std::string::String {
+        match self {
+            Progress::Percentage(value) => format!("{value} %"),
+            Progress::Step(step, total) => format!("{step}/{total}"),
+            _ => String::new(),
+        }
+    }
+}
+
 /// A shortcut that consists of a label displaying the "hotkey", a label that displays
 /// the action and a spacer between them.
 #[derive(Clone)]
