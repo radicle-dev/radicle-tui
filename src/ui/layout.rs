@@ -8,6 +8,13 @@ pub struct AppHeader {
     pub line: Rect,
 }
 
+pub struct DefaultPage {
+    pub navigation: Rect,
+    pub component: Rect,
+    pub context: Rect,
+    pub shortcuts: Rect,
+}
+
 pub struct IssuePage {
     pub header: Rect,
     pub left: Rect,
@@ -83,16 +90,34 @@ pub fn app_header(area: Rect, info_w: u16) -> AppHeader {
     }
 }
 
-pub fn default_page(area: Rect) -> Vec<Rect> {
+pub fn default_page(area: Rect, shortcuts_h: u16) -> DefaultPage {
     let nav_h = 3u16;
+    let context_h = 1u16;
     let margin_h = 1u16;
-    let content_h = area.height.saturating_sub(nav_h.saturating_add(margin_h));
+    let component_h = area
+        .height
+        .saturating_sub(nav_h.saturating_add(context_h).saturating_add(shortcuts_h));
 
-    Layout::default()
+    let layout = Layout::default()
         .direction(Direction::Vertical)
         .horizontal_margin(margin_h)
-        .constraints([Constraint::Length(nav_h), Constraint::Length(content_h)].as_ref())
-        .split(area)
+        .constraints(
+            [
+                Constraint::Length(nav_h),
+                Constraint::Length(component_h),
+                Constraint::Length(context_h),
+                Constraint::Length(shortcuts_h),
+            ]
+            .as_ref(),
+        )
+        .split(area);
+
+    DefaultPage {
+        navigation: layout[0],
+        component: layout[1],
+        context: layout[2],
+        shortcuts: layout[3],
+    }
 }
 
 pub fn headerless_page(area: Rect) -> Vec<Rect> {
@@ -103,21 +128,6 @@ pub fn headerless_page(area: Rect) -> Vec<Rect> {
         .direction(Direction::Vertical)
         .horizontal_margin(margin_h)
         .constraints([Constraint::Length(content_h)].as_ref())
-        .split(area)
-}
-
-pub fn root_component(area: Rect, shortcuts_h: u16) -> Vec<Rect> {
-    let content_h = area.height.saturating_sub(shortcuts_h);
-
-    Layout::default()
-        .direction(Direction::Vertical)
-        .constraints(
-            [
-                Constraint::Length(content_h),
-                Constraint::Length(shortcuts_h),
-            ]
-            .as_ref(),
-        )
         .split(area)
 }
 

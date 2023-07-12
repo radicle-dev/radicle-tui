@@ -61,14 +61,74 @@ pub trait ViewPage {
 /// Home
 ///
 pub struct HomeView {
-    active_component: Cid,
+    active_component: HomeCid,
+    shortcuts: HashMap<HomeCid, Widget<Shortcuts>>,
 }
 
-impl Default for HomeView {
-    fn default() -> Self {
+impl HomeView {
+    pub fn new(theme: Theme) -> Self {
+        let shortcuts = Self::build_shortcuts(&theme);
         HomeView {
-            active_component: Cid::Home(HomeCid::Dashboard),
+            active_component: HomeCid::Dashboard,
+            shortcuts,
         }
+    }
+
+    fn build_shortcuts(theme: &Theme) -> HashMap<HomeCid, Widget<Shortcuts>> {
+        [
+            (
+                HomeCid::Dashboard,
+                widget::common::shortcuts(
+                    theme,
+                    vec![
+                        widget::common::shortcut(theme, "tab", "section"),
+                        widget::common::shortcut(theme, "q", "quit"),
+                    ],
+                ),
+            ),
+            (
+                HomeCid::IssueBrowser,
+                widget::common::shortcuts(
+                    theme,
+                    vec![
+                        widget::common::shortcut(theme, "tab", "section"),
+                        widget::common::shortcut(theme, "↑/↓", "navigate"),
+                        widget::common::shortcut(theme, "enter", "show"),
+                        widget::common::shortcut(theme, "q", "quit"),
+                    ],
+                ),
+            ),
+            (
+                HomeCid::PatchBrowser,
+                widget::common::shortcuts(
+                    theme,
+                    vec![
+                        widget::common::shortcut(theme, "tab", "section"),
+                        widget::common::shortcut(theme, "↑/↓", "navigate"),
+                        widget::common::shortcut(theme, "enter", "show"),
+                        widget::common::shortcut(theme, "q", "quit"),
+                    ],
+                ),
+            ),
+        ]
+        .iter()
+        .cloned()
+        .collect()
+    }
+
+    fn update_shortcuts(
+        &self,
+        app: &mut Application<Cid, Message, NoUserEvent>,
+        cid: HomeCid,
+    ) -> Result<()> {
+        if let Some(shortcuts) = self.shortcuts.get(&cid) {
+            app.remount(
+                Cid::Home(HomeCid::Shortcuts),
+                shortcuts.clone().to_boxed(),
+                vec![],
+            )?;
+        }
+        Ok(())
     }
 }
 
@@ -92,7 +152,9 @@ impl ViewPage for HomeView {
         app.remount(Cid::Home(HomeCid::IssueBrowser), issue_browser, vec![])?;
         app.remount(Cid::Home(HomeCid::PatchBrowser), patch_browser, vec![])?;
 
-        app.active(&self.active_component)?;
+        let active_component = Cid::Home(self.active_component.clone());
+        app.active(&active_component)?;
+        self.update_shortcuts(app, self.active_component.clone())?;
 
         Ok(())
     }
@@ -113,8 +175,11 @@ impl ViewPage for HomeView {
         message: Message,
     ) -> Result<Option<Message>> {
         if let Message::NavigationChanged(index) = message {
-            self.active_component = Cid::Home(HomeCid::from(index as usize));
-            app.active(&self.active_component)?;
+            self.active_component = HomeCid::from(index as usize);
+
+            let active_component = Cid::Home(self.active_component.clone());
+            app.active(&active_component)?;
+            self.update_shortcuts(app, self.active_component.clone())?;
         }
 
         Ok(None)
@@ -122,10 +187,16 @@ impl ViewPage for HomeView {
 
     fn view(&mut self, app: &mut Application<Cid, Message, NoUserEvent>, frame: &mut Frame) {
         let area = frame.size();
-        let layout = layout::default_page(area);
+        let shortcuts_h = 1u16;
+        let layout = layout::default_page(area, shortcuts_h);
 
-        app.view(&Cid::Home(HomeCid::Header), frame, layout[0]);
-        app.view(&self.active_component, frame, layout[1]);
+        app.view(&Cid::Home(HomeCid::Header), frame, layout.navigation);
+        app.view(
+            &Cid::Home(self.active_component.clone()),
+            frame,
+            layout.component,
+        );
+        app.view(&Cid::Home(HomeCid::Shortcuts), frame, layout.shortcuts);
     }
 
     fn subscribe(&self, app: &mut Application<Cid, Message, NoUserEvent>) -> Result<()> {
@@ -362,10 +433,11 @@ impl ViewPage for PatchView {
 
     fn view(&mut self, app: &mut Application<Cid, Message, NoUserEvent>, frame: &mut Frame) {
         let area = frame.size();
-        let layout = layout::default_page(area);
+        let shortcuts_h = 1u16;
+        let layout = layout::default_page(area, shortcuts_h);
 
-        app.view(&Cid::Patch(PatchCid::Header), frame, layout[0]);
-        app.view(&self.active_component, frame, layout[1]);
+        app.view(&Cid::Patch(PatchCid::Header), frame, layout.navigation);
+        app.view(&self.active_component, frame, layout.component);
     }
 
     fn subscribe(&self, app: &mut Application<Cid, Message, NoUserEvent>) -> Result<()> {

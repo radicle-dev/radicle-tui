@@ -28,6 +28,7 @@ pub enum HomeCid {
     Dashboard,
     IssueBrowser,
     PatchBrowser,
+    Shortcuts,
 }
 
 #[derive(Debug, Eq, PartialEq, Clone, Hash)]
@@ -118,7 +119,7 @@ impl App {
         app: &mut Application<Cid, Message, NoUserEvent>,
         theme: &Theme,
     ) -> Result<()> {
-        let home = Box::<HomeView>::default();
+        let home = Box::new(HomeView::new(theme.clone()));
         self.pages.push(home, app, &self.context, theme)?;
 
         Ok(())

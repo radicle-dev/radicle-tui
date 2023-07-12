@@ -4,7 +4,6 @@ use tuirealm::{AttrValue, Attribute, Frame, MockComponent, Props, State};
 
 use super::common;
 use super::common::container::{LabeledContainer, Tabs};
-use super::common::context::Shortcuts;
 use super::common::list::{ColumnWidth, Table};
 
 use super::{Widget, WidgetComponent};
@@ -12,31 +11,21 @@ use super::{Widget, WidgetComponent};
 use crate::cob;
 use crate::ui::cob::{IssueItem, PatchItem};
 use crate::ui::context::Context;
-use crate::ui::layout;
 use crate::ui::theme::Theme;
 
 pub struct Dashboard {
     about: Widget<LabeledContainer>,
-    shortcuts: Widget<Shortcuts>,
 }
 
 impl Dashboard {
-    pub fn new(about: Widget<LabeledContainer>, shortcuts: Widget<Shortcuts>) -> Self {
-        Self { about, shortcuts }
+    pub fn new(about: Widget<LabeledContainer>) -> Self {
+        Self { about }
     }
 }
 
 impl WidgetComponent for Dashboard {
     fn view(&mut self, _properties: &Props, frame: &mut Frame, area: Rect) {
-        let shortcuts_h = self
-            .shortcuts
-            .query(Attribute::Height)
-            .unwrap_or(AttrValue::Size(0))
-            .unwrap_size();
-        let layout = layout::root_component(area, shortcuts_h);
-
-        self.about.view(frame, layout[0]);
-        self.shortcuts.view(frame, layout[1]);
+        self.about.view(frame, area);
     }
 
     fn state(&self) -> State {
@@ -51,11 +40,10 @@ impl WidgetComponent for Dashboard {
 pub struct IssueBrowser {
     items: Vec<IssueItem>,
     table: Widget<Table<IssueItem, 7>>,
-    shortcuts: Widget<Shortcuts>,
 }
 
 impl IssueBrowser {
-    pub fn new(context: &Context, theme: &Theme, shortcuts: Widget<Shortcuts>) -> Self {
+    pub fn new(context: &Context, theme: &Theme) -> Self {
         let header = [
             common::label(" ● "),
             common::label("ID"),
@@ -93,11 +81,7 @@ impl IssueBrowser {
         let table = Widget::new(Table::new(&items, header, widths, theme.clone()))
             .highlight(theme.colors.item_list_highlighted_bg);
 
-        Self {
-            items,
-            table,
-            shortcuts,
-        }
+        Self { items, table }
     }
 
     pub fn items(&self) -> &Vec<IssueItem> {
@@ -107,20 +91,12 @@ impl IssueBrowser {
 
 impl WidgetComponent for IssueBrowser {
     fn view(&mut self, properties: &Props, frame: &mut Frame, area: Rect) {
-        let shortcuts_h = self
-            .shortcuts
-            .query(Attribute::Height)
-            .unwrap_or(AttrValue::Size(0))
-            .unwrap_size();
         let focus = properties
             .get_or(Attribute::Focus, AttrValue::Flag(false))
             .unwrap_flag();
 
-        let layout = layout::root_component(area, shortcuts_h);
-
         self.table.attr(Attribute::Focus, AttrValue::Flag(focus));
-        self.table.view(frame, layout[0]);
-        self.shortcuts.view(frame, layout[1])
+        self.table.view(frame, area);
     }
 
     fn state(&self) -> State {
@@ -135,11 +111,10 @@ impl WidgetComponent for IssueBrowser {
 pub struct PatchBrowser {
     items: Vec<PatchItem>,
     table: Widget<Table<PatchItem, 8>>,
-    shortcuts: Widget<Shortcuts>,
 }
 
 impl PatchBrowser {
-    pub fn new(context: &Context, theme: &Theme, shortcuts: Widget<Shortcuts>) -> Self {
+    pub fn new(context: &Context, theme: &Theme) -> Self {
         let header = [
             common::label(" ● "),
             common::label("ID"),
@@ -179,11 +154,7 @@ impl PatchBrowser {
         let table = Widget::new(Table::new(&items, header, widths, theme.clone()))
             .highlight(theme.colors.item_list_highlighted_bg);
 
-        Self {
-            items,
-            table,
-            shortcuts,
-        }
+        Self { items, table }
     }
 
     pub fn items(&self) -> &Vec<PatchItem> {
@@ -193,20 +164,12 @@ impl PatchBrowser {
 
 impl WidgetComponent for PatchBrowser {
     fn view(&mut self, properties: &Props, frame: &mut Frame, area: Rect) {
-        let shortcuts_h = self
-            .shortcuts
-            .query(Attribute::Height)
-            .unwrap_or(AttrValue::Size(0))
-            .unwrap_size();
         let focus = properties
             .get_or(Attribute::Focus, AttrValue::Flag(false))
             .unwrap_flag();
 
-        let layout = layout::root_component(area, shortcuts_h);
-
         self.table.attr(Attribute::Focus, AttrValue::Flag(focus));
-        self.table.view(frame, layout[0]);
-        self.shortcuts.view(frame, layout[1]);
+        self.table.view(frame, area);
     }
 
     fn state(&self) -> State {
@@ -243,42 +206,15 @@ pub fn dashboard(context: &Context, theme: &Theme) -> Widget<Dashboard> {
         )
         .to_boxed(),
     );
-    let shortcuts = common::shortcuts(
-        theme,
-        vec![
-            common::shortcut(theme, "tab", "section"),
-            common::shortcut(theme, "q", "quit"),
-        ],
-    );
-    let dashboard = Dashboard::new(about, shortcuts);
+    let dashboard = Dashboard::new(about);
 
     Widget::new(dashboard)
 }
 
 pub fn patches(context: &Context, theme: &Theme) -> Widget<PatchBrowser> {
-    let shortcuts = common::shortcuts(
-        theme,
-        vec![
-            common::shortcut(theme, "tab", "section"),
-            common::shortcut(theme, "↑/↓", "navigate"),
-            common::shortcut(theme, "enter", "show"),
-            common::shortcut(theme, "q", "quit"),
-        ],
-    );
-
-    Widget::new(PatchBrowser::new(context, theme, shortcuts))
+    Widget::new(PatchBrowser::new(context, theme))
 }
 
 pub fn issues(context: &Context, theme: &Theme) -> Widget<IssueBrowser> {
-    let shortcuts = common::shortcuts(
-        theme,
-        vec![
-            common::shortcut(theme, "tab", "section"),
-            common::shortcut(theme, "↑/↓", "navigate"),
-            common::shortcut(theme, "enter", "show"),
-            common::shortcut(theme, "q", "quit"),
-        ],
-    );
-
-    Widget::new(IssueBrowser::new(context, theme, shortcuts))
+    Widget::new(IssueBrowser::new(context, theme))
 }
