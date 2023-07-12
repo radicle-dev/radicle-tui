@@ -58,6 +58,7 @@ impl WidgetComponent for Shortcut {
 
 /// A shortcut bar that displays multiple shortcuts and separates them with a
 /// divider.
+#[derive(Clone)]
 pub struct Shortcuts {
     shortcuts: Vec<Widget<Shortcut>>,
     divider: Widget<Label>,

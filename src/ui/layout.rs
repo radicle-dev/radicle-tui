@@ -221,6 +221,6 @@ pub fn issue_page(area: Rect, shortcuts_h: u16) -> IssuePage {
         header: root[0],
         left: split[0],
         right: split[1],
-        shortcuts: root[1],
+        shortcuts: root[2],
     }
 }

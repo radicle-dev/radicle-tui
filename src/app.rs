@@ -153,7 +153,7 @@ impl App {
         let repo = self.context.repository();
 
         if let Some(issue) = cob::issue::find(repo, &id)? {
-            let view = Box::new(IssuePage::new((id, issue)));
+            let view = Box::new(IssuePage::new(theme.clone(), (id, issue)));
             self.pages.push(view, app, &self.context, theme)?;
 
             Ok(())

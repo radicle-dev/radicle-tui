@@ -1,15 +1,18 @@
-use anyhow::Result;
+use std::collections::HashMap;
+
+use anyhow::{Ok, Result};
 
 use radicle::cob::issue::{Issue, IssueId};
 use radicle::cob::patch::{Patch, PatchId};
 
 use radicle_tui::cob;
+use radicle_tui::ui::widget::common::context::Shortcuts;
 use tuirealm::{Frame, NoUserEvent, Sub, SubClause};
 
 use radicle_tui::ui::context::Context;
 use radicle_tui::ui::layout;
 use radicle_tui::ui::theme::Theme;
-use radicle_tui::ui::widget;
+use radicle_tui::ui::widget::{self, Widget};
 
 use super::{subscription, Application, Cid, HomeCid, IssueCid, IssueMessage, Message, PatchCid};
 
@@ -149,11 +152,59 @@ impl ViewPage for HomeView {
 ///
 pub struct IssuePage {
     issue: (IssueId, Issue),
+    shortcuts: HashMap<IssueCid, Widget<Shortcuts>>,
 }
 
 impl IssuePage {
-    pub fn new(issue: (IssueId, Issue)) -> Self {
-        IssuePage { issue }
+    pub fn new(theme: Theme, issue: (IssueId, Issue)) -> Self {
+        let shortcuts = Self::build_shortcuts(&theme);
+        IssuePage { issue, shortcuts }
+    }
+
+    fn build_shortcuts(theme: &Theme) -> HashMap<IssueCid, Widget<Shortcuts>> {
+        [
+            (
+                IssueCid::List,
+                widget::common::shortcuts(
+                    theme,
+                    vec![
+                        widget::common::shortcut(theme, "esc", "back"),
+                        widget::common::shortcut(theme, "↑/↓", "navigate"),
+                        widget::common::shortcut(theme, "enter", "show"),
+                        widget::common::shortcut(theme, "q", "quit"),
+                    ],
+                ),
+            ),
+            (
+                IssueCid::Details,
+                widget::common::shortcuts(
+                    theme,
+                    vec![
+                        widget::common::shortcut(theme, "esc", "back"),
+                        widget::common::shortcut(theme, "↑/↓", "scroll"),
+                        widget::common::shortcut(theme, "q", "quit"),
+                    ],
+                ),
+            ),
+        ]
+        .iter()
+        .cloned()
+        .collect()
+    }
+
+    fn update_shortcuts(
+        &self,
+        app: &mut Application<Cid, Message, NoUserEvent>,
+        cid: IssueCid,
+    ) -> Result<()> {
+        if let Some(shortcuts) = self.shortcuts.get(&cid) {
+            app.remount(
+                Cid::Issue(IssueCid::Shortcuts),
+                shortcuts.clone().to_boxed(),
+                vec![],
+            )?;
+        }
+        Ok(())
     }
 }
 
@@ -177,21 +228,12 @@ impl ViewPage for IssuePage {
         )
         .to_boxed();
 
-        let shortcuts = widget::common::shortcuts(
-            theme,
-            vec![
-                widget::common::shortcut(theme, "esc", "back"),
-                widget::common::shortcut(theme, "q", "quit"),
-            ],
-        )
-        .to_boxed();
-
         app.remount(Cid::Issue(IssueCid::Header), header, vec![])?;
         app.remount(Cid::Issue(IssueCid::List), list, vec![])?;
         app.remount(Cid::Issue(IssueCid::Details), details, vec![])?;
-        app.remount(Cid::Issue(IssueCid::Shortcuts), shortcuts, vec![])?;
 
         app.active(&Cid::Issue(IssueCid::List))?;
+        self.update_shortcuts(app, IssueCid::List)?;
 
         Ok(())
     }
@@ -227,7 +269,8 @@ impl ViewPage for IssuePage {
                 }
             }
             Message::Issue(IssueMessage::Focus(cid)) => {
-                app.active(&Cid::Issue(cid))?;
+                app.active(&Cid::Issue(cid.clone()))?;
+                self.update_shortcuts(app, cid)?;
             }
             _ => {}
         }
