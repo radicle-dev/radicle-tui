@@ -373,16 +373,64 @@ impl ViewPage for IssuePage {
 /// Patch detail page
 ///
 pub struct PatchView {
-    active_component: Cid,
+    active_component: PatchCid,
     patch: (PatchId, Patch),
+    shortcuts: HashMap<PatchCid, Widget<Shortcuts>>,
 }
 
 impl PatchView {
-    pub fn new(patch: (PatchId, Patch)) -> Self {
+    pub fn new(theme: Theme, patch: (PatchId, Patch)) -> Self {
+        let shortcuts = Self::build_shortcuts(&theme);
         PatchView {
-            active_component: Cid::Patch(PatchCid::Activity),
+            active_component: PatchCid::Activity,
             patch,
+            shortcuts,
         }
+    }
+
+    fn build_shortcuts(theme: &Theme) -> HashMap<PatchCid, Widget<Shortcuts>> {
+        [
+            (
+                PatchCid::Activity,
+                widget::common::shortcuts(
+                    theme,
+                    vec![
+                        widget::common::shortcut(theme, "esc", "back"),
+                        widget::common::shortcut(theme, "tab", "section"),
+                        widget::common::shortcut(theme, "q", "quit"),
+                    ],
+                ),
+            ),
+            (
+                PatchCid::Files,
+                widget::common::shortcuts(
+                    theme,
+                    vec![
+                        widget::common::shortcut(theme, "esc", "back"),
+                        widget::common::shortcut(theme, "tab", "section"),
+                        widget::common::shortcut(theme, "q", "quit"),
+                    ],
+                ),
+            ),
+        ]
+        .iter()
+        .cloned()
+        .collect()
+    }
+
+    fn update_shortcuts(
+        &self,
+        app: &mut Application<Cid, Message, NoUserEvent>,
+        cid: PatchCid,
+    ) -> Result<()> {
+        if let Some(shortcuts) = self.shortcuts.get(&cid) {
+            app.remount(
+                Cid::Patch(PatchCid::Shortcuts),
+                shortcuts.clone().to_boxed(),
+                vec![],
+            )?;
+        }
+        Ok(())
     }
 }
 
@@ -396,15 +444,18 @@ impl ViewPage for PatchView {
         let (id, patch) = &self.patch;
         let navigation = widget::patch::navigation(theme);
         let header = widget::common::app_header(context, theme, Some(navigation)).to_boxed();
-
-        let activity = widget::patch::activity(theme, (*id, patch), context.profile()).to_boxed();
-        let files = widget::patch::files(theme, (*id, patch), context.profile()).to_boxed();
+        let activity = widget::patch::activity(theme).to_boxed();
+        let files = widget::patch::files(theme).to_boxed();
+        let context = widget::patch::context(context, theme, self.patch.clone()).to_boxed();
 
         app.remount(Cid::Patch(PatchCid::Header), header, vec![])?;
         app.remount(Cid::Patch(PatchCid::Activity), activity, vec![])?;
         app.remount(Cid::Patch(PatchCid::Files), files, vec![])?;
+        app.remount(Cid::Patch(PatchCid::Context), context, vec![])?;
 
-        app.active(&self.active_component)?;
+        let active_component = Cid::Patch(self.active_component.clone());
+        app.active(&active_component)?;
+        self.update_shortcuts(app, self.active_component.clone())?;
 
         Ok(())
     }
@@ -413,6 +464,8 @@ impl ViewPage for PatchView {
         app.umount(&Cid::Patch(PatchCid::Header))?;
         app.umount(&Cid::Patch(PatchCid::Activity))?;
         app.umount(&Cid::Patch(PatchCid::Files))?;
+        app.umount(&Cid::Patch(PatchCid::Context))?;
+        app.umount(&Cid::Patch(PatchCid::Shortcuts))?;
         Ok(())
     }
 
@@ -424,9 +477,12 @@ impl ViewPage for PatchView {
         message: Message,
     ) -> Result<Option<Message>> {
         if let Message::NavigationChanged(index) = message {
-            self.active_component = Cid::Patch(PatchCid::from(index as usize));
+            self.active_component = PatchCid::from(index as usize);
+
+            let active_component = Cid::Patch(self.active_component.clone());
+            app.active(&active_component)?;
+            self.update_shortcuts(app, self.active_component.clone())?;
         }
-        app.active(&self.active_component)?;
 
         Ok(None)
     }
@@ -437,7 +493,13 @@ impl ViewPage for PatchView {
         let layout = layout::default_page(area, shortcuts_h);
 
         app.view(&Cid::Patch(PatchCid::Header), frame, layout.navigation);
-        app.view(&self.active_component, frame, layout.component);
+        app.view(
+            &Cid::Patch(self.active_component.clone()),
+            frame,
+            layout.component,
+        );
+        app.view(&Cid::Patch(PatchCid::Context), frame, layout.context);
+        app.view(&Cid::Patch(PatchCid::Shortcuts), frame, layout.shortcuts);
     }
 
     fn subscribe(&self, app: &mut Application<Cid, Message, NoUserEvent>) -> Result<()> {

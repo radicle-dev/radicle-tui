@@ -36,6 +36,8 @@ pub enum PatchCid {
     Header,
     Activity,
     Files,
+    Context,
+    Shortcuts,
 }
 
 #[derive(Debug, Eq, PartialEq, Clone, Hash)]
@@ -134,7 +136,7 @@ impl App {
         let repo = self.context.repository();
 
         if let Some(patch) = cob::patch::find(repo, &id)? {
-            let view = Box::new(PatchView::new((id, patch)));
+            let view = Box::new(PatchView::new(theme.clone(), (id, patch)));
             self.pages.push(view, app, &self.context, theme)?;
 
             Ok(())

@@ -6,6 +6,7 @@ use tuirealm::{Frame, MockComponent, State};
 use super::label::Label;
 
 use crate::ui::layout;
+use crate::ui::theme::Theme;
 use crate::ui::widget::{Widget, WidgetComponent};
 
 /// A shortcut that consists of a label displaying the "hotkey", a label that displays
@@ -106,27 +107,27 @@ impl WidgetComponent for Shortcuts {
 }
 
 pub struct ContextBar {
-    context: Widget<Label>,
-    id: Widget<Label>,
-    author: Widget<Label>,
-    title: Widget<Label>,
-    comments: Widget<Label>,
+    label_0: Widget<Label>,
+    label_1: Widget<Label>,
+    label_2: Widget<Label>,
+    label_3: Widget<Label>,
+    label_4: Widget<Label>,
 }
 
 impl ContextBar {
     pub fn new(
-        context: Widget<Label>,
-        id: Widget<Label>,
-        author: Widget<Label>,
-        title: Widget<Label>,
-        comments: Widget<Label>,
+        label_0: Widget<Label>,
+        label_1: Widget<Label>,
+        label_2: Widget<Label>,
+        label_3: Widget<Label>,
+        label_4: Widget<Label>,
     ) -> Self {
         Self {
-            context,
-            id,
-            author,
-            title,
-            comments,
+            label_0,
+            label_1,
+            label_2,
+            label_3,
+            label_4,
         }
     }
 }
@@ -137,25 +138,25 @@ impl WidgetComponent for ContextBar {
             .get_or(Attribute::Display, AttrValue::Flag(true))
             .unwrap_flag();
 
-        let context_w = self.context.query(Attribute::Width).unwrap().unwrap_size();
-        let id_w = self.id.query(Attribute::Width).unwrap().unwrap_size();
-        let author_w = self.author.query(Attribute::Width).unwrap().unwrap_size();
-        let count_w = self.comments.query(Attribute::Width).unwrap().unwrap_size();
+        let label_0_w = self.label_0.query(Attribute::Width).unwrap().unwrap_size();
+        let label_1_w = self.label_1.query(Attribute::Width).unwrap().unwrap_size();
+        let label_2_w = self.label_2.query(Attribute::Width).unwrap().unwrap_size();
+        let label_4_w = self.label_4.query(Attribute::Width).unwrap().unwrap_size();
 
         if display {
             let layout = layout::h_stack(
                 vec![
-                    self.context.clone().to_boxed(),
-                    self.id.clone().to_boxed(),
-                    self.title
+                    self.label_0.clone().to_boxed(),
+                    self.label_1.clone().to_boxed(),
+                    self.label_3
                         .clone()
                         .width(
                             area.width
-                                .saturating_sub(context_w + id_w + author_w + count_w),
+                                .saturating_sub(label_0_w + label_1_w + label_2_w + label_4_w),
                         )
                         .to_boxed(),
-                    self.author.clone().to_boxed(),
-                    self.comments.clone().to_boxed(),
+                    self.label_2.clone().to_boxed(),
+                    self.label_4.clone().to_boxed(),
                 ],
                 area,
             );
@@ -173,4 +174,31 @@ impl WidgetComponent for ContextBar {
     fn perform(&mut self, _properties: &Props, _cmd: Cmd) -> CmdResult {
         CmdResult::None
     }
+}
+
+pub fn bar(
+    theme: &Theme,
+    label_0: &str,
+    label_1: &str,
+    label_2: &str,
+    label_3: &str,
+    label_4: &str,
+) -> Widget<ContextBar> {
+    let context = super::label(&format!(" {label_0} ")).background(theme.colors.context_badge_bg);
+    let id = super::label(&format!(" {label_1} "))
+        .foreground(theme.colors.context_color_fg)
+        .background(theme.colors.context_bg);
+    let title = super::label(&format!(" {label_2} "))
+        .foreground(theme.colors.default_fg)
+        .background(theme.colors.context_bg);
+    let author = super::label(&format!(" {label_3} "))
+        .foreground(theme.colors.context_light)
+        .background(theme.colors.context_bg);
+    let comments = super::label(&format!(" {label_4} "))
+        .foreground(theme.colors.context_dark)
+        .background(theme.colors.context_light);
+
+    let context_bar = ContextBar::new(context, id, author, title, comments);
+
+    Widget::new(context_bar).height(1)
 }
