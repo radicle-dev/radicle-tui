@@ -89,11 +89,23 @@ impl IssueHeader {
         let repo = context.repository();
 
         let (id, issue) = issue;
-        let item = IssueItem::from((context.profile(), repo, id, issue));
+        let by_you = *issue.author().id() == context.profile().did();
+        let item = IssueItem::from((context.profile(), repo, id, issue.clone()));
 
         let title = Property::new(
             common::label("Title").foreground(theme.colors.property_name_fg),
             common::label(item.title()).foreground(theme.colors.browser_list_title),
+        );
+
+        let author = Property::new(
+            common::label("Author").foreground(theme.colors.property_name_fg),
+            common::label(&cob::format_author(issue.author().id(), by_you))
+                .foreground(theme.colors.browser_list_author),
+        );
+
+        let issue_id = Property::new(
+            common::label("Issue").foreground(theme.colors.property_name_fg),
+            common::label(&id.to_string()).foreground(theme.colors.browser_list_description),
         );
 
         let tags = Property::new(
@@ -119,11 +131,12 @@ impl IssueHeader {
             common::label(&item.state().to_string()).foreground(theme.colors.browser_list_title),
         );
 
-        // let table = common::property_table(theme, vec![title, tags, assignees, state]);
         let table = common::property_table(
             theme,
             vec![
                 Widget::new(title),
+                Widget::new(issue_id),
+                Widget::new(author),
                 Widget::new(tags),
                 Widget::new(assignees),
                 Widget::new(state),
@@ -175,7 +188,7 @@ impl WidgetComponent for IssueDetails {
             .unwrap_flag();
         let layout = Layout::default()
             .direction(Direction::Vertical)
-            .constraints([Constraint::Length(6), Constraint::Min(1)])
+            .constraints([Constraint::Length(8), Constraint::Min(1)])
             .split(area);
 
         self.header.view(frame, layout[0]);
