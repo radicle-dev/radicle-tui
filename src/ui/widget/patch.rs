@@ -115,3 +115,7 @@ pub fn context(context: &Context, theme: &Theme, patch: (PatchId, Patch)) -> Wid
 
     common::context::bar(theme, "Patch", &id, title, &author, &comments.to_string())
 }
+
+pub fn browse_context(theme: &Theme) -> Widget<ContextBar> {
+    common::context::bar(theme, "Browse", "", "", "", "")
+}

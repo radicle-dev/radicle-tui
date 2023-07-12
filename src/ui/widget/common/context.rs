@@ -195,8 +195,8 @@ pub fn bar(
         .foreground(theme.colors.context_light)
         .background(theme.colors.context_bg);
     let comments = super::label(&format!(" {label_4} "))
-        .foreground(theme.colors.context_dark)
-        .background(theme.colors.context_light);
+        .foreground(theme.colors.context_light)
+        .background(theme.colors.context_bg);
 
     let context_bar = ContextBar::new(context, id, author, title, comments);
 
