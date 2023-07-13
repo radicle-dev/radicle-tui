@@ -21,6 +21,7 @@ pub struct TextInput {
 impl TextInput {
     pub const PROP_MULTILINE: &str = "multiline";
     pub const CMD_NEWLINE: &str = tui_realm_textarea::TEXTAREA_CMD_NEWLINE;
+    pub const CMD_PASTE: &str = tui_realm_textarea::TEXTAREA_CMD_PASTE;
 
     pub fn new(theme: Theme, title: &str) -> Self {
         let input = TextArea::default()

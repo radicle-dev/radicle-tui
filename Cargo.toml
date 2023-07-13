@@ -22,4 +22,4 @@ timeago = { version = "0.4.1" }
 textwrap = { version = "0.16.0" }
 tuirealm = { version = "1.8.0", default-features = false, features = [ "with-termion" ] }
 tui-realm-stdlib = { version = "1.2.0", default-features = false, features = [ "with-termion" ] }
-tui-realm-textarea = { git = "https://github.com/erak/tui-realm-textarea.git", branch = "no-borders", default-features = false, features = [ "with-termion" ] }
+tui-realm-textarea = { git = "https://github.com/erak/tui-realm-textarea.git", default-features = false, features = [ "with-termion", "clipboard" ] }

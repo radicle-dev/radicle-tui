@@ -14,7 +14,7 @@ use radicle_tui::ui::widget::{issue, patch};
 
 use radicle_tui::ui::widget::Widget;
 
-use super::{IssueCid, IssueMessage, Message, PatchMessage, PopupMessage, IssueCobMessage};
+use super::{IssueCid, IssueCobMessage, IssueMessage, Message, PatchMessage, PopupMessage};
 
 /// Since the framework does not know the type of messages that are being
 /// passed around in the app, the following handlers need to be implemented for
@@ -224,6 +224,13 @@ impl tuirealm::Component<Message, NoUserEvent> for Widget<issue::NewForm> {
                 modifiers: KeyModifiers::SHIFT,
             }) => {
                 self.perform(Cmd::Type(ch.to_ascii_uppercase()));
+                Some(Message::Tick)
+            }
+            Event::Keyboard(KeyEvent {
+                code: Key::Char('v'),
+                modifiers: KeyModifiers::CONTROL,
+            }) => {
+                self.perform(Cmd::Custom(TextInput::CMD_PASTE));
                 Some(Message::Tick)
             }
             Event::Keyboard(KeyEvent {
