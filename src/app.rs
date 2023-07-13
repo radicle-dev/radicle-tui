@@ -325,8 +325,8 @@ impl App {
         let repository = self.context.repository();
         let signer = self.context.signer();
 
-        let tags = cob::parse_tags(tags);
-        let assignees = cob::parse_assigness(assignees);
+        let tags = cob::parse_tags(tags)?;
+        let assignees = cob::parse_assignees(assignees)?;
 
         cob::issue::create(
             repository,
