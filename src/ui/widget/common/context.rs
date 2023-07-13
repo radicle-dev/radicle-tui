@@ -128,10 +128,14 @@ pub struct ContextBar {
     label_2: Widget<Label>,
     label_3: Widget<Label>,
     label_4: Widget<Label>,
+    theme: Theme,
 }
 
 impl ContextBar {
+    pub const PROP_EDIT_MODE: &str = "edit-mode";
+
     pub fn new(
+        theme: Theme,
         label_0: Widget<Label>,
         label_1: Widget<Label>,
         label_2: Widget<Label>,
@@ -139,6 +143,7 @@ impl ContextBar {
         label_4: Widget<Label>,
     ) -> Self {
         Self {
+            theme,
             label_0,
             label_1,
             label_2,
@@ -153,11 +158,24 @@ impl WidgetComponent for ContextBar {
         let display = properties
             .get_or(Attribute::Display, AttrValue::Flag(true))
             .unwrap_flag();
+        let edit_mode = properties
+            .get_or(
+                Attribute::Custom(Self::PROP_EDIT_MODE),
+                AttrValue::Flag(false),
+            )
+            .unwrap_flag();
 
         let label_0_w = self.label_0.query(Attribute::Width).unwrap().unwrap_size();
         let label_1_w = self.label_1.query(Attribute::Width).unwrap().unwrap_size();
         let label_2_w = self.label_2.query(Attribute::Width).unwrap().unwrap_size();
         let label_4_w = self.label_4.query(Attribute::Width).unwrap().unwrap_size();
+
+        if edit_mode {
+            self.label_0.attr(
+                Attribute::Background,
+                AttrValue::Color(self.theme.colors.context_badge_edit_bg),
+            )
+        }
 
         if display {
             let layout = layout::h_stack(
@@ -216,7 +234,7 @@ pub fn bar(
         .foreground(theme.colors.context_light)
         .background(theme.colors.context_bg);
 
-    let context_bar = ContextBar::new(context, id, author, title, comments);
+    let context_bar = ContextBar::new(theme.clone(), context, id, author, title, comments);
 
     Widget::new(context_bar).height(1)
 }
