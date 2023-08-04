@@ -4,7 +4,7 @@ license = "MIT OR Apache-2.0"
 version = "0.1.0"
 authors = ["Erik Kundt <erik@zirkular.io>"]
 edition = "2021"
-build = "../build.rs"
+build = "build.rs"
 
 [[bin]]
 name = "radicle-tui"
@@ -20,12 +20,12 @@ tui-realm-stdlib = { version = "1.2.0", default-features = false, features = [ "
 
 [dependencies.radicle]
 version = "0"
-path = "../radicle"
+path = "../heartwood/radicle"
 
 [dependencies.radicle-cli]
 version = "0"
-path = "../radicle-cli"
+path = "../heartwood/radicle-cli"
 
 [dependencies.radicle-term]
 version = "0"
-path = "../radicle-term"
+path = "../heartwood/radicle-term"
