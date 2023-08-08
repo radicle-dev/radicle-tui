@@ -11,7 +11,7 @@ use context::{Shortcut, Shortcuts};
 use label::Label;
 use list::{Property, PropertyList};
 
-use self::container::{AppHeader, AppInfo, Container, VerticalLine, Popup};
+use self::container::{AppHeader, AppInfo, Container, Popup, VerticalLine};
 use self::label::Textarea;
 use self::list::{ColumnWidth, PropertyTable};
 
@@ -28,7 +28,7 @@ pub fn label(content: &str) -> Widget<Label> {
     // TODO: Remove when size constraints are implemented
     let width = content.chars().count() as u16;
 
-    Widget::new(Label::default())
+    Widget::new(Label)
         .content(AttrValue::String(content.to_string()))
         .height(1)
         .width(width)

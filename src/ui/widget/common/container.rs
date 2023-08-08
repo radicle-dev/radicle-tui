@@ -115,7 +115,7 @@ impl WidgetComponent for Tabs {
                 }
                 tabs.push(tab.clone().to_boxed() as Box<dyn MockComponent>);
             }
-            tabs.push(Widget::new(Label::default()).to_boxed());
+            tabs.push(Widget::new(Label).to_boxed());
 
             let tab_layout = layout::h_stack(tabs, area);
             for (mut tab, area) in tab_layout {

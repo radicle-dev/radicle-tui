@@ -2,7 +2,9 @@ use tuirealm::command::{Cmd, CmdResult, Direction as MoveDirection};
 use tuirealm::event::{Event, Key, KeyEvent};
 use tuirealm::{MockComponent, NoUserEvent, State, StateValue};
 
-use radicle_tui::ui::widget::common::container::{AppHeader, GlobalListener, LabeledContainer, Popup};
+use radicle_tui::ui::widget::common::container::{
+    AppHeader, GlobalListener, LabeledContainer, Popup,
+};
 use radicle_tui::ui::widget::common::context::{ContextBar, Shortcuts};
 use radicle_tui::ui::widget::common::list::PropertyList;
 use radicle_tui::ui::widget::home::{Dashboard, IssueBrowser, PatchBrowser};
