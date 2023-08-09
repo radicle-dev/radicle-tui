@@ -86,15 +86,23 @@ pub struct Textarea {
     theme: Theme,
     /// The scroll offset.
     offset: usize,
+    /// The current line count.
+    len: usize,
+    /// The current display height.
+    height: usize,
     /// The percentage scrolled.
     scroll_percent: usize,
 }
 
 impl Textarea {
+    pub const PROP_DISPLAY_PROGRESS: &str = "display-progress";
+
     pub fn new(theme: Theme) -> Self {
         Self {
             theme,
             offset: 0,
+            len: 0,
+            height: 0,
             scroll_percent: 0,
         }
     }
@@ -123,6 +131,12 @@ impl WidgetComponent for Textarea {
         let fg = properties
             .get_or(Attribute::Foreground, AttrValue::Color(Color::Reset))
             .unwrap_color();
+        let display_progress = properties
+            .get_or(
+                Attribute::Custom(Self::PROP_DISPLAY_PROGRESS),
+                AttrValue::Flag(false),
+            )
+            .unwrap_flag();
 
         let content = properties
             .get_or(Attribute::Content, AttrValue::String(String::default()))
@@ -146,8 +160,8 @@ impl WidgetComponent for Textarea {
         // needs be done before wrapping. So this should rather wrap styled text
         // spans than plain text.
         let body = textwrap::wrap(&content, area.width.saturating_sub(2) as usize);
-        let len = body.len();
-        let height = layout[0].height.saturating_sub(1);
+        self.len = body.len();
+        self.height = (layout[0].height - 1) as usize;
 
         let body: String = body.iter().map(|line| format!("{}\n", line)).collect();
 
@@ -156,19 +170,21 @@ impl WidgetComponent for Textarea {
             .style(Style::default().fg(fg));
         frame.render_widget(paragraph, layout[0]);
 
-        self.scroll_percent = Self::scroll_percent(self.offset, len, height as usize);
+        self.scroll_percent = Self::scroll_percent(self.offset, self.len, self.height);
 
-        let progress = Spans::from(vec![Span::styled(
-            format!("{} %", self.scroll_percent),
-            Style::default().fg(highlight_color),
-        )]);
+        if display_progress {
+            let progress = Spans::from(vec![Span::styled(
+                format!("{} %", self.scroll_percent),
+                Style::default().fg(highlight_color),
+            )]);
 
-        let progress = Paragraph::new(progress).alignment(Alignment::Right);
-        frame.render_widget(progress, layout[1]);
+            let progress = Paragraph::new(progress).alignment(Alignment::Right);
+            frame.render_widget(progress, layout[1]);
+        }
     }
 
     fn state(&self) -> State {
-        State::One(StateValue::Usize(self.offset))
+        State::One(StateValue::Usize(self.scroll_percent))
     }
 
     fn perform(&mut self, _properties: &Props, cmd: Cmd) -> CmdResult {
@@ -177,11 +193,13 @@ impl WidgetComponent for Textarea {
         match cmd {
             Cmd::Scroll(Direction::Up) => {
                 self.offset = self.offset.saturating_sub(1);
+                self.scroll_percent = Self::scroll_percent(self.offset, self.len, self.height);
                 CmdResult::None
             }
             Cmd::Scroll(Direction::Down) => {
                 if self.scroll_percent < 100 {
                     self.offset = self.offset.saturating_add(1);
+                    self.scroll_percent = Self::scroll_percent(self.offset, self.len, self.height);
                 }
                 CmdResult::None
             }

@@ -376,7 +376,7 @@ impl WidgetComponent for Container {
     }
 
     fn state(&self) -> State {
-        State::None
+        self.component.state()
     }
 
     fn perform(&mut self, _properties: &Props, cmd: Cmd) -> CmdResult {
@@ -449,7 +449,7 @@ impl WidgetComponent for LabeledContainer {
     }
 
     fn state(&self) -> State {
-        State::None
+        self.component.state()
     }
 
     fn perform(&mut self, _properties: &Props, cmd: Cmd) -> CmdResult {

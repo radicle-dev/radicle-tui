@@ -276,13 +276,31 @@ impl ViewPage for HomeView {
 ///
 pub struct IssuePage {
     issue: (IssueId, Issue),
+    active_component: IssueCid,
     shortcuts: HashMap<IssueCid, Widget<Shortcuts>>,
 }
 
 impl IssuePage {
     pub fn new(theme: Theme, issue: (IssueId, Issue)) -> Self {
         let shortcuts = Self::build_shortcuts(&theme);
-        IssuePage { issue, shortcuts }
+        let active_component = IssueCid::List;
+
+        Self {
+            issue,
+            active_component,
+            shortcuts,
+        }
+    }
+
+    fn activate(
+        &mut self,
+        app: &mut Application<Cid, Message, NoUserEvent>,
+        cid: IssueCid,
+    ) -> Result<()> {
+        self.active_component = cid;
+        app.active(&Cid::Issue(self.active_component.clone()))?;
+
+        Ok(())
     }
 
     fn build_shortcuts(theme: &Theme) -> HashMap<IssueCid, Widget<Shortcuts>> {
@@ -314,6 +332,46 @@ impl IssuePage {
         .iter()
         .cloned()
         .collect()
+    }
+
+    fn update_context(
+        &self,
+        app: &mut Application<Cid, Message, NoUserEvent>,
+        context: &Context,
+        theme: &Theme,
+        cid: IssueCid,
+    ) -> Result<()> {
+        use tuirealm::State;
+
+        let context = match cid {
+            IssueCid::List => {
+                let state = app.state(&Cid::Issue(IssueCid::List))?;
+                let progress = match state {
+                    State::Tup2((StateValue::Usize(step), StateValue::Usize(total))) => {
+                        Progress::Step(step.saturating_add(1), total)
+                    }
+                    _ => Progress::None,
+                };
+                let context = widget::issue::browse_context(context, theme, progress);
+                Some(context)
+            }
+            IssueCid::Details => {
+                let state = app.state(&Cid::Issue(IssueCid::Details))?;
+                let progress = match state {
+                    State::One(StateValue::Usize(scroll)) => Progress::Percentage(scroll),
+                    _ => Progress::None,
+                };
+                let context = widget::issue::description_context(context, theme, progress);
+                Some(context)
+            }
+            _ => None,
+        };
+
+        if let Some(context) = context {
+            app.remount(Cid::Issue(IssueCid::Context), context.to_boxed(), vec![])?;
+        }
+
+        Ok(())
     }
 
     fn update_shortcuts(
@@ -356,8 +414,10 @@ impl ViewPage for IssuePage {
         app.remount(Cid::Issue(IssueCid::List), list, vec![])?;
         app.remount(Cid::Issue(IssueCid::Details), details, vec![])?;
 
-        app.active(&Cid::Issue(IssueCid::List))?;
-        self.update_shortcuts(app, IssueCid::List)?;
+        app.active(&Cid::Issue(self.active_component.clone()))?;
+
+        self.update_shortcuts(app, self.active_component.clone())?;
+        self.update_context(app, context, theme, self.active_component.clone())?;
 
         Ok(())
     }
@@ -366,6 +426,7 @@ impl ViewPage for IssuePage {
         app.umount(&Cid::Issue(IssueCid::Header))?;
         app.umount(&Cid::Issue(IssueCid::List))?;
         app.umount(&Cid::Issue(IssueCid::Details))?;
+        app.umount(&Cid::Issue(IssueCid::Context))?;
         app.umount(&Cid::Issue(IssueCid::Shortcuts))?;
         Ok(())
     }
@@ -393,11 +454,13 @@ impl ViewPage for IssuePage {
                 }
             }
             Message::Issue(IssueMessage::Focus(cid)) => {
-                app.active(&Cid::Issue(cid.clone()))?;
-                self.update_shortcuts(app, cid)?;
+                self.activate(app, cid)?;
+                self.update_shortcuts(app, self.active_component.clone())?;
             }
             _ => {}
         }
+
+        self.update_context(app, context, theme, self.active_component.clone())?;
 
         Ok(None)
     }
@@ -410,6 +473,7 @@ impl ViewPage for IssuePage {
         app.view(&Cid::Issue(IssueCid::Header), frame, layout.header);
         app.view(&Cid::Issue(IssueCid::List), frame, layout.left);
         app.view(&Cid::Issue(IssueCid::Details), frame, layout.right);
+        app.view(&Cid::Issue(IssueCid::Context), frame, layout.context);
         app.view(&Cid::Issue(IssueCid::Shortcuts), frame, layout.shortcuts);
     }
 

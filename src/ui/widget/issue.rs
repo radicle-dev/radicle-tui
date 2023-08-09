@@ -70,7 +70,7 @@ impl WidgetComponent for LargeList {
     }
 
     fn state(&self) -> State {
-        State::None
+        self.list.state()
     }
 
     fn perform(&mut self, _properties: &Props, cmd: Cmd) -> CmdResult {
@@ -197,7 +197,7 @@ impl WidgetComponent for IssueDetails {
     }
 
     fn state(&self) -> State {
-        State::None
+        self.description.state()
     }
 
     fn perform(&mut self, _properties: &Props, cmd: Cmd) -> CmdResult {
@@ -236,7 +236,7 @@ impl WidgetComponent for CommentBody {
     }
 
     fn state(&self) -> State {
-        State::None
+        self.textarea.state()
     }
 
     fn perform(&mut self, _properties: &Props, cmd: Cmd) -> CmdResult {
@@ -297,4 +297,12 @@ pub fn browse_context(context: &Context, theme: &Theme, progress: Progress) -> W
         &format!("{open} open | {closed} closed"),
         &progress.to_string(),
     )
+}
+
+pub fn description_context(
+    _context: &Context,
+    theme: &Theme,
+    progress: Progress,
+) -> Widget<ContextBar> {
+    common::context::bar(theme, "Show", "", "", "", &progress.to_string())
 }

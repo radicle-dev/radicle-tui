@@ -46,6 +46,7 @@ pub enum IssueCid {
     Header,
     List,
     Details,
+    Context,
     Shortcuts,
 }
 

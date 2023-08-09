@@ -103,7 +103,7 @@ pub fn default_dark() -> Theme {
             context_bg: COLOR_DEFAULT_DARKEST,
             context_light: Color::Gray,
             context_dark: COLOR_DEFAULT_DARK,
-            context_badge_bg: Color::LightRed,
+            context_badge_bg: Color::Magenta,
             context_color_fg: Color::Cyan,
             container_border_fg: COLOR_DEFAULT_DARKEST,
             container_border_focus_fg: COLOR_DEFAULT_DARK,

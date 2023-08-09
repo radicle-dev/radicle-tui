@@ -200,7 +200,9 @@ pub fn bar(
     label_3: &str,
     label_4: &str,
 ) -> Widget<ContextBar> {
-    let context = super::label(&format!(" {label_0} ")).background(theme.colors.context_badge_bg);
+    let context = super::label(&format!(" {label_0} "))
+        .foreground(theme.colors.context_bg)
+        .background(theme.colors.context_badge_bg);
     let id = super::label(&format!(" {label_1} "))
         .foreground(theme.colors.context_color_fg)
         .background(theme.colors.context_bg);
