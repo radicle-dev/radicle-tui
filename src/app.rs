@@ -330,13 +330,13 @@ impl App {
         &mut self,
         title: String,
         description: String,
-        tags: String,
+        labels: String,
         assignees: String,
     ) -> Result<IssueId> {
         let repository = self.context.repository();
         let signer = self.context.signer();
 
-        let tags = cob::parse_tags(tags)?;
+        let labels = cob::parse_labels(labels)?;
         let assignees = cob::parse_assignees(assignees)?;
 
         cob::issue::create(
@@ -344,7 +344,7 @@ impl App {
             signer,
             title,
             description,
-            tags.as_slice(),
+            labels.as_slice(),
             assignees.as_slice(),
         )
     }
