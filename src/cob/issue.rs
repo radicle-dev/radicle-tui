@@ -1,7 +1,7 @@
 use anyhow::Result;
 use radicle::cob::issue::{Issue, IssueId, Issues};
-use radicle::cob::{ActorId, Tag};
-use radicle::prelude::Signer;
+use radicle::cob::Label;
+use radicle::prelude::{Did, Signer};
 use radicle::storage::git::Repository;
 
 pub fn all(repository: &Repository) -> Result<Vec<(IssueId, Issue)>> {
@@ -25,11 +25,11 @@ pub fn create<G: Signer>(
     signer: &G,
     title: String,
     description: String,
-    tags: &[Tag],
-    assignees: &[ActorId],
+    labels: &[Label],
+    assignees: &[Did],
 ) -> Result<IssueId> {
     let mut issues = Issues::open(repository)?;
-    let issue = issues.create(title, description.trim(), tags, assignees, signer)?;
+    let issue = issues.create(title, description.trim(), labels, assignees, signer)?;
 
     Ok(*issue.id())
 }

@@ -109,7 +109,7 @@ impl IssueHeader {
         );
 
         let labels = Property::new(
-            common::label("Tags").foreground(theme.colors.property_name_fg),
+            common::label("Labels").foreground(theme.colors.property_name_fg),
             common::label(&cob::format_labels(item.labels()))
                 .foreground(theme.colors.browser_list_labels),
         );
@@ -263,7 +263,7 @@ impl NewForm {
         use tuirealm::props::Layout;
 
         let title = Widget::new(TextInput::new(theme.clone(), "Title"));
-        let tags = Widget::new(TextInput::new(theme.clone(), "Tags (tag1, tag2, ...)"));
+        let tags = Widget::new(TextInput::new(theme.clone(), "Labels (bug, ...)"));
         let assignees = Widget::new(TextInput::new(
             theme.clone(),
             "Assignees (z6MkvAdxCp1oLVVTsqYvev9YrhSN3gBQNUSM45hhy4pgkexk, ...)",
