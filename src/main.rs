@@ -2,11 +2,14 @@ use std::process;
 
 use anyhow::{anyhow, Context};
 
-use radicle::storage::ReadStorage;
-
-use radicle_cli as cli;
+use radicle::{
+    crypto::ssh::keystore::MemorySigner, prelude::Signer, profile::env::RAD_PASSPHRASE, Profile,
+};
 use radicle_term as term;
 use radicle_tui::Window;
+
+use radicle::storage::ReadStorage;
+use term::{passphrase, spinner};
 
 mod app;
 
@@ -53,15 +56,39 @@ impl Options {
     }
 }
 
+/// Get the default profile. Fails if there is no profile.
+pub fn profile() -> Result<Profile, anyhow::Error> {
+    match Profile::load() {
+        Ok(profile) => Ok(profile),
+        Err(_) => Err(anyhow::anyhow!(
+            "Could not load radicle profile. To setup your radicle profile, run `rad auth`."
+        )),
+    }
+}
+
+/// Get the signer. First we try getting it from ssh-agent, otherwise we prompt the user.
+pub fn signer(profile: &Profile) -> anyhow::Result<Box<dyn Signer>> {
+    if let Ok(signer) = profile.signer() {
+        return Ok(signer);
+    }
+    let passphrase = passphrase(RAD_PASSPHRASE)?;
+    let spinner = spinner("Unsealing key...");
+    let signer = MemorySigner::load(&profile.keystore, Some(passphrase))?;
+
+    spinner.finish();
+
+    Ok(signer.boxed())
+}
+
 fn execute() -> anyhow::Result<()> {
     let _ = Options::from_env()?;
 
     let (_, id) = radicle::rad::cwd()
         .map_err(|_| anyhow!("this command must be run in the context of a project"))?;
 
-    let profile = cli::terminal::profile()?;
+    let profile = profile()?;
 
-    let signer = cli::terminal::signer(&profile)?;
+    let signer = signer(&profile)?;
     let storage = &profile.storage;
 
     let payload = storage

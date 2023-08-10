@@ -1,7 +1,5 @@
 use radicle::cob::patch::{Patch, PatchId};
 
-use radicle_cli::terminal::format;
-
 use tuirealm::command::{Cmd, CmdResult};
 use tuirealm::tui::layout::Rect;
 use tuirealm::{AttrValue, Attribute, Frame, MockComponent, Props, State};
@@ -108,7 +106,7 @@ pub fn context(context: &Context, theme: &Theme, patch: (PatchId, Patch)) -> Wid
     let (_, rev) = patch.latest();
     let is_you = *patch.author().id() == context.profile().did();
 
-    let id = format::cob(&id);
+    let id = cob::format::cob(&id);
     let title = patch.title();
     let author = cob::format_author(patch.author().id(), is_you);
     let comments = rev.discussion().len();

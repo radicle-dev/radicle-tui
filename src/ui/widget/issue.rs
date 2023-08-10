@@ -106,10 +106,10 @@ impl IssueHeader {
             common::label(&id.to_string()).foreground(theme.colors.browser_list_description),
         );
 
-        let tags = Property::new(
+        let labels = Property::new(
             common::label("Tags").foreground(theme.colors.property_name_fg),
-            common::label(&cob::format_tags(item.tags()))
-                .foreground(theme.colors.browser_list_tags),
+            common::label(&cob::format_labels(item.labels()))
+                .foreground(theme.colors.browser_list_labels),
         );
 
         let assignees = Property::new(
@@ -135,7 +135,7 @@ impl IssueHeader {
                 Widget::new(title),
                 Widget::new(issue_id),
                 Widget::new(author),
-                Widget::new(tags),
+                Widget::new(labels),
                 Widget::new(assignees),
                 Widget::new(state),
             ],

@@ -1,7 +1,9 @@
+pub mod format;
+
 use radicle_surf;
 
-use cli::terminal::format;
-use radicle_cli as cli;
+// use cli::terminal::format;
+// use radicle_cli as cli;
 
 use radicle::prelude::Did;
 use radicle::storage::git::Repository;
@@ -10,7 +12,7 @@ use radicle::Profile;
 
 use radicle::cob::issue::{Issue, IssueId, State as IssueState};
 use radicle::cob::patch::{Patch, PatchId, State as PatchState};
-use radicle::cob::{Tag, Timestamp};
+use radicle::cob::{Label, Timestamp};
 
 use tuirealm::props::{Color, Style};
 use tuirealm::tui::text::{Span, Spans};
@@ -142,7 +144,7 @@ impl TableItem<8> for PatchItem {
         let author = Cell::from(format_author(&self.author.did, self.author.is_you))
             .style(Style::default().fg(theme.colors.browser_list_author));
 
-        let head = Cell::from(format::oid(self.head).item)
+        let head = Cell::from(format::oid(self.head))
             .style(Style::default().fg(theme.colors.browser_patch_list_head));
 
         let added = Cell::from(format!("{}", self.added))
@@ -151,7 +153,7 @@ impl TableItem<8> for PatchItem {
         let removed = Cell::from(format!("{}", self.removed))
             .style(Style::default().fg(theme.colors.browser_patch_list_removed));
 
-        let updated = Cell::from(format::timestamp(&self.timestamp).to_string())
+        let updated = Cell::from(format::timestamp(&self.timestamp))
             .style(Style::default().fg(theme.colors.browser_list_timestamp));
 
         [state, id, title, author, head, added, removed, updated]
@@ -172,8 +174,8 @@ pub struct IssueItem {
     title: String,
     /// Issue author.
     author: AuthorItem,
-    /// Issue tags.
-    tags: Vec<Tag>,
+    /// Issue labels.
+    labels: Vec<Label>,
     /// Issue assignees.
     assignees: Vec<AuthorItem>,
     /// Time when issue was opened.
@@ -197,8 +199,8 @@ impl IssueItem {
         &self.author
     }
 
-    pub fn tags(&self) -> &Vec<Tag> {
-        &self.tags
+    pub fn labels(&self) -> &Vec<Label> {
+        &self.labels
     }
 
     pub fn assignees(&self) -> &Vec<AuthorItem> {
@@ -222,12 +224,12 @@ impl From<(&Profile, &Repository, IssueId, Issue)> for IssueItem {
                 did: issue.author().id,
                 is_you: *issue.author().id == *profile.did(),
             },
-            tags: issue.tags().cloned().collect(),
+            labels: issue.labels().cloned().collect(),
             assignees: issue
                 .assigned()
                 .map(|did| AuthorItem {
-                    did,
-                    is_you: did == profile.did(),
+                    did: *did,
+                    is_you: *did == profile.did(),
                 })
                 .collect::<Vec<_>>(),
             timestamp: issue.timestamp(),
@@ -249,8 +251,8 @@ impl TableItem<7> for IssueItem {
         let author = Cell::from(format_author(&self.author.did, self.author.is_you))
             .style(Style::default().fg(theme.colors.browser_list_author));
 
-        let tags = Cell::from(format_tags(&self.tags))
-            .style(Style::default().fg(theme.colors.browser_list_tags));
+        let labels = Cell::from(format_labels(&self.labels))
+            .style(Style::default().fg(theme.colors.browser_list_labels));
 
         let assignees = self
             .assignees
@@ -260,10 +262,10 @@ impl TableItem<7> for IssueItem {
         let assignees = Cell::from(format_assignees(&assignees))
             .style(Style::default().fg(theme.colors.browser_list_author));
 
-        let opened = Cell::from(format::timestamp(&self.timestamp).to_string())
+        let opened = Cell::from(format::timestamp(&self.timestamp))
             .style(Style::default().fg(theme.colors.browser_list_timestamp));
 
-        [state, id, title, author, tags, assignees, opened]
+        [state, id, title, author, labels, assignees, opened]
     }
 }
 
@@ -289,7 +291,7 @@ impl ListItem for IssueItem {
                     Style::default().fg(theme.colors.property_divider_fg),
                 ),
                 Span::styled(
-                    format::timestamp(&self.timestamp).to_string(),
+                    format::timestamp(&self.timestamp),
                     Style::default().fg(theme.colors.browser_list_timestamp),
                 ),
             ]),
@@ -320,7 +322,7 @@ pub fn format_author(did: &Did, is_you: bool) -> String {
     if is_you {
         format!("{} (you)", format::did(did))
     } else {
-        format!("{}", format::did(did))
+        format::did(did)
     }
 }
 
@@ -331,14 +333,14 @@ pub fn format_issue_state(state: &IssueState) -> (String, Color) {
     }
 }
 
-pub fn format_tags(tags: &[Tag]) -> String {
+pub fn format_labels(labels: &[Label]) -> String {
     let mut output = String::new();
-    let mut tags = tags.iter().peekable();
+    let mut labels = labels.iter().peekable();
 
-    while let Some(tag) = tags.next() {
-        output.push_str(&tag.to_string());
+    while let Some(label) = labels.next() {
+        output.push_str(&label.to_string());
 
-        if tags.peek().is_some() {
+        if labels.peek().is_some() {
             output.push(',');
         }
     }

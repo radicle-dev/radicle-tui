@@ -13,20 +13,22 @@ path = "src/main.rs"
 [dependencies]
 anyhow = { version = "1" }
 lexopt = { version = "0.2" }
+radicle = { version = "0.2.0" }
+radicle-term = { version = "0.1.0" }
 radicle-surf = { version = "0.14.0" }
 timeago = { version = "0.4.1" }
 textwrap = { version = "0.16.0" }
 tuirealm = { version = "1.8.0", default-features = false, features = [ "with-termion" ] }
 tui-realm-stdlib = { version = "1.2.0", default-features = false, features = [ "with-termion" ] }
 
-[dependencies.radicle]
-version = "0"
-path = "../heartwood/radicle"
+# [dependencies.radicle]
+# version = "0"
+# path = "../heartwood/radicle"
 
-[dependencies.radicle-cli]
-version = "0"
-path = "../heartwood/radicle-cli"
+# [dependencies.radicle-cli]
+# version = "0"
+# path = "../heartwood/radicle-cli"
 
-[dependencies.radicle-term]
-version = "0"
-path = "../heartwood/radicle-term"
+# [dependencies.radicle-term]
+# version = "0"
+# path = "../heartwood/radicle-term"
