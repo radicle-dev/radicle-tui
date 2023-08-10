@@ -182,7 +182,7 @@ impl WidgetComponent for PropertyTable {
 /// A table component that can display a list of [`TableItem`]s.
 pub struct Table<V, const W: usize>
 where
-    V: TableItem<W> + Clone,
+    V: TableItem<W> + Clone + PartialEq,
 {
     /// Items hold by this model.
     items: Vec<V>,
@@ -198,19 +198,25 @@ where
 
 impl<V, const W: usize> Table<V, W>
 where
-    V: TableItem<W> + Clone,
+    V: TableItem<W> + Clone + PartialEq,
 {
     pub fn new(
         items: &[V],
+        selected: Option<V>,
         header: [Widget<Label>; W],
         widths: [ColumnWidth; W],
         theme: Theme,
     ) -> Self {
+        let selected = match selected {
+            Some(item) => items.iter().position(|i| i == &item),
+            _ => None,
+        };
+
         Self {
             items: items.to_vec(),
             header,
             widths,
-            state: ItemState::new(Some(0), items.len()),
+            state: ItemState::new(selected, items.len()),
             theme,
         }
     }
@@ -218,7 +224,7 @@ where
 
 impl<V, const W: usize> WidgetComponent for Table<V, W>
 where
-    V: TableItem<W> + Clone,
+    V: TableItem<W> + Clone + PartialEq,
 {
     fn view(&mut self, properties: &Props, frame: &mut Frame, area: Rect) {
         let highlight = properties

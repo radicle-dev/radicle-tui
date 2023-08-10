@@ -1,3 +1,5 @@
+use radicle::cob::issue::{Issue, IssueId};
+use radicle::cob::patch::{Patch, PatchId};
 use tuirealm::command::{Cmd, CmdResult};
 use tuirealm::tui::layout::Rect;
 use tuirealm::{AttrValue, Attribute, Frame, MockComponent, Props, State};
@@ -8,7 +10,6 @@ use super::common::list::{ColumnWidth, Table};
 
 use super::{Widget, WidgetComponent};
 
-use crate::cob;
 use crate::ui::cob::{IssueItem, PatchItem};
 use crate::ui::context::Context;
 use crate::ui::theme::Theme;
@@ -43,7 +44,7 @@ pub struct IssueBrowser {
 }
 
 impl IssueBrowser {
-    pub fn new(context: &Context, theme: &Theme) -> Self {
+    pub fn new(context: &Context, theme: &Theme, selected: Option<(IssueId, Issue)>) -> Self {
         let header = [
             common::label(" ● "),
             common::label("ID"),
@@ -76,7 +77,10 @@ impl IssueBrowser {
         items.sort_by(|a, b| b.timestamp().cmp(a.timestamp()));
         items.sort_by(|a, b| b.state().cmp(a.state()));
 
-        let table = Widget::new(Table::new(&items, header, widths, theme.clone()))
+        let selected =
+            selected.map(|(id, issue)| IssueItem::from((context.profile(), repo, id, issue)));
+
+        let table = Widget::new(Table::new(&items, selected, header, widths, theme.clone()))
             .highlight(theme.colors.item_list_highlighted_bg);
 
         Self { items, table }
@@ -112,7 +116,7 @@ pub struct PatchBrowser {
 }
 
 impl PatchBrowser {
-    pub fn new(context: &Context, theme: &Theme) -> Self {
+    pub fn new(context: &Context, theme: &Theme, selected: Option<(PatchId, Patch)>) -> Self {
         let header = [
             common::label(" ● "),
             common::label("ID"),
@@ -138,18 +142,19 @@ impl PatchBrowser {
         let repo = context.repository();
         let mut items = vec![];
 
-        if let Ok(patches) = cob::patch::all(repo) {
-            for (id, patch) in patches {
-                if let Ok(item) = PatchItem::try_from((context.profile(), repo, id, patch)) {
-                    items.push(item);
-                }
+        for (id, patch) in context.patches() {
+            if let Ok(item) = PatchItem::try_from((context.profile(), repo, *id, patch.clone())) {
+                items.push(item);
             }
         }
 
         items.sort_by(|a, b| b.timestamp().cmp(a.timestamp()));
         items.sort_by(|a, b| a.state().cmp(b.state()));
 
-        let table = Widget::new(Table::new(&items, header, widths, theme.clone()))
+        let selected = selected
+            .map(|(id, patch)| PatchItem::try_from((context.profile(), repo, id, patch)).unwrap());
+
+        let table = Widget::new(Table::new(&items, selected, header, widths, theme.clone()))
             .highlight(theme.colors.item_list_highlighted_bg);
 
         Self { items, table }
@@ -209,10 +214,18 @@ pub fn dashboard(context: &Context, theme: &Theme) -> Widget<Dashboard> {
     Widget::new(dashboard)
 }
 
-pub fn patches(context: &Context, theme: &Theme) -> Widget<PatchBrowser> {
-    Widget::new(PatchBrowser::new(context, theme))
+pub fn patches(
+    context: &Context,
+    theme: &Theme,
+    selected: Option<(PatchId, Patch)>,
+) -> Widget<PatchBrowser> {
+    Widget::new(PatchBrowser::new(context, theme, selected))
 }
 
-pub fn issues(context: &Context, theme: &Theme) -> Widget<IssueBrowser> {
-    Widget::new(IssueBrowser::new(context, theme))
+pub fn issues(
+    context: &Context,
+    theme: &Theme,
+    selected: Option<(IssueId, Issue)>,
+) -> Widget<IssueBrowser> {
+    Widget::new(IssueBrowser::new(context, theme, selected))
 }

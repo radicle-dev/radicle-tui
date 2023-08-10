@@ -103,6 +103,12 @@ impl PatchItem {
     }
 }
 
+impl PartialEq for PatchItem {
+    fn eq(&self, other: &Self) -> bool {
+        self.id == other.id
+    }
+}
+
 impl TryFrom<(&Profile, &Repository, PatchId, Patch)> for PatchItem {
     type Error = anyhow::Error;
 

@@ -7,14 +7,16 @@ use radicle::cob::patch::{Patch, PatchId};
 
 use radicle_tui::cob;
 use radicle_tui::ui::widget::common::context::{Progress, Shortcuts};
-use tuirealm::{Frame, NoUserEvent, StateValue, Sub, SubClause};
+use tuirealm::{AttrValue, Attribute, Frame, NoUserEvent, StateValue, Sub, SubClause};
 
 use radicle_tui::ui::context::Context;
 use radicle_tui::ui::layout;
 use radicle_tui::ui::theme::Theme;
 use radicle_tui::ui::widget::{self, Widget};
 
-use super::{subscription, Application, Cid, HomeCid, IssueCid, IssueMessage, Message, PatchCid};
+use super::{
+    subscription, Application, Cid, HomeCid, HomeMessage, IssueCid, IssueMessage, Message, PatchCid,
+};
 
 /// `tuirealm`'s event and prop system is designed to work with flat component hierarchies.
 /// Building deep nested component hierarchies would need a lot more additional effort to
@@ -72,6 +74,19 @@ impl HomeView {
             active_component: HomeCid::Dashboard,
             shortcuts,
         }
+    }
+
+    fn activate(
+        &mut self,
+        app: &mut Application<Cid, Message, NoUserEvent>,
+        cid: HomeCid,
+    ) -> Result<()> {
+        self.active_component = cid;
+        let cid = Cid::Home(self.active_component.clone());
+        app.active(&cid)?;
+        app.attr(&cid, Attribute::Focus, AttrValue::Flag(true))?;
+
+        Ok(())
     }
 
     fn build_shortcuts(theme: &Theme) -> HashMap<HomeCid, Widget<Shortcuts>> {
@@ -182,12 +197,15 @@ impl ViewPage for HomeView {
         context: &Context,
         theme: &Theme,
     ) -> Result<()> {
+        let issue = context.issues().first().cloned();
+        let patch = context.patches().first().cloned();
+
         let navigation = widget::home::navigation(theme);
         let header = widget::common::app_header(context, theme, Some(navigation)).to_boxed();
 
         let dashboard = widget::home::dashboard(context, theme).to_boxed();
-        let issue_browser = widget::home::issues(context, theme).to_boxed();
-        let patch_browser = widget::home::patches(context, theme).to_boxed();
+        let issue_browser = widget::home::issues(context, theme, issue).to_boxed();
+        let patch_browser = widget::home::patches(context, theme, patch).to_boxed();
 
         app.remount(Cid::Home(HomeCid::Header), header, vec![])?;
 
@@ -220,13 +238,25 @@ impl ViewPage for HomeView {
         theme: &Theme,
         message: Message,
     ) -> Result<Option<Message>> {
-        if let Message::NavigationChanged(index) = message {
-            self.active_component = HomeCid::from(index as usize);
+        match message {
+            Message::NavigationChanged(index) => {
+                self.activate(app, HomeCid::from(index as usize))?;
+                self.update_shortcuts(app, self.active_component.clone())?;
+            }
+            Message::Home(HomeMessage::RefreshIssues(id)) => {
+                let selected = match id {
+                    Some(id) => {
+                        cob::issue::find(context.repository(), &id)?.map(|issue| (id, issue))
+                    }
+                    _ => None,
+                };
 
-            let active_component = Cid::Home(self.active_component.clone());
-            app.active(&active_component)?;
+                let issue_browser = widget::home::issues(context, theme, selected).to_boxed();
+                app.remount(Cid::Home(HomeCid::IssueBrowser), issue_browser, vec![])?;
 
-            self.update_shortcuts(app, self.active_component.clone())?;
+                self.activate(app, HomeCid::IssueBrowser)?;
+            }
+            _ => {}
         }
 
         self.update_context(app, context, theme, self.active_component.clone())?;
@@ -299,7 +329,9 @@ impl IssuePage {
         cid: IssueCid,
     ) -> Result<()> {
         self.active_component = cid;
-        app.active(&Cid::Issue(self.active_component.clone()))?;
+        let cid = Cid::Issue(self.active_component.clone());
+        app.active(&cid)?;
+        app.attr(&cid, Attribute::Focus, AttrValue::Flag(true))?;
 
         Ok(())
     }
@@ -469,8 +501,8 @@ impl ViewPage for IssuePage {
                 let repo = context.repository();
 
                 if let Some(issue) = cob::issue::find(repo, &id)? {
-                    let list =
-                        widget::issue::list(context, theme, Some((id, issue.clone()))).to_boxed();
+                    self.issue = Some((id, issue.clone()));
+                    let list = widget::issue::list(context, theme, self.issue.clone()).to_boxed();
                     let comments = issue.comments().collect::<Vec<_>>();
 
                     let details = widget::issue::details(
@@ -514,11 +546,9 @@ impl ViewPage for IssuePage {
 
                 app.unsubscribe(&Cid::GlobalListener, subscription::global_clause())?;
 
-                self.activate(app, IssueCid::Form)?;
-                self.update_shortcuts(app, IssueCid::Form)?;
+                return Ok(Some(Message::Issue(IssueMessage::Focus(IssueCid::Form))));
             }
             Message::Issue(IssueMessage::HideForm) => {
-                app.blur()?;
                 app.umount(&Cid::Issue(IssueCid::Form))?;
 
                 let list = widget::issue::list(context, theme, self.issue.clone()).to_boxed();
@@ -529,12 +559,10 @@ impl ViewPage for IssuePage {
                     Sub::new(subscription::global_clause(), SubClause::Always),
                 )?;
 
-                self.activate(app, IssueCid::List)?;
-                self.update_shortcuts(app, IssueCid::List)?;
-
                 if self.issue.is_none() {
-                    return Ok(Some(Message::Issue(IssueMessage::Leave)));
+                    return Ok(Some(Message::Issue(IssueMessage::Leave(None))));
                 }
+                return Ok(Some(Message::Issue(IssueMessage::Focus(IssueCid::List))));
             }
             _ => {}
         }
