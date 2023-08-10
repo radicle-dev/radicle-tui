@@ -64,7 +64,9 @@ pub enum Cid {
 
 /// Messages handled by this application.
 #[derive(Clone, Debug, Eq, PartialEq)]
-pub enum HomeMessage {}
+pub enum HomeMessage {
+    RefreshIssues(Option<IssueId>),
+}
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum IssueCobMessage {
@@ -85,7 +87,7 @@ pub enum IssueMessage {
     Cob(IssueCobMessage),
     OpenForm,
     HideForm,
-    Leave,
+    Leave(Option<IssueId>),
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -192,17 +194,6 @@ impl App {
                 Ok(())
             }
         }
-
-        // if let Some(issue) = cob::issue::find(repo, &id)? {
-        //     let view = Box::new(IssuePage::new(&self.context, theme, (id, issue)));
-        //     self.pages.push(view, app, &self.context, theme)?;
-
-        //     Ok(())
-        // } else {
-        //     Err(anyhow::anyhow!(
-        //         "Could not mount 'page::IssueView'. Issue not found."
-        //     ))
-        // }
     }
 
     fn process(
@@ -250,9 +241,9 @@ impl App {
                 self.view_issue(app, id, &theme)?;
                 Ok(None)
             }
-            Message::Issue(IssueMessage::Leave) => {
+            Message::Issue(IssueMessage::Leave(id)) => {
                 self.pages.pop(app)?;
-                Ok(None)
+                Ok(Some(Message::Home(HomeMessage::RefreshIssues(id))))
             }
             Message::Patch(PatchMessage::Show(id)) => {
                 self.view_patch(app, id, &theme)?;

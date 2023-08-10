@@ -53,9 +53,15 @@ impl tuirealm::Component<Message, NoUserEvent> for Widget<AppHeader> {
 impl tuirealm::Component<Message, NoUserEvent> for Widget<issue::LargeList> {
     fn on(&mut self, event: Event<NoUserEvent>) -> Option<Message> {
         match event {
-            Event::Keyboard(KeyEvent { code: Key::Esc, .. }) => {
-                Some(Message::Issue(IssueMessage::Leave))
-            }
+            Event::Keyboard(KeyEvent { code: Key::Esc, .. }) => match self.state() {
+                State::Tup2((StateValue::Usize(selected), StateValue::Usize(_))) => {
+                    let item = self.items().get(selected)?;
+                    Some(Message::Issue(IssueMessage::Leave(Some(
+                        item.id().to_owned(),
+                    ))))
+                }
+                _ => None,
+            },
             Event::Keyboard(KeyEvent { code: Key::Up, .. }) => {
                 let result = self.perform(Cmd::Move(MoveDirection::Up));
                 match result {
