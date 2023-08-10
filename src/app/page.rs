@@ -94,6 +94,7 @@ impl HomeView {
                         widget::common::shortcut(theme, "tab", "section"),
                         widget::common::shortcut(theme, "↑/↓", "navigate"),
                         widget::common::shortcut(theme, "enter", "show"),
+                        widget::common::shortcut(theme, "n", "new issue"),
                         widget::common::shortcut(theme, "q", "quit"),
                     ],
                 ),
@@ -275,13 +276,13 @@ impl ViewPage for HomeView {
 /// Issue detail page
 ///
 pub struct IssuePage {
-    issue: (IssueId, Issue),
+    issue: Option<(IssueId, Issue)>,
     active_component: IssueCid,
     shortcuts: HashMap<IssueCid, Widget<Shortcuts>>,
 }
 
 impl IssuePage {
-    pub fn new(_context: &Context, theme: &Theme, issue: (IssueId, Issue)) -> Self {
+    pub fn new(_context: &Context, theme: &Theme, issue: Option<(IssueId, Issue)>) -> Self {
         let shortcuts = Self::build_shortcuts(theme);
         let active_component = IssueCid::List;
 
@@ -413,22 +414,23 @@ impl ViewPage for IssuePage {
         context: &Context,
         theme: &Theme,
     ) -> Result<()> {
-        let (id, issue) = &self.issue;
         let header = widget::common::app_header(context, theme, None).to_boxed();
-        let comments = issue.comments().collect::<Vec<_>>();
-
-        let list = widget::issue::list(context, theme, (*id, issue.clone())).to_boxed();
-        let details = widget::issue::details(
-            context,
-            theme,
-            (*id, issue.clone()),
-            comments.first().copied(),
-        )
-        .to_boxed();
+        let list = widget::issue::list(context, theme, self.issue.clone()).to_boxed();
 
         app.remount(Cid::Issue(IssueCid::Header), header, vec![])?;
         app.remount(Cid::Issue(IssueCid::List), list, vec![])?;
-        app.remount(Cid::Issue(IssueCid::Details), details, vec![])?;
+
+        if let Some((id, issue)) = &self.issue {
+            let comments = issue.comments().collect::<Vec<_>>();
+            let details = widget::issue::details(
+                context,
+                theme,
+                (*id, issue.clone()),
+                comments.first().copied(),
+            )
+            .to_boxed();
+            app.remount(Cid::Issue(IssueCid::Details), details, vec![])?;
+        }
 
         app.active(&Cid::Issue(self.active_component.clone()))?;
 
@@ -441,12 +443,17 @@ impl ViewPage for IssuePage {
     fn unmount(&self, app: &mut Application<Cid, Message, NoUserEvent>) -> Result<()> {
         app.umount(&Cid::Issue(IssueCid::Header))?;
         app.umount(&Cid::Issue(IssueCid::List))?;
-        app.umount(&Cid::Issue(IssueCid::Details))?;
         app.umount(&Cid::Issue(IssueCid::Context))?;
+        app.umount(&Cid::Issue(IssueCid::Shortcuts))?;
+
+        if app.mounted(&Cid::Issue(IssueCid::Details)) {
+            app.umount(&Cid::Issue(IssueCid::Details))?;
+        }
+
         if app.mounted(&Cid::Issue(IssueCid::Form)) {
             app.umount(&Cid::Issue(IssueCid::Form))?;
         }
-        app.umount(&Cid::Issue(IssueCid::Shortcuts))?;
+
         Ok(())
     }
 
@@ -462,7 +469,8 @@ impl ViewPage for IssuePage {
                 let repo = context.repository();
 
                 if let Some(issue) = cob::issue::find(repo, &id)? {
-                    let list = widget::issue::list(context, theme, (id, issue.clone())).to_boxed();
+                    let list =
+                        widget::issue::list(context, theme, Some((id, issue.clone()))).to_boxed();
                     let comments = issue.comments().collect::<Vec<_>>();
 
                     let details = widget::issue::details(
@@ -517,6 +525,10 @@ impl ViewPage for IssuePage {
 
                 self.activate(app, IssueCid::List)?;
                 self.update_shortcuts(app, IssueCid::List)?;
+
+                if self.issue.is_none() {
+                    return Ok(Some(Message::Issue(IssueMessage::Leave)));
+                }
             }
             _ => {}
         }
@@ -536,7 +548,7 @@ impl ViewPage for IssuePage {
 
         if app.mounted(&Cid::Issue(IssueCid::Form)) {
             app.view(&Cid::Issue(IssueCid::Form), frame, layout.right);
-        } else {
+        } else if app.mounted(&Cid::Issue(IssueCid::Details)) {
             app.view(&Cid::Issue(IssueCid::Details), frame, layout.right);
         }
 

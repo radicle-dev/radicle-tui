@@ -8,7 +8,6 @@ use radicle::cob::issue::IssueId;
 use tuirealm::tui::layout::{Constraint, Direction, Layout};
 use tuirealm::StateValue;
 
-
 use super::common::container::{Container, LabeledContainer};
 use super::common::context::{ContextBar, Progress};
 use super::common::form::Form;
@@ -336,8 +335,12 @@ impl WidgetComponent for NewForm {
     }
 }
 
-pub fn list(context: &Context, theme: &Theme, issue: (IssueId, Issue)) -> Widget<LargeList> {
-    let list = LargeList::new(context, theme, Some(issue));
+pub fn list(
+    context: &Context,
+    theme: &Theme,
+    issue: Option<(IssueId, Issue)>,
+) -> Widget<LargeList> {
+    let list = LargeList::new(context, theme, issue);
 
     Widget::new(list)
 }

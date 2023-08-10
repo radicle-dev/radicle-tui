@@ -1,3 +1,4 @@
+use radicle::cob::issue::IssueId;
 use tuirealm::command::{Cmd, CmdResult, Direction as MoveDirection, Position};
 use tuirealm::event::{Event, Key, KeyEvent, KeyModifiers};
 use tuirealm::{MockComponent, NoUserEvent, State, StateValue};
@@ -277,6 +278,17 @@ impl tuirealm::Component<Message, NoUserEvent> for Widget<PatchBrowser> {
 
 impl tuirealm::Component<Message, NoUserEvent> for Widget<IssueBrowser> {
     fn on(&mut self, event: Event<NoUserEvent>) -> Option<Message> {
+        let mut submit = || -> Option<IssueId> {
+            let result = self.perform(Cmd::Submit);
+            match result {
+                CmdResult::Submit(State::One(StateValue::Usize(selected))) => {
+                    let item = self.items().get(selected)?;
+                    Some(item.id().to_owned())
+                }
+                _ => None,
+            }
+        };
+
         match event {
             Event::Keyboard(KeyEvent { code: Key::Up, .. }) => {
                 self.perform(Cmd::Move(MoveDirection::Up));
@@ -289,15 +301,23 @@ impl tuirealm::Component<Message, NoUserEvent> for Widget<IssueBrowser> {
                 Some(Message::Tick)
             }
             Event::Keyboard(KeyEvent {
+                code: Key::Char('n'),
+                ..
+            }) => {
+                let id = submit();
+                Some(Message::Batch(vec![
+                    Message::Issue(IssueMessage::Show(id)),
+                    Message::Issue(IssueMessage::OpenForm),
+                ]))
+            }
+            Event::Keyboard(KeyEvent {
                 code: Key::Enter, ..
             }) => {
-                let result = self.perform(Cmd::Submit);
-                match result {
-                    CmdResult::Submit(State::One(StateValue::Usize(selected))) => {
-                        let item = self.items().get(selected)?;
-                        Some(Message::Issue(IssueMessage::Show(item.id().to_owned())))
-                    }
-                    _ => None,
+                let id = submit();
+                if id.is_some() {
+                    Some(Message::Issue(IssueMessage::Show(id)))
+                } else {
+                    None
                 }
             }
             _ => None,

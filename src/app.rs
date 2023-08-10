@@ -78,7 +78,7 @@ pub enum IssueCobMessage {
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum IssueMessage {
-    Show(IssueId),
+    Show(Option<IssueId>),
     Changed(IssueId),
     Focus(IssueCid),
     Created(IssueId),
@@ -168,21 +168,41 @@ impl App {
     fn view_issue(
         &mut self,
         app: &mut Application<Cid, Message, NoUserEvent>,
-        id: IssueId,
+        id: Option<IssueId>,
         theme: &Theme,
     ) -> Result<()> {
         let repo = self.context.repository();
+        match id {
+            Some(id) => {
+                if let Some(issue) = cob::issue::find(repo, &id)? {
+                    let view = Box::new(IssuePage::new(&self.context, theme, Some((id, issue))));
+                    self.pages.push(view, app, &self.context, theme)?;
 
-        if let Some(issue) = cob::issue::find(repo, &id)? {
-            let view = Box::new(IssuePage::new(&self.context, theme, (id, issue)));
-            self.pages.push(view, app, &self.context, theme)?;
+                    Ok(())
+                } else {
+                    Err(anyhow::anyhow!(
+                        "Could not mount 'page::IssueView'. Issue not found."
+                    ))
+                }
+            }
+            None => {
+                let view = Box::new(IssuePage::new(&self.context, theme, None));
+                self.pages.push(view, app, &self.context, theme)?;
 
-            Ok(())
-        } else {
-            Err(anyhow::anyhow!(
-                "Could not mount 'page::IssueView'. Issue not found."
-            ))
+                Ok(())
+            }
         }
+
+        // if let Some(issue) = cob::issue::find(repo, &id)? {
+        //     let view = Box::new(IssuePage::new(&self.context, theme, (id, issue)));
+        //     self.pages.push(view, app, &self.context, theme)?;
+
+        //     Ok(())
+        // } else {
+        //     Err(anyhow::anyhow!(
+        //         "Could not mount 'page::IssueView'. Issue not found."
+        //     ))
+        // }
     }
 
     fn process(
