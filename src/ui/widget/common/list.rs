@@ -316,7 +316,7 @@ where
     pub fn new(items: &[V], selected: Option<V>, theme: Theme) -> Self {
         let selected = match selected {
             Some(item) => items.iter().position(|i| i == &item),
-            None => Some(0),
+            _ => None,
         };
 
         Self {

@@ -488,6 +488,7 @@ impl ViewPage for IssuePage {
             Message::Issue(IssueMessage::Changed(id)) => {
                 let repo = context.repository();
                 if let Some(issue) = cob::issue::find(repo, &id)? {
+                    self.issue = Some((id, issue.clone()));
                     let comments = issue.comments().collect::<Vec<_>>();
                     let details = widget::issue::details(
                         context,
@@ -505,7 +506,9 @@ impl ViewPage for IssuePage {
             }
             Message::Issue(IssueMessage::OpenForm) => {
                 let new_form = widget::issue::new_form(context, theme).to_boxed();
+                let list = widget::issue::list(context, theme, None).to_boxed();
 
+                app.remount(Cid::Issue(IssueCid::List), list, vec![])?;
                 app.remount(Cid::Issue(IssueCid::Form), new_form, vec![])?;
                 app.active(&Cid::Issue(IssueCid::Form))?;
 
@@ -517,6 +520,9 @@ impl ViewPage for IssuePage {
             Message::Issue(IssueMessage::HideForm) => {
                 app.blur()?;
                 app.umount(&Cid::Issue(IssueCid::Form))?;
+
+                let list = widget::issue::list(context, theme, self.issue.clone()).to_boxed();
+                app.remount(Cid::Issue(IssueCid::List), list, vec![])?;
 
                 app.subscribe(
                     &Cid::GlobalListener,
