@@ -408,6 +408,6 @@ pub fn description_context(
 }
 
 pub fn form_context(_context: &Context, theme: &Theme, progress: Progress) -> Widget<ContextBar> {
-    common::context::bar(theme, "Edit", "", "", "", &progress.to_string())
+    common::context::bar(theme, "Open", "", "", "", &progress.to_string())
         .custom(ContextBar::PROP_EDIT_MODE, AttrValue::Flag(true))
 }
