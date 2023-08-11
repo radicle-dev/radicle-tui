@@ -88,7 +88,7 @@ impl tuirealm::Component<Message, NoUserEvent> for Widget<issue::LargeList> {
                 code: Key::Enter, ..
             }) => Some(Message::Issue(IssueMessage::Focus(IssueCid::Details))),
             Event::Keyboard(KeyEvent {
-                code: Key::Char('n'),
+                code: Key::Char('o'),
                 ..
             }) => Some(Message::Issue(IssueMessage::OpenForm)),
             _ => None,
@@ -307,7 +307,7 @@ impl tuirealm::Component<Message, NoUserEvent> for Widget<IssueBrowser> {
                 Some(Message::Tick)
             }
             Event::Keyboard(KeyEvent {
-                code: Key::Char('n'),
+                code: Key::Char('o'),
                 ..
             }) => {
                 let id = submit();
