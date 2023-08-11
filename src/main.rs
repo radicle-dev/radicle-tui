@@ -1,7 +1,10 @@
 use std::process;
 
 use anyhow::{anyhow, Context};
+use log::info;
+use log::LevelFilter;
 
+use radicle::profile;
 use radicle::{
     crypto::ssh::keystore::MemorySigner, prelude::Signer, profile::env::RAD_PASSPHRASE, Profile,
 };
@@ -85,17 +88,20 @@ fn execute() -> anyhow::Result<()> {
 
     let (_, id) = radicle::rad::cwd()
         .map_err(|_| anyhow!("this command must be run in the context of a project"))?;
-
     let profile = profile()?;
-
     let signer = signer(&profile)?;
-    let storage = &profile.storage;
-
-    let payload = storage
+    let payload = &profile
+        .storage
         .get(signer.public_key(), id)?
         .context("No project with such `id` exists")?;
-
     let project = payload.project()?;
+
+    let logfile = format!(
+        "{}/radicle-tui.log",
+        profile::home()?.path().to_string_lossy()
+    );
+    simple_logging::log_to_file(logfile, LevelFilter::Info)?;
+    info!("Launching window...");
 
     let mut window = Window::default();
     window.run(&mut app::App::new(profile, id, project), 1000 / FPS)?;
@@ -105,7 +111,7 @@ fn execute() -> anyhow::Result<()> {
 
 fn main() {
     if let Err(err) = execute() {
-        term::error(format!("Error: rad-tui: {err}"));
+        term::error(format!("Error: radicle-tui: {err}"));
         process::exit(1);
     }
 }
