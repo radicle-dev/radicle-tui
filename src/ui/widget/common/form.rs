@@ -73,7 +73,9 @@ impl WidgetComponent for TextInput {
             let result = self.input.perform(cmd);
             if let State::Vec(values) = self.input.state() {
                 if let Some(StateValue::String(input)) = values.first() {
-                    self.show_placeholder = input.is_empty();
+                    self.show_placeholder = values.len() == 1 && input.is_empty();
+                } else {
+                    self.show_placeholder = false;
                 }
             }
             result
