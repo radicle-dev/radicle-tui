@@ -7,7 +7,7 @@ use radicle_tui::ui::widget::common::container::{
     AppHeader, GlobalListener, LabeledContainer, Popup,
 };
 use radicle_tui::ui::widget::common::context::{ContextBar, Shortcuts};
-use radicle_tui::ui::widget::common::form::TextInput;
+use radicle_tui::ui::widget::common::form::{Form, TextInput};
 use radicle_tui::ui::widget::common::list::PropertyList;
 use radicle_tui::ui::widget::home::{Dashboard, IssueBrowser, PatchBrowser};
 use radicle_tui::ui::widget::issue::NewForm;
@@ -132,6 +132,16 @@ impl tuirealm::Component<Message, NoUserEvent> for Widget<issue::NewForm> {
                 self.perform(Cmd::Move(MoveDirection::Right));
                 Some(Message::Tick)
             }
+            Event::Keyboard(KeyEvent { code: Key::Up, .. }) => {
+                self.perform(Cmd::Move(MoveDirection::Up));
+                Some(Message::Tick)
+            }
+            Event::Keyboard(KeyEvent {
+                code: Key::Down, ..
+            }) => {
+                self.perform(Cmd::Move(MoveDirection::Down));
+                Some(Message::Tick)
+            }
             Event::Keyboard(KeyEvent {
                 code: Key::Home, ..
             }) => {
@@ -219,11 +229,11 @@ impl tuirealm::Component<Message, NoUserEvent> for Widget<issue::NewForm> {
             Event::Keyboard(KeyEvent {
                 code: Key::BackTab, ..
             }) => {
-                self.perform(Cmd::Move(MoveDirection::Up));
+                self.perform(Cmd::Custom(Form::CMD_FOCUS_PREVIOUS));
                 Some(Message::Tick)
             }
             Event::Keyboard(KeyEvent { code: Key::Tab, .. }) => {
-                self.perform(Cmd::Move(MoveDirection::Down));
+                self.perform(Cmd::Custom(Form::CMD_FOCUS_NEXT));
                 Some(Message::Tick)
             }
             Event::Keyboard(KeyEvent {

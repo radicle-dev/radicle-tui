@@ -89,6 +89,9 @@ pub struct Form {
 }
 
 impl Form {
+    pub const CMD_FOCUS_PREVIOUS: &str = "cmd-focus-previous";
+    pub const CMD_FOCUS_NEXT: &str = "cmd-focus-next";
+
     pub fn new(_theme: Theme, inputs: Vec<Widget<TextInput>>) -> Self {
         let state = FormState::new(Some(0), inputs.len());
 
@@ -134,19 +137,18 @@ impl WidgetComponent for Form {
     }
 
     fn perform(&mut self, _properties: &Props, cmd: Cmd) -> CmdResult {
-        use tuirealm::command::Direction;
         match cmd {
-            Cmd::Move(Direction::Up) => {
+            Cmd::Custom(Self::CMD_FOCUS_PREVIOUS) => {
                 self.state.focus_previous();
                 CmdResult::None
             }
-            Cmd::Move(Direction::Down) => {
+            Cmd::Custom(Self::CMD_FOCUS_NEXT) => {
                 self.state.focus_next();
                 CmdResult::None
             }
             Cmd::Submit => {
                 // Fold each input's vector of lines into a single string
-                // that containes newlines and return a state vector with
+                // that contains newlines and return a state vector with
                 // each entry being the folded input string.
                 let states = self
                     .inputs
