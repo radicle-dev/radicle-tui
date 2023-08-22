@@ -128,9 +128,6 @@ impl WidgetComponent for Textarea {
         let focus = properties
             .get_or(Attribute::Focus, AttrValue::Flag(false))
             .unwrap_flag();
-        let fg = properties
-            .get_or(Attribute::Foreground, AttrValue::Color(Color::Reset))
-            .unwrap_color();
         let display_progress = properties
             .get_or(
                 Attribute::Custom(Self::PROP_DISPLAY_PROGRESS),
@@ -152,6 +149,18 @@ impl WidgetComponent for Textarea {
         } else {
             self.theme.colors.container_border_fg
         };
+
+        // let fg = if focus {
+        //     properties
+        //         .get_or(Attribute::Foreground, AttrValue::Color(Color::Reset))
+        //         .unwrap_color()
+        // } else {
+        //     self.theme.colors.input_placeholder_fg
+        // };
+
+        let fg = properties
+            .get_or(Attribute::Foreground, AttrValue::Color(Color::Reset))
+            .unwrap_color();
 
         // TODO: replace with `ratatui`'s reflow module when that becomes
         // public: https://github.com/tui-rs-revival/ratatui/pull/9.

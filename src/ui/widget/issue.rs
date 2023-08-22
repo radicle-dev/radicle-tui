@@ -20,7 +20,7 @@ use crate::ui::cob;
 use crate::ui::cob::IssueItem;
 use crate::ui::context::Context;
 use crate::ui::theme::Theme;
-use crate::ui::widget::common::form::TextInput;
+use crate::ui::widget::common::form::Field;
 
 use super::*;
 
@@ -262,14 +262,14 @@ impl NewForm {
     pub fn new(theme: &Theme) -> Self {
         use tuirealm::props::Layout;
 
-        let title = Widget::new(TextInput::new(theme.clone(), "Title"));
-        let tags = Widget::new(TextInput::new(theme.clone(), "Labels (bug, ...)"));
-        let assignees = Widget::new(TextInput::new(
+        let title = Widget::new(Field::new(theme.clone(), "Title"));
+        let tags = Widget::new(Field::new(theme.clone(), "Labels (bug, ...)"));
+        let assignees = Widget::new(Field::new(
             theme.clone(),
             "Assignees (z6MkvAdxCp1oLVVTsqYvev9YrhSN3gBQNUSM45hhy4pgkexk, ...)",
         ));
-        let description = Widget::new(TextInput::new(theme.clone(), "Description"))
-            .custom(TextInput::PROP_MULTILINE, AttrValue::Flag(true));
+        let description = Widget::new(Field::new(theme.clone(), "Description"))
+            .custom(Field::PROP_MULTILINE, AttrValue::Flag(true));
 
         let mut form = Widget::new(Form::new(
             theme.clone(),

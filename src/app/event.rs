@@ -7,7 +7,7 @@ use radicle_tui::ui::widget::common::container::{
     AppHeader, GlobalListener, LabeledContainer, Popup,
 };
 use radicle_tui::ui::widget::common::context::{ContextBar, Shortcuts};
-use radicle_tui::ui::widget::common::form::{Form, TextInput};
+use radicle_tui::ui::widget::common::form::{Form, Field};
 use radicle_tui::ui::widget::common::list::PropertyList;
 use radicle_tui::ui::widget::home::{Dashboard, IssueBrowser, PatchBrowser};
 use radicle_tui::ui::widget::issue::NewForm;
@@ -168,7 +168,7 @@ impl tuirealm::Component<Message, NoUserEvent> for Widget<issue::NewForm> {
             Event::Keyboard(KeyEvent {
                 code: Key::Enter, ..
             }) => {
-                self.perform(Cmd::Custom(TextInput::CMD_NEWLINE));
+                self.perform(Cmd::Custom(Field::CMD_NEWLINE));
                 Some(Message::Tick)
             }
             Event::Keyboard(KeyEvent {
@@ -247,7 +247,7 @@ impl tuirealm::Component<Message, NoUserEvent> for Widget<issue::NewForm> {
                 code: Key::Char('v'),
                 modifiers: KeyModifiers::CONTROL,
             }) => {
-                self.perform(Cmd::Custom(TextInput::CMD_PASTE));
+                self.perform(Cmd::Custom(Field::CMD_PASTE));
                 Some(Message::Tick)
             }
             Event::Keyboard(KeyEvent {
