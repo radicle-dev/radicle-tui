@@ -19,12 +19,13 @@ pub struct TextInput {
 }
 
 impl TextInput {
-    pub const PROP_MULTILINE: &str = "multiline";
     pub const CMD_NEWLINE: &str = tui_realm_textarea::TEXTAREA_CMD_NEWLINE;
     pub const CMD_PASTE: &str = tui_realm_textarea::TEXTAREA_CMD_PASTE;
 
-    pub fn new(theme: Theme, title: &str) -> Self {
+    pub fn new(theme: Theme, title: &str, wrap: bool, single_line: bool) -> Self {
         let input = TextArea::default()
+            .wrap(wrap)
+            .single_line(single_line)
             .cursor_line_style(Style::reset())
             .style(Style::default().fg(theme.colors.default_fg));
         let container = super::container(&theme, Box::new(input));
@@ -59,27 +60,16 @@ impl WidgetComponent for TextInput {
         self.input.state()
     }
 
-    fn perform(&mut self, properties: &Props, cmd: Cmd) -> CmdResult {
-        let multiline = properties
-            .get_or(
-                Attribute::Custom(Self::PROP_MULTILINE),
-                AttrValue::Flag(false),
-            )
-            .unwrap_flag();
-
-        if !multiline && cmd == Cmd::Custom(Self::CMD_NEWLINE) {
-            CmdResult::None
-        } else {
-            let result = self.input.perform(cmd);
-            if let State::Vec(values) = self.input.state() {
-                if let Some(StateValue::String(input)) = values.first() {
-                    self.show_placeholder = values.len() == 1 && input.is_empty();
-                } else {
-                    self.show_placeholder = false;
-                }
+    fn perform(&mut self, _properties: &Props, cmd: Cmd) -> CmdResult {
+        let result = self.input.perform(cmd);
+        if let State::Vec(values) = self.input.state() {
+            if let Some(StateValue::String(input)) = values.first() {
+                self.show_placeholder = values.len() == 1 && input.is_empty();
+            } else {
+                self.show_placeholder = false;
             }
-            result
         }
+        result
     }
 }
 

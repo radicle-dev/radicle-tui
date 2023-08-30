@@ -262,14 +262,20 @@ impl NewForm {
     pub fn new(theme: &Theme) -> Self {
         use tuirealm::props::Layout;
 
-        let title = Widget::new(TextInput::new(theme.clone(), "Title"));
-        let tags = Widget::new(TextInput::new(theme.clone(), "Labels (bug, ...)"));
+        let title = Widget::new(TextInput::new(theme.clone(), "Title", false, true));
+        let tags = Widget::new(TextInput::new(
+            theme.clone(),
+            "Labels (bug, ...)",
+            false,
+            true,
+        ));
         let assignees = Widget::new(TextInput::new(
             theme.clone(),
             "Assignees (z6MkvAdxCp1oLVVTsqYvev9YrhSN3gBQNUSM45hhy4pgkexk, ...)",
+            false,
+            true,
         ));
-        let description = Widget::new(TextInput::new(theme.clone(), "Description"))
-            .custom(TextInput::PROP_MULTILINE, AttrValue::Flag(true));
+        let description = Widget::new(TextInput::new(theme.clone(), "Description", true, false));
 
         let mut form = Widget::new(Form::new(
             theme.clone(),
