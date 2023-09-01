@@ -26,7 +26,7 @@ pub fn parse_assignees(input: String) -> Result<Vec<Did>> {
     let mut assignees = vec![];
     if !input.is_empty() {
         for did in input.split(',') {
-            match Did::from_str(did) {
+            match Did::from_str(&format!("did:key:{}", did)) {
                 Ok(did) => assignees.push(did),
                 Err(err) => return Err(anyhow::anyhow!(err).context("Can't parse assignees.")),
             }
