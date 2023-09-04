@@ -62,7 +62,11 @@ impl tuirealm::Component<Message, NoUserEvent> for Widget<issue::LargeList> {
                 }
                 _ => None,
             },
-            Event::Keyboard(KeyEvent { code: Key::Up, .. }) => {
+            Event::Keyboard(KeyEvent { code: Key::Up, .. })
+            | Event::Keyboard(KeyEvent {
+                code: Key::Char('k'),
+                ..
+            }) => {
                 let result = self.perform(Cmd::Move(MoveDirection::Up));
                 match result {
                     CmdResult::Changed(State::One(StateValue::Usize(selected))) => {
@@ -74,6 +78,10 @@ impl tuirealm::Component<Message, NoUserEvent> for Widget<issue::LargeList> {
             }
             Event::Keyboard(KeyEvent {
                 code: Key::Down, ..
+            })
+            | Event::Keyboard(KeyEvent {
+                code: Key::Char('j'),
+                ..
             }) => {
                 let result = self.perform(Cmd::Move(MoveDirection::Down));
                 match result {
@@ -99,12 +107,20 @@ impl tuirealm::Component<Message, NoUserEvent> for Widget<issue::LargeList> {
 impl tuirealm::Component<Message, NoUserEvent> for Widget<issue::IssueDetails> {
     fn on(&mut self, event: Event<NoUserEvent>) -> Option<Message> {
         match event {
-            Event::Keyboard(KeyEvent { code: Key::Up, .. }) => {
+            Event::Keyboard(KeyEvent { code: Key::Up, .. })
+            | Event::Keyboard(KeyEvent {
+                code: Key::Char('k'),
+                ..
+            }) => {
                 self.perform(Cmd::Scroll(MoveDirection::Up));
                 Some(Message::Tick)
             }
             Event::Keyboard(KeyEvent {
                 code: Key::Down, ..
+            })
+            | Event::Keyboard(KeyEvent {
+                code: Key::Char('j'),
+                ..
             }) => {
                 self.perform(Cmd::Scroll(MoveDirection::Down));
                 Some(Message::Tick)
@@ -265,12 +281,20 @@ impl tuirealm::Component<Message, NoUserEvent> for Widget<issue::NewForm> {
 impl tuirealm::Component<Message, NoUserEvent> for Widget<PatchBrowser> {
     fn on(&mut self, event: Event<NoUserEvent>) -> Option<Message> {
         match event {
-            Event::Keyboard(KeyEvent { code: Key::Up, .. }) => {
+            Event::Keyboard(KeyEvent { code: Key::Up, .. })
+            | Event::Keyboard(KeyEvent {
+                code: Key::Char('k'),
+                ..
+            }) => {
                 self.perform(Cmd::Move(MoveDirection::Up));
                 Some(Message::Tick)
             }
             Event::Keyboard(KeyEvent {
                 code: Key::Down, ..
+            })
+            | Event::Keyboard(KeyEvent {
+                code: Key::Char('j'),
+                ..
             }) => {
                 self.perform(Cmd::Move(MoveDirection::Down));
                 Some(Message::Tick)
@@ -306,12 +330,20 @@ impl tuirealm::Component<Message, NoUserEvent> for Widget<IssueBrowser> {
         };
 
         match event {
-            Event::Keyboard(KeyEvent { code: Key::Up, .. }) => {
+            Event::Keyboard(KeyEvent { code: Key::Up, .. })
+            | Event::Keyboard(KeyEvent {
+                code: Key::Char('k'),
+                ..
+            }) => {
                 self.perform(Cmd::Move(MoveDirection::Up));
                 Some(Message::Tick)
             }
             Event::Keyboard(KeyEvent {
                 code: Key::Down, ..
+            })
+            | Event::Keyboard(KeyEvent {
+                code: Key::Char('j'),
+                ..
             }) => {
                 self.perform(Cmd::Move(MoveDirection::Down));
                 Some(Message::Tick)
