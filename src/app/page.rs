@@ -197,15 +197,15 @@ impl ViewPage for HomeView {
         context: &Context,
         theme: &Theme,
     ) -> Result<()> {
-        let issue = context.issues().first().cloned();
-        let patch = context.patches().first().cloned();
+        // let issue = context.issues().first().cloned();
+        // let patch = context.patches().first().cloned();
 
         let navigation = widget::home::navigation(theme);
         let header = widget::common::app_header(context, theme, Some(navigation)).to_boxed();
 
         let dashboard = widget::home::dashboard(context, theme).to_boxed();
-        let issue_browser = widget::home::issues(context, theme, issue).to_boxed();
-        let patch_browser = widget::home::patches(context, theme, patch).to_boxed();
+        let issue_browser = widget::home::issues(context, theme, None).to_boxed();
+        let patch_browser = widget::home::patches(context, theme, None).to_boxed();
 
         app.remount(Cid::Home(HomeCid::Header), header, vec![])?;
 

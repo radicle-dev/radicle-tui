@@ -77,8 +77,10 @@ impl IssueBrowser {
         items.sort_by(|a, b| b.timestamp().cmp(a.timestamp()));
         items.sort_by(|a, b| b.state().cmp(a.state()));
 
-        let selected =
-            selected.map(|(id, issue)| IssueItem::from((context.profile(), repo, id, issue)));
+        let selected = match selected {
+            Some((id, issue)) => Some(IssueItem::from((context.profile(), repo, id, issue))),
+            _ => items.first().cloned(),
+        };
 
         let table = Widget::new(Table::new(&items, selected, header, widths, theme.clone()))
             .highlight(theme.colors.item_list_highlighted_bg);
@@ -151,8 +153,12 @@ impl PatchBrowser {
         items.sort_by(|a, b| b.timestamp().cmp(a.timestamp()));
         items.sort_by(|a, b| a.state().cmp(b.state()));
 
-        let selected = selected
-            .map(|(id, patch)| PatchItem::try_from((context.profile(), repo, id, patch)).unwrap());
+        let selected = match selected {
+            Some((id, patch)) => {
+                Some(PatchItem::try_from((context.profile(), repo, id, patch)).unwrap())
+            }
+            _ => items.first().cloned(),
+        };
 
         let table = Widget::new(Table::new(&items, selected, header, widths, theme.clone()))
             .highlight(theme.colors.item_list_highlighted_bg);
