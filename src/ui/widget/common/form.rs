@@ -1,4 +1,4 @@
-use tui_realm_textarea::TextArea;
+use std::collections::LinkedList;
 
 use tuirealm::command::{Cmd, CmdResult};
 use tuirealm::props::Style;
@@ -12,20 +12,17 @@ use crate::ui::widget::{Widget, WidgetComponent};
 use super::container::Container;
 use super::label::Label;
 
-pub struct TextInput {
+pub struct TextField {
     input: Widget<Container>,
     placeholder: Widget<Label>,
     show_placeholder: bool,
 }
 
-impl TextInput {
-    pub const CMD_NEWLINE: &str = tui_realm_textarea::TEXTAREA_CMD_NEWLINE;
-    pub const CMD_PASTE: &str = tui_realm_textarea::TEXTAREA_CMD_PASTE;
-
-    pub fn new(theme: Theme, title: &str, wrap: bool, single_line: bool) -> Self {
-        let input = TextArea::default()
-            .wrap(wrap)
-            .single_line(single_line)
+impl TextField {
+    pub fn new(theme: Theme, title: &str) -> Self {
+        let input = tui_realm_textarea::TextArea::default()
+            .wrap(false)
+            .single_line(true)
             .cursor_line_style(Style::reset())
             .style(Style::default().fg(theme.colors.default_fg));
         let container = super::container(&theme, Box::new(input));
@@ -38,7 +35,7 @@ impl TextInput {
     }
 }
 
-impl WidgetComponent for TextInput {
+impl WidgetComponent for TextField {
     fn view(&mut self, properties: &Props, frame: &mut Frame, area: Rect) {
         let focus = properties
             .get_or(Attribute::Focus, AttrValue::Flag(false))
@@ -57,11 +54,115 @@ impl WidgetComponent for TextInput {
     }
 
     fn state(&self) -> State {
-        self.input.state()
+        if let State::Vec(values) = self.input.state() {
+            let text = match values.get(0) {
+                Some(StateValue::String(line)) => line.clone(),
+                _ => String::new(),
+            };
+
+            State::One(StateValue::String(text))
+        } else {
+            State::None
+        }
     }
 
     fn perform(&mut self, _properties: &Props, cmd: Cmd) -> CmdResult {
+        use tui_realm_textarea::*;
+
+        let cmd = match cmd {
+            Cmd::Custom(Form::CMD_PASTE) => Cmd::Custom(TEXTAREA_CMD_PASTE),
+            _ => cmd,
+        };
         let result = self.input.perform(cmd);
+
+        if let State::Vec(values) = self.input.state() {
+            if let Some(StateValue::String(input)) = values.first() {
+                self.show_placeholder = values.len() == 1 && input.is_empty();
+            } else {
+                self.show_placeholder = false;
+            }
+        }
+        result
+    }
+}
+
+pub struct TextArea {
+    input: Widget<Container>,
+    placeholder: Widget<Label>,
+    show_placeholder: bool,
+}
+
+impl TextArea {
+    pub fn new(theme: Theme, title: &str) -> Self {
+        let input = tui_realm_textarea::TextArea::default()
+            .wrap(true)
+            .single_line(false)
+            .cursor_line_style(Style::reset())
+            .style(Style::default().fg(theme.colors.default_fg));
+        let container = super::container(&theme, Box::new(input));
+
+        Self {
+            input: container,
+            placeholder: super::label(title).foreground(theme.colors.input_placeholder_fg),
+            show_placeholder: true,
+        }
+    }
+}
+
+impl WidgetComponent for TextArea {
+    fn view(&mut self, properties: &Props, frame: &mut Frame, area: Rect) {
+        let focus = properties
+            .get_or(Attribute::Focus, AttrValue::Flag(false))
+            .unwrap_flag();
+
+        self.input.attr(Attribute::Focus, AttrValue::Flag(focus));
+        self.input.view(frame, area);
+
+        if self.show_placeholder {
+            let inner = area.inner(&Margin {
+                vertical: 1,
+                horizontal: 2,
+            });
+            self.placeholder.view(frame, inner);
+        }
+    }
+
+    fn state(&self) -> State {
+        // Fold each input's vector of lines into a single string.
+        if let State::Vec(values) = self.input.state() {
+            let mut text = String::new();
+            let lines = values
+                .iter()
+                .map(|value| match value {
+                    StateValue::String(line) => line.clone(),
+                    _ => String::new(),
+                })
+                .collect::<Vec<_>>();
+
+            let mut lines = lines.iter().peekable();
+            while let Some(line) = lines.next() {
+                text.push_str(line);
+                if lines.peek().is_some() {
+                    text.push('\n');
+                }
+            }
+
+            State::One(StateValue::String(text))
+        } else {
+            State::None
+        }
+    }
+
+    fn perform(&mut self, _properties: &Props, cmd: Cmd) -> CmdResult {
+        use tui_realm_textarea::*;
+
+        let cmd = match cmd {
+            Cmd::Custom(Form::CMD_PASTE) => Cmd::Custom(TEXTAREA_CMD_PASTE),
+            Cmd::Custom(Form::CMD_NEWLINE) => Cmd::Custom(TEXTAREA_CMD_NEWLINE),
+            _ => cmd,
+        };
+        let result = self.input.perform(cmd);
+
         if let State::Vec(values) = self.input.state() {
             if let Some(StateValue::String(input)) = values.first() {
                 self.show_placeholder = values.len() == 1 && input.is_empty();
@@ -75,7 +176,7 @@ impl WidgetComponent for TextInput {
 
 pub struct Form {
     // This form's fields: title, tags, assignees, description.
-    inputs: Vec<Widget<TextInput>>,
+    inputs: Vec<Box<dyn MockComponent>>,
     /// State that holds the current focus etc.
     state: FormState,
 }
@@ -83,8 +184,10 @@ pub struct Form {
 impl Form {
     pub const CMD_FOCUS_PREVIOUS: &str = "cmd-focus-previous";
     pub const CMD_FOCUS_NEXT: &str = "cmd-focus-next";
+    pub const CMD_NEWLINE: &str = "cmd-newline";
+    pub const CMD_PASTE: &str = "cmd-paste";
 
-    pub fn new(_theme: Theme, inputs: Vec<Widget<TextInput>>) -> Self {
+    pub fn new(_theme: Theme, inputs: Vec<Box<dyn MockComponent>>) -> Self {
         let state = FormState::new(Some(0), inputs.len());
 
         Self { inputs, state }
@@ -139,38 +242,12 @@ impl WidgetComponent for Form {
                 CmdResult::None
             }
             Cmd::Submit => {
-                // Fold each input's vector of lines into a single string
-                // that contains newlines and return a state vector with
-                // each entry being the folded input string.
                 let states = self
                     .inputs
                     .iter()
-                    .map(|input| {
-                        if let State::Vec(values) = input.state() {
-                            let mut text = String::new();
-                            let lines = values
-                                .iter()
-                                .map(|value| match value {
-                                    StateValue::String(line) => line.clone(),
-                                    _ => String::new(),
-                                })
-                                .collect::<Vec<_>>();
-
-                            let mut lines = lines.iter().peekable();
-                            while let Some(line) = lines.next() {
-                                text.push_str(line);
-                                if lines.peek().is_some() {
-                                    text.push('\n');
-                                }
-                            }
-
-                            StateValue::String(text)
-                        } else {
-                            StateValue::None
-                        }
-                    })
-                    .collect::<Vec<_>>();
-                CmdResult::Submit(State::Vec(states))
+                    .map(|input| input.state())
+                    .collect::<LinkedList<_>>();
+                CmdResult::Submit(State::Linked(states))
             }
             _ => {
                 let focus = self.state.focus().unwrap_or(0);
