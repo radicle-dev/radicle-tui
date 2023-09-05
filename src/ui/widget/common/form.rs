@@ -187,6 +187,8 @@ impl Form {
     pub const CMD_NEWLINE: &str = "cmd-newline";
     pub const CMD_PASTE: &str = "cmd-paste";
 
+    pub const PROP_ID: &str = "prop-id";
+
     pub fn new(_theme: Theme, inputs: Vec<Box<dyn MockComponent>>) -> Self {
         let state = FormState::new(Some(0), inputs.len());
 
@@ -228,7 +230,12 @@ impl WidgetComponent for Form {
     }
 
     fn state(&self) -> State {
-        State::None
+        let states = self
+            .inputs
+            .iter()
+            .map(|input| input.state())
+            .collect::<LinkedList<_>>();
+        State::Linked(states)
     }
 
     fn perform(&mut self, _properties: &Props, cmd: Cmd) -> CmdResult {
@@ -241,14 +248,7 @@ impl WidgetComponent for Form {
                 self.state.focus_next();
                 CmdResult::None
             }
-            Cmd::Submit => {
-                let states = self
-                    .inputs
-                    .iter()
-                    .map(|input| input.state())
-                    .collect::<LinkedList<_>>();
-                CmdResult::Submit(State::Linked(states))
-            }
+            Cmd::Submit => CmdResult::Submit(self.state()),
             _ => {
                 let focus = self.state.focus().unwrap_or(0);
                 if let Some(input) = self.inputs.get_mut(focus) {

@@ -110,6 +110,7 @@ pub enum Message {
     Issue(IssueMessage),
     Patch(PatchMessage),
     NavigationChanged(u16),
+    FormSubmitted(String),
     Popup(PopupMessage),
     Tick,
     Quit,

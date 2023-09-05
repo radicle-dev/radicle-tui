@@ -14,7 +14,7 @@ use radicle_tui::ui::widget::{issue, patch};
 
 use radicle_tui::ui::widget::Widget;
 
-use super::{IssueCid, IssueCobMessage, IssueMessage, Message, PatchMessage, PopupMessage};
+use super::{IssueCid, IssueMessage, Message, PatchMessage, PopupMessage};
 
 /// Since the framework does not know the type of messages that are being
 /// passed around in the app, the following handlers need to be implemented for
@@ -132,7 +132,7 @@ impl tuirealm::Component<Message, NoUserEvent> for Widget<issue::IssueDetails> {
     }
 }
 
-impl tuirealm::Component<Message, NoUserEvent> for Widget<issue::NewForm> {
+impl tuirealm::Component<Message, NoUserEvent> for Widget<Form> {
     fn on(&mut self, event: Event<NoUserEvent>) -> Option<Message> {
         match event {
             Event::Keyboard(KeyEvent {
@@ -190,64 +190,9 @@ impl tuirealm::Component<Message, NoUserEvent> for Widget<issue::NewForm> {
                 code: Key::Char('s'),
                 modifiers: KeyModifiers::CONTROL,
             }) => {
-                match self.perform(Cmd::Submit) {
-                    CmdResult::Submit(State::Linked(mut states)) => {
-                        let mut missing_values = vec![];
-
-                        let title = match states.front() {
-                            Some(State::One(StateValue::String(title))) if !title.is_empty() => {
-                                Some(title.clone())
-                            }
-                            _ => None,
-                        };
-                        states.pop_front();
-
-                        let tags = match states.front() {
-                            Some(State::One(StateValue::String(tags))) => Some(tags.clone()),
-                            _ => Some(String::from("[]")),
-                        };
-                        states.pop_front();
-
-                        let assignees = match states.front() {
-                            Some(State::One(StateValue::String(assignees))) => {
-                                Some(assignees.clone())
-                            }
-                            _ => Some(String::from("[]")),
-                        };
-                        states.pop_front();
-
-                        let description = match states.front() {
-                            Some(State::One(StateValue::String(description)))
-                                if !description.is_empty() =>
-                            {
-                                Some(description.clone())
-                            }
-                            _ => None,
-                        };
-                        states.pop_front();
-
-                        if title.is_none() {
-                            missing_values.push("title");
-                        }
-                        if description.is_none() {
-                            missing_values.push("description");
-                        }
-
-                        // show error popup if missing.
-                        if !missing_values.is_empty() {
-                            let error = format!("Missing fields: {:?}", missing_values);
-                            Some(Message::Popup(PopupMessage::Error(error)))
-                        } else {
-                            Some(Message::Issue(IssueMessage::Cob(IssueCobMessage::Create {
-                                title: title.unwrap(),
-                                tags: tags.unwrap(),
-                                assignees: assignees.unwrap(),
-                                description: description.unwrap(),
-                            })))
-                        }
-                    }
-                    _ => None,
-                }
+                self.perform(Cmd::Submit);
+                self.query(tuirealm::Attribute::Custom(Form::PROP_ID))
+                    .map(|cid| Message::FormSubmitted(cid.unwrap_string()))
             }
             Event::Keyboard(KeyEvent { code: Key::Esc, .. }) => {
                 Some(Message::Issue(IssueMessage::HideForm))
