@@ -1,12 +1,9 @@
-use std::collections::HashMap;
-
 use radicle::cob::thread::Comment;
 use radicle::cob::thread::CommentId;
 
 use radicle::cob::issue::Issue;
 use radicle::cob::issue::IssueId;
 use tuirealm::tui::layout::{Constraint, Direction, Layout};
-use tuirealm::StateValue;
 
 use super::common::container::{Container, LabeledContainer};
 use super::common::context::{ContextBar, Progress};
@@ -20,7 +17,8 @@ use crate::ui::cob;
 use crate::ui::cob::IssueItem;
 use crate::ui::context::Context;
 use crate::ui::theme::Theme;
-use crate::ui::widget::common::form::TextInput;
+use crate::ui::widget::common::form::TextArea;
+use crate::ui::widget::common::form::TextField;
 
 use super::*;
 
@@ -254,28 +252,17 @@ pub struct NewForm {
 }
 
 impl NewForm {
-    pub const INPUT_TITLE: &str = "title";
-    pub const INPUT_TAGS: &str = "tags";
-    pub const INPUT_ASSIGNESS: &str = "assignees";
-    pub const INPUT_DESCRIPTION: &str = "description";
-
     pub fn new(theme: &Theme) -> Self {
         use tuirealm::props::Layout;
 
-        let title = Widget::new(TextInput::new(theme.clone(), "Title", false, true));
-        let tags = Widget::new(TextInput::new(
-            theme.clone(),
-            "Labels (bug, ...)",
-            false,
-            true,
-        ));
-        let assignees = Widget::new(TextInput::new(
+        let title = Widget::new(TextField::new(theme.clone(), "Title")).to_boxed();
+        let tags = Widget::new(TextField::new(theme.clone(), "Labels (bug, ...)")).to_boxed();
+        let assignees = Widget::new(TextField::new(
             theme.clone(),
             "Assignees (z6MkvAdxCp1oLVVTsqYvev9YrhSN3gBQNUSM45hhy4pgkexk, ...)",
-            false,
-            true,
-        ));
-        let description = Widget::new(TextInput::new(theme.clone(), "Description", true, false));
+        ))
+        .to_boxed();
+        let description = Widget::new(TextArea::new(theme.clone(), "Description")).to_boxed();
 
         let mut form = Widget::new(Form::new(
             theme.clone(),
@@ -314,30 +301,7 @@ impl WidgetComponent for NewForm {
     }
 
     fn perform(&mut self, _properties: &Props, cmd: Cmd) -> CmdResult {
-        match self.form.perform(cmd) {
-            CmdResult::Submit(State::Vec(values)) => {
-                let inputs = HashMap::from([
-                    (
-                        Self::INPUT_TITLE.to_owned(),
-                        values.get(0).unwrap_or(&StateValue::None).clone(),
-                    ),
-                    (
-                        Self::INPUT_TAGS.to_owned(),
-                        values.get(1).unwrap_or(&StateValue::None).clone(),
-                    ),
-                    (
-                        Self::INPUT_ASSIGNESS.to_owned(),
-                        values.get(2).unwrap_or(&StateValue::None).clone(),
-                    ),
-                    (
-                        Self::INPUT_DESCRIPTION.to_owned(),
-                        values.get(3).unwrap_or(&StateValue::None).clone(),
-                    ),
-                ]);
-                CmdResult::Submit(State::Map(inputs))
-            }
-            _ => CmdResult::None,
-        }
+        self.form.perform(cmd)
     }
 }
 

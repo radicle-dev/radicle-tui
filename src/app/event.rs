@@ -7,10 +7,9 @@ use radicle_tui::ui::widget::common::container::{
     AppHeader, GlobalListener, LabeledContainer, Popup,
 };
 use radicle_tui::ui::widget::common::context::{ContextBar, Shortcuts};
-use radicle_tui::ui::widget::common::form::{Form, TextInput};
+use radicle_tui::ui::widget::common::form::Form;
 use radicle_tui::ui::widget::common::list::PropertyList;
 use radicle_tui::ui::widget::home::{Dashboard, IssueBrowser, PatchBrowser};
-use radicle_tui::ui::widget::issue::NewForm;
 use radicle_tui::ui::widget::{issue, patch};
 
 use radicle_tui::ui::widget::Widget;
@@ -184,7 +183,7 @@ impl tuirealm::Component<Message, NoUserEvent> for Widget<issue::NewForm> {
             Event::Keyboard(KeyEvent {
                 code: Key::Enter, ..
             }) => {
-                self.perform(Cmd::Custom(TextInput::CMD_NEWLINE));
+                self.perform(Cmd::Custom(Form::CMD_NEWLINE));
                 Some(Message::Tick)
             }
             Event::Keyboard(KeyEvent {
@@ -192,35 +191,46 @@ impl tuirealm::Component<Message, NoUserEvent> for Widget<issue::NewForm> {
                 modifiers: KeyModifiers::CONTROL,
             }) => {
                 match self.perform(Cmd::Submit) {
-                    CmdResult::Submit(State::Map(inputs)) => {
+                    CmdResult::Submit(State::Linked(mut states)) => {
                         let mut missing_values = vec![];
 
-                        let title = match inputs.get(NewForm::INPUT_TITLE) {
-                            Some(StateValue::String(title)) if !title.is_empty() => {
+                        let title = match states.front() {
+                            Some(State::One(StateValue::String(title))) if !title.is_empty() => {
                                 Some(title.clone())
                             }
                             _ => None,
                         };
-                        let tags = match inputs.get(NewForm::INPUT_TAGS) {
-                            Some(StateValue::String(tags)) => Some(tags.clone()),
+                        states.pop_front();
+
+                        let tags = match states.front() {
+                            Some(State::One(StateValue::String(tags))) => Some(tags.clone()),
                             _ => Some(String::from("[]")),
                         };
-                        let assignees = match inputs.get(NewForm::INPUT_ASSIGNESS) {
-                            Some(StateValue::String(assignees)) => Some(assignees.clone()),
+                        states.pop_front();
+
+                        let assignees = match states.front() {
+                            Some(State::One(StateValue::String(assignees))) => {
+                                Some(assignees.clone())
+                            }
                             _ => Some(String::from("[]")),
                         };
-                        let description = match inputs.get(NewForm::INPUT_DESCRIPTION) {
-                            Some(StateValue::String(description)) if !description.is_empty() => {
+                        states.pop_front();
+
+                        let description = match states.front() {
+                            Some(State::One(StateValue::String(description)))
+                                if !description.is_empty() =>
+                            {
                                 Some(description.clone())
                             }
                             _ => None,
                         };
+                        states.pop_front();
 
                         if title.is_none() {
-                            missing_values.push(NewForm::INPUT_TITLE);
+                            missing_values.push("title");
                         }
                         if description.is_none() {
-                            missing_values.push(NewForm::INPUT_DESCRIPTION);
+                            missing_values.push("description");
                         }
 
                         // show error popup if missing.
@@ -263,7 +273,7 @@ impl tuirealm::Component<Message, NoUserEvent> for Widget<issue::NewForm> {
                 code: Key::Char('v'),
                 modifiers: KeyModifiers::CONTROL,
             }) => {
-                self.perform(Cmd::Custom(TextInput::CMD_PASTE));
+                self.perform(Cmd::Custom(Form::CMD_PASTE));
                 Some(Message::Tick)
             }
             Event::Keyboard(KeyEvent {
