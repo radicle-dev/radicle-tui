@@ -2,11 +2,13 @@ use std::collections::HashMap;
 
 use anyhow::Result;
 
+use log::warn;
 use radicle::cob::issue::{Issue, IssueId};
 use radicle::cob::patch::{Patch, PatchId};
 
 use radicle_tui::cob;
 use radicle_tui::ui::widget::common::context::{Progress, Shortcuts};
+use radicle_tui::ui::widget::common::form::Form;
 use tuirealm::{AttrValue, Attribute, Frame, NoUserEvent, State, StateValue, Sub, SubClause};
 
 use radicle_tui::ui::context::Context;
@@ -111,6 +113,7 @@ impl HomeView {
                         widget::common::shortcut(theme, "↑/↓", "navigate"),
                         widget::common::shortcut(theme, "enter", "show"),
                         widget::common::shortcut(theme, "o", "open"),
+                        widget::common::shortcut(theme, "s", "state"),
                         widget::common::shortcut(theme, "q", "quit"),
                     ],
                 ),
@@ -343,6 +346,7 @@ impl IssuePage {
                         widget::common::shortcut(theme, "↑/↓", "navigate"),
                         widget::common::shortcut(theme, "enter", "show"),
                         widget::common::shortcut(theme, "o", "open"),
+                        widget::common::shortcut(theme, "s", "state"),
                         widget::common::shortcut(theme, "q", "quit"),
                     ],
                 ),
@@ -404,8 +408,26 @@ impl IssuePage {
                 Some(context)
             }
             IssueCid::Form => {
-                let context = widget::issue::form_context(context, theme, Progress::None);
-                Some(context)
+                let prop_id = Attribute::Custom(Form::PROP_ID);
+                let form_id = app
+                    .query(&Cid::Issue(IssueCid::Form), prop_id)?
+                    .unwrap()
+                    .unwrap_string();
+
+                match form_id.as_str() {
+                    widget::issue::FORM_ID_EDIT => {
+                        Some(widget::issue::open_context(context, theme, Progress::None))
+                    }
+                    widget::issue::FORM_ID_STATE => Some(widget::issue::state_context(
+                        context,
+                        theme,
+                        self.issue.clone(),
+                    )),
+                    _ => {
+                        warn!("Property \"prop-id\" not set.");
+                        None
+                    }
+                }
             }
             _ => None,
         };
@@ -531,7 +553,7 @@ impl ViewPage for IssuePage {
                 self.update_shortcuts(app, self.active_component.clone())?;
             }
             Message::Issue(IssueMessage::OpenForm) => {
-                let new_form = widget::issue::new_form(context, theme).to_boxed();
+                let new_form = widget::issue::edit_form(context, theme).to_boxed();
                 let list = widget::issue::list(context, theme, None).to_boxed();
 
                 app.remount(Cid::Issue(IssueCid::List), list, vec![])?;
@@ -541,6 +563,17 @@ impl ViewPage for IssuePage {
                 app.unsubscribe(&Cid::GlobalListener, subscription::global_clause())?;
 
                 return Ok(Some(Message::Issue(IssueMessage::Focus(IssueCid::Form))));
+            }
+            Message::Issue(IssueMessage::StateForm) => {
+                if let Some(issue) = self.issue.clone() {
+                    let state_form = widget::issue::state_form(context, theme, issue).to_boxed();
+                    app.remount(Cid::Issue(IssueCid::Form), state_form, vec![])?;
+                    app.active(&Cid::Issue(IssueCid::Form))?;
+
+                    app.unsubscribe(&Cid::GlobalListener, subscription::global_clause())?;
+
+                    return Ok(Some(Message::Issue(IssueMessage::Focus(IssueCid::Form))));
+                }
             }
             Message::Issue(IssueMessage::HideForm) => {
                 app.umount(&Cid::Issue(IssueCid::Form))?;

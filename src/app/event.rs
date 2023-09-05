@@ -98,6 +98,10 @@ impl tuirealm::Component<Message, NoUserEvent> for Widget<issue::LargeList> {
                 code: Key::Char('o'),
                 ..
             }) => Some(Message::Issue(IssueMessage::OpenForm)),
+            Event::Keyboard(KeyEvent {
+                code: Key::Char('s'),
+                ..
+            }) => Some(Message::Issue(IssueMessage::StateForm)),
             _ => None,
         }
     }
@@ -183,7 +187,7 @@ impl tuirealm::Component<Message, NoUserEvent> for Widget<Form> {
             Event::Keyboard(KeyEvent {
                 code: Key::Enter, ..
             }) => {
-                self.perform(Cmd::Custom(Form::CMD_NEWLINE));
+                self.perform(Cmd::Custom(Form::CMD_ENTER));
                 Some(Message::Tick)
             }
             Event::Keyboard(KeyEvent {
@@ -311,6 +315,16 @@ impl tuirealm::Component<Message, NoUserEvent> for Widget<IssueBrowser> {
                 Some(Message::Batch(vec![
                     Message::Issue(IssueMessage::Show(id)),
                     Message::Issue(IssueMessage::OpenForm),
+                ]))
+            }
+            Event::Keyboard(KeyEvent {
+                code: Key::Char('s'),
+                ..
+            }) => {
+                let id = submit();
+                Some(Message::Batch(vec![
+                    Message::Issue(IssueMessage::Show(id)),
+                    Message::Issue(IssueMessage::StateForm),
                 ]))
             }
             Event::Keyboard(KeyEvent {

@@ -1,3 +1,4 @@
+use radicle::cob::issue::CloseReason;
 use radicle::cob::thread::Comment;
 use radicle::cob::thread::CommentId;
 
@@ -17,12 +18,12 @@ use crate::ui::cob;
 use crate::ui::cob::IssueItem;
 use crate::ui::context::Context;
 use crate::ui::theme::Theme;
-use crate::ui::widget::common::form::TextArea;
-use crate::ui::widget::common::form::TextField;
+use crate::ui::widget::common::form::{Radio, TextArea, TextField};
 
 use super::*;
 
 pub const FORM_ID_EDIT: &str = "edit-form";
+pub const FORM_ID_STATE: &str = "state-form";
 
 pub struct LargeList {
     items: Vec<IssueItem>,
@@ -331,7 +332,7 @@ pub fn description(
     Widget::new(body)
 }
 
-pub fn new_form(_context: &Context, theme: &Theme) -> Widget<Form> {
+pub fn edit_form(_context: &Context, theme: &Theme) -> Widget<Form> {
     use tuirealm::props::Layout;
 
     let title = Widget::new(TextField::new(theme.clone(), "Title")).to_boxed();
@@ -356,6 +357,47 @@ pub fn new_form(_context: &Context, theme: &Theme) -> Widget<Form> {
 
     Widget::new(Form::new(theme.clone(), inputs))
         .custom(Form::PROP_ID, AttrValue::String(String::from(FORM_ID_EDIT)))
+        .layout(layout)
+}
+
+pub fn state_form(_context: &Context, theme: &Theme, issue: (IssueId, Issue)) -> Widget<Form> {
+    use tuirealm::props::Layout;
+
+    let (_, issue) = issue;
+    let options = match issue.state() {
+        radicle::cob::issue::State::Open => [
+            String::from("Close issue as solved"),
+            String::from("Close issue as other"),
+        ],
+        radicle::cob::issue::State::Closed { reason } => match reason {
+            CloseReason::Solved => [
+                String::from("Reopen issue"),
+                String::from("Close issue as other"),
+            ],
+            CloseReason::Other => [
+                String::from("Reopen issue"),
+                String::from("Close issue as solved"),
+            ],
+        },
+    };
+
+    let state = Widget::new(Radio::new(theme.clone(), "State", &options)).to_boxed();
+    let inputs: Vec<Box<dyn MockComponent>> = vec![state];
+
+    let layout = Layout::default().constraints(
+        [
+            // Constraint::Length(10),
+            Constraint::Length(3),
+            Constraint::Min(3),
+        ]
+        .as_ref(),
+    );
+
+    Widget::new(Form::new(theme.clone(), inputs))
+        .custom(
+            Form::PROP_ID,
+            AttrValue::String(String::from(FORM_ID_STATE)),
+        )
         .layout(layout)
 }
 
@@ -402,7 +444,21 @@ pub fn description_context(
     common::context::bar(theme, "Show", "", "", "", &progress.to_string())
 }
 
-pub fn form_context(_context: &Context, theme: &Theme, progress: Progress) -> Widget<ContextBar> {
+pub fn open_context(_context: &Context, theme: &Theme, progress: Progress) -> Widget<ContextBar> {
     common::context::bar(theme, "Open", "", "", "", &progress.to_string())
+        .custom(ContextBar::PROP_EDIT_MODE, AttrValue::Flag(true))
+}
+
+pub fn state_context(
+    _context: &Context,
+    theme: &Theme,
+    issue: Option<(IssueId, Issue)>,
+) -> Widget<ContextBar> {
+    let state = match issue {
+        Some((_, issue)) => format!("{}", issue.state()),
+        _ => "".to_string(),
+    };
+
+    common::context::bar(theme, "State", "", "", "", &state)
         .custom(ContextBar::PROP_EDIT_MODE, AttrValue::Flag(true))
 }

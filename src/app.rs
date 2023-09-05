@@ -86,6 +86,7 @@ pub enum IssueMessage {
     Created(IssueId),
     Cob(IssueCobMessage),
     OpenForm,
+    StateForm,
     HideForm,
     Leave(Option<IssueId>),
 }
