@@ -7,7 +7,7 @@ use radicle::cob::patch::{Patch, PatchId};
 
 use radicle_tui::cob;
 use radicle_tui::ui::widget::common::context::{Progress, Shortcuts};
-use tuirealm::{AttrValue, Attribute, Frame, NoUserEvent, StateValue, Sub, SubClause};
+use tuirealm::{AttrValue, Attribute, Frame, NoUserEvent, State, StateValue, Sub, SubClause};
 
 use radicle_tui::ui::context::Context;
 use radicle_tui::ui::layout;
@@ -15,7 +15,8 @@ use radicle_tui::ui::theme::Theme;
 use radicle_tui::ui::widget::{self, Widget};
 
 use super::{
-    subscription, Application, Cid, HomeCid, HomeMessage, IssueCid, IssueMessage, Message, PatchCid,
+    subscription, Application, Cid, HomeCid, HomeMessage, IssueCid, IssueCobMessage, IssueMessage,
+    Message, PatchCid, PopupMessage,
 };
 
 /// `tuirealm`'s event and prop system is designed to work with flat component hierarchies.
@@ -139,8 +140,6 @@ impl HomeView {
         theme: &Theme,
         cid: HomeCid,
     ) -> Result<()> {
-        use tuirealm::State;
-
         let context = match cid {
             HomeCid::IssueBrowser => {
                 let state = app.state(&Cid::Home(HomeCid::IssueBrowser))?;
@@ -197,9 +196,6 @@ impl ViewPage for HomeView {
         context: &Context,
         theme: &Theme,
     ) -> Result<()> {
-        // let issue = context.issues().first().cloned();
-        // let patch = context.patches().first().cloned();
-
         let navigation = widget::home::navigation(theme);
         let header = widget::common::app_header(context, theme, Some(navigation)).to_boxed();
 
@@ -386,8 +382,6 @@ impl IssuePage {
         theme: &Theme,
         cid: IssueCid,
     ) -> Result<()> {
-        use tuirealm::State;
-
         let context = match cid {
             IssueCid::List => {
                 let state = app.state(&Cid::Issue(IssueCid::List))?;
@@ -563,6 +557,68 @@ impl ViewPage for IssuePage {
                     return Ok(Some(Message::Issue(IssueMessage::Leave(None))));
                 }
                 return Ok(Some(Message::Issue(IssueMessage::Focus(IssueCid::List))));
+            }
+            Message::FormSubmitted(id) => {
+                if id == widget::issue::FORM_ID_EDIT {
+                    let state = app.state(&Cid::Issue(IssueCid::Form))?;
+                    if let State::Linked(mut states) = state {
+                        let mut missing_values = vec![];
+
+                        let title = match states.front() {
+                            Some(State::One(StateValue::String(title))) if !title.is_empty() => {
+                                Some(title.clone())
+                            }
+                            _ => None,
+                        };
+                        states.pop_front();
+
+                        let tags = match states.front() {
+                            Some(State::One(StateValue::String(tags))) => Some(tags.clone()),
+                            _ => Some(String::from("[]")),
+                        };
+                        states.pop_front();
+
+                        let assignees = match states.front() {
+                            Some(State::One(StateValue::String(assignees))) => {
+                                Some(assignees.clone())
+                            }
+                            _ => Some(String::from("[]")),
+                        };
+                        states.pop_front();
+
+                        let description = match states.front() {
+                            Some(State::One(StateValue::String(description)))
+                                if !description.is_empty() =>
+                            {
+                                Some(description.clone())
+                            }
+                            _ => None,
+                        };
+                        states.pop_front();
+
+                        if title.is_none() {
+                            missing_values.push("title");
+                        }
+                        if description.is_none() {
+                            missing_values.push("description");
+                        }
+
+                        // show error popup if missing.
+                        if !missing_values.is_empty() {
+                            let error = format!("Missing fields: {:?}", missing_values);
+                            return Ok(Some(Message::Popup(PopupMessage::Error(error))));
+                        } else {
+                            return Ok(Some(Message::Issue(IssueMessage::Cob(
+                                IssueCobMessage::Create {
+                                    title: title.unwrap(),
+                                    tags: tags.unwrap(),
+                                    assignees: assignees.unwrap(),
+                                    description: description.unwrap(),
+                                },
+                            ))));
+                        }
+                    }
+                }
             }
             _ => {}
         }

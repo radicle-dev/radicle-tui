@@ -22,6 +22,8 @@ use crate::ui::widget::common::form::TextField;
 
 use super::*;
 
+pub const FORM_ID_EDIT: &str = "edit-form";
+
 pub struct LargeList {
     items: Vec<IssueItem>,
     list: Widget<LabeledContainer>,
@@ -329,9 +331,32 @@ pub fn description(
     Widget::new(body)
 }
 
-pub fn new_form(_context: &Context, theme: &Theme) -> Widget<NewForm> {
-    let form = NewForm::new(theme);
-    Widget::new(form)
+pub fn new_form(_context: &Context, theme: &Theme) -> Widget<Form> {
+    use tuirealm::props::Layout;
+
+    let title = Widget::new(TextField::new(theme.clone(), "Title")).to_boxed();
+    let tags = Widget::new(TextField::new(theme.clone(), "Labels (bug, ...)")).to_boxed();
+    let assignees = Widget::new(TextField::new(
+        theme.clone(),
+        "Assignees (z6MkvAdxCp1oLVVTsqYvev9YrhSN3gBQNUSM45hhy4pgkexk, ...)",
+    ))
+    .to_boxed();
+    let description = Widget::new(TextArea::new(theme.clone(), "Description")).to_boxed();
+    let inputs: Vec<Box<dyn MockComponent>> = vec![title, tags, assignees, description];
+
+    let layout = Layout::default().constraints(
+        [
+            Constraint::Length(3),
+            Constraint::Length(3),
+            Constraint::Length(3),
+            Constraint::Min(3),
+        ]
+        .as_ref(),
+    );
+
+    Widget::new(Form::new(theme.clone(), inputs))
+        .custom(Form::PROP_ID, AttrValue::String(String::from(FORM_ID_EDIT)))
+        .layout(layout)
 }
 
 pub fn details(

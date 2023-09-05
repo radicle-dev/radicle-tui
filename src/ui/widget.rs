@@ -7,7 +7,7 @@ mod utils;
 use std::ops::Deref;
 
 use tuirealm::command::{Cmd, CmdResult};
-use tuirealm::props::{AttrValue, Attribute, Color, Props};
+use tuirealm::props::{AttrValue, Attribute, Color, Layout, Props};
 use tuirealm::tui::layout::Rect;
 use tuirealm::{Frame, MockComponent, State};
 
@@ -75,6 +75,11 @@ impl<T: WidgetComponent> Widget<T> {
 
     pub fn custom(mut self, key: &'static str, value: AttrValue) -> Self {
         self.attr(Attribute::Custom(key), value);
+        self
+    }
+
+    pub fn layout(mut self, layout: Layout) -> Self {
+        self.attr(Attribute::Layout, AttrValue::Layout(layout));
         self
     }
 
