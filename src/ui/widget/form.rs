@@ -1,7 +1,7 @@
 use std::collections::LinkedList;
 
 use tuirealm::command::{Cmd, CmdResult};
-use tuirealm::props::Style;
+use tuirealm::props::{BorderType, Borders, Style};
 use tuirealm::tui::layout::{Constraint, Direction, Margin, Rect};
 use tuirealm::{AttrValue, Attribute, Frame, MockComponent, Props, State, StateValue};
 
@@ -158,7 +158,7 @@ impl WidgetComponent for TextArea {
 
         let cmd = match cmd {
             Cmd::Custom(Form::CMD_PASTE) => Cmd::Custom(TEXTAREA_CMD_PASTE),
-            Cmd::Custom(Form::CMD_NEWLINE) => Cmd::Custom(TEXTAREA_CMD_NEWLINE),
+            Cmd::Custom(Form::CMD_ENTER) => Cmd::Custom(TEXTAREA_CMD_NEWLINE),
             _ => cmd,
         };
         let result = self.input.perform(cmd);
@@ -174,6 +174,58 @@ impl WidgetComponent for TextArea {
     }
 }
 
+pub struct Radio {
+    input: tui_realm_stdlib::Radio,
+}
+
+impl Radio {
+    pub fn new(theme: Theme, _title: &str, choices: &[String]) -> Self {
+        let input = tui_realm_stdlib::Radio::default()
+            .borders(
+                Borders::default()
+                    .modifiers(BorderType::Rounded)
+                    .color(theme.colors.container_border_focus_fg),
+            )
+            .inactive(Style::default().fg(theme.colors.container_border_fg))
+            .foreground(theme.colors.default_fg)
+            .choices(choices);
+
+        Self { input }
+    }
+}
+
+impl WidgetComponent for Radio {
+    fn view(&mut self, properties: &Props, frame: &mut Frame, area: Rect) {
+        let focus = properties
+            .get_or(Attribute::Focus, AttrValue::Flag(false))
+            .unwrap_flag();
+
+        self.input.attr(Attribute::Focus, AttrValue::Flag(focus));
+        self.input.view(frame, area);
+    }
+
+    fn state(&self) -> State {
+        if let State::Vec(values) = self.input.state() {
+            let text = match values.get(0) {
+                Some(StateValue::String(line)) => line.clone(),
+                _ => String::new(),
+            };
+
+            State::One(StateValue::String(text))
+        } else {
+            State::None
+        }
+    }
+
+    fn perform(&mut self, _properties: &Props, cmd: Cmd) -> CmdResult {
+        let cmd = match cmd {
+            Cmd::Custom(Form::CMD_ENTER) => Cmd::Submit,
+            _ => cmd,
+        };
+        self.input.perform(cmd)
+    }
+}
+
 pub struct Form {
     // This form's fields: title, tags, assignees, description.
     inputs: Vec<Box<dyn MockComponent>>,
@@ -184,7 +236,7 @@ pub struct Form {
 impl Form {
     pub const CMD_FOCUS_PREVIOUS: &str = "cmd-focus-previous";
     pub const CMD_FOCUS_NEXT: &str = "cmd-focus-next";
-    pub const CMD_NEWLINE: &str = "cmd-newline";
+    pub const CMD_ENTER: &str = "cmd-enter";
     pub const CMD_PASTE: &str = "cmd-paste";
 
     pub const PROP_ID: &str = "prop-id";
