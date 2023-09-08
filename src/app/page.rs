@@ -424,7 +424,7 @@ impl IssuePage {
                         self.issue.clone(),
                     )),
                     _ => {
-                        warn!("Property \"prop-id\" not set.");
+                        warn!("Form \"{}\" not found.", form_id);
                         None
                     }
                 }
@@ -592,64 +592,81 @@ impl ViewPage for IssuePage {
                 return Ok(Some(Message::Issue(IssueMessage::Focus(IssueCid::List))));
             }
             Message::FormSubmitted(id) => {
-                if id == widget::issue::FORM_ID_EDIT {
-                    let state = app.state(&Cid::Issue(IssueCid::Form))?;
-                    if let State::Linked(mut states) = state {
-                        let mut missing_values = vec![];
+                match id.as_str() {
+                    widget::issue::FORM_ID_EDIT => {
+                        let state = app.state(&Cid::Issue(IssueCid::Form))?;
+                        if let State::Linked(mut states) = state {
+                            let mut missing_values = vec![];
 
-                        let title = match states.front() {
-                            Some(State::One(StateValue::String(title))) if !title.is_empty() => {
-                                Some(title.clone())
+                            let title = match states.front() {
+                                Some(State::One(StateValue::String(title)))
+                                    if !title.is_empty() =>
+                                {
+                                    Some(title.clone())
+                                }
+                                _ => None,
+                            };
+                            states.pop_front();
+
+                            let tags = match states.front() {
+                                Some(State::One(StateValue::String(tags))) => Some(tags.clone()),
+                                _ => Some(String::from("[]")),
+                            };
+                            states.pop_front();
+
+                            let assignees = match states.front() {
+                                Some(State::One(StateValue::String(assignees))) => {
+                                    Some(assignees.clone())
+                                }
+                                _ => Some(String::from("[]")),
+                            };
+                            states.pop_front();
+
+                            let description = match states.front() {
+                                Some(State::One(StateValue::String(description)))
+                                    if !description.is_empty() =>
+                                {
+                                    Some(description.clone())
+                                }
+                                _ => None,
+                            };
+                            states.pop_front();
+
+                            if title.is_none() {
+                                missing_values.push("title");
                             }
-                            _ => None,
-                        };
-                        states.pop_front();
-
-                        let tags = match states.front() {
-                            Some(State::One(StateValue::String(tags))) => Some(tags.clone()),
-                            _ => Some(String::from("[]")),
-                        };
-                        states.pop_front();
-
-                        let assignees = match states.front() {
-                            Some(State::One(StateValue::String(assignees))) => {
-                                Some(assignees.clone())
+                            if description.is_none() {
+                                missing_values.push("description");
                             }
-                            _ => Some(String::from("[]")),
-                        };
-                        states.pop_front();
 
-                        let description = match states.front() {
-                            Some(State::One(StateValue::String(description)))
-                                if !description.is_empty() =>
-                            {
-                                Some(description.clone())
+                            // show error popup if missing.
+                            if !missing_values.is_empty() {
+                                let error = format!("Missing fields: {:?}", missing_values);
+                                return Ok(Some(Message::Popup(PopupMessage::Error(error))));
+                            } else {
+                                return Ok(Some(Message::Issue(IssueMessage::Cob(
+                                    IssueCobMessage::Create {
+                                        title: title.unwrap(),
+                                        tags: tags.unwrap(),
+                                        assignees: assignees.unwrap(),
+                                        description: description.unwrap(),
+                                    },
+                                ))));
                             }
-                            _ => None,
-                        };
-                        states.pop_front();
-
-                        if title.is_none() {
-                            missing_values.push("title");
                         }
-                        if description.is_none() {
-                            missing_values.push("description");
+                    }
+                    widget::issue::FORM_ID_STATE => {
+                        let state = app.state(&Cid::Issue(IssueCid::Form))?;
+                        if let State::Linked(mut states) = state {
+                            let state = match states.front() {
+                                Some(State::One(StateValue::String(tags))) => Some(tags.clone()),
+                                _ => Some(String::from("[]")),
+                            };
+                            states.pop_front();
                         }
-
-                        // show error popup if missing.
-                        if !missing_values.is_empty() {
-                            let error = format!("Missing fields: {:?}", missing_values);
-                            return Ok(Some(Message::Popup(PopupMessage::Error(error))));
-                        } else {
-                            return Ok(Some(Message::Issue(IssueMessage::Cob(
-                                IssueCobMessage::Create {
-                                    title: title.unwrap(),
-                                    tags: tags.unwrap(),
-                                    assignees: assignees.unwrap(),
-                                    description: description.unwrap(),
-                                },
-                            ))));
-                        }
+                    }
+                    _ => {
+                        warn!("Form \"{}\" not found.", id);
                     }
                 }
             }
