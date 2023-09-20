@@ -14,9 +14,9 @@ use radicle_tui::Window;
 use radicle::storage::ReadStorage;
 use term::{passphrase, spinner};
 
-mod patch;
+mod app;
 
-pub const NAME: &str = "radicle-tui";
+pub const NAME: &str = "rad-patch-tui";
 pub const VERSION: &str = env!("CARGO_PKG_VERSION");
 pub const GIT_HEAD: &str = env!("GIT_HEAD");
 pub const FPS: u64 = 60;
@@ -24,7 +24,7 @@ pub const FPS: u64 = 60;
 pub const HELP: &str = r#"
 Usage
 
-    radicle-tui [<option>...]
+rad-patch-tui [<option>...]
 
 Options
 
@@ -97,24 +97,21 @@ fn execute() -> anyhow::Result<()> {
     let project = payload.project()?;
 
     let logfile = format!(
-        "{}/radicle-tui.log",
+        "{}/rad-patch-tui.log",
         profile::home()?.path().to_string_lossy()
     );
     simple_logging::log_to_file(logfile, LevelFilter::Info)?;
     info!("Launching window...");
 
     let mut window = Window::default();
-    window.run(
-        &mut patch::App::new(profile, id, project, signer),
-        1000 / FPS,
-    )?;
+    window.run(&mut app::App::new(profile, id, project, signer), 1000 / FPS)?;
 
     Ok(())
 }
 
 fn main() {
     if let Err(err) = execute() {
-        term::error(format!("Error: radicle-tui: {err}"));
+        term::error(format!("Error: rad-patch-tui: {err}"));
         process::exit(1);
     }
 }

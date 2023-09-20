@@ -7,8 +7,12 @@ edition = "2021"
 build = "build.rs"
 
 [[bin]]
-name = "radicle-tui"
-path = "src/main.rs"
+name = "rad-issue-tui"
+path = "src/issue/main.rs"
+
+[[bin]]
+name = "rad-patch-tui"
+path = "src/patch/main.rs"
 
 [dependencies]
 anyhow = { version = "1" }
