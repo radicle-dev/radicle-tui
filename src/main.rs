@@ -14,7 +14,7 @@ use radicle_tui::Window;
 use radicle::storage::ReadStorage;
 use term::{passphrase, spinner};
 
-mod issue;
+mod patch;
 
 pub const NAME: &str = "radicle-tui";
 pub const VERSION: &str = env!("CARGO_PKG_VERSION");
@@ -105,7 +105,7 @@ fn execute() -> anyhow::Result<()> {
 
     let mut window = Window::default();
     window.run(
-        &mut issue::App::new(profile, id, project, signer),
+        &mut patch::App::new(profile, id, project, signer),
         1000 / FPS,
     )?;
 
