@@ -9,12 +9,11 @@ use radicle_tui::ui::widget::common::container::{
 use radicle_tui::ui::widget::common::context::{ContextBar, Shortcuts};
 use radicle_tui::ui::widget::common::form::Form;
 use radicle_tui::ui::widget::common::list::PropertyList;
-use radicle_tui::ui::widget::home::{Dashboard, IssueBrowser, PatchBrowser};
-use radicle_tui::ui::widget::{issue, patch};
 
 use radicle_tui::ui::widget::Widget;
 
-use super::{IssueCid, IssueMessage, Message, PatchMessage, PopupMessage};
+use super::ui;
+use super::{IssueCid, IssueMessage, Message, PopupMessage};
 
 /// Since the framework does not know the type of messages that are being
 /// passed around in the app, the following handlers need to be implemented for
@@ -49,7 +48,7 @@ impl tuirealm::Component<Message, NoUserEvent> for Widget<AppHeader> {
     }
 }
 
-impl tuirealm::Component<Message, NoUserEvent> for Widget<issue::LargeList> {
+impl tuirealm::Component<Message, NoUserEvent> for Widget<ui::LargeList> {
     fn on(&mut self, event: Event<NoUserEvent>) -> Option<Message> {
         match event {
             Event::Keyboard(KeyEvent { code: Key::Esc, .. }) => match self.state() {
@@ -103,7 +102,7 @@ impl tuirealm::Component<Message, NoUserEvent> for Widget<issue::LargeList> {
     }
 }
 
-impl tuirealm::Component<Message, NoUserEvent> for Widget<issue::IssueDetails> {
+impl tuirealm::Component<Message, NoUserEvent> for Widget<ui::IssueDetails> {
     fn on(&mut self, event: Event<NoUserEvent>) -> Option<Message> {
         match event {
             Event::Keyboard(KeyEvent { code: Key::Up, .. })
@@ -233,45 +232,7 @@ impl tuirealm::Component<Message, NoUserEvent> for Widget<Form> {
     }
 }
 
-impl tuirealm::Component<Message, NoUserEvent> for Widget<PatchBrowser> {
-    fn on(&mut self, event: Event<NoUserEvent>) -> Option<Message> {
-        match event {
-            Event::Keyboard(KeyEvent { code: Key::Up, .. })
-            | Event::Keyboard(KeyEvent {
-                code: Key::Char('k'),
-                ..
-            }) => {
-                self.perform(Cmd::Move(MoveDirection::Up));
-                Some(Message::Tick)
-            }
-            Event::Keyboard(KeyEvent {
-                code: Key::Down, ..
-            })
-            | Event::Keyboard(KeyEvent {
-                code: Key::Char('j'),
-                ..
-            }) => {
-                self.perform(Cmd::Move(MoveDirection::Down));
-                Some(Message::Tick)
-            }
-            Event::Keyboard(KeyEvent {
-                code: Key::Enter, ..
-            }) => {
-                let result = self.perform(Cmd::Submit);
-                match result {
-                    CmdResult::Submit(State::One(StateValue::Usize(selected))) => {
-                        let item = self.items().get(selected)?;
-                        Some(Message::Patch(PatchMessage::Show(item.id().to_owned())))
-                    }
-                    _ => None,
-                }
-            }
-            _ => None,
-        }
-    }
-}
-
-impl tuirealm::Component<Message, NoUserEvent> for Widget<IssueBrowser> {
+impl tuirealm::Component<Message, NoUserEvent> for Widget<ui::IssueBrowser> {
     fn on(&mut self, event: Event<NoUserEvent>) -> Option<Message> {
         let mut submit = || -> Option<IssueId> {
             let result = self.perform(Cmd::Submit);
@@ -322,34 +283,6 @@ impl tuirealm::Component<Message, NoUserEvent> for Widget<IssueBrowser> {
                 } else {
                     None
                 }
-            }
-            _ => None,
-        }
-    }
-}
-
-impl tuirealm::Component<Message, NoUserEvent> for Widget<Dashboard> {
-    fn on(&mut self, _event: Event<NoUserEvent>) -> Option<Message> {
-        None
-    }
-}
-
-impl tuirealm::Component<Message, NoUserEvent> for Widget<patch::Activity> {
-    fn on(&mut self, event: Event<NoUserEvent>) -> Option<Message> {
-        match event {
-            Event::Keyboard(KeyEvent { code: Key::Esc, .. }) => {
-                Some(Message::Patch(PatchMessage::Leave))
-            }
-            _ => None,
-        }
-    }
-}
-
-impl tuirealm::Component<Message, NoUserEvent> for Widget<patch::Files> {
-    fn on(&mut self, event: Event<NoUserEvent>) -> Option<Message> {
-        match event {
-            Event::Keyboard(KeyEvent { code: Key::Esc, .. }) => {
-                Some(Message::Patch(PatchMessage::Leave))
             }
             _ => None,
         }

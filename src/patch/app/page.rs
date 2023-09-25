@@ -96,7 +96,7 @@ impl ViewPage<Cid, Message> for ListView {
     ) -> Result<()> {
         let navigation = ui::list_navigation(theme);
         let header = widget::common::app_header(context, theme, Some(navigation)).to_boxed();
-        let patch_browser = widget::home::patches(context, theme, None).to_boxed();
+        let patch_browser = ui::patches(context, theme, None).to_boxed();
 
         app.remount(Cid::List(ListCid::Header), header, vec![])?;
         app.remount(Cid::List(ListCid::PatchBrowser), patch_browser, vec![])?;

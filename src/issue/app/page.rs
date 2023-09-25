@@ -3,8 +3,6 @@ use std::collections::HashMap;
 use anyhow::Result;
 
 use radicle::cob::issue::{Issue, IssueId};
-use radicle::cob::patch::{Patch, PatchId};
-
 use radicle_tui::cob;
 use radicle_tui::ui::widget::common::context::{Progress, Shortcuts};
 use tuirealm::{AttrValue, Attribute, Frame, NoUserEvent, State, StateValue, Sub, SubClause};
@@ -13,66 +11,28 @@ use radicle_tui::ui::context::Context;
 use radicle_tui::ui::layout;
 use radicle_tui::ui::theme::Theme;
 use radicle_tui::ui::widget::{self, Widget};
+use radicle_tui::ViewPage;
 
 use super::{
-    subscription, Application, Cid, HomeCid, HomeMessage, IssueCid, IssueCobMessage, IssueMessage,
-    Message, PatchCid, PopupMessage,
+    Application, Cid, IssueCid, IssueCobMessage, IssueMessage, ListCid, Message, PopupMessage,
 };
 
-/// `tuirealm`'s event and prop system is designed to work with flat component hierarchies.
-/// Building deep nested component hierarchies would need a lot more additional effort to
-/// properly pass events and props down these hierarchies. This makes it hard to implement
-/// full app views (home, patch details etc) as components.
-///
-/// View pages take into account these flat component hierarchies, and provide
-/// switchable sets of components.
-pub trait ViewPage {
-    /// Will be called whenever a view page is pushed onto the page stack. Should create and mount all widgets.
-    fn mount(
-        &self,
-        app: &mut Application<Cid, Message, NoUserEvent>,
-        context: &Context,
-        theme: &Theme,
-    ) -> Result<()>;
-
-    /// Will be called whenever a view page is popped from the page stack. Should unmount all widgets.
-    fn unmount(&self, app: &mut Application<Cid, Message, NoUserEvent>) -> Result<()>;
-
-    /// Will be called whenever a view page is on top of the stack and can be used to update its internal
-    /// state depending on the message passed.
-    fn update(
-        &mut self,
-        app: &mut Application<Cid, Message, NoUserEvent>,
-        context: &Context,
-        theme: &Theme,
-        message: Message,
-    ) -> Result<Option<Message>>;
-
-    /// Will be called whenever a view page is on top of the page stack and needs to be rendered.
-    fn view(&mut self, app: &mut Application<Cid, Message, NoUserEvent>, frame: &mut Frame);
-
-    /// Will be called whenever this view page is pushed to the stack, or it is on top of the stack again
-    /// after another view page was popped from the stack.
-    fn subscribe(&self, app: &mut Application<Cid, Message, NoUserEvent>) -> Result<()>;
-
-    /// Will be called whenever this view page is on top of the stack and another view page is pushed
-    /// to the stack, or if this is popped from the stack.
-    fn unsubscribe(&self, app: &mut Application<Cid, Message, NoUserEvent>) -> Result<()>;
-}
+use super::subscription;
+use super::ui;
 
 ///
 /// Home
 ///
-pub struct HomeView {
-    active_component: HomeCid,
-    shortcuts: HashMap<HomeCid, Widget<Shortcuts>>,
+pub struct ListPage {
+    active_component: ListCid,
+    shortcuts: HashMap<ListCid, Widget<Shortcuts>>,
 }
 
-impl HomeView {
+impl ListPage {
     pub fn new(theme: Theme) -> Self {
         let shortcuts = Self::build_shortcuts(&theme);
-        HomeView {
-            active_component: HomeCid::Dashboard,
+        Self {
+            active_component: ListCid::IssueBrowser,
             shortcuts,
         }
     }
@@ -80,54 +40,30 @@ impl HomeView {
     fn activate(
         &mut self,
         app: &mut Application<Cid, Message, NoUserEvent>,
-        cid: HomeCid,
+        cid: ListCid,
     ) -> Result<()> {
         self.active_component = cid;
-        let cid = Cid::Home(self.active_component.clone());
+        let cid = Cid::List(self.active_component.clone());
         app.active(&cid)?;
         app.attr(&cid, Attribute::Focus, AttrValue::Flag(true))?;
 
         Ok(())
     }
 
-    fn build_shortcuts(theme: &Theme) -> HashMap<HomeCid, Widget<Shortcuts>> {
-        [
-            (
-                HomeCid::Dashboard,
-                widget::common::shortcuts(
-                    theme,
-                    vec![
-                        widget::common::shortcut(theme, "tab", "section"),
-                        widget::common::shortcut(theme, "q", "quit"),
-                    ],
-                ),
+    fn build_shortcuts(theme: &Theme) -> HashMap<ListCid, Widget<Shortcuts>> {
+        [(
+            ListCid::IssueBrowser,
+            widget::common::shortcuts(
+                theme,
+                vec![
+                    widget::common::shortcut(theme, "tab", "section"),
+                    widget::common::shortcut(theme, "↑/↓", "navigate"),
+                    widget::common::shortcut(theme, "enter", "show"),
+                    widget::common::shortcut(theme, "o", "open"),
+                    widget::common::shortcut(theme, "q", "quit"),
+                ],
             ),
-            (
-                HomeCid::IssueBrowser,
-                widget::common::shortcuts(
-                    theme,
-                    vec![
-                        widget::common::shortcut(theme, "tab", "section"),
-                        widget::common::shortcut(theme, "↑/↓", "navigate"),
-                        widget::common::shortcut(theme, "enter", "show"),
-                        widget::common::shortcut(theme, "o", "open"),
-                        widget::common::shortcut(theme, "q", "quit"),
-                    ],
-                ),
-            ),
-            (
-                HomeCid::PatchBrowser,
-                widget::common::shortcuts(
-                    theme,
-                    vec![
-                        widget::common::shortcut(theme, "tab", "section"),
-                        widget::common::shortcut(theme, "↑/↓", "navigate"),
-                        widget::common::shortcut(theme, "enter", "show"),
-                        widget::common::shortcut(theme, "q", "quit"),
-                    ],
-                ),
-            ),
-        ]
+        )]
         .iter()
         .cloned()
         .collect()
@@ -138,37 +74,16 @@ impl HomeView {
         app: &mut Application<Cid, Message, NoUserEvent>,
         context: &Context,
         theme: &Theme,
-        cid: HomeCid,
     ) -> Result<()> {
-        let context = match cid {
-            HomeCid::IssueBrowser => {
-                let state = app.state(&Cid::Home(HomeCid::IssueBrowser))?;
-                let progress = match state {
-                    State::Tup2((StateValue::Usize(step), StateValue::Usize(total))) => {
-                        Progress::Step(step.saturating_add(1), total)
-                    }
-                    _ => Progress::None,
-                };
-                let context = widget::issue::browse_context(context, theme, progress);
-                Some(context)
+        let state = app.state(&Cid::List(ListCid::IssueBrowser))?;
+        let progress = match state {
+            State::Tup2((StateValue::Usize(step), StateValue::Usize(total))) => {
+                Progress::Step(step.saturating_add(1), total)
             }
-            HomeCid::PatchBrowser => {
-                let state = app.state(&Cid::Home(HomeCid::PatchBrowser))?;
-                let progress = match state {
-                    State::Tup2((StateValue::Usize(step), StateValue::Usize(total))) => {
-                        Progress::Step(step.saturating_add(1), total)
-                    }
-                    _ => Progress::None,
-                };
-                let context = widget::issue::browse_context(context, theme, progress);
-                Some(context)
-            }
-            _ => None,
+            _ => Progress::None,
         };
-
-        if let Some(context) = context {
-            app.remount(Cid::Home(HomeCid::Context), context.to_boxed(), vec![])?;
-        }
+        let context = ui::browse_context(context, theme, progress);
+        app.remount(Cid::List(ListCid::Context), context.to_boxed(), vec![])?;
 
         Ok(())
     }
@@ -176,11 +91,11 @@ impl HomeView {
     fn update_shortcuts(
         &self,
         app: &mut Application<Cid, Message, NoUserEvent>,
-        cid: HomeCid,
+        cid: ListCid,
     ) -> Result<()> {
         if let Some(shortcuts) = self.shortcuts.get(&cid) {
             app.remount(
-                Cid::Home(HomeCid::Shortcuts),
+                Cid::List(ListCid::Shortcuts),
                 shortcuts.clone().to_boxed(),
                 vec![],
             )?;
@@ -189,41 +104,32 @@ impl HomeView {
     }
 }
 
-impl ViewPage for HomeView {
+impl ViewPage<Cid, Message> for ListPage {
     fn mount(
         &self,
         app: &mut Application<Cid, Message, NoUserEvent>,
         context: &Context,
         theme: &Theme,
     ) -> Result<()> {
-        let navigation = widget::home::navigation(theme);
+        let navigation = ui::list_navigation(theme);
         let header = widget::common::app_header(context, theme, Some(navigation)).to_boxed();
+        let issue_browser = ui::issues(context, theme, None).to_boxed();
 
-        let dashboard = widget::home::dashboard(context, theme).to_boxed();
-        let issue_browser = widget::home::issues(context, theme, None).to_boxed();
-        let patch_browser = widget::home::patches(context, theme, None).to_boxed();
+        app.remount(Cid::List(ListCid::Header), header, vec![])?;
+        app.remount(Cid::List(ListCid::IssueBrowser), issue_browser, vec![])?;
 
-        app.remount(Cid::Home(HomeCid::Header), header, vec![])?;
-
-        app.remount(Cid::Home(HomeCid::Dashboard), dashboard, vec![])?;
-        app.remount(Cid::Home(HomeCid::IssueBrowser), issue_browser, vec![])?;
-        app.remount(Cid::Home(HomeCid::PatchBrowser), patch_browser, vec![])?;
-
-        let active_component = Cid::Home(self.active_component.clone());
-        app.active(&active_component)?;
+        app.active(&Cid::List(self.active_component.clone()))?;
         self.update_shortcuts(app, self.active_component.clone())?;
-        self.update_context(app, context, theme, self.active_component.clone())?;
+        self.update_context(app, context, theme)?;
 
         Ok(())
     }
 
     fn unmount(&self, app: &mut Application<Cid, Message, NoUserEvent>) -> Result<()> {
-        app.umount(&Cid::Home(HomeCid::Header))?;
-        app.umount(&Cid::Home(HomeCid::Dashboard))?;
-        app.umount(&Cid::Home(HomeCid::IssueBrowser))?;
-        app.umount(&Cid::Home(HomeCid::PatchBrowser))?;
-        app.umount(&Cid::Home(HomeCid::Context))?;
-        app.umount(&Cid::Home(HomeCid::Shortcuts))?;
+        app.umount(&Cid::List(ListCid::Header))?;
+        app.umount(&Cid::List(ListCid::IssueBrowser))?;
+        app.umount(&Cid::List(ListCid::Context))?;
+        app.umount(&Cid::List(ListCid::Shortcuts))?;
         Ok(())
     }
 
@@ -234,28 +140,19 @@ impl ViewPage for HomeView {
         theme: &Theme,
         message: Message,
     ) -> Result<Option<Message>> {
-        match message {
-            Message::NavigationChanged(index) => {
-                self.activate(app, HomeCid::from(index as usize))?;
-                self.update_shortcuts(app, self.active_component.clone())?;
-            }
-            Message::Home(HomeMessage::RefreshIssues(id)) => {
-                let selected = match id {
-                    Some(id) => {
-                        cob::issue::find(context.repository(), &id)?.map(|issue| (id, issue))
-                    }
-                    _ => None,
-                };
+        if let Message::Issue(IssueMessage::Reload(id)) = message {
+            let selected = match id {
+                Some(id) => cob::issue::find(context.repository(), &id)?.map(|issue| (id, issue)),
+                _ => None,
+            };
 
-                let issue_browser = widget::home::issues(context, theme, selected).to_boxed();
-                app.remount(Cid::Home(HomeCid::IssueBrowser), issue_browser, vec![])?;
+            let issue_browser = ui::issues(context, theme, selected).to_boxed();
+            app.remount(Cid::List(ListCid::IssueBrowser), issue_browser, vec![])?;
 
-                self.activate(app, HomeCid::IssueBrowser)?;
-            }
-            _ => {}
+            self.activate(app, ListCid::IssueBrowser)?;
         }
 
-        self.update_context(app, context, theme, self.active_component.clone())?;
+        self.update_context(app, context, theme)?;
 
         Ok(None)
     }
@@ -265,23 +162,19 @@ impl ViewPage for HomeView {
         let shortcuts_h = 1u16;
         let layout = layout::default_page(area, shortcuts_h);
 
-        app.view(&Cid::Home(HomeCid::Header), frame, layout.navigation);
+        app.view(&Cid::List(ListCid::Header), frame, layout.navigation);
         app.view(
-            &Cid::Home(self.active_component.clone()),
+            &Cid::List(self.active_component.clone()),
             frame,
             layout.component,
         );
 
-        if self.active_component != HomeCid::Dashboard {
-            app.view(&Cid::Home(HomeCid::Context), frame, layout.context);
-        }
-
-        app.view(&Cid::Home(HomeCid::Shortcuts), frame, layout.shortcuts);
+        app.view(&Cid::List(ListCid::Shortcuts), frame, layout.shortcuts);
     }
 
     fn subscribe(&self, app: &mut Application<Cid, Message, NoUserEvent>) -> Result<()> {
         app.subscribe(
-            &Cid::Home(HomeCid::Header),
+            &Cid::List(ListCid::Header),
             Sub::new(subscription::navigation_clause(), SubClause::Always),
         )?;
 
@@ -290,7 +183,7 @@ impl ViewPage for HomeView {
 
     fn unsubscribe(&self, app: &mut Application<Cid, Message, NoUserEvent>) -> Result<()> {
         app.unsubscribe(
-            &Cid::Home(HomeCid::Header),
+            &Cid::List(ListCid::Header),
             subscription::navigation_clause(),
         )?;
 
@@ -391,7 +284,7 @@ impl IssuePage {
                     }
                     _ => Progress::None,
                 };
-                let context = widget::issue::browse_context(context, theme, progress);
+                let context = ui::browse_context(context, theme, progress);
                 Some(context)
             }
             IssueCid::Details => {
@@ -400,11 +293,11 @@ impl IssuePage {
                     State::One(StateValue::Usize(scroll)) => Progress::Percentage(scroll),
                     _ => Progress::None,
                 };
-                let context = widget::issue::description_context(context, theme, progress);
+                let context = ui::description_context(context, theme, progress);
                 Some(context)
             }
             IssueCid::Form => {
-                let context = widget::issue::form_context(context, theme, Progress::None);
+                let context = ui::form_context(context, theme, Progress::None);
                 Some(context)
             }
             _ => None,
@@ -433,22 +326,23 @@ impl IssuePage {
     }
 }
 
-impl ViewPage for IssuePage {
+impl ViewPage<Cid, Message> for IssuePage {
     fn mount(
         &self,
         app: &mut Application<Cid, Message, NoUserEvent>,
         context: &Context,
         theme: &Theme,
     ) -> Result<()> {
-        let header = widget::common::app_header(context, theme, None).to_boxed();
-        let list = widget::issue::list(context, theme, self.issue.clone()).to_boxed();
+        let navigation = ui::list_navigation(theme);
+        let header = widget::common::app_header(context, theme, Some(navigation)).to_boxed();
+        let list = ui::list(context, theme, self.issue.clone()).to_boxed();
 
         app.remount(Cid::Issue(IssueCid::Header), header, vec![])?;
         app.remount(Cid::Issue(IssueCid::List), list, vec![])?;
 
         if let Some((id, issue)) = &self.issue {
             let comments = issue.comments().collect::<Vec<_>>();
-            let details = widget::issue::details(
+            let details = ui::details(
                 context,
                 theme,
                 (*id, issue.clone()),
@@ -496,10 +390,10 @@ impl ViewPage for IssuePage {
 
                 if let Some(issue) = cob::issue::find(repo, &id)? {
                     self.issue = Some((id, issue.clone()));
-                    let list = widget::issue::list(context, theme, self.issue.clone()).to_boxed();
+                    let list = ui::list(context, theme, self.issue.clone()).to_boxed();
                     let comments = issue.comments().collect::<Vec<_>>();
 
-                    let details = widget::issue::details(
+                    let details = ui::details(
                         context,
                         theme,
                         (id, issue.clone()),
@@ -516,7 +410,7 @@ impl ViewPage for IssuePage {
                 if let Some(issue) = cob::issue::find(repo, &id)? {
                     self.issue = Some((id, issue.clone()));
                     let comments = issue.comments().collect::<Vec<_>>();
-                    let details = widget::issue::details(
+                    let details = ui::details(
                         context,
                         theme,
                         (id, issue.clone()),
@@ -531,8 +425,8 @@ impl ViewPage for IssuePage {
                 self.update_shortcuts(app, self.active_component.clone())?;
             }
             Message::Issue(IssueMessage::OpenForm) => {
-                let new_form = widget::issue::new_form(context, theme).to_boxed();
-                let list = widget::issue::list(context, theme, None).to_boxed();
+                let new_form = ui::new_form(context, theme).to_boxed();
+                let list = ui::list(context, theme, None).to_boxed();
 
                 app.remount(Cid::Issue(IssueCid::List), list, vec![])?;
                 app.remount(Cid::Issue(IssueCid::Form), new_form, vec![])?;
@@ -545,7 +439,7 @@ impl ViewPage for IssuePage {
             Message::Issue(IssueMessage::HideForm) => {
                 app.umount(&Cid::Issue(IssueCid::Form))?;
 
-                let list = widget::issue::list(context, theme, self.issue.clone()).to_boxed();
+                let list = ui::list(context, theme, self.issue.clone()).to_boxed();
                 app.remount(Cid::Issue(IssueCid::List), list, vec![])?;
 
                 app.subscribe(
@@ -559,7 +453,7 @@ impl ViewPage for IssuePage {
                 return Ok(Some(Message::Issue(IssueMessage::Focus(IssueCid::List))));
             }
             Message::FormSubmitted(id) => {
-                if id == widget::issue::FORM_ID_EDIT {
+                if id == ui::FORM_ID_EDIT {
                     let state = app.state(&Cid::Issue(IssueCid::Form))?;
                     if let State::Linked(mut states) = state {
                         let mut missing_values = vec![];
@@ -652,230 +546,5 @@ impl ViewPage for IssuePage {
 
     fn unsubscribe(&self, _app: &mut Application<Cid, Message, NoUserEvent>) -> Result<()> {
         Ok(())
-    }
-}
-
-///
-/// Patch detail page
-///
-pub struct PatchView {
-    active_component: PatchCid,
-    patch: (PatchId, Patch),
-    shortcuts: HashMap<PatchCid, Widget<Shortcuts>>,
-}
-
-impl PatchView {
-    pub fn new(theme: Theme, patch: (PatchId, Patch)) -> Self {
-        let shortcuts = Self::build_shortcuts(&theme);
-        PatchView {
-            active_component: PatchCid::Activity,
-            patch,
-            shortcuts,
-        }
-    }
-
-    fn build_shortcuts(theme: &Theme) -> HashMap<PatchCid, Widget<Shortcuts>> {
-        [
-            (
-                PatchCid::Activity,
-                widget::common::shortcuts(
-                    theme,
-                    vec![
-                        widget::common::shortcut(theme, "esc", "back"),
-                        widget::common::shortcut(theme, "tab", "section"),
-                        widget::common::shortcut(theme, "q", "quit"),
-                    ],
-                ),
-            ),
-            (
-                PatchCid::Files,
-                widget::common::shortcuts(
-                    theme,
-                    vec![
-                        widget::common::shortcut(theme, "esc", "back"),
-                        widget::common::shortcut(theme, "tab", "section"),
-                        widget::common::shortcut(theme, "q", "quit"),
-                    ],
-                ),
-            ),
-        ]
-        .iter()
-        .cloned()
-        .collect()
-    }
-
-    fn update_shortcuts(
-        &self,
-        app: &mut Application<Cid, Message, NoUserEvent>,
-        cid: PatchCid,
-    ) -> Result<()> {
-        if let Some(shortcuts) = self.shortcuts.get(&cid) {
-            app.remount(
-                Cid::Patch(PatchCid::Shortcuts),
-                shortcuts.clone().to_boxed(),
-                vec![],
-            )?;
-        }
-        Ok(())
-    }
-}
-
-impl ViewPage for PatchView {
-    fn mount(
-        &self,
-        app: &mut Application<Cid, Message, NoUserEvent>,
-        context: &Context,
-        theme: &Theme,
-    ) -> Result<()> {
-        let navigation = widget::patch::navigation(theme);
-        let header = widget::common::app_header(context, theme, Some(navigation)).to_boxed();
-        let activity = widget::patch::activity(theme).to_boxed();
-        let files = widget::patch::files(theme).to_boxed();
-        let context = widget::patch::context(context, theme, self.patch.clone()).to_boxed();
-
-        app.remount(Cid::Patch(PatchCid::Header), header, vec![])?;
-        app.remount(Cid::Patch(PatchCid::Activity), activity, vec![])?;
-        app.remount(Cid::Patch(PatchCid::Files), files, vec![])?;
-        app.remount(Cid::Patch(PatchCid::Context), context, vec![])?;
-
-        let active_component = Cid::Patch(self.active_component.clone());
-        app.active(&active_component)?;
-        self.update_shortcuts(app, self.active_component.clone())?;
-
-        Ok(())
-    }
-
-    fn unmount(&self, app: &mut Application<Cid, Message, NoUserEvent>) -> Result<()> {
-        app.umount(&Cid::Patch(PatchCid::Header))?;
-        app.umount(&Cid::Patch(PatchCid::Activity))?;
-        app.umount(&Cid::Patch(PatchCid::Files))?;
-        app.umount(&Cid::Patch(PatchCid::Context))?;
-        app.umount(&Cid::Patch(PatchCid::Shortcuts))?;
-        Ok(())
-    }
-
-    fn update(
-        &mut self,
-        app: &mut Application<Cid, Message, NoUserEvent>,
-        _context: &Context,
-        _theme: &Theme,
-        message: Message,
-    ) -> Result<Option<Message>> {
-        if let Message::NavigationChanged(index) = message {
-            self.active_component = PatchCid::from(index as usize);
-
-            let active_component = Cid::Patch(self.active_component.clone());
-            app.active(&active_component)?;
-            self.update_shortcuts(app, self.active_component.clone())?;
-        }
-
-        Ok(None)
-    }
-
-    fn view(&mut self, app: &mut Application<Cid, Message, NoUserEvent>, frame: &mut Frame) {
-        let area = frame.size();
-        let shortcuts_h = 1u16;
-        let layout = layout::default_page(area, shortcuts_h);
-
-        app.view(&Cid::Patch(PatchCid::Header), frame, layout.navigation);
-        app.view(
-            &Cid::Patch(self.active_component.clone()),
-            frame,
-            layout.component,
-        );
-        app.view(&Cid::Patch(PatchCid::Context), frame, layout.context);
-        app.view(&Cid::Patch(PatchCid::Shortcuts), frame, layout.shortcuts);
-    }
-
-    fn subscribe(&self, app: &mut Application<Cid, Message, NoUserEvent>) -> Result<()> {
-        app.subscribe(
-            &Cid::Patch(PatchCid::Header),
-            Sub::new(subscription::navigation_clause(), SubClause::Always),
-        )?;
-
-        Ok(())
-    }
-
-    fn unsubscribe(&self, app: &mut Application<Cid, Message, NoUserEvent>) -> Result<()> {
-        app.unsubscribe(
-            &Cid::Patch(PatchCid::Header),
-            subscription::navigation_clause(),
-        )?;
-
-        Ok(())
-    }
-}
-
-/// View pages need to preserve their state (e.g. selected navigation tab, contents
-/// and the selected row of a table). Therefor they should not be (re-)created
-/// each time they are displayed.
-/// Instead the application can push a new page onto the page stack if it needs to
-/// be displayed. Its components are then created using the internal state. If a
-/// new page needs to be displayed, it will also be pushed onto the stack. Leaving
-/// that page again will pop it from the stack. The application can then return to
-/// the previously displayed page in the state it was left.
-#[derive(Default)]
-pub struct PageStack {
-    pages: Vec<Box<dyn ViewPage>>,
-}
-
-impl PageStack {
-    pub fn push(
-        &mut self,
-        page: Box<dyn ViewPage>,
-        app: &mut Application<Cid, Message, NoUserEvent>,
-        context: &Context,
-        theme: &Theme,
-    ) -> Result<()> {
-        if let Some(page) = self.pages.last() {
-            page.unsubscribe(app)?;
-        }
-
-        page.mount(app, context, theme)?;
-        page.subscribe(app)?;
-
-        self.pages.push(page);
-
-        Ok(())
-    }
-
-    pub fn pop(&mut self, app: &mut Application<Cid, Message, NoUserEvent>) -> Result<()> {
-        self.peek_mut()?.unsubscribe(app)?;
-        self.peek_mut()?.unmount(app)?;
-        self.pages.pop();
-
-        self.peek_mut()?.subscribe(app)?;
-
-        Ok(())
-    }
-
-    pub fn peek_mut(&mut self) -> Result<&mut Box<dyn ViewPage>> {
-        match self.pages.last_mut() {
-            Some(page) => Ok(page),
-            None => Err(anyhow::anyhow!(
-                "Could not peek active page. Page stack is empty."
-            )),
-        }
-    }
-}
-
-impl From<usize> for HomeCid {
-    fn from(index: usize) -> Self {
-        match index {
-            0 => HomeCid::Dashboard,
-            1 => HomeCid::IssueBrowser,
-            2 => HomeCid::PatchBrowser,
-            _ => HomeCid::Dashboard,
-        }
-    }
-}
-
-impl From<usize> for PatchCid {
-    fn from(index: usize) -> Self {
-        match index {
-            0 => PatchCid::Activity,
-            1 => PatchCid::Files,
-            _ => PatchCid::Activity,
-        }
     }
 }

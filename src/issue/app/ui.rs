@@ -3,30 +3,103 @@ use radicle::cob::thread::CommentId;
 
 use radicle::cob::issue::Issue;
 use radicle::cob::issue::IssueId;
-use tuirealm::tui::layout::{Constraint, Direction, Layout};
 
-use super::common::container::{Container, LabeledContainer};
-use super::common::context::{ContextBar, Progress};
-use super::common::form::Form;
-use super::common::label::Textarea;
-use super::common::list::List;
-use super::common::list::Property;
-use super::Widget;
+use tuirealm::command::{Cmd, CmdResult};
+use tuirealm::tui::layout::{Constraint, Direction, Layout, Rect};
+use tuirealm::{AttrValue, Attribute, Frame, MockComponent, Props, State};
 
-use crate::ui::cob;
-use crate::ui::cob::IssueItem;
-use crate::ui::context::Context;
-use crate::ui::theme::Theme;
-use crate::ui::widget::common::form::TextArea;
-use crate::ui::widget::common::form::TextField;
+use radicle_tui::ui::cob;
+use radicle_tui::ui::cob::IssueItem;
+use radicle_tui::ui::context::Context;
+use radicle_tui::ui::theme::Theme;
+use radicle_tui::ui::widget::common;
+use radicle_tui::ui::widget::{Widget, WidgetComponent};
 
-use super::*;
+use common::container::{Container, Tabs};
+use common::context::{ContextBar, Progress};
+use common::form::{Form, TextArea, TextField};
+use common::label::Textarea;
+use common::list::{ColumnWidth, List, Property, Table};
 
 pub const FORM_ID_EDIT: &str = "edit-form";
 
+pub struct IssueBrowser {
+    items: Vec<IssueItem>,
+    table: Widget<Table<IssueItem, 7>>,
+}
+
+impl IssueBrowser {
+    pub fn new(context: &Context, theme: &Theme, selected: Option<(IssueId, Issue)>) -> Self {
+        let header = [
+            common::label(" ● "),
+            common::label("ID"),
+            common::label("Title"),
+            common::label("Author"),
+            common::label("Tags"),
+            common::label("Assignees"),
+            common::label("Opened"),
+        ];
+
+        let widths = [
+            ColumnWidth::Fixed(3),
+            ColumnWidth::Fixed(7),
+            ColumnWidth::Grow,
+            ColumnWidth::Fixed(21),
+            ColumnWidth::Fixed(25),
+            ColumnWidth::Fixed(21),
+            ColumnWidth::Fixed(18),
+        ];
+
+        let repo = context.repository();
+        let mut items = vec![];
+
+        for (id, issue) in context.issues() {
+            if let Ok(item) = IssueItem::try_from((context.profile(), repo, *id, issue.clone())) {
+                items.push(item);
+            }
+        }
+
+        items.sort_by(|a, b| b.timestamp().cmp(a.timestamp()));
+        items.sort_by(|a, b| b.state().cmp(a.state()));
+
+        let selected = match selected {
+            Some((id, issue)) => Some(IssueItem::from((context.profile(), repo, id, issue))),
+            _ => items.first().cloned(),
+        };
+
+        let table = Widget::new(Table::new(&items, selected, header, widths, theme.clone()))
+            .highlight(theme.colors.item_list_highlighted_bg);
+
+        Self { items, table }
+    }
+
+    pub fn items(&self) -> &Vec<IssueItem> {
+        &self.items
+    }
+}
+
+impl WidgetComponent for IssueBrowser {
+    fn view(&mut self, properties: &Props, frame: &mut Frame, area: Rect) {
+        let focus = properties
+            .get_or(Attribute::Focus, AttrValue::Flag(false))
+            .unwrap_flag();
+
+        self.table.attr(Attribute::Focus, AttrValue::Flag(focus));
+        self.table.view(frame, area);
+    }
+
+    fn state(&self) -> State {
+        self.table.state()
+    }
+
+    fn perform(&mut self, _properties: &Props, cmd: Cmd) -> CmdResult {
+        self.table.perform(cmd)
+    }
+}
+
 pub struct LargeList {
     items: Vec<IssueItem>,
-    list: Widget<LabeledContainer>,
+    list: Widget<Container>,
 }
 
 impl LargeList {
@@ -48,7 +121,7 @@ impl LargeList {
         let list = Widget::new(List::new(&items, selected, theme.clone()))
             .highlight(theme.colors.item_list_highlighted_bg);
 
-        let container = common::labeled_container(theme, "Issues", list.to_boxed());
+        let container = common::container(theme, list.to_boxed());
 
         Self {
             items,
@@ -176,7 +249,7 @@ impl IssueDetails {
     ) -> Self {
         Self {
             header: header(context, theme, issue),
-            description: issue::description(context, theme, description),
+            description: self::description(context, theme, description),
         }
     }
 }
@@ -246,65 +319,11 @@ impl WidgetComponent for CommentBody {
     }
 }
 
-pub struct NewForm {
-    /// The issue this form writes its input values to.
-    _issue: Issue,
-    /// The actual form.
-    form: Widget<Form>,
-}
-
-impl NewForm {
-    pub fn new(theme: &Theme) -> Self {
-        use tuirealm::props::Layout;
-
-        let title = Widget::new(TextField::new(theme.clone(), "Title")).to_boxed();
-        let tags = Widget::new(TextField::new(theme.clone(), "Labels (bug, ...)")).to_boxed();
-        let assignees = Widget::new(TextField::new(
-            theme.clone(),
-            "Assignees (z6MkvAdxCp1oLVVTsqYvev9YrhSN3gBQNUSM45hhy4pgkexk, ...)",
-        ))
-        .to_boxed();
-        let description = Widget::new(TextArea::new(theme.clone(), "Description")).to_boxed();
-
-        let mut form = Widget::new(Form::new(
-            theme.clone(),
-            vec![title, tags, assignees, description],
-        ));
-
-        form.attr(
-            Attribute::Layout,
-            AttrValue::Layout(
-                Layout::default().constraints(
-                    [
-                        Constraint::Length(3),
-                        Constraint::Length(3),
-                        Constraint::Length(3),
-                        Constraint::Min(3),
-                    ]
-                    .as_ref(),
-                ),
-            ),
-        );
-
-        Self {
-            _issue: Issue::default(),
-            form,
-        }
-    }
-}
-
-impl WidgetComponent for NewForm {
-    fn view(&mut self, _properties: &Props, frame: &mut Frame, area: Rect) {
-        self.form.view(frame, area);
-    }
-
-    fn state(&self) -> State {
-        State::None
-    }
-
-    fn perform(&mut self, _properties: &Props, cmd: Cmd) -> CmdResult {
-        self.form.perform(cmd)
-    }
+pub fn list_navigation(theme: &Theme) -> Widget<Tabs> {
+    common::tabs(
+        theme,
+        vec![common::reversable_label("issues").foreground(theme.colors.tabs_highlighted_fg)],
+    )
 }
 
 pub fn list(
@@ -405,4 +424,12 @@ pub fn description_context(
 pub fn form_context(_context: &Context, theme: &Theme, progress: Progress) -> Widget<ContextBar> {
     common::context::bar(theme, "Open", "", "", "", &progress.to_string())
         .custom(ContextBar::PROP_EDIT_MODE, AttrValue::Flag(true))
+}
+
+pub fn issues(
+    context: &Context,
+    theme: &Theme,
+    selected: Option<(IssueId, Issue)>,
+) -> Widget<IssueBrowser> {
+    Widget::new(IssueBrowser::new(context, theme, selected))
 }

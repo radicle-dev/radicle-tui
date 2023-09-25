@@ -1,7 +1,4 @@
 pub mod common;
-pub mod home;
-pub mod issue;
-pub mod patch;
 mod utils;
 
 use std::ops::Deref;

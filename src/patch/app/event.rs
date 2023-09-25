@@ -7,7 +7,6 @@ use radicle_tui::ui::widget::common::container::{
 };
 use radicle_tui::ui::widget::common::context::{ContextBar, Shortcuts};
 use radicle_tui::ui::widget::common::list::PropertyList;
-use radicle_tui::ui::widget::home::PatchBrowser;
 
 use radicle_tui::ui::widget::Widget;
 
@@ -46,7 +45,7 @@ impl tuirealm::Component<Message, NoUserEvent> for Widget<AppHeader> {
     }
 }
 
-impl tuirealm::Component<Message, NoUserEvent> for Widget<PatchBrowser> {
+impl tuirealm::Component<Message, NoUserEvent> for Widget<ui::PatchBrowser> {
     fn on(&mut self, event: Event<NoUserEvent>) -> Option<Message> {
         match event {
             Event::Keyboard(KeyEvent { code: Key::Up, .. })

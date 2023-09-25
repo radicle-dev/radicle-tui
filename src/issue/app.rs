@@ -1,43 +1,31 @@
 mod event;
 mod page;
-mod subscription;
+mod ui;
 
 use anyhow::Result;
 
 use radicle::cob::issue::IssueId;
-use radicle::cob::patch::PatchId;
 use radicle::identity::{Id, Project};
 use radicle::prelude::Signer;
 use radicle::profile::Profile;
 
+use radicle_tui::ui::subscription;
 use radicle_tui::ui::widget;
 use tuirealm::application::PollStrategy;
 use tuirealm::{Application, Frame, NoUserEvent, Sub, SubClause};
 
+use radicle_tui::cob;
 use radicle_tui::ui::context::Context;
 use radicle_tui::ui::theme::{self, Theme};
+use radicle_tui::PageStack;
 use radicle_tui::Tui;
-use radicle_tui::{cob, ui};
 
-use page::{HomeView, PatchView};
-
-use self::page::{IssuePage, PageStack};
+use page::{IssuePage, ListPage};
 
 #[derive(Debug, Eq, PartialEq, Clone, Hash)]
-pub enum HomeCid {
+pub enum ListCid {
     Header,
-    Dashboard,
     IssueBrowser,
-    PatchBrowser,
-    Context,
-    Shortcuts,
-}
-
-#[derive(Debug, Eq, PartialEq, Clone, Hash)]
-pub enum PatchCid {
-    Header,
-    Activity,
-    Files,
     Context,
     Shortcuts,
 }
@@ -53,19 +41,13 @@ pub enum IssueCid {
 }
 
 /// All component ids known to this application.
-#[derive(Debug, Eq, PartialEq, Clone, Hash)]
+#[derive(Debug, Default, Eq, PartialEq, Clone, Hash)]
 pub enum Cid {
-    Home(HomeCid),
+    List(ListCid),
     Issue(IssueCid),
-    Patch(PatchCid),
+    #[default]
     GlobalListener,
     Popup,
-}
-
-/// Messages handled by this application.
-#[derive(Clone, Debug, Eq, PartialEq)]
-pub enum HomeMessage {
-    RefreshIssues(Option<IssueId>),
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -85,15 +67,10 @@ pub enum IssueMessage {
     Focus(IssueCid),
     Created(IssueId),
     Cob(IssueCobMessage),
+    Reload(Option<IssueId>),
     OpenForm,
     HideForm,
     Leave(Option<IssueId>),
-}
-
-#[derive(Clone, Debug, Eq, PartialEq)]
-pub enum PatchMessage {
-    Show(PatchId),
-    Leave,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -104,14 +81,13 @@ pub enum PopupMessage {
     Hide,
 }
 
-#[derive(Clone, Debug, Eq, PartialEq)]
+#[derive(Clone, Debug, Default, Eq, PartialEq)]
 pub enum Message {
-    Home(HomeMessage),
     Issue(IssueMessage),
-    Patch(PatchMessage),
     NavigationChanged(u16),
     FormSubmitted(String),
     Popup(PopupMessage),
+    #[default]
     Tick,
     Quit,
     Batch(Vec<Message>),
@@ -120,7 +96,7 @@ pub enum Message {
 #[allow(dead_code)]
 pub struct App {
     context: Context,
-    pages: PageStack,
+    pages: PageStack<Cid, Message>,
     theme: Theme,
     quit: bool,
 }
@@ -137,35 +113,15 @@ impl App {
         }
     }
 
-    fn view_home(
+    fn view_list(
         &mut self,
         app: &mut Application<Cid, Message, NoUserEvent>,
         theme: &Theme,
     ) -> Result<()> {
-        let home = Box::new(HomeView::new(theme.clone()));
-        self.pages.push(home, app, &self.context, theme)?;
+        let list = Box::new(ListPage::new(theme.clone()));
+        self.pages.push(list, app, &self.context, theme)?;
 
         Ok(())
-    }
-
-    fn view_patch(
-        &mut self,
-        app: &mut Application<Cid, Message, NoUserEvent>,
-        id: PatchId,
-        theme: &Theme,
-    ) -> Result<()> {
-        let repo = self.context.repository();
-
-        if let Some(patch) = cob::patch::find(repo, &id)? {
-            let view = Box::new(PatchView::new(theme.clone(), (id, patch)));
-            self.pages.push(view, app, &self.context, theme)?;
-
-            Ok(())
-        } else {
-            Err(anyhow::anyhow!(
-                "Could not mount 'page::PatchView'. Patch not found."
-            ))
-        }
     }
 
     fn view_issue(
@@ -244,15 +200,7 @@ impl App {
             }
             Message::Issue(IssueMessage::Leave(id)) => {
                 self.pages.pop(app)?;
-                Ok(Some(Message::Home(HomeMessage::RefreshIssues(id))))
-            }
-            Message::Patch(PatchMessage::Show(id)) => {
-                self.view_patch(app, id, &theme)?;
-                Ok(None)
-            }
-            Message::Patch(PatchMessage::Leave) => {
-                self.pages.pop(app)?;
-                Ok(None)
+                Ok(Some(Message::Issue(IssueMessage::Reload(id))))
             }
             Message::Popup(PopupMessage::Info(info)) => {
                 self.show_info_popup(app, &theme, &info)?;
@@ -353,10 +301,10 @@ impl App {
 
 impl Tui<Cid, Message> for App {
     fn init(&mut self, app: &mut Application<Cid, Message, NoUserEvent>) -> Result<()> {
-        self.view_home(app, &self.theme.clone())?;
+        self.view_list(app, &self.theme.clone())?;
 
         // Add global key listener and subscribe to key events
-        let global = ui::widget::common::global_listener().to_boxed();
+        let global = widget::common::global_listener().to_boxed();
         app.mount(
             Cid::GlobalListener,
             global,

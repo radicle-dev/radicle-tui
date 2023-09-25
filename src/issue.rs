@@ -24,7 +24,7 @@ use page::{HomeView, PatchView};
 use self::page::{IssuePage, PageStack};
 
 #[derive(Debug, Eq, PartialEq, Clone, Hash)]
-pub enum HomeCid {
+pub enum ListCid {
     Header,
     Dashboard,
     IssueBrowser,
