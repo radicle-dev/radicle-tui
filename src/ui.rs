@@ -3,5 +3,6 @@ pub mod context;
 pub mod ext;
 pub mod layout;
 pub mod state;
+pub mod subscription;
 pub mod theme;
 pub mod widget;

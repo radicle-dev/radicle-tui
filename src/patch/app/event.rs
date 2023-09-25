@@ -1,20 +1,17 @@
-use radicle::cob::issue::IssueId;
-use tuirealm::command::{Cmd, CmdResult, Direction as MoveDirection, Position};
-use tuirealm::event::{Event, Key, KeyEvent, KeyModifiers};
+use tuirealm::command::{Cmd, CmdResult, Direction as MoveDirection};
+use tuirealm::event::{Event, Key, KeyEvent};
 use tuirealm::{MockComponent, NoUserEvent, State, StateValue};
 
 use radicle_tui::ui::widget::common::container::{
     AppHeader, GlobalListener, LabeledContainer, Popup,
 };
 use radicle_tui::ui::widget::common::context::{ContextBar, Shortcuts};
-use radicle_tui::ui::widget::common::form::Form;
 use radicle_tui::ui::widget::common::list::PropertyList;
-use radicle_tui::ui::widget::home::{Dashboard, IssueBrowser, PatchBrowser};
-use radicle_tui::ui::widget::{issue, patch};
+use radicle_tui::ui::widget::home::PatchBrowser;
 
 use radicle_tui::ui::widget::Widget;
 
-use super::{IssueCid, IssueMessage, Message, PatchMessage, PopupMessage};
+use super::{ui, Message, PatchMessage, PopupMessage};
 
 /// Since the framework does not know the type of messages that are being
 /// passed around in the app, the following handlers need to be implemented for
@@ -43,190 +40,6 @@ impl tuirealm::Component<Message, NoUserEvent> for Widget<AppHeader> {
                     }
                     _ => None,
                 }
-            }
-            _ => None,
-        }
-    }
-}
-
-impl tuirealm::Component<Message, NoUserEvent> for Widget<issue::LargeList> {
-    fn on(&mut self, event: Event<NoUserEvent>) -> Option<Message> {
-        match event {
-            Event::Keyboard(KeyEvent { code: Key::Esc, .. }) => match self.state() {
-                State::Tup2((StateValue::Usize(selected), StateValue::Usize(_))) => {
-                    let item = self.items().get(selected)?;
-                    Some(Message::Issue(IssueMessage::Leave(Some(
-                        item.id().to_owned(),
-                    ))))
-                }
-                _ => None,
-            },
-            Event::Keyboard(KeyEvent { code: Key::Up, .. })
-            | Event::Keyboard(KeyEvent {
-                code: Key::Char('k'),
-                ..
-            }) => {
-                let result = self.perform(Cmd::Move(MoveDirection::Up));
-                match result {
-                    CmdResult::Changed(State::One(StateValue::Usize(selected))) => {
-                        let item = self.items().get(selected)?;
-                        Some(Message::Issue(IssueMessage::Changed(item.id().to_owned())))
-                    }
-                    _ => None,
-                }
-            }
-            Event::Keyboard(KeyEvent {
-                code: Key::Down, ..
-            })
-            | Event::Keyboard(KeyEvent {
-                code: Key::Char('j'),
-                ..
-            }) => {
-                let result = self.perform(Cmd::Move(MoveDirection::Down));
-                match result {
-                    CmdResult::Changed(State::One(StateValue::Usize(selected))) => {
-                        let item = self.items().get(selected)?;
-                        Some(Message::Issue(IssueMessage::Changed(item.id().to_owned())))
-                    }
-                    _ => None,
-                }
-            }
-            Event::Keyboard(KeyEvent {
-                code: Key::Enter, ..
-            }) => Some(Message::Issue(IssueMessage::Focus(IssueCid::Details))),
-            Event::Keyboard(KeyEvent {
-                code: Key::Char('o'),
-                ..
-            }) => Some(Message::Issue(IssueMessage::OpenForm)),
-            _ => None,
-        }
-    }
-}
-
-impl tuirealm::Component<Message, NoUserEvent> for Widget<issue::IssueDetails> {
-    fn on(&mut self, event: Event<NoUserEvent>) -> Option<Message> {
-        match event {
-            Event::Keyboard(KeyEvent { code: Key::Up, .. })
-            | Event::Keyboard(KeyEvent {
-                code: Key::Char('k'),
-                ..
-            }) => {
-                self.perform(Cmd::Scroll(MoveDirection::Up));
-                Some(Message::Tick)
-            }
-            Event::Keyboard(KeyEvent {
-                code: Key::Down, ..
-            })
-            | Event::Keyboard(KeyEvent {
-                code: Key::Char('j'),
-                ..
-            }) => {
-                self.perform(Cmd::Scroll(MoveDirection::Down));
-                Some(Message::Tick)
-            }
-            Event::Keyboard(KeyEvent { code: Key::Esc, .. }) => {
-                Some(Message::Issue(IssueMessage::Focus(IssueCid::List)))
-            }
-            _ => None,
-        }
-    }
-}
-
-impl tuirealm::Component<Message, NoUserEvent> for Widget<Form> {
-    fn on(&mut self, event: Event<NoUserEvent>) -> Option<Message> {
-        match event {
-            Event::Keyboard(KeyEvent {
-                code: Key::Left, ..
-            }) => {
-                self.perform(Cmd::Move(MoveDirection::Left));
-                Some(Message::Tick)
-            }
-            Event::Keyboard(KeyEvent {
-                code: Key::Right, ..
-            }) => {
-                self.perform(Cmd::Move(MoveDirection::Right));
-                Some(Message::Tick)
-            }
-            Event::Keyboard(KeyEvent { code: Key::Up, .. }) => {
-                self.perform(Cmd::Move(MoveDirection::Up));
-                Some(Message::Tick)
-            }
-            Event::Keyboard(KeyEvent {
-                code: Key::Down, ..
-            }) => {
-                self.perform(Cmd::Move(MoveDirection::Down));
-                Some(Message::Tick)
-            }
-            Event::Keyboard(KeyEvent {
-                code: Key::Home, ..
-            }) => {
-                self.perform(Cmd::GoTo(Position::Begin));
-                Some(Message::Tick)
-            }
-            Event::Keyboard(KeyEvent { code: Key::End, .. }) => {
-                self.perform(Cmd::GoTo(Position::End));
-                Some(Message::Tick)
-            }
-            Event::Keyboard(KeyEvent {
-                code: Key::Delete, ..
-            }) => {
-                self.perform(Cmd::Cancel);
-                Some(Message::Tick)
-            }
-            Event::Keyboard(KeyEvent {
-                code: Key::Backspace,
-                ..
-            }) => {
-                self.perform(Cmd::Delete);
-                Some(Message::Tick)
-            }
-            Event::Keyboard(KeyEvent {
-                code: Key::Enter, ..
-            }) => {
-                self.perform(Cmd::Custom(Form::CMD_NEWLINE));
-                Some(Message::Tick)
-            }
-            Event::Keyboard(KeyEvent {
-                code: Key::Char('s'),
-                modifiers: KeyModifiers::CONTROL,
-            }) => {
-                self.perform(Cmd::Submit);
-                self.query(tuirealm::Attribute::Custom(Form::PROP_ID))
-                    .map(|cid| Message::FormSubmitted(cid.unwrap_string()))
-            }
-            Event::Keyboard(KeyEvent { code: Key::Esc, .. }) => {
-                Some(Message::Issue(IssueMessage::HideForm))
-            }
-            Event::Keyboard(KeyEvent {
-                code: Key::BackTab, ..
-            }) => {
-                self.perform(Cmd::Custom(Form::CMD_FOCUS_PREVIOUS));
-                Some(Message::Tick)
-            }
-            Event::Keyboard(KeyEvent { code: Key::Tab, .. }) => {
-                self.perform(Cmd::Custom(Form::CMD_FOCUS_NEXT));
-                Some(Message::Tick)
-            }
-            Event::Keyboard(KeyEvent {
-                code: Key::Char(ch),
-                modifiers: KeyModifiers::SHIFT,
-            }) => {
-                self.perform(Cmd::Type(ch.to_ascii_uppercase()));
-                Some(Message::Tick)
-            }
-            Event::Keyboard(KeyEvent {
-                code: Key::Char('v'),
-                modifiers: KeyModifiers::CONTROL,
-            }) => {
-                self.perform(Cmd::Custom(Form::CMD_PASTE));
-                Some(Message::Tick)
-            }
-            Event::Keyboard(KeyEvent {
-                code: Key::Char(ch),
-                ..
-            }) => {
-                self.perform(Cmd::Type(ch));
-                Some(Message::Tick)
             }
             _ => None,
         }
@@ -271,70 +84,7 @@ impl tuirealm::Component<Message, NoUserEvent> for Widget<PatchBrowser> {
     }
 }
 
-impl tuirealm::Component<Message, NoUserEvent> for Widget<IssueBrowser> {
-    fn on(&mut self, event: Event<NoUserEvent>) -> Option<Message> {
-        let mut submit = || -> Option<IssueId> {
-            let result = self.perform(Cmd::Submit);
-            match result {
-                CmdResult::Submit(State::One(StateValue::Usize(selected))) => {
-                    let item = self.items().get(selected)?;
-                    Some(item.id().to_owned())
-                }
-                _ => None,
-            }
-        };
-
-        match event {
-            Event::Keyboard(KeyEvent { code: Key::Up, .. })
-            | Event::Keyboard(KeyEvent {
-                code: Key::Char('k'),
-                ..
-            }) => {
-                self.perform(Cmd::Move(MoveDirection::Up));
-                Some(Message::Tick)
-            }
-            Event::Keyboard(KeyEvent {
-                code: Key::Down, ..
-            })
-            | Event::Keyboard(KeyEvent {
-                code: Key::Char('j'),
-                ..
-            }) => {
-                self.perform(Cmd::Move(MoveDirection::Down));
-                Some(Message::Tick)
-            }
-            Event::Keyboard(KeyEvent {
-                code: Key::Char('o'),
-                ..
-            }) => {
-                let id = submit();
-                Some(Message::Batch(vec![
-                    Message::Issue(IssueMessage::Show(id)),
-                    Message::Issue(IssueMessage::OpenForm),
-                ]))
-            }
-            Event::Keyboard(KeyEvent {
-                code: Key::Enter, ..
-            }) => {
-                let id = submit();
-                if id.is_some() {
-                    Some(Message::Issue(IssueMessage::Show(id)))
-                } else {
-                    None
-                }
-            }
-            _ => None,
-        }
-    }
-}
-
-impl tuirealm::Component<Message, NoUserEvent> for Widget<Dashboard> {
-    fn on(&mut self, _event: Event<NoUserEvent>) -> Option<Message> {
-        None
-    }
-}
-
-impl tuirealm::Component<Message, NoUserEvent> for Widget<patch::Activity> {
+impl tuirealm::Component<Message, NoUserEvent> for Widget<ui::Activity> {
     fn on(&mut self, event: Event<NoUserEvent>) -> Option<Message> {
         match event {
             Event::Keyboard(KeyEvent { code: Key::Esc, .. }) => {
@@ -345,7 +95,7 @@ impl tuirealm::Component<Message, NoUserEvent> for Widget<patch::Activity> {
     }
 }
 
-impl tuirealm::Component<Message, NoUserEvent> for Widget<patch::Files> {
+impl tuirealm::Component<Message, NoUserEvent> for Widget<ui::Files> {
     fn on(&mut self, event: Event<NoUserEvent>) -> Option<Message> {
         match event {
             Event::Keyboard(KeyEvent { code: Key::Esc, .. }) => {

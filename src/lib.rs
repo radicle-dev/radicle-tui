@@ -11,6 +11,9 @@ use tuirealm::{Application, EventListenerCfg, NoUserEvent};
 pub mod cob;
 pub mod ui;
 
+use ui::context::Context;
+use ui::theme::Theme;
+
 /// Trait that must be implemented by client applications in order to be run
 /// as tui-application using tui-realm. Implementors act as models to the
 /// tui-realm application that can be polled for new messages, updated
@@ -94,5 +97,111 @@ impl Window {
         }
 
         Ok(())
+    }
+}
+
+/// `tuirealm`'s event and prop system is designed to work with flat component hierarchies.
+/// Building deep nested component hierarchies would need a lot more additional effort to
+/// properly pass events and props down these hierarchies. This makes it hard to implement
+/// full app views (home, patch details etc) as components.
+///
+/// View pages take into account these flat component hierarchies, and provide
+/// switchable sets of components.
+pub trait ViewPage<Id, Message>
+where
+    Id: Eq + PartialEq + Clone + Hash,
+    Message: Eq,
+{
+    /// Will be called whenever a view page is pushed onto the page stack. Should create and mount all widgets.
+    fn mount(
+        &self,
+        app: &mut Application<Id, Message, NoUserEvent>,
+        context: &Context,
+        theme: &Theme,
+    ) -> Result<()>;
+
+    /// Will be called whenever a view page is popped from the page stack. Should unmount all widgets.
+    fn unmount(&self, app: &mut Application<Id, Message, NoUserEvent>) -> Result<()>;
+
+    /// Will be called whenever a view page is on top of the stack and can be used to update its internal
+    /// state depending on the message passed.
+    fn update(
+        &mut self,
+        app: &mut Application<Id, Message, NoUserEvent>,
+        context: &Context,
+        theme: &Theme,
+        message: Message,
+    ) -> Result<Option<Message>>;
+
+    /// Will be called whenever a view page is on top of the page stack and needs to be rendered.
+    fn view(&mut self, app: &mut Application<Id, Message, NoUserEvent>, frame: &mut Frame);
+
+    /// Will be called whenever this view page is pushed to the stack, or it is on top of the stack again
+    /// after another view page was popped from the stack.
+    fn subscribe(&self, app: &mut Application<Id, Message, NoUserEvent>) -> Result<()>;
+
+    /// Will be called whenever this view page is on top of the stack and another view page is pushed
+    /// to the stack, or if this is popped from the stack.
+    fn unsubscribe(&self, app: &mut Application<Id, Message, NoUserEvent>) -> Result<()>;
+}
+
+/// View pages need to preserve their state (e.g. selected navigation tab, contents
+/// and the selected row of a table). Therefor they should not be (re-)created
+/// each time they are displayed.
+/// Instead the application can push a new page onto the page stack if it needs to
+/// be displayed. Its components are then created using the internal state. If a
+/// new page needs to be displayed, it will also be pushed onto the stack. Leaving
+/// that page again will pop it from the stack. The application can then return to
+/// the previously displayed page in the state it was left.
+#[derive(Default)]
+pub struct PageStack<Id, Message>
+where
+    Id: Eq + PartialEq + Clone + Hash,
+    Message: Eq,
+{
+    pages: Vec<Box<dyn ViewPage<Id, Message>>>,
+}
+
+impl<Id, Message> PageStack<Id, Message>
+where
+    Id: Eq + PartialEq + Clone + Hash,
+    Message: Eq,
+{
+    pub fn push(
+        &mut self,
+        page: Box<dyn ViewPage<Id, Message>>,
+        app: &mut Application<Id, Message, NoUserEvent>,
+        context: &Context,
+        theme: &Theme,
+    ) -> Result<()> {
+        if let Some(page) = self.pages.last() {
+            page.unsubscribe(app)?;
+        }
+
+        page.mount(app, context, theme)?;
+        page.subscribe(app)?;
+
+        self.pages.push(page);
+
+        Ok(())
+    }
+
+    pub fn pop(&mut self, app: &mut Application<Id, Message, NoUserEvent>) -> Result<()> {
+        self.peek_mut()?.unsubscribe(app)?;
+        self.peek_mut()?.unmount(app)?;
+        self.pages.pop();
+
+        self.peek_mut()?.subscribe(app)?;
+
+        Ok(())
+    }
+
+    pub fn peek_mut(&mut self) -> Result<&mut Box<dyn ViewPage<Id, Message>>> {
+        match self.pages.last_mut() {
+            Some(page) => Ok(page),
+            None => Err(anyhow::anyhow!(
+                "Could not peek active page. Page stack is empty."
+            )),
+        }
     }
 }

@@ -160,7 +160,7 @@ impl HomeView {
                     }
                     _ => Progress::None,
                 };
-                let context = widget::patch::browse_context(context, theme, progress);
+                let context = widget::issue::browse_context(context, theme, progress);
                 Some(context)
             }
             _ => None,

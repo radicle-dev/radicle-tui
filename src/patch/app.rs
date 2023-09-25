@@ -1,10 +1,11 @@
 mod event;
 mod page;
-mod subscription;
+mod ui;
+
+use std::hash::Hash;
 
 use anyhow::Result;
 
-use radicle::cob::issue::IssueId;
 use radicle::cob::patch::PatchId;
 use radicle::identity::{Id, Project};
 use radicle::prelude::Signer;
@@ -14,20 +15,18 @@ use radicle_tui::ui::widget;
 use tuirealm::application::PollStrategy;
 use tuirealm::{Application, Frame, NoUserEvent, Sub, SubClause};
 
+use radicle_tui::cob;
 use radicle_tui::ui::context::Context;
+use radicle_tui::ui::subscription;
 use radicle_tui::ui::theme::{self, Theme};
+use radicle_tui::PageStack;
 use radicle_tui::Tui;
-use radicle_tui::{cob, ui};
 
-use page::{HomeView, PatchView};
-
-use self::page::{IssuePage, PageStack};
+use page::{ListView, PatchView};
 
 #[derive(Debug, Eq, PartialEq, Clone, Hash)]
-pub enum HomeCid {
+pub enum ListCid {
     Header,
-    Dashboard,
-    IssueBrowser,
     PatchBrowser,
     Context,
     Shortcuts,
@@ -42,52 +41,14 @@ pub enum PatchCid {
     Shortcuts,
 }
 
-#[derive(Debug, Eq, PartialEq, Clone, Hash)]
-pub enum IssueCid {
-    Header,
-    List,
-    Details,
-    Context,
-    Form,
-    Shortcuts,
-}
-
 /// All component ids known to this application.
-#[derive(Debug, Eq, PartialEq, Clone, Hash)]
+#[derive(Debug, Default, Eq, PartialEq, Clone, Hash)]
 pub enum Cid {
-    Home(HomeCid),
-    Issue(IssueCid),
+    List(ListCid),
     Patch(PatchCid),
+    #[default]
     GlobalListener,
     Popup,
-}
-
-/// Messages handled by this application.
-#[derive(Clone, Debug, Eq, PartialEq)]
-pub enum HomeMessage {
-    RefreshIssues(Option<IssueId>),
-}
-
-#[derive(Clone, Debug, Eq, PartialEq)]
-pub enum IssueCobMessage {
-    Create {
-        title: String,
-        tags: String,
-        assignees: String,
-        description: String,
-    },
-}
-
-#[derive(Clone, Debug, Eq, PartialEq)]
-pub enum IssueMessage {
-    Show(Option<IssueId>),
-    Changed(IssueId),
-    Focus(IssueCid),
-    Created(IssueId),
-    Cob(IssueCobMessage),
-    OpenForm,
-    HideForm,
-    Leave(Option<IssueId>),
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -104,14 +65,13 @@ pub enum PopupMessage {
     Hide,
 }
 
-#[derive(Clone, Debug, Eq, PartialEq)]
+#[derive(Clone, Default, Debug, Eq, PartialEq)]
 pub enum Message {
-    Home(HomeMessage),
-    Issue(IssueMessage),
     Patch(PatchMessage),
     NavigationChanged(u16),
     FormSubmitted(String),
     Popup(PopupMessage),
+    #[default]
     Tick,
     Quit,
     Batch(Vec<Message>),
@@ -120,7 +80,7 @@ pub enum Message {
 #[allow(dead_code)]
 pub struct App {
     context: Context,
-    pages: PageStack,
+    pages: PageStack<Cid, Message>,
     theme: Theme,
     quit: bool,
 }
@@ -137,12 +97,12 @@ impl App {
         }
     }
 
-    fn view_home(
+    fn view_list(
         &mut self,
         app: &mut Application<Cid, Message, NoUserEvent>,
         theme: &Theme,
     ) -> Result<()> {
-        let home = Box::new(HomeView::new(theme.clone()));
+        let home = Box::new(ListView::new(theme.clone()));
         self.pages.push(home, app, &self.context, theme)?;
 
         Ok(())
@@ -168,35 +128,6 @@ impl App {
         }
     }
 
-    fn view_issue(
-        &mut self,
-        app: &mut Application<Cid, Message, NoUserEvent>,
-        id: Option<IssueId>,
-        theme: &Theme,
-    ) -> Result<()> {
-        let repo = self.context.repository();
-        match id {
-            Some(id) => {
-                if let Some(issue) = cob::issue::find(repo, &id)? {
-                    let view = Box::new(IssuePage::new(&self.context, theme, Some((id, issue))));
-                    self.pages.push(view, app, &self.context, theme)?;
-
-                    Ok(())
-                } else {
-                    Err(anyhow::anyhow!(
-                        "Could not mount 'page::IssueView'. Issue not found."
-                    ))
-                }
-            }
-            None => {
-                let view = Box::new(IssuePage::new(&self.context, theme, None));
-                self.pages.push(view, app, &self.context, theme)?;
-
-                Ok(())
-            }
-        }
-    }
-
     fn process(
         &mut self,
         app: &mut Application<Cid, Message, NoUserEvent>,
@@ -216,35 +147,6 @@ impl App {
                     1 => Ok(Some(results[0].to_owned())),
                     _ => Ok(Some(Message::Batch(results))),
                 }
-            }
-            Message::Issue(IssueMessage::Cob(IssueCobMessage::Create {
-                title,
-                tags,
-                assignees,
-                description,
-            })) => match self.create_issue(title, description, tags, assignees) {
-                Ok(id) => {
-                    self.context.reload();
-
-                    Ok(Some(Message::Batch(vec![
-                        Message::Issue(IssueMessage::HideForm),
-                        Message::Issue(IssueMessage::Created(id)),
-                    ])))
-                }
-                Err(err) => {
-                    let error = format!("{:?}", err);
-                    self.show_error_popup(app, &theme, &error)?;
-
-                    Ok(None)
-                }
-            },
-            Message::Issue(IssueMessage::Show(id)) => {
-                self.view_issue(app, id, &theme)?;
-                Ok(None)
-            }
-            Message::Issue(IssueMessage::Leave(id)) => {
-                self.pages.pop(app)?;
-                Ok(Some(Message::Home(HomeMessage::RefreshIssues(id))))
             }
             Message::Patch(PatchMessage::Show(id)) => {
                 self.view_patch(app, id, &theme)?;
@@ -326,37 +228,14 @@ impl App {
 
         Ok(())
     }
-
-    fn create_issue(
-        &mut self,
-        title: String,
-        description: String,
-        labels: String,
-        assignees: String,
-    ) -> Result<IssueId> {
-        let repository = self.context.repository();
-        let signer = self.context.signer();
-
-        let labels = cob::parse_labels(labels)?;
-        let assignees = cob::parse_assignees(assignees)?;
-
-        cob::issue::create(
-            repository,
-            signer,
-            title,
-            description,
-            labels.as_slice(),
-            assignees.as_slice(),
-        )
-    }
 }
 
 impl Tui<Cid, Message> for App {
     fn init(&mut self, app: &mut Application<Cid, Message, NoUserEvent>) -> Result<()> {
-        self.view_home(app, &self.theme.clone())?;
+        self.view_list(app, &self.theme.clone())?;
 
         // Add global key listener and subscribe to key events
-        let global = ui::widget::common::global_listener().to_boxed();
+        let global = widget::common::global_listener().to_boxed();
         app.mount(
             Cid::GlobalListener,
             global,
