@@ -160,7 +160,7 @@ impl WidgetComponent for Files {
 pub fn list_navigation(theme: &Theme) -> Widget<Tabs> {
     common::tabs(
         theme,
-        vec![common::reversable_label("patches").foreground(theme.colors.tabs_highlighted_fg)],
+        vec![common::reversable_label("Patches").foreground(theme.colors.tabs_highlighted_fg)],
     )
 }
 
@@ -168,8 +168,8 @@ pub fn navigation(theme: &Theme) -> Widget<Tabs> {
     common::tabs(
         theme,
         vec![
-            common::reversable_label("activity").foreground(theme.colors.tabs_highlighted_fg),
-            common::reversable_label("files").foreground(theme.colors.tabs_highlighted_fg),
+            common::reversable_label("Activity").foreground(theme.colors.tabs_highlighted_fg),
+            common::reversable_label("Files").foreground(theme.colors.tabs_highlighted_fg),
         ],
     )
 }

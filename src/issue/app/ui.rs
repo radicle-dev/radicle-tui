@@ -322,7 +322,7 @@ impl WidgetComponent for CommentBody {
 pub fn list_navigation(theme: &Theme) -> Widget<Tabs> {
     common::tabs(
         theme,
-        vec![common::reversable_label("issues").foreground(theme.colors.tabs_highlighted_fg)],
+        vec![common::reversable_label("Issues").foreground(theme.colors.tabs_highlighted_fg)],
     )
 }
 
