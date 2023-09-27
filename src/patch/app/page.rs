@@ -4,15 +4,16 @@ use anyhow::Result;
 
 use radicle::cob::patch::{Patch, PatchId};
 
-use radicle_tui::ui::widget::common::context::{Progress, Shortcuts};
 use tuirealm::{Frame, NoUserEvent, State, StateValue, Sub, SubClause};
 
-use radicle_tui::ui::context::Context;
-use radicle_tui::ui::layout;
-use radicle_tui::ui::subscription;
-use radicle_tui::ui::theme::Theme;
-use radicle_tui::ui::widget::{self, Widget};
-use radicle_tui::ViewPage;
+use radicle_tui as tui;
+
+use tui::ui::context::Context;
+use tui::ui::theme::Theme;
+use tui::ui::widget::context::{Progress, Shortcuts};
+use tui::ui::widget::Widget;
+use tui::ui::{layout, subscription};
+use tui::ViewPage;
 
 use super::{ui, Application, Cid, ListCid, Message, PatchCid};
 
@@ -36,13 +37,13 @@ impl ListView {
     fn build_shortcuts(theme: &Theme) -> HashMap<ListCid, Widget<Shortcuts>> {
         [(
             ListCid::PatchBrowser,
-            widget::common::shortcuts(
+            tui::ui::shortcuts(
                 theme,
                 vec![
-                    widget::common::shortcut(theme, "tab", "section"),
-                    widget::common::shortcut(theme, "↑/↓", "navigate"),
-                    widget::common::shortcut(theme, "enter", "show"),
-                    widget::common::shortcut(theme, "q", "quit"),
+                    tui::ui::shortcut(theme, "tab", "section"),
+                    tui::ui::shortcut(theme, "↑/↓", "navigate"),
+                    tui::ui::shortcut(theme, "enter", "show"),
+                    tui::ui::shortcut(theme, "q", "quit"),
                 ],
             ),
         )]
@@ -95,7 +96,7 @@ impl ViewPage<Cid, Message> for ListView {
         theme: &Theme,
     ) -> Result<()> {
         let navigation = ui::list_navigation(theme);
-        let header = widget::common::app_header(context, theme, Some(navigation)).to_boxed();
+        let header = tui::ui::app_header(context, theme, Some(navigation)).to_boxed();
         let patch_browser = ui::patches(context, theme, None).to_boxed();
 
         app.remount(Cid::List(ListCid::Header), header, vec![])?;
@@ -186,23 +187,23 @@ impl PatchView {
         [
             (
                 PatchCid::Activity,
-                widget::common::shortcuts(
+                tui::ui::shortcuts(
                     theme,
                     vec![
-                        widget::common::shortcut(theme, "esc", "back"),
-                        widget::common::shortcut(theme, "tab", "section"),
-                        widget::common::shortcut(theme, "q", "quit"),
+                        tui::ui::shortcut(theme, "esc", "back"),
+                        tui::ui::shortcut(theme, "tab", "section"),
+                        tui::ui::shortcut(theme, "q", "quit"),
                     ],
                 ),
             ),
             (
                 PatchCid::Files,
-                widget::common::shortcuts(
+                tui::ui::shortcuts(
                     theme,
                     vec![
-                        widget::common::shortcut(theme, "esc", "back"),
-                        widget::common::shortcut(theme, "tab", "section"),
-                        widget::common::shortcut(theme, "q", "quit"),
+                        tui::ui::shortcut(theme, "esc", "back"),
+                        tui::ui::shortcut(theme, "tab", "section"),
+                        tui::ui::shortcut(theme, "q", "quit"),
                     ],
                 ),
             ),
@@ -236,7 +237,7 @@ impl ViewPage<Cid, Message> for PatchView {
         theme: &Theme,
     ) -> Result<()> {
         let navigation = ui::navigation(theme);
-        let header = widget::common::app_header(context, theme, Some(navigation)).to_boxed();
+        let header = tui::ui::app_header(context, theme, Some(navigation)).to_boxed();
         let activity = ui::activity(theme).to_boxed();
         let files = ui::files(theme).to_boxed();
         let context = ui::context(context, theme, self.patch.clone()).to_boxed();

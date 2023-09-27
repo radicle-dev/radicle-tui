@@ -4,18 +4,19 @@ use tuirealm::command::{Cmd, CmdResult};
 use tuirealm::tui::layout::Rect;
 use tuirealm::{AttrValue, Attribute, Frame, MockComponent, Props, State};
 
-use radicle_tui::ui::cob;
-use radicle_tui::ui::cob::PatchItem;
-use radicle_tui::ui::context::Context;
-use radicle_tui::ui::layout;
-use radicle_tui::ui::theme::Theme;
-use radicle_tui::ui::widget::common;
-use radicle_tui::ui::widget::{Widget, WidgetComponent};
+use radicle_tui as tui;
 
-use common::container::Tabs;
-use common::context::{ContextBar, Progress};
-use common::label::Label;
-use common::list::{ColumnWidth, Table};
+use tui::ui::cob;
+use tui::ui::cob::PatchItem;
+use tui::ui::context::Context;
+use tui::ui::layout;
+use tui::ui::theme::Theme;
+use tui::ui::widget::{Widget, WidgetComponent};
+
+use tui::ui::widget::container::Tabs;
+use tui::ui::widget::context::{ContextBar, Progress};
+use tui::ui::widget::label::Label;
+use tui::ui::widget::list::{ColumnWidth, Table};
 
 pub struct PatchBrowser {
     items: Vec<PatchItem>,
@@ -25,14 +26,14 @@ pub struct PatchBrowser {
 impl PatchBrowser {
     pub fn new(context: &Context, theme: &Theme, selected: Option<(PatchId, Patch)>) -> Self {
         let header = [
-            common::label(" ● "),
-            common::label("ID"),
-            common::label("Title"),
-            common::label("Author"),
-            common::label("Head"),
-            common::label("+"),
-            common::label("-"),
-            common::label("Updated"),
+            tui::ui::label(" ● "),
+            tui::ui::label("ID"),
+            tui::ui::label("Title"),
+            tui::ui::label("Author"),
+            tui::ui::label("Head"),
+            tui::ui::label("+"),
+            tui::ui::label("-"),
+            tui::ui::label("Updated"),
         ];
 
         let widths = [
@@ -158,18 +159,18 @@ impl WidgetComponent for Files {
 }
 
 pub fn list_navigation(theme: &Theme) -> Widget<Tabs> {
-    common::tabs(
+    tui::ui::tabs(
         theme,
-        vec![common::reversable_label("Patches").foreground(theme.colors.tabs_highlighted_fg)],
+        vec![tui::ui::reversable_label("Patches").foreground(theme.colors.tabs_highlighted_fg)],
     )
 }
 
 pub fn navigation(theme: &Theme) -> Widget<Tabs> {
-    common::tabs(
+    tui::ui::tabs(
         theme,
         vec![
-            common::reversable_label("Activity").foreground(theme.colors.tabs_highlighted_fg),
-            common::reversable_label("Files").foreground(theme.colors.tabs_highlighted_fg),
+            tui::ui::reversable_label("Activity").foreground(theme.colors.tabs_highlighted_fg),
+            tui::ui::reversable_label("Files").foreground(theme.colors.tabs_highlighted_fg),
         ],
     )
 }
@@ -183,14 +184,14 @@ pub fn patches(
 }
 
 pub fn activity(theme: &Theme) -> Widget<Activity> {
-    let not_implemented = common::label("not implemented").foreground(theme.colors.default_fg);
+    let not_implemented = tui::ui::label("not implemented").foreground(theme.colors.default_fg);
     let activity = Activity::new(not_implemented);
 
     Widget::new(activity)
 }
 
 pub fn files(theme: &Theme) -> Widget<Files> {
-    let not_implemented = common::label("not implemented").foreground(theme.colors.default_fg);
+    let not_implemented = tui::ui::label("not implemented").foreground(theme.colors.default_fg);
     let files = Files::new(not_implemented);
 
     Widget::new(files)
@@ -206,7 +207,7 @@ pub fn context(context: &Context, theme: &Theme, patch: (PatchId, Patch)) -> Wid
     let author = cob::format_author(patch.author().id(), is_you);
     let comments = rev.discussion().len();
 
-    common::context::bar(theme, "Patch", &id, title, &author, &comments.to_string())
+    tui::ui::widget::context::bar(theme, "Patch", &id, title, &author, &comments.to_string())
 }
 
 pub fn browse_context(context: &Context, theme: &Theme, progress: Progress) -> Widget<ContextBar> {
@@ -230,7 +231,7 @@ pub fn browse_context(context: &Context, theme: &Theme, progress: Progress) -> W
         }
     }
 
-    common::context::bar(
+    tui::ui::widget::context::bar(
         theme,
         "Browse",
         "",

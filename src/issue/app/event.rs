@@ -3,14 +3,14 @@ use tuirealm::command::{Cmd, CmdResult, Direction as MoveDirection, Position};
 use tuirealm::event::{Event, Key, KeyEvent, KeyModifiers};
 use tuirealm::{MockComponent, NoUserEvent, State, StateValue};
 
-use radicle_tui::ui::widget::common::container::{
-    AppHeader, GlobalListener, LabeledContainer, Popup,
-};
-use radicle_tui::ui::widget::common::context::{ContextBar, Shortcuts};
-use radicle_tui::ui::widget::common::form::Form;
-use radicle_tui::ui::widget::common::list::PropertyList;
+use radicle_tui as tui;
 
-use radicle_tui::ui::widget::Widget;
+use tui::ui::widget::container::{AppHeader, GlobalListener, LabeledContainer, Popup};
+use tui::ui::widget::context::{ContextBar, Shortcuts};
+use tui::ui::widget::form::Form;
+use tui::ui::widget::list::PropertyList;
+
+use tui::ui::widget::Widget;
 
 use super::ui;
 use super::{IssueCid, IssueMessage, Message, PopupMessage};

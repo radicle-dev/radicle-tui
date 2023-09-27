@@ -2,8 +2,9 @@ pub mod format;
 
 use radicle_surf;
 
-// use cli::terminal::format;
-// use radicle_cli as cli;
+use tuirealm::props::{Color, Style};
+use tuirealm::tui::text::{Span, Spans};
+use tuirealm::tui::widgets::Cell;
 
 use radicle::prelude::Did;
 use radicle::storage::git::Repository;
@@ -14,14 +15,8 @@ use radicle::cob::issue::{Issue, IssueId, State as IssueState};
 use radicle::cob::patch::{Patch, PatchId, State as PatchState};
 use radicle::cob::{Label, Timestamp};
 
-use tuirealm::props::{Color, Style};
-use tuirealm::tui::text::{Span, Spans};
-use tuirealm::tui::widgets::Cell;
-
 use crate::ui::theme::Theme;
-use crate::ui::widget::common::list::TableItem;
-
-use super::widget::common::list::ListItem;
+use crate::ui::widget::list::{ListItem, TableItem};
 
 /// An author item that can be used in tables, list or trees.
 ///

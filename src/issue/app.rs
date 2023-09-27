@@ -9,16 +9,17 @@ use radicle::identity::{Id, Project};
 use radicle::prelude::Signer;
 use radicle::profile::Profile;
 
-use radicle_tui::ui::subscription;
-use radicle_tui::ui::widget;
 use tuirealm::application::PollStrategy;
 use tuirealm::{Application, Frame, NoUserEvent, Sub, SubClause};
 
-use radicle_tui::cob;
-use radicle_tui::ui::context::Context;
-use radicle_tui::ui::theme::{self, Theme};
-use radicle_tui::PageStack;
-use radicle_tui::Tui;
+use radicle_tui as tui;
+
+use tui::cob;
+use tui::ui::context::Context;
+use tui::ui::subscription;
+use tui::ui::theme::{self, Theme};
+use tui::PageStack;
+use tui::Tui;
 
 use page::{IssuePage, ListPage};
 
@@ -235,7 +236,7 @@ impl App {
         theme: &Theme,
         message: &str,
     ) -> Result<()> {
-        let popup = widget::common::info(theme, message);
+        let popup = tui::ui::info(theme, message);
         app.remount(Cid::Popup, popup.to_boxed(), vec![])?;
         app.active(&Cid::Popup)?;
 
@@ -248,7 +249,7 @@ impl App {
         theme: &Theme,
         message: &str,
     ) -> Result<()> {
-        let popup = widget::common::warning(theme, message);
+        let popup = tui::ui::warning(theme, message);
         app.remount(Cid::Popup, popup.to_boxed(), vec![])?;
         app.active(&Cid::Popup)?;
 
@@ -261,7 +262,7 @@ impl App {
         theme: &Theme,
         message: &str,
     ) -> Result<()> {
-        let popup = widget::common::error(theme, message);
+        let popup = tui::ui::error(theme, message);
         app.remount(Cid::Popup, popup.to_boxed(), vec![])?;
         app.active(&Cid::Popup)?;
 
@@ -304,7 +305,7 @@ impl Tui<Cid, Message> for App {
         self.view_list(app, &self.theme.clone())?;
 
         // Add global key listener and subscribe to key events
-        let global = widget::common::global_listener().to_boxed();
+        let global = tui::ui::global_listener().to_boxed();
         app.mount(
             Cid::GlobalListener,
             global,

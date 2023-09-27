@@ -25,11 +25,11 @@ impl TextField {
             .single_line(true)
             .cursor_line_style(Style::reset())
             .style(Style::default().fg(theme.colors.default_fg));
-        let container = super::container(&theme, Box::new(input));
+        let container = crate::ui::container(&theme, Box::new(input));
 
         Self {
             input: container,
-            placeholder: super::label(title).foreground(theme.colors.input_placeholder_fg),
+            placeholder: crate::ui::label(title).foreground(theme.colors.input_placeholder_fg),
             show_placeholder: true,
         }
     }
@@ -99,11 +99,11 @@ impl TextArea {
             .single_line(false)
             .cursor_line_style(Style::reset())
             .style(Style::default().fg(theme.colors.default_fg));
-        let container = super::container(&theme, Box::new(input));
+        let container = crate::ui::container(&theme, Box::new(input));
 
         Self {
             input: container,
-            placeholder: super::label(title).foreground(theme.colors.input_placeholder_fg),
+            placeholder: crate::ui::label(title).foreground(theme.colors.input_placeholder_fg),
             show_placeholder: true,
         }
     }

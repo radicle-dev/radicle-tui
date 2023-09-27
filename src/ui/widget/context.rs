@@ -218,19 +218,19 @@ pub fn bar(
     label_3: &str,
     label_4: &str,
 ) -> Widget<ContextBar> {
-    let context = super::label(&format!(" {label_0} "))
+    let context = crate::ui::label(&format!(" {label_0} "))
         .foreground(theme.colors.context_bg)
         .background(theme.colors.context_badge_bg);
-    let id = super::label(&format!(" {label_1} "))
+    let id = crate::ui::label(&format!(" {label_1} "))
         .foreground(theme.colors.context_color_fg)
         .background(theme.colors.context_bg);
-    let title = super::label(&format!(" {label_2} "))
+    let title = crate::ui::label(&format!(" {label_2} "))
         .foreground(theme.colors.default_fg)
         .background(theme.colors.context_bg);
-    let author = super::label(&format!(" {label_3} "))
+    let author = crate::ui::label(&format!(" {label_3} "))
         .foreground(theme.colors.context_light)
         .background(theme.colors.context_bg);
-    let comments = super::label(&format!(" {label_4} "))
+    let comments = crate::ui::label(&format!(" {label_4} "))
         .foreground(theme.colors.context_light)
         .background(theme.colors.context_bg);
 

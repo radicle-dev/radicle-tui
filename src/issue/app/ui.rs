@@ -8,18 +8,19 @@ use tuirealm::command::{Cmd, CmdResult};
 use tuirealm::tui::layout::{Constraint, Direction, Layout, Rect};
 use tuirealm::{AttrValue, Attribute, Frame, MockComponent, Props, State};
 
-use radicle_tui::ui::cob;
-use radicle_tui::ui::cob::IssueItem;
-use radicle_tui::ui::context::Context;
-use radicle_tui::ui::theme::Theme;
-use radicle_tui::ui::widget::common;
-use radicle_tui::ui::widget::{Widget, WidgetComponent};
+use radicle_tui as tui;
 
-use common::container::{Container, Tabs};
-use common::context::{ContextBar, Progress};
-use common::form::{Form, TextArea, TextField};
-use common::label::Textarea;
-use common::list::{ColumnWidth, List, Property, Table};
+use tui::ui::cob;
+use tui::ui::cob::IssueItem;
+use tui::ui::context::Context;
+use tui::ui::theme::Theme;
+use tui::ui::widget::{Widget, WidgetComponent};
+
+use tui::ui::widget::container::{Container, Tabs};
+use tui::ui::widget::context::{ContextBar, Progress};
+use tui::ui::widget::form::{Form, TextArea, TextField};
+use tui::ui::widget::label::Textarea;
+use tui::ui::widget::list::{ColumnWidth, List, Property, Table};
 
 pub const FORM_ID_EDIT: &str = "edit-form";
 
@@ -31,13 +32,13 @@ pub struct IssueBrowser {
 impl IssueBrowser {
     pub fn new(context: &Context, theme: &Theme, selected: Option<(IssueId, Issue)>) -> Self {
         let header = [
-            common::label(" ● "),
-            common::label("ID"),
-            common::label("Title"),
-            common::label("Author"),
-            common::label("Tags"),
-            common::label("Assignees"),
-            common::label("Opened"),
+            tui::ui::label(" ● "),
+            tui::ui::label("ID"),
+            tui::ui::label("Title"),
+            tui::ui::label("Author"),
+            tui::ui::label("Tags"),
+            tui::ui::label("Assignees"),
+            tui::ui::label("Opened"),
         ];
 
         let widths = [
@@ -121,7 +122,7 @@ impl LargeList {
         let list = Widget::new(List::new(&items, selected, theme.clone()))
             .highlight(theme.colors.item_list_highlighted_bg);
 
-        let container = common::container(theme, list.to_boxed());
+        let container = tui::ui::container(theme, list.to_boxed());
 
         Self {
             items,
@@ -166,30 +167,30 @@ impl IssueHeader {
         let item = IssueItem::from((context.profile(), repo, id, issue.clone()));
 
         let title = Property::new(
-            common::label("Title").foreground(theme.colors.property_name_fg),
-            common::label(item.title()).foreground(theme.colors.browser_list_title),
+            tui::ui::label("Title").foreground(theme.colors.property_name_fg),
+            tui::ui::label(item.title()).foreground(theme.colors.browser_list_title),
         );
 
         let author = Property::new(
-            common::label("Author").foreground(theme.colors.property_name_fg),
-            common::label(&cob::format_author(issue.author().id(), by_you))
+            tui::ui::label("Author").foreground(theme.colors.property_name_fg),
+            tui::ui::label(&cob::format_author(issue.author().id(), by_you))
                 .foreground(theme.colors.browser_list_author),
         );
 
         let issue_id = Property::new(
-            common::label("Issue").foreground(theme.colors.property_name_fg),
-            common::label(&id.to_string()).foreground(theme.colors.browser_list_description),
+            tui::ui::label("Issue").foreground(theme.colors.property_name_fg),
+            tui::ui::label(&id.to_string()).foreground(theme.colors.browser_list_description),
         );
 
         let labels = Property::new(
-            common::label("Labels").foreground(theme.colors.property_name_fg),
-            common::label(&cob::format_labels(item.labels()))
+            tui::ui::label("Labels").foreground(theme.colors.property_name_fg),
+            tui::ui::label(&cob::format_labels(item.labels()))
                 .foreground(theme.colors.browser_list_labels),
         );
 
         let assignees = Property::new(
-            common::label("Assignees").foreground(theme.colors.property_name_fg),
-            common::label(&cob::format_assignees(
+            tui::ui::label("Assignees").foreground(theme.colors.property_name_fg),
+            tui::ui::label(&cob::format_assignees(
                 &item
                     .assignees()
                     .iter()
@@ -200,11 +201,11 @@ impl IssueHeader {
         );
 
         let state = Property::new(
-            common::label("Status").foreground(theme.colors.property_name_fg),
-            common::label(&item.state().to_string()).foreground(theme.colors.browser_list_title),
+            tui::ui::label("Status").foreground(theme.colors.property_name_fg),
+            tui::ui::label(&item.state().to_string()).foreground(theme.colors.browser_list_title),
         );
 
-        let table = common::property_table(
+        let table = tui::ui::property_table(
             theme,
             vec![
                 Widget::new(title),
@@ -215,7 +216,7 @@ impl IssueHeader {
                 Widget::new(state),
             ],
         );
-        let container = common::container(theme, table.to_boxed());
+        let container = tui::ui::container(theme, table.to_boxed());
 
         Self { container }
     }
@@ -294,7 +295,7 @@ impl CommentBody {
             .content(AttrValue::String(content))
             .foreground(theme.colors.default_fg);
 
-        let textarea = common::container(theme, textarea.to_boxed());
+        let textarea = tui::ui::container(theme, textarea.to_boxed());
 
         Self { textarea }
     }
@@ -320,9 +321,9 @@ impl WidgetComponent for CommentBody {
 }
 
 pub fn list_navigation(theme: &Theme) -> Widget<Tabs> {
-    common::tabs(
+    tui::ui::tabs(
         theme,
-        vec![common::reversable_label("Issues").foreground(theme.colors.tabs_highlighted_fg)],
+        vec![tui::ui::reversable_label("Issues").foreground(theme.colors.tabs_highlighted_fg)],
     )
 }
 
@@ -403,7 +404,7 @@ pub fn browse_context(context: &Context, theme: &Theme, progress: Progress) -> W
         .collect::<Vec<_>>()
         .len();
 
-    common::context::bar(
+    tui::ui::widget::context::bar(
         theme,
         "Browse",
         "",
@@ -418,11 +419,11 @@ pub fn description_context(
     theme: &Theme,
     progress: Progress,
 ) -> Widget<ContextBar> {
-    common::context::bar(theme, "Show", "", "", "", &progress.to_string())
+    tui::ui::widget::context::bar(theme, "Show", "", "", "", &progress.to_string())
 }
 
 pub fn form_context(_context: &Context, theme: &Theme, progress: Progress) -> Widget<ContextBar> {
-    common::context::bar(theme, "Open", "", "", "", &progress.to_string())
+    tui::ui::widget::context::bar(theme, "Open", "", "", "", &progress.to_string())
         .custom(ContextBar::PROP_EDIT_MODE, AttrValue::Flag(true))
 }
 

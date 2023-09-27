@@ -11,7 +11,6 @@ use crate::ui::widget::{utils, Widget, WidgetComponent};
 
 use super::container::Header;
 use super::label::Label;
-use super::*;
 
 /// A generic item that can be displayed in a table with [`const W: usize`] columns.
 pub trait TableItem<const W: usize> {
@@ -48,7 +47,7 @@ pub struct Property {
 
 impl Property {
     pub fn new(name: Widget<Label>, value: Widget<Label>) -> Self {
-        let divider = label("");
+        let divider = crate::ui::label("");
         Self {
             name,
             divider,

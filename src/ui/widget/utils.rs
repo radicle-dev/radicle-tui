@@ -1,6 +1,6 @@
 use tuirealm::tui::layout::{Constraint, Rect};
 
-use super::common::list::ColumnWidth;
+use super::list::ColumnWidth;
 
 /// Calculates `Constraint::Percentage` for each fixed column width in `widths`,
 /// taking into account the available width in `area` and the column spacing given by `spacing`.

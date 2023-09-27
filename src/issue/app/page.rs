@@ -3,15 +3,18 @@ use std::collections::HashMap;
 use anyhow::Result;
 
 use radicle::cob::issue::{Issue, IssueId};
-use radicle_tui::cob;
-use radicle_tui::ui::widget::common::context::{Progress, Shortcuts};
+
 use tuirealm::{AttrValue, Attribute, Frame, NoUserEvent, State, StateValue, Sub, SubClause};
 
-use radicle_tui::ui::context::Context;
-use radicle_tui::ui::layout;
-use radicle_tui::ui::theme::Theme;
-use radicle_tui::ui::widget::{self, Widget};
-use radicle_tui::ViewPage;
+use radicle_tui as tui;
+
+use tui::cob;
+use tui::ui::context::Context;
+use tui::ui::layout;
+use tui::ui::theme::Theme;
+use tui::ui::widget::context::{Progress, Shortcuts};
+use tui::ui::widget::Widget;
+use tui::ViewPage;
 
 use super::{
     Application, Cid, IssueCid, IssueCobMessage, IssueMessage, ListCid, Message, PopupMessage,
@@ -53,14 +56,14 @@ impl ListPage {
     fn build_shortcuts(theme: &Theme) -> HashMap<ListCid, Widget<Shortcuts>> {
         [(
             ListCid::IssueBrowser,
-            widget::common::shortcuts(
+            tui::ui::shortcuts(
                 theme,
                 vec![
-                    widget::common::shortcut(theme, "tab", "section"),
-                    widget::common::shortcut(theme, "↑/↓", "navigate"),
-                    widget::common::shortcut(theme, "enter", "show"),
-                    widget::common::shortcut(theme, "o", "open"),
-                    widget::common::shortcut(theme, "q", "quit"),
+                    tui::ui::shortcut(theme, "tab", "section"),
+                    tui::ui::shortcut(theme, "↑/↓", "navigate"),
+                    tui::ui::shortcut(theme, "enter", "show"),
+                    tui::ui::shortcut(theme, "o", "open"),
+                    tui::ui::shortcut(theme, "q", "quit"),
                 ],
             ),
         )]
@@ -112,7 +115,7 @@ impl ViewPage<Cid, Message> for ListPage {
         theme: &Theme,
     ) -> Result<()> {
         let navigation = ui::list_navigation(theme);
-        let header = widget::common::app_header(context, theme, Some(navigation)).to_boxed();
+        let header = tui::ui::app_header(context, theme, Some(navigation)).to_boxed();
         let issue_browser = ui::issues(context, theme, None).to_boxed();
 
         app.remount(Cid::List(ListCid::Header), header, vec![])?;
@@ -229,36 +232,36 @@ impl IssuePage {
         [
             (
                 IssueCid::List,
-                widget::common::shortcuts(
+                tui::ui::shortcuts(
                     theme,
                     vec![
-                        widget::common::shortcut(theme, "esc", "back"),
-                        widget::common::shortcut(theme, "↑/↓", "navigate"),
-                        widget::common::shortcut(theme, "enter", "show"),
-                        widget::common::shortcut(theme, "o", "open"),
-                        widget::common::shortcut(theme, "q", "quit"),
+                        tui::ui::shortcut(theme, "esc", "back"),
+                        tui::ui::shortcut(theme, "↑/↓", "navigate"),
+                        tui::ui::shortcut(theme, "enter", "show"),
+                        tui::ui::shortcut(theme, "o", "open"),
+                        tui::ui::shortcut(theme, "q", "quit"),
                     ],
                 ),
             ),
             (
                 IssueCid::Details,
-                widget::common::shortcuts(
+                tui::ui::shortcuts(
                     theme,
                     vec![
-                        widget::common::shortcut(theme, "esc", "back"),
-                        widget::common::shortcut(theme, "↑/↓", "scroll"),
-                        widget::common::shortcut(theme, "q", "quit"),
+                        tui::ui::shortcut(theme, "esc", "back"),
+                        tui::ui::shortcut(theme, "↑/↓", "scroll"),
+                        tui::ui::shortcut(theme, "q", "quit"),
                     ],
                 ),
             ),
             (
                 IssueCid::Form,
-                widget::common::shortcuts(
+                tui::ui::shortcuts(
                     theme,
                     vec![
-                        widget::common::shortcut(theme, "esc", "back"),
-                        widget::common::shortcut(theme, "shift + tab / tab", "navigate"),
-                        widget::common::shortcut(theme, "ctrl + s", "submit"),
+                        tui::ui::shortcut(theme, "esc", "back"),
+                        tui::ui::shortcut(theme, "shift + tab / tab", "navigate"),
+                        tui::ui::shortcut(theme, "ctrl + s", "submit"),
                     ],
                 ),
             ),
@@ -334,7 +337,7 @@ impl ViewPage<Cid, Message> for IssuePage {
         theme: &Theme,
     ) -> Result<()> {
         let navigation = ui::list_navigation(theme);
-        let header = widget::common::app_header(context, theme, Some(navigation)).to_boxed();
+        let header = tui::ui::app_header(context, theme, Some(navigation)).to_boxed();
         let list = ui::list(context, theme, self.issue.clone()).to_boxed();
 
         app.remount(Cid::Issue(IssueCid::Header), header, vec![])?;
