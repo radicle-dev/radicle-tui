@@ -6,9 +6,9 @@ use tuirealm::{AttrValue, Attribute, Frame, MockComponent, Props, State};
 
 use radicle_tui as tui;
 
+use tui::context::Context;
 use tui::ui::cob;
 use tui::ui::cob::PatchItem;
-use tui::ui::context::Context;
 use tui::ui::layout;
 use tui::ui::theme::Theme;
 use tui::ui::widget::{Widget, WidgetComponent};

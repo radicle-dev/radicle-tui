@@ -5,9 +5,6 @@ mod ui;
 use anyhow::Result;
 
 use radicle::cob::issue::IssueId;
-use radicle::identity::{Id, Project};
-use radicle::prelude::Signer;
-use radicle::profile::Profile;
 
 use tuirealm::application::PollStrategy;
 use tuirealm::{Application, Frame, NoUserEvent, Sub, SubClause};
@@ -15,7 +12,7 @@ use tuirealm::{Application, Frame, NoUserEvent, Sub, SubClause};
 use radicle_tui as tui;
 
 use tui::cob;
-use tui::ui::context::Context;
+use tui::context::Context;
 use tui::ui::subscription;
 use tui::ui::theme::{self, Theme};
 use tui::PageStack;
@@ -105,9 +102,9 @@ pub struct App {
 /// Creates a new application using a tui-realm-application, mounts all
 /// components and sets focus to a default one.
 impl App {
-    pub fn new(profile: Profile, id: Id, project: Project, signer: Box<dyn Signer>) -> Self {
+    pub fn new(context: Context) -> Self {
         Self {
-            context: Context::new(profile, id, project, signer),
+            context,
             pages: PageStack::default(),
             theme: theme::default_dark(),
             quit: false,

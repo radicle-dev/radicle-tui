@@ -1,5 +1,4 @@
 pub mod cob;
-pub mod context;
 pub mod ext;
 pub mod layout;
 pub mod state;
@@ -20,7 +19,7 @@ use widget::list::{ColumnWidth, Property, PropertyList, PropertyTable};
 
 use widget::Widget;
 
-use crate::ui::context::Context;
+use super::context::Context;
 use crate::ui::theme::Theme;
 
 pub fn global_listener() -> Widget<GlobalListener> {

@@ -8,7 +8,7 @@ use tuirealm::{Frame, NoUserEvent, State, StateValue, Sub, SubClause};
 
 use radicle_tui as tui;
 
-use tui::ui::context::Context;
+use tui::context::Context;
 use tui::ui::theme::Theme;
 use tui::ui::widget::context::{Progress, Shortcuts};
 use tui::ui::widget::Widget;

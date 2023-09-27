@@ -9,9 +9,10 @@ use tuirealm::Frame;
 use tuirealm::{Application, EventListenerCfg, NoUserEvent};
 
 pub mod cob;
+pub mod context;
 pub mod ui;
 
-use ui::context::Context;
+use context::Context;
 use ui::theme::Theme;
 
 /// Trait that must be implemented by client applications in order to be run
