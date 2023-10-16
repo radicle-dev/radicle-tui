@@ -14,23 +14,20 @@ use super::label::Label;
 
 pub struct TextField {
     input: Widget<Container>,
-    placeholder: Widget<Label>,
-    show_placeholder: bool,
+    placeholder: Option<Widget<Label>>,
 }
 
 impl TextField {
-    pub fn new(theme: Theme, title: &str) -> Self {
-        let input = tui_realm_textarea::TextArea::default()
-            .wrap(false)
-            .single_line(true)
-            .cursor_line_style(Style::reset())
-            .style(Style::default().fg(theme.colors.default_fg));
-        let container = crate::ui::container(&theme, Box::new(input));
+    pub fn new(
+        theme: Theme,
+        input: Box<dyn MockComponent>,
+        placeholder: Option<Widget<Label>>,
+    ) -> Self {
+        let container = crate::ui::container(&theme, input);
 
         Self {
             input: container,
-            placeholder: crate::ui::label(title).foreground(theme.colors.input_placeholder_fg),
-            show_placeholder: true,
+            placeholder,
         }
     }
 }
@@ -41,15 +38,25 @@ impl WidgetComponent for TextField {
             .get_or(Attribute::Focus, AttrValue::Flag(false))
             .unwrap_flag();
 
+        let show_placeholder = match self.input.state() {
+            State::Vec(values) => match values.first() {
+                Some(StateValue::String(input)) => values.len() == 1 && input.is_empty(),
+                _ => false,
+            },
+            _ => false,
+        };
+
         self.input.attr(Attribute::Focus, AttrValue::Flag(focus));
         self.input.view(frame, area);
 
-        if self.show_placeholder {
+        if show_placeholder {
             let inner = area.inner(&Margin {
                 vertical: 1,
                 horizontal: 2,
             });
-            self.placeholder.view(frame, inner);
+            if let Some(placeholder) = &mut self.placeholder {
+                placeholder.view(frame, inner);
+            }
         }
     }
 
@@ -73,38 +80,26 @@ impl WidgetComponent for TextField {
             Cmd::Custom(Form::CMD_PASTE) => Cmd::Custom(TEXTAREA_CMD_PASTE),
             _ => cmd,
         };
-        let result = self.input.perform(cmd);
-
-        if let State::Vec(values) = self.input.state() {
-            if let Some(StateValue::String(input)) = values.first() {
-                self.show_placeholder = values.len() == 1 && input.is_empty();
-            } else {
-                self.show_placeholder = false;
-            }
-        }
-        result
+        self.input.perform(cmd)
     }
 }
 
 pub struct TextArea {
     input: Widget<Container>,
-    placeholder: Widget<Label>,
-    show_placeholder: bool,
+    placeholder: Option<Widget<Label>>,
 }
 
 impl TextArea {
-    pub fn new(theme: Theme, title: &str) -> Self {
-        let input = tui_realm_textarea::TextArea::default()
-            .wrap(true)
-            .single_line(false)
-            .cursor_line_style(Style::reset())
-            .style(Style::default().fg(theme.colors.default_fg));
-        let container = crate::ui::container(&theme, Box::new(input));
+    pub fn new(
+        theme: Theme,
+        input: Box<dyn MockComponent>,
+        placeholder: Option<Widget<Label>>,
+    ) -> Self {
+        let container = crate::ui::container(&theme, input);
 
         Self {
             input: container,
-            placeholder: crate::ui::label(title).foreground(theme.colors.input_placeholder_fg),
-            show_placeholder: true,
+            placeholder,
         }
     }
 }
@@ -115,15 +110,25 @@ impl WidgetComponent for TextArea {
             .get_or(Attribute::Focus, AttrValue::Flag(false))
             .unwrap_flag();
 
+        let show_placeholder = match self.input.state() {
+            State::Vec(values) => match values.first() {
+                Some(StateValue::String(input)) => values.len() == 1 && input.is_empty(),
+                _ => false,
+            },
+            _ => false,
+        };
+
         self.input.attr(Attribute::Focus, AttrValue::Flag(focus));
         self.input.view(frame, area);
 
-        if self.show_placeholder {
+        if show_placeholder {
             let inner = area.inner(&Margin {
                 vertical: 1,
                 horizontal: 2,
             });
-            self.placeholder.view(frame, inner);
+            if let Some(placeholder) = &mut self.placeholder {
+                placeholder.view(frame, inner);
+            }
         }
     }
 
@@ -161,16 +166,7 @@ impl WidgetComponent for TextArea {
             Cmd::Custom(Form::CMD_ENTER) => Cmd::Custom(TEXTAREA_CMD_NEWLINE),
             _ => cmd,
         };
-        let result = self.input.perform(cmd);
-
-        if let State::Vec(values) = self.input.state() {
-            if let Some(StateValue::String(input)) = values.first() {
-                self.show_placeholder = values.len() == 1 && input.is_empty();
-            } else {
-                self.show_placeholder = false;
-            }
-        }
-        result
+        self.input.perform(cmd)
     }
 }
 
@@ -179,7 +175,7 @@ pub struct Radio {
 }
 
 impl Radio {
-    pub fn new(theme: Theme, _title: &str, choices: &[String]) -> Self {
+    pub fn new(theme: Theme, _title: &str, choices: &[String], selected: u16) -> Self {
         let input = tui_realm_stdlib::Radio::default()
             .borders(
                 Borders::default()
@@ -188,7 +184,8 @@ impl Radio {
             )
             .inactive(Style::default().fg(theme.colors.container_border_fg))
             .foreground(theme.colors.default_fg)
-            .choices(choices);
+            .choices(choices)
+            .value(selected as usize);
 
         Self { input }
     }
@@ -205,16 +202,7 @@ impl WidgetComponent for Radio {
     }
 
     fn state(&self) -> State {
-        if let State::Vec(values) = self.input.state() {
-            let text = match values.get(0) {
-                Some(StateValue::String(line)) => line.clone(),
-                _ => String::new(),
-            };
-
-            State::One(StateValue::String(text))
-        } else {
-            State::None
-        }
+        self.input.state()
     }
 
     fn perform(&mut self, _properties: &Props, cmd: Cmd) -> CmdResult {
@@ -228,7 +216,9 @@ impl WidgetComponent for Radio {
 
 pub struct Form {
     // This form's fields: title, tags, assignees, description.
-    inputs: Vec<Box<dyn MockComponent>>,
+    fields: Vec<Box<dyn MockComponent>>,
+    // This form's hidden fields.
+    hidden: Vec<Box<dyn MockComponent>>,
     /// State that holds the current focus etc.
     state: FormState,
 }
@@ -239,12 +229,18 @@ impl Form {
     pub const CMD_ENTER: &str = "cmd-enter";
     pub const CMD_PASTE: &str = "cmd-paste";
 
-    pub const PROP_ID: &str = "prop-id";
+    pub fn new(
+        _theme: Theme,
+        fields: Vec<Box<dyn MockComponent>>,
+        hidden: Vec<Box<dyn MockComponent>>,
+    ) -> Self {
+        let state = FormState::new(Some(0), fields.len());
 
-    pub fn new(_theme: Theme, inputs: Vec<Box<dyn MockComponent>>) -> Self {
-        let state = FormState::new(Some(0), inputs.len());
-
-        Self { inputs, state }
+        Self {
+            fields,
+            hidden,
+            state,
+        }
     }
 }
 
@@ -253,18 +249,18 @@ impl WidgetComponent for Form {
         use tuirealm::props::Layout;
         // Clear and set current focus
         let focus = self.state.focus().unwrap_or(0);
-        for input in &mut self.inputs {
-            input.attr(Attribute::Focus, AttrValue::Flag(false));
+        for field in &mut self.fields {
+            field.attr(Attribute::Focus, AttrValue::Flag(false));
         }
-        if let Some(input) = self.inputs.get_mut(focus) {
-            input.attr(Attribute::Focus, AttrValue::Flag(true));
+        if let Some(field) = self.fields.get_mut(focus) {
+            field.attr(Attribute::Focus, AttrValue::Flag(true));
         }
 
         let layout = Layout::default()
             .direction(Direction::Vertical)
             .constraints(
                 &self
-                    .inputs
+                    .fields
                     .iter()
                     .map(|_| Constraint::Length(3))
                     .collect::<Vec<_>>(),
@@ -274,18 +270,22 @@ impl WidgetComponent for Form {
             .unwrap_layout();
         let layout = layout.chunks(area);
 
-        for (index, area) in layout.iter().enumerate().take(self.inputs.len()) {
-            if let Some(input) = self.inputs.get_mut(index) {
-                input.view(frame, *area);
+        for (index, area) in layout.iter().enumerate().take(self.fields.len()) {
+            if let Some(field) = self.fields.get_mut(index) {
+                field.view(frame, *area);
             }
         }
     }
 
     fn state(&self) -> State {
-        let states = self
-            .inputs
+        let fields = self
+            .hidden
             .iter()
-            .map(|input| input.state())
+            .chain(self.fields.iter())
+            .collect::<Vec<_>>();
+        let states = fields
+            .iter()
+            .map(|field| field.state())
             .collect::<LinkedList<_>>();
         State::Linked(states)
     }
@@ -303,8 +303,8 @@ impl WidgetComponent for Form {
             Cmd::Submit => CmdResult::Submit(self.state()),
             _ => {
                 let focus = self.state.focus().unwrap_or(0);
-                if let Some(input) = self.inputs.get_mut(focus) {
-                    return input.perform(cmd);
+                if let Some(field) = self.fields.get_mut(focus) {
+                    return field.perform(cmd);
                 }
                 CmdResult::None
             }
