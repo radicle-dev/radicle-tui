@@ -84,6 +84,11 @@ impl<T: WidgetComponent> Widget<T> {
         self
     }
 
+    pub fn display(mut self, display: bool) -> Self {
+        self.attr(Attribute::Display, AttrValue::Flag(display));
+        self
+    }
+
     pub fn to_boxed(self) -> Box<Self> {
         Box::new(self)
     }
