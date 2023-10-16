@@ -179,6 +179,8 @@ pub struct IssueItem {
     labels: Vec<Label>,
     /// Issue assignees.
     assignees: Vec<AuthorItem>,
+    /// Issue description
+    description: String,
     /// Time when issue was opened.
     timestamp: Timestamp,
 }
@@ -208,6 +210,10 @@ impl IssueItem {
         &self.assignees
     }
 
+    pub fn description(&self) -> &String {
+        &self.description
+    }
+
     pub fn timestamp(&self) -> &Timestamp {
         &self.timestamp
     }
@@ -233,6 +239,7 @@ impl From<(&Profile, &Repository, IssueId, Issue)> for IssueItem {
                     is_you: *did == profile.did(),
                 })
                 .collect::<Vec<_>>(),
+            description: issue.description().1.to_owned(),
             timestamp: issue.timestamp(),
         }
     }
