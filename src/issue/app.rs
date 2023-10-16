@@ -2,6 +2,8 @@ mod event;
 mod page;
 mod ui;
 
+use std::str::FromStr;
+
 use anyhow::Result;
 
 use radicle::cob::issue::IssueId;
@@ -56,6 +58,14 @@ pub enum IssueCobMessage {
         assignees: String,
         description: String,
     },
+    Edit {
+        id: String,
+        title: String,
+        tags: String,
+        assignees: String,
+        description: String,
+        state: u16,
+    },
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -63,10 +73,11 @@ pub enum IssueMessage {
     Show(Option<IssueId>),
     Changed(IssueId),
     Focus(IssueCid),
-    Created(IssueId),
+    Edited(IssueId),
     Cob(IssueCobMessage),
     Reload(Option<IssueId>),
-    OpenForm,
+    ShowOpenForm,
+    ShowEditForm(IssueId),
     HideForm,
     Leave(Option<IssueId>),
 }
@@ -83,7 +94,7 @@ pub enum PopupMessage {
 pub enum Message {
     Issue(IssueMessage),
     NavigationChanged(u16),
-    FormSubmitted(String),
+    // FormSubmitted(String),
     Popup(PopupMessage),
     #[default]
     Tick,
@@ -182,7 +193,30 @@ impl App {
 
                     Ok(Some(Message::Batch(vec![
                         Message::Issue(IssueMessage::HideForm),
-                        Message::Issue(IssueMessage::Created(id)),
+                        Message::Issue(IssueMessage::Edited(id)),
+                    ])))
+                }
+                Err(err) => {
+                    let error = format!("{:?}", err);
+                    self.show_error_popup(app, &theme, &error)?;
+
+                    Ok(None)
+                }
+            },
+            Message::Issue(IssueMessage::Cob(IssueCobMessage::Edit {
+                id,
+                title,
+                tags,
+                assignees,
+                description,
+                state,
+            })) => match self.edit_issue(id, title, description, tags, assignees, state) {
+                Ok(id) => {
+                    self.context.reload();
+
+                    Ok(Some(Message::Batch(vec![
+                        Message::Issue(IssueMessage::HideForm),
+                        Message::Issue(IssueMessage::Edited(id)),
                     ])))
                 }
                 Err(err) => {
@@ -293,6 +327,35 @@ impl App {
             description,
             labels.as_slice(),
             assignees.as_slice(),
+        )
+    }
+
+    fn edit_issue(
+        &mut self,
+        id: String,
+        title: String,
+        description: String,
+        labels: String,
+        assignees: String,
+        state: u16,
+    ) -> Result<IssueId> {
+        let repository = self.context.repository();
+        let signer = self.context.signer();
+
+        let id = IssueId::from_str(&id)?;
+        let labels = cob::parse_labels(labels)?;
+        let assignees = cob::parse_assignees(assignees)?;
+        let state = cob::state::from_u16(state)?;
+
+        cob::issue::edit(
+            repository,
+            signer,
+            id,
+            title,
+            description,
+            labels.as_slice(),
+            assignees.as_slice(),
+            state,
         )
     }
 }

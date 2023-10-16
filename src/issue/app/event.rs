@@ -1,5 +1,6 @@
 use radicle::cob::issue::IssueId;
-use tuirealm::command::{Cmd, CmdResult, Direction as MoveDirection, Position};
+
+use tuirealm::command::{Cmd, CmdResult, Direction as MoveDirection};
 use tuirealm::event::{Event, Key, KeyEvent, KeyModifiers};
 use tuirealm::{MockComponent, NoUserEvent, State, StateValue};
 
@@ -7,12 +8,11 @@ use radicle_tui as tui;
 
 use tui::ui::widget::container::{AppHeader, GlobalListener, LabeledContainer, Popup};
 use tui::ui::widget::context::{ContextBar, Shortcuts};
-use tui::ui::widget::form::Form;
 use tui::ui::widget::list::PropertyList;
 
 use tui::ui::widget::Widget;
 
-use super::ui;
+use super::ui::{self, EditForm, OpenForm};
 use super::{IssueCid, IssueMessage, Message, PopupMessage};
 
 /// Since the framework does not know the type of messages that are being
@@ -96,7 +96,19 @@ impl tuirealm::Component<Message, NoUserEvent> for Widget<ui::LargeList> {
             Event::Keyboard(KeyEvent {
                 code: Key::Char('o'),
                 ..
-            }) => Some(Message::Issue(IssueMessage::OpenForm)),
+            }) => Some(Message::Issue(IssueMessage::ShowOpenForm)),
+            Event::Keyboard(KeyEvent {
+                code: Key::Char('e'),
+                ..
+            }) => match self.state() {
+                State::Tup2((StateValue::Usize(selected), StateValue::Usize(_))) => {
+                    let item = self.items().get(selected)?;
+                    Some(Message::Issue(IssueMessage::ShowEditForm(
+                        item.id().to_owned(),
+                    )))
+                }
+                _ => None,
+            },
             _ => None,
         }
     }
@@ -131,103 +143,150 @@ impl tuirealm::Component<Message, NoUserEvent> for Widget<ui::IssueDetails> {
     }
 }
 
-impl tuirealm::Component<Message, NoUserEvent> for Widget<Form> {
+impl tuirealm::Component<Message, NoUserEvent> for Widget<OpenForm> {
     fn on(&mut self, event: Event<NoUserEvent>) -> Option<Message> {
         match event {
-            Event::Keyboard(KeyEvent {
-                code: Key::Left, ..
-            }) => {
-                self.perform(Cmd::Move(MoveDirection::Left));
-                Some(Message::Tick)
-            }
-            Event::Keyboard(KeyEvent {
-                code: Key::Right, ..
-            }) => {
-                self.perform(Cmd::Move(MoveDirection::Right));
-                Some(Message::Tick)
-            }
-            Event::Keyboard(KeyEvent { code: Key::Up, .. }) => {
-                self.perform(Cmd::Move(MoveDirection::Up));
-                Some(Message::Tick)
-            }
-            Event::Keyboard(KeyEvent {
-                code: Key::Down, ..
-            }) => {
-                self.perform(Cmd::Move(MoveDirection::Down));
-                Some(Message::Tick)
-            }
-            Event::Keyboard(KeyEvent {
-                code: Key::Home, ..
-            }) => {
-                self.perform(Cmd::GoTo(Position::Begin));
-                Some(Message::Tick)
-            }
-            Event::Keyboard(KeyEvent { code: Key::End, .. }) => {
-                self.perform(Cmd::GoTo(Position::End));
-                Some(Message::Tick)
-            }
-            Event::Keyboard(KeyEvent {
-                code: Key::Delete, ..
-            }) => {
-                self.perform(Cmd::Cancel);
-                Some(Message::Tick)
-            }
-            Event::Keyboard(KeyEvent {
-                code: Key::Backspace,
-                ..
-            }) => {
-                self.perform(Cmd::Delete);
-                Some(Message::Tick)
-            }
-            Event::Keyboard(KeyEvent {
-                code: Key::Enter, ..
-            }) => {
-                self.perform(Cmd::Custom(Form::CMD_NEWLINE));
-                Some(Message::Tick)
-            }
             Event::Keyboard(KeyEvent {
                 code: Key::Char('s'),
                 modifiers: KeyModifiers::CONTROL,
             }) => {
                 self.perform(Cmd::Submit);
-                self.query(tuirealm::Attribute::Custom(Form::PROP_ID))
-                    .map(|cid| Message::FormSubmitted(cid.unwrap_string()))
+                match self.state() {
+                    State::Linked(mut fields) => {
+                        let mut missing_values = vec![];
+
+                        let title = match fields.pop_front() {
+                            Some(State::One(StateValue::String(title))) if !title.is_empty() => {
+                                Some(title)
+                            }
+                            _ => None,
+                        };
+
+                        let tags = match fields.pop_front() {
+                            Some(State::One(StateValue::String(tags))) => Some(tags),
+                            _ => Some(String::from("[]")),
+                        };
+
+                        let assignees = match fields.pop_front() {
+                            Some(State::One(StateValue::String(assignees))) => Some(assignees),
+                            _ => Some(String::from("[]")),
+                        };
+
+                        let description = match fields.pop_front() {
+                            Some(State::One(StateValue::String(description)))
+                                if !description.is_empty() =>
+                            {
+                                Some(description)
+                            }
+                            _ => None,
+                        };
+
+                        if title.is_none() {
+                            missing_values.push("title");
+                        }
+                        if description.is_none() {
+                            missing_values.push("description");
+                        }
+
+                        // show error popup if missing.
+                        if missing_values.is_empty() {
+                            Some(Message::Issue(IssueMessage::Cob(
+                                super::IssueCobMessage::Create {
+                                    title: title.unwrap(),
+                                    tags: tags.unwrap(),
+                                    assignees: assignees.unwrap(),
+                                    description: description.unwrap(),
+                                },
+                            )))
+                        } else {
+                            let error = format!("Missing fields: {:?}", missing_values);
+                            Some(Message::Popup(PopupMessage::Error(error)))
+                        }
+                    }
+                    _ => None,
+                }
             }
-            Event::Keyboard(KeyEvent { code: Key::Esc, .. }) => {
-                Some(Message::Issue(IssueMessage::HideForm))
-            }
+            _ => form::perform(event, self),
+        }
+    }
+}
+
+impl tuirealm::Component<Message, NoUserEvent> for Widget<EditForm> {
+    fn on(&mut self, event: Event<NoUserEvent>) -> Option<Message> {
+        match event {
             Event::Keyboard(KeyEvent {
-                code: Key::BackTab, ..
-            }) => {
-                self.perform(Cmd::Custom(Form::CMD_FOCUS_PREVIOUS));
-                Some(Message::Tick)
-            }
-            Event::Keyboard(KeyEvent { code: Key::Tab, .. }) => {
-                self.perform(Cmd::Custom(Form::CMD_FOCUS_NEXT));
-                Some(Message::Tick)
-            }
-            Event::Keyboard(KeyEvent {
-                code: Key::Char(ch),
-                modifiers: KeyModifiers::SHIFT,
-            }) => {
-                self.perform(Cmd::Type(ch.to_ascii_uppercase()));
-                Some(Message::Tick)
-            }
-            Event::Keyboard(KeyEvent {
-                code: Key::Char('v'),
+                code: Key::Char('s'),
                 modifiers: KeyModifiers::CONTROL,
             }) => {
-                self.perform(Cmd::Custom(Form::CMD_PASTE));
-                Some(Message::Tick)
+                self.perform(Cmd::Submit);
+                match self.state() {
+                    State::Linked(mut fields) => {
+                        let mut missing_values = vec![];
+
+                        let id = match fields.pop_front() {
+                            Some(State::One(StateValue::String(id))) => Some(id),
+                            _ => None,
+                        };
+
+                        let title = match fields.pop_front() {
+                            Some(State::One(StateValue::String(title))) if !title.is_empty() => {
+                                Some(title)
+                            }
+                            _ => None,
+                        };
+
+                        let tags = match fields.pop_front() {
+                            Some(State::One(StateValue::String(tags))) => Some(tags),
+                            _ => Some(String::from("[]")),
+                        };
+
+                        let assignees = match fields.pop_front() {
+                            Some(State::One(StateValue::String(assignees))) => Some(assignees),
+                            _ => Some(String::from("[]")),
+                        };
+
+                        let description = match fields.pop_front() {
+                            Some(State::One(StateValue::String(description)))
+                                if !description.is_empty() =>
+                            {
+                                Some(description)
+                            }
+                            _ => None,
+                        };
+
+                        let state = match fields.pop_front() {
+                            Some(State::One(StateValue::Usize(index))) => Some(index),
+                            _ => None,
+                        };
+
+                        if title.is_none() {
+                            missing_values.push("title");
+                        }
+                        if description.is_none() {
+                            missing_values.push("description");
+                        }
+
+                        // show error popup if missing.
+                        if missing_values.is_empty() {
+                            Some(Message::Issue(IssueMessage::Cob(
+                                super::IssueCobMessage::Edit {
+                                    id: id.unwrap(),
+                                    title: title.unwrap(),
+                                    tags: tags.unwrap(),
+                                    assignees: assignees.unwrap(),
+                                    description: description.unwrap(),
+                                    state: state.unwrap() as u16,
+                                },
+                            )))
+                        } else {
+                            let error = format!("Missing fields: {:?}", missing_values);
+                            Some(Message::Popup(PopupMessage::Error(error)))
+                        }
+                    }
+                    _ => None,
+                }
             }
-            Event::Keyboard(KeyEvent {
-                code: Key::Char(ch),
-                ..
-            }) => {
-                self.perform(Cmd::Type(ch));
-                Some(Message::Tick)
-            }
-            _ => None,
+            _ => form::perform(event, self),
         }
     }
 }
@@ -271,7 +330,17 @@ impl tuirealm::Component<Message, NoUserEvent> for Widget<ui::IssueBrowser> {
                 let id = submit();
                 Some(Message::Batch(vec![
                     Message::Issue(IssueMessage::Show(id)),
-                    Message::Issue(IssueMessage::OpenForm),
+                    Message::Issue(IssueMessage::ShowOpenForm),
+                ]))
+            }
+            Event::Keyboard(KeyEvent {
+                code: Key::Char('e'),
+                ..
+            }) => {
+                let id = submit();
+                Some(Message::Batch(vec![
+                    Message::Issue(IssueMessage::Show(id)),
+                    Message::Issue(IssueMessage::ShowEditForm(id.unwrap())),
                 ]))
             }
             Event::Keyboard(KeyEvent {
@@ -321,5 +390,112 @@ impl tuirealm::Component<Message, NoUserEvent> for Widget<ContextBar> {
 impl tuirealm::Component<Message, NoUserEvent> for Widget<Shortcuts> {
     fn on(&mut self, _event: Event<NoUserEvent>) -> Option<Message> {
         None
+    }
+}
+
+mod form {
+    use tuirealm::command::{Cmd, Direction as MoveDirection, Position};
+    use tuirealm::event::{Event, Key, KeyEvent, KeyModifiers};
+    use tuirealm::{MockComponent, NoUserEvent};
+
+    use radicle_tui as tui;
+
+    use tui::ui::widget::form::Form;
+    use tui::ui::widget::{Widget, WidgetComponent};
+
+    use super::{IssueMessage, Message};
+
+    pub fn perform<T: WidgetComponent>(
+        event: Event<NoUserEvent>,
+        widget: &mut Widget<T>,
+    ) -> Option<Message> {
+        match event {
+            Event::Keyboard(KeyEvent {
+                code: Key::Left, ..
+            }) => {
+                widget.perform(Cmd::Move(MoveDirection::Left));
+                Some(Message::Tick)
+            }
+            Event::Keyboard(KeyEvent {
+                code: Key::Right, ..
+            }) => {
+                widget.perform(Cmd::Move(MoveDirection::Right));
+                Some(Message::Tick)
+            }
+            Event::Keyboard(KeyEvent { code: Key::Up, .. }) => {
+                widget.perform(Cmd::Move(MoveDirection::Up));
+                Some(Message::Tick)
+            }
+            Event::Keyboard(KeyEvent {
+                code: Key::Down, ..
+            }) => {
+                widget.perform(Cmd::Move(MoveDirection::Down));
+                Some(Message::Tick)
+            }
+            Event::Keyboard(KeyEvent {
+                code: Key::Home, ..
+            }) => {
+                widget.perform(Cmd::GoTo(Position::Begin));
+                Some(Message::Tick)
+            }
+            Event::Keyboard(KeyEvent { code: Key::End, .. }) => {
+                widget.perform(Cmd::GoTo(Position::End));
+                Some(Message::Tick)
+            }
+            Event::Keyboard(KeyEvent {
+                code: Key::Delete, ..
+            }) => {
+                widget.perform(Cmd::Cancel);
+                Some(Message::Tick)
+            }
+            Event::Keyboard(KeyEvent {
+                code: Key::Backspace,
+                ..
+            }) => {
+                widget.perform(Cmd::Delete);
+                Some(Message::Tick)
+            }
+            Event::Keyboard(KeyEvent {
+                code: Key::Enter, ..
+            }) => {
+                widget.perform(Cmd::Custom(Form::CMD_ENTER));
+                Some(Message::Tick)
+            }
+            Event::Keyboard(KeyEvent {
+                code: Key::BackTab, ..
+            }) => {
+                widget.perform(Cmd::Custom(Form::CMD_FOCUS_PREVIOUS));
+                Some(Message::Tick)
+            }
+            Event::Keyboard(KeyEvent { code: Key::Tab, .. }) => {
+                widget.perform(Cmd::Custom(Form::CMD_FOCUS_NEXT));
+                Some(Message::Tick)
+            }
+            Event::Keyboard(KeyEvent {
+                code: Key::Char('v'),
+                modifiers: KeyModifiers::CONTROL,
+            }) => {
+                widget.perform(Cmd::Custom(Form::CMD_PASTE));
+                Some(Message::Tick)
+            }
+            Event::Keyboard(KeyEvent {
+                code: Key::Char(ch),
+                modifiers: KeyModifiers::SHIFT,
+            }) => {
+                widget.perform(Cmd::Type(ch.to_ascii_uppercase()));
+                Some(Message::Tick)
+            }
+            Event::Keyboard(KeyEvent {
+                code: Key::Char(ch),
+                ..
+            }) => {
+                widget.perform(Cmd::Type(ch));
+                Some(Message::Tick)
+            }
+            Event::Keyboard(KeyEvent { code: Key::Esc, .. }) => {
+                Some(Message::Issue(IssueMessage::HideForm))
+            }
+            _ => None,
+        }
     }
 }

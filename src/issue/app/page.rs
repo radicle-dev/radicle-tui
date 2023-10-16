@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-use anyhow::Result;
+use anyhow::{Ok, Result};
 
 use radicle::cob::issue::{Issue, IssueId};
 
@@ -16,9 +16,7 @@ use tui::ui::widget::context::{Progress, Shortcuts};
 use tui::ui::widget::Widget;
 use tui::ViewPage;
 
-use super::{
-    Application, Cid, IssueCid, IssueCobMessage, IssueMessage, ListCid, Message, PopupMessage,
-};
+use super::{Application, Cid, IssueCid, IssueMessage, ListCid, Message};
 
 use super::subscription;
 use super::ui;
@@ -63,6 +61,7 @@ impl ListPage {
                     tui::ui::shortcut(theme, "↑/↓", "navigate"),
                     tui::ui::shortcut(theme, "enter", "show"),
                     tui::ui::shortcut(theme, "o", "open"),
+                    tui::ui::shortcut(theme, "e", "edit"),
                     tui::ui::shortcut(theme, "q", "quit"),
                 ],
             ),
@@ -239,6 +238,7 @@ impl IssuePage {
                         tui::ui::shortcut(theme, "↑/↓", "navigate"),
                         tui::ui::shortcut(theme, "enter", "show"),
                         tui::ui::shortcut(theme, "o", "open"),
+                        tui::ui::shortcut(theme, "e", "edit"),
                         tui::ui::shortcut(theme, "q", "quit"),
                     ],
                 ),
@@ -388,7 +388,7 @@ impl ViewPage<Cid, Message> for IssuePage {
         message: Message,
     ) -> Result<Option<Message>> {
         match message {
-            Message::Issue(IssueMessage::Created(id)) => {
+            Message::Issue(IssueMessage::Edited(id)) => {
                 let repo = context.repository();
 
                 if let Some(issue) = cob::issue::find(repo, &id)? {
@@ -427,17 +427,35 @@ impl ViewPage<Cid, Message> for IssuePage {
                 self.activate(app, cid)?;
                 self.update_shortcuts(app, self.active_component.clone())?;
             }
-            Message::Issue(IssueMessage::OpenForm) => {
-                let new_form = ui::new_form(context, theme).to_boxed();
+            Message::Issue(IssueMessage::ShowOpenForm) => {
+                let open_form = ui::open_form(context, theme).to_boxed();
                 let list = ui::list(context, theme, None).to_boxed();
 
                 app.remount(Cid::Issue(IssueCid::List), list, vec![])?;
-                app.remount(Cid::Issue(IssueCid::Form), new_form, vec![])?;
+                app.remount(Cid::Issue(IssueCid::Form), open_form, vec![])?;
                 app.active(&Cid::Issue(IssueCid::Form))?;
 
                 app.unsubscribe(&Cid::GlobalListener, subscription::global_clause())?;
 
                 return Ok(Some(Message::Issue(IssueMessage::Focus(IssueCid::Form))));
+            }
+            Message::Issue(IssueMessage::ShowEditForm(id)) => {
+                let repo = context.repository();
+                // TODO: handle error properly
+                if let Some(issue) = cob::issue::find(repo, &id)? {
+                    let edit_form = ui::edit_form(context, theme, (id, issue)).to_boxed();
+                    let list = ui::list(context, theme, None).to_boxed();
+
+                    app.remount(Cid::Issue(IssueCid::List), list, vec![])?;
+                    app.remount(Cid::Issue(IssueCid::Form), edit_form, vec![])?;
+                    app.active(&Cid::Issue(IssueCid::Form))?;
+
+                    app.unsubscribe(&Cid::GlobalListener, subscription::global_clause())?;
+
+                    return Ok(Some(Message::Issue(IssueMessage::Focus(IssueCid::Form))));
+                } else {
+                    return Ok(None);
+                }
             }
             Message::Issue(IssueMessage::HideForm) => {
                 app.umount(&Cid::Issue(IssueCid::Form))?;
@@ -454,68 +472,6 @@ impl ViewPage<Cid, Message> for IssuePage {
                     return Ok(Some(Message::Issue(IssueMessage::Leave(None))));
                 }
                 return Ok(Some(Message::Issue(IssueMessage::Focus(IssueCid::List))));
-            }
-            Message::FormSubmitted(id) => {
-                if id == ui::FORM_ID_EDIT {
-                    let state = app.state(&Cid::Issue(IssueCid::Form))?;
-                    if let State::Linked(mut states) = state {
-                        let mut missing_values = vec![];
-
-                        let title = match states.front() {
-                            Some(State::One(StateValue::String(title))) if !title.is_empty() => {
-                                Some(title.clone())
-                            }
-                            _ => None,
-                        };
-                        states.pop_front();
-
-                        let tags = match states.front() {
-                            Some(State::One(StateValue::String(tags))) => Some(tags.clone()),
-                            _ => Some(String::from("[]")),
-                        };
-                        states.pop_front();
-
-                        let assignees = match states.front() {
-                            Some(State::One(StateValue::String(assignees))) => {
-                                Some(assignees.clone())
-                            }
-                            _ => Some(String::from("[]")),
-                        };
-                        states.pop_front();
-
-                        let description = match states.front() {
-                            Some(State::One(StateValue::String(description)))
-                                if !description.is_empty() =>
-                            {
-                                Some(description.clone())
-                            }
-                            _ => None,
-                        };
-                        states.pop_front();
-
-                        if title.is_none() {
-                            missing_values.push("title");
-                        }
-                        if description.is_none() {
-                            missing_values.push("description");
-                        }
-
-                        // show error popup if missing.
-                        if !missing_values.is_empty() {
-                            let error = format!("Missing fields: {:?}", missing_values);
-                            return Ok(Some(Message::Popup(PopupMessage::Error(error))));
-                        } else {
-                            return Ok(Some(Message::Issue(IssueMessage::Cob(
-                                IssueCobMessage::Create {
-                                    title: title.unwrap(),
-                                    tags: tags.unwrap(),
-                                    assignees: assignees.unwrap(),
-                                    description: description.unwrap(),
-                                },
-                            ))));
-                        }
-                    }
-                }
             }
             _ => {}
         }

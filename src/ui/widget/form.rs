@@ -311,3 +311,53 @@ impl WidgetComponent for Form {
         }
     }
 }
+
+pub fn hidden_field(theme: &Theme, value: Option<&str>) -> Widget<TextField> {
+    let input = tui_realm_textarea::TextArea::new(vec![value.unwrap_or_default().to_owned()]);
+
+    Widget::new(TextField::new(theme.clone(), Box::new(input), None)).display(false)
+}
+
+pub fn text_field(
+    theme: &Theme,
+    _title: &str,
+    placeholder: &str,
+    value: Option<&str>,
+) -> Widget<TextField> {
+    let input = tui_realm_textarea::TextArea::new(vec![value.unwrap_or_default().to_owned()])
+        .wrap(true)
+        .single_line(true)
+        .cursor_line_style(Style::reset())
+        .style(Style::default().fg(theme.colors.default_fg));
+    let placeholder = crate::ui::label(placeholder).foreground(theme.colors.input_placeholder_fg);
+
+    Widget::new(TextField::new(
+        theme.clone(),
+        Box::new(input),
+        Some(placeholder),
+    ))
+}
+
+pub fn text_area(
+    theme: &Theme,
+    _title: &str,
+    placeholder: &str,
+    value: Option<&str>,
+) -> Widget<TextArea> {
+    let input = tui_realm_textarea::TextArea::new(vec![value.unwrap_or_default().to_owned()])
+        .wrap(true)
+        .single_line(false)
+        .cursor_line_style(Style::reset())
+        .style(Style::default().fg(theme.colors.default_fg));
+    let placeholder = crate::ui::label(placeholder).foreground(theme.colors.input_placeholder_fg);
+
+    Widget::new(TextArea::new(
+        theme.clone(),
+        Box::new(input),
+        Some(placeholder),
+    ))
+}
+
+pub fn radio(theme: &Theme, title: &str, choices: &[String], selected: u16) -> Widget<Radio> {
+    Widget::new(Radio::new(theme.clone(), title, choices, selected))
+}

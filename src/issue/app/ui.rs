@@ -18,11 +18,9 @@ use tui::ui::widget::{Widget, WidgetComponent};
 
 use tui::ui::widget::container::{Container, Tabs};
 use tui::ui::widget::context::{ContextBar, Progress};
-use tui::ui::widget::form::{Form, TextArea, TextField};
+use tui::ui::widget::form::Form;
 use tui::ui::widget::label::Textarea;
 use tui::ui::widget::list::{ColumnWidth, List, Property, Table};
-
-pub const FORM_ID_EDIT: &str = "edit-form";
 
 pub struct IssueBrowser {
     items: Vec<IssueItem>,
@@ -320,6 +318,64 @@ impl WidgetComponent for CommentBody {
     }
 }
 
+pub struct OpenForm {
+    form: Widget<Form>,
+}
+
+impl OpenForm {
+    pub fn new(form: Widget<Form>) -> Self {
+        Self { form }
+    }
+}
+
+impl WidgetComponent for OpenForm {
+    fn view(&mut self, properties: &Props, frame: &mut Frame, area: Rect) {
+        let focus = properties
+            .get_or(Attribute::Focus, AttrValue::Flag(false))
+            .unwrap_flag();
+
+        self.form.attr(Attribute::Focus, AttrValue::Flag(focus));
+        self.form.view(frame, area);
+    }
+
+    fn state(&self) -> State {
+        self.form.state()
+    }
+
+    fn perform(&mut self, _properties: &Props, cmd: Cmd) -> CmdResult {
+        self.form.perform(cmd)
+    }
+}
+
+pub struct EditForm {
+    form: Widget<Form>,
+}
+
+impl EditForm {
+    pub fn new(form: Widget<Form>) -> Self {
+        Self { form }
+    }
+}
+
+impl WidgetComponent for EditForm {
+    fn view(&mut self, properties: &Props, frame: &mut Frame, area: Rect) {
+        let focus = properties
+            .get_or(Attribute::Focus, AttrValue::Flag(false))
+            .unwrap_flag();
+
+        self.form.attr(Attribute::Focus, AttrValue::Flag(focus));
+        self.form.view(frame, area);
+    }
+
+    fn state(&self) -> State {
+        self.form.state()
+    }
+
+    fn perform(&mut self, _properties: &Props, cmd: Cmd) -> CmdResult {
+        self.form.perform(cmd)
+    }
+}
+
 pub fn list_navigation(theme: &Theme) -> Widget<Tabs> {
     tui::ui::tabs(
         theme,
@@ -351,19 +407,15 @@ pub fn description(
     Widget::new(body)
 }
 
-pub fn new_form(_context: &Context, theme: &Theme) -> Widget<Form> {
+pub fn open_form(_context: &Context, theme: &Theme) -> Widget<OpenForm> {
     use tuirealm::props::Layout;
 
-    let title = Widget::new(TextField::new(theme.clone(), "Title")).to_boxed();
-    let tags = Widget::new(TextField::new(theme.clone(), "Labels (bug, ...)")).to_boxed();
-    let assignees = Widget::new(TextField::new(
-        theme.clone(),
-        "Assignees (z6MkvAdxCp1oLVVTsqYvev9YrhSN3gBQNUSM45hhy4pgkexk, ...)",
-    ))
-    .to_boxed();
-    let description = Widget::new(TextArea::new(theme.clone(), "Description")).to_boxed();
-    let inputs: Vec<Box<dyn MockComponent>> = vec![title, tags, assignees, description];
+    let title = form::title(theme, None).to_boxed();
+    let labels = form::labels(theme, None).to_boxed();
+    let assignees = form::assignees(theme, None).to_boxed();
+    let description = form::description(theme, None).to_boxed();
 
+    let inputs: Vec<Box<dyn MockComponent>> = vec![title, labels, assignees, description];
     let layout = Layout::default().constraints(
         [
             Constraint::Length(3),
@@ -374,9 +426,51 @@ pub fn new_form(_context: &Context, theme: &Theme) -> Widget<Form> {
         .as_ref(),
     );
 
-    Widget::new(Form::new(theme.clone(), inputs))
-        .custom(Form::PROP_ID, AttrValue::String(String::from(FORM_ID_EDIT)))
-        .layout(layout)
+    let form = Widget::new(Form::new(theme.clone(), inputs, vec![])).layout(layout);
+    Widget::new(OpenForm::new(form))
+}
+
+pub fn edit_form(context: &Context, theme: &Theme, issue: (IssueId, Issue)) -> Widget<EditForm> {
+    use tuirealm::props::Layout;
+
+    let repo = context.repository();
+    let (id, issue) = issue;
+    let item = IssueItem::from((context.profile(), repo, id, issue));
+
+    let hidden_id = &item.id().to_string();
+    let title = item.title();
+    let labels = &cob::format_labels(item.labels());
+    let assignees = &cob::format_assignees(
+        &item
+            .assignees()
+            .iter()
+            .map(|item| (item.did(), false))
+            .collect::<Vec<_>>(),
+    );
+    let description = item.description();
+
+    let hidden_id = form::hidden(theme, Some(hidden_id)).to_boxed();
+    let title = form::title(theme, Some(title)).to_boxed();
+    let labels = form::labels(theme, Some(labels)).to_boxed();
+    let assignees = form::assignees(theme, Some(assignees)).to_boxed();
+    let description = form::description(theme, Some(description)).to_boxed();
+    let state = form::state(theme, item.state()).to_boxed();
+
+    let inputs: Vec<Box<dyn MockComponent>> = vec![title, labels, assignees, description, state];
+
+    let layout = Layout::default().constraints(
+        [
+            Constraint::Length(3),
+            Constraint::Length(3),
+            Constraint::Length(3),
+            Constraint::Min(3),
+            Constraint::Length(3),
+        ]
+        .as_ref(),
+    );
+
+    let form = Widget::new(Form::new(theme.clone(), inputs, vec![hidden_id])).layout(layout);
+    Widget::new(EditForm::new(form))
 }
 
 pub fn details(
@@ -433,4 +527,50 @@ pub fn issues(
     selected: Option<(IssueId, Issue)>,
 ) -> Widget<IssueBrowser> {
     Widget::new(IssueBrowser::new(context, theme, selected))
+}
+
+mod form {
+    use radicle::cob::issue::State;
+    use radicle_tui as tui;
+
+    use tui::ui::theme::Theme;
+    use tui::ui::widget::form::TextField;
+    use tui::ui::widget::form::*;
+    use tui::ui::widget::Widget;
+
+    pub fn hidden(theme: &Theme, value: Option<&str>) -> Widget<TextField> {
+        hidden_field(theme, value)
+    }
+
+    pub fn title(theme: &Theme, value: Option<&str>) -> Widget<TextField> {
+        text_field(theme, "Title", "Title", value)
+    }
+
+    pub fn labels(theme: &Theme, value: Option<&str>) -> Widget<TextField> {
+        text_field(theme, "Labels", "Labels (bug, ...)", value)
+    }
+
+    pub fn assignees(theme: &Theme, value: Option<&str>) -> Widget<TextField> {
+        text_field(
+            theme,
+            "Assignees",
+            "Assignees (z6MkvAdxCp1oLVVTsqYvev9YrhSN3gBQNUSM45hhy4pgkexk, ...)",
+            value,
+        )
+    }
+
+    pub fn description(theme: &Theme, value: Option<&str>) -> Widget<TextArea> {
+        text_area(theme, "Description", "Description", value)
+    }
+
+    pub fn state(theme: &Theme, state: &State) -> Widget<Radio> {
+        let choices = &[
+            "Open".to_owned(),
+            "Closed as solved".to_owned(),
+            "Closed as other".to_owned(),
+        ];
+        let selected = tui::cob::state::to_u16(state);
+
+        radio(theme, "State", choices, selected)
+    }
 }
