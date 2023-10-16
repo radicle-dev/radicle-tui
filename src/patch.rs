@@ -69,28 +69,6 @@ pub enum HomeMessage {
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
-pub enum IssueCobMessage {
-    Create {
-        title: String,
-        tags: String,
-        assignees: String,
-        description: String,
-    },
-}
-
-#[derive(Clone, Debug, Eq, PartialEq)]
-pub enum IssueMessage {
-    Show(Option<IssueId>),
-    Changed(IssueId),
-    Focus(IssueCid),
-    Created(IssueId),
-    Cob(IssueCobMessage),
-    OpenForm,
-    HideForm,
-    Leave(Option<IssueId>),
-}
-
-#[derive(Clone, Debug, Eq, PartialEq)]
 pub enum PatchMessage {
     Show(PatchId),
     Leave,
@@ -216,35 +194,6 @@ impl App {
                     1 => Ok(Some(results[0].to_owned())),
                     _ => Ok(Some(Message::Batch(results))),
                 }
-            }
-            Message::Issue(IssueMessage::Cob(IssueCobMessage::Create {
-                title,
-                tags,
-                assignees,
-                description,
-            })) => match self.create_issue(title, description, tags, assignees) {
-                Ok(id) => {
-                    self.context.reload();
-
-                    Ok(Some(Message::Batch(vec![
-                        Message::Issue(IssueMessage::HideForm),
-                        Message::Issue(IssueMessage::Created(id)),
-                    ])))
-                }
-                Err(err) => {
-                    let error = format!("{:?}", err);
-                    self.show_error_popup(app, &theme, &error)?;
-
-                    Ok(None)
-                }
-            },
-            Message::Issue(IssueMessage::Show(id)) => {
-                self.view_issue(app, id, &theme)?;
-                Ok(None)
-            }
-            Message::Issue(IssueMessage::Leave(id)) => {
-                self.pages.pop(app)?;
-                Ok(Some(Message::Home(HomeMessage::RefreshIssues(id))))
             }
             Message::Patch(PatchMessage::Show(id)) => {
                 self.view_patch(app, id, &theme)?;
