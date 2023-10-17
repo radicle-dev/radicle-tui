@@ -1,7 +1,7 @@
 use std::collections::LinkedList;
 
 use tuirealm::command::{Cmd, CmdResult};
-use tuirealm::props::{BorderType, Borders, Style};
+use tuirealm::props::{BorderType, Borders, Style, TextModifiers};
 use tuirealm::tui::layout::{Constraint, Direction, Margin, Rect};
 use tuirealm::{AttrValue, Attribute, Frame, MockComponent, Props, State, StateValue};
 
@@ -182,7 +182,11 @@ impl Radio {
                     .modifiers(BorderType::Rounded)
                     .color(theme.colors.container_border_focus_fg),
             )
-            .inactive(Style::default().fg(theme.colors.container_border_fg))
+            .inactive(
+                Style::default()
+                    .fg(theme.colors.container_border_fg)
+                    .add_modifier(TextModifiers::REVERSED),
+            )
             .foreground(theme.colors.default_fg)
             .choices(choices)
             .value(selected as usize);
