@@ -47,7 +47,7 @@ pub fn edit<G: Signer>(
 ) -> Result<IssueId> {
     let mut issues = Issues::open(repository)?;
     let mut issue = issues.get_mut(&id)?;
-    
+
     issue.edit(title, signer)?;
     issue.edit_description(description, signer)?;
     issue.assign(assignees.to_owned(), signer)?;

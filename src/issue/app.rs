@@ -54,14 +54,14 @@ pub enum Cid {
 pub enum IssueCobMessage {
     Create {
         title: String,
-        tags: String,
+        labels: String,
         assignees: String,
         description: String,
     },
     Edit {
         id: String,
         title: String,
-        tags: String,
+        labels: String,
         assignees: String,
         description: String,
         state: u16,
@@ -184,10 +184,10 @@ impl App {
             }
             Message::Issue(IssueMessage::Cob(IssueCobMessage::Create {
                 title,
-                tags,
+                labels,
                 assignees,
                 description,
-            })) => match self.create_issue(title, description, tags, assignees) {
+            })) => match self.create_issue(title, description, labels, assignees) {
                 Ok(id) => {
                     self.context.reload();
 
@@ -206,11 +206,11 @@ impl App {
             Message::Issue(IssueMessage::Cob(IssueCobMessage::Edit {
                 id,
                 title,
-                tags,
+                labels,
                 assignees,
                 description,
                 state,
-            })) => match self.edit_issue(id, title, description, tags, assignees, state) {
+            })) => match self.edit_issue(id, title, description, labels, assignees, state) {
                 Ok(id) => {
                     self.context.reload();
 

@@ -162,8 +162,8 @@ impl tuirealm::Component<Message, NoUserEvent> for Widget<OpenForm> {
                             _ => None,
                         };
 
-                        let tags = match fields.pop_front() {
-                            Some(State::One(StateValue::String(tags))) => Some(tags),
+                        let labels = match fields.pop_front() {
+                            Some(State::One(StateValue::String(labels))) => Some(labels),
                             _ => Some(String::from("[]")),
                         };
 
@@ -193,7 +193,7 @@ impl tuirealm::Component<Message, NoUserEvent> for Widget<OpenForm> {
                             Some(Message::Issue(IssueMessage::Cob(
                                 super::IssueCobMessage::Create {
                                     title: title.unwrap(),
-                                    tags: tags.unwrap(),
+                                    labels: labels.unwrap(),
                                     assignees: assignees.unwrap(),
                                     description: description.unwrap(),
                                 },
@@ -235,8 +235,8 @@ impl tuirealm::Component<Message, NoUserEvent> for Widget<EditForm> {
                             _ => None,
                         };
 
-                        let tags = match fields.pop_front() {
-                            Some(State::One(StateValue::String(tags))) => Some(tags),
+                        let labels = match fields.pop_front() {
+                            Some(State::One(StateValue::String(labels))) => Some(labels),
                             _ => Some(String::from("[]")),
                         };
 
@@ -272,7 +272,7 @@ impl tuirealm::Component<Message, NoUserEvent> for Widget<EditForm> {
                                 super::IssueCobMessage::Edit {
                                     id: id.unwrap(),
                                     title: title.unwrap(),
-                                    tags: tags.unwrap(),
+                                    labels: labels.unwrap(),
                                     assignees: assignees.unwrap(),
                                     description: description.unwrap(),
                                     state: state.unwrap() as u16,

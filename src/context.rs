@@ -25,7 +25,7 @@ pub struct Context {
 impl Context {
     pub fn new(id: Id) -> Result<Self, anyhow::Error> {
         use anyhow::Context;
-        
+
         let profile = profile()?;
         let signer = signer(&profile)?;
         let payload = &profile
