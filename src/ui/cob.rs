@@ -267,7 +267,7 @@ impl TableItem<7> for IssueItem {
             .iter()
             .map(|author| (author.did, author.is_you))
             .collect::<Vec<_>>();
-        let assignees = Cell::from(format_assignees(&assignees))
+        let assignees = Cell::from(format_assignees(&assignees, true))
             .style(Style::default().fg(theme.colors.browser_list_author));
 
         let opened = Cell::from(format::timestamp(&self.timestamp))
@@ -355,12 +355,16 @@ pub fn format_labels(labels: &[Label]) -> String {
     output
 }
 
-pub fn format_assignees(assignees: &[(Did, bool)]) -> String {
+pub fn format_assignees(assignees: &[(Did, bool)], short: bool) -> String {
     let mut output = String::new();
     let mut assignees = assignees.iter().peekable();
 
     while let Some((assignee, is_you)) = assignees.next() {
-        output.push_str(&format_author(assignee, *is_you));
+        if short {
+            output.push_str(&format_author(assignee, *is_you));
+        } else {
+            output.push_str(&assignee.to_string());
+        }
 
         if assignees.peek().is_some() {
             output.push(',');

@@ -194,6 +194,7 @@ impl IssueHeader {
                     .iter()
                     .map(|item| (item.did(), item.is_you()))
                     .collect::<Vec<_>>(),
+                true
             ))
             .foreground(theme.colors.browser_list_author),
         );
@@ -446,6 +447,7 @@ pub fn edit_form(context: &Context, theme: &Theme, issue: (IssueId, Issue)) -> W
             .iter()
             .map(|item| (item.did(), false))
             .collect::<Vec<_>>(),
+        false,
     );
     let description = item.description();
 
