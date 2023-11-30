@@ -37,8 +37,13 @@ where
     /// Should draw the application to a frame.
     fn view(&mut self, app: &mut Application<Id, Message, NoUserEvent>, frame: &mut Frame);
 
-    /// Should return true if the application is requested to quit.
-    fn quit(&self) -> bool;
+    /// Should return `Some` if the application is requested to quit.
+    fn exit(&self) -> Option<Exit>;
+}
+
+/// An optional return value.
+pub struct Exit {
+    pub value: Option<String>,
 }
 
 /// A tui-window using the cross-platform Terminal helper provided
@@ -59,9 +64,9 @@ impl Window {
     /// Creates a tui-window using the default cross-platform Terminal
     /// helper and panics if its creation fails.
     pub fn new() -> Self {
-        Self {
-            terminal: TerminalBridge::new().expect("Cannot create terminal bridge"),
-        }
+        let terminal = TerminalBridge::new().expect("Cannot create terminal bridge");
+
+        Self { terminal }
     }
 
     /// Runs this tui-window with the tui-application given and performs the
@@ -72,7 +77,7 @@ impl Window {
     ///    - update application state
     ///    - redraw view
     /// 3. Leave alternative terminal screen
-    pub fn run<T, Id, Message>(&mut self, tui: &mut T, interval: u64) -> Result<()>
+    pub fn run<T, Id, Message>(&mut self, tui: &mut T, interval: u64) -> Result<Option<String>>
     where
         T: Tui<Id, Message>,
         Id: Eq + PartialEq + Clone + Hash,
@@ -86,7 +91,7 @@ impl Window {
         );
         tui.init(&mut app)?;
 
-        while !tui.quit() {
+        while tui.exit().is_none() {
             if update || resize {
                 self.terminal
                     .raw_mut()
@@ -98,7 +103,7 @@ impl Window {
             size = self.terminal.raw().size()?;
         }
 
-        Ok(())
+        Ok(tui.exit().unwrap().value)
     }
 }
 

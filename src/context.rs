@@ -1,3 +1,5 @@
+use std::fmt::Display;
+
 use radicle_term as term;
 
 use radicle::cob::issue::{Issue, IssueId};
@@ -6,15 +8,30 @@ use radicle::crypto::ssh::keystore::{Keystore, MemorySigner};
 use radicle::crypto::Signer;
 use radicle::prelude::{Id, Project};
 use radicle::profile::env::RAD_PASSPHRASE;
-use radicle::storage::ReadRepository;
-use radicle::Profile;
-
 use radicle::storage::git::Repository;
-use radicle::storage::ReadStorage;
+use radicle::storage::{ReadRepository, ReadStorage};
+
+use radicle::Profile;
 
 use term::{passphrase, spinner, Passphrase};
 
 use inquire::validator;
+
+/// Git revision parameter. Supports extended SHA-1 syntax.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Rev(String);
+
+impl From<String> for Rev {
+    fn from(value: String) -> Self {
+        Rev(value)
+    }
+}
+
+impl Display for Rev {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.0)
+    }
+}
 
 pub struct Context {
     profile: Profile,
@@ -32,11 +49,10 @@ impl Context {
         let signer = signer(&profile)?;
 
         let repository = profile.storage.repository(id).unwrap();
-        let doc = repository.identity_doc()?;
-        let project = doc.project()?;
-
         let issues = crate::cob::issue::all(&repository).unwrap_or_default();
         let patches = crate::cob::patch::all(&repository).unwrap_or_default();
+
+        let project = repository.identity_doc()?.project()?;
 
         Ok(Self {
             id,

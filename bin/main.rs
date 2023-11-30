@@ -95,8 +95,17 @@ fn run(command: Command) -> Result<(), Option<anyhow::Error>> {
     Ok(())
 }
 
-fn run_other(exe: &str, _args: &[OsString]) -> Result<(), Option<anyhow::Error>> {
-    Err(Some(anyhow!(
-        "`{exe}` is not a command. See `rad-tui --help` for a list of commands.",
-    )))
+fn run_other(exe: &str, args: &[OsString]) -> Result<(), Option<anyhow::Error>> {
+    match exe {
+        "patch" => {
+            terminal::run_command_args::<tui_patch::Options, _>(
+                tui_patch::HELP,
+                tui_patch::run,
+                args.to_vec(),
+            );
+        }
+        other => Err(Some(anyhow!(
+            "`{other}` is not a command. See `rad-tui --help` for a list of commands.",
+        ))),
+    }
 }

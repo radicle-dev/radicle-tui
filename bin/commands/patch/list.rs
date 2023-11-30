@@ -1,8 +1,8 @@
-#[path = "suite/event.rs"]
+#[path = "list/event.rs"]
 mod event;
-#[path = "suite/page.rs"]
+#[path = "list/page.rs"]
 mod page;
-#[path = "suite/ui.rs"]
+#[path = "list/ui.rs"]
 mod ui;
 
 use std::hash::Hash;
@@ -11,18 +11,19 @@ use anyhow::Result;
 
 use radicle::cob::patch::PatchId;
 
+use tui::Exit;
 use tuirealm::application::PollStrategy;
 use tuirealm::{Application, Frame, NoUserEvent, Sub, SubClause};
 
 use radicle_tui as tui;
 
-use tui::cob;
-use tui::context::Context;
-use tui::ui::subscription;
-use tui::ui::theme::{self, Theme};
-use tui::{Exit, PageStack, Tui};
+use radicle_tui::context::Context;
+use radicle_tui::ui::subscription;
+use radicle_tui::ui::theme::{self, Theme};
+use radicle_tui::PageStack;
+use radicle_tui::Tui;
 
-use page::{ListView, PatchView};
+use page::ListView;
 
 #[derive(Debug, Eq, PartialEq, Clone, Hash)]
 pub enum ListCid {
@@ -32,29 +33,13 @@ pub enum ListCid {
     Shortcuts,
 }
 
-#[derive(Debug, Eq, PartialEq, Clone, Hash)]
-pub enum PatchCid {
-    Header,
-    Activity,
-    Files,
-    Context,
-    Shortcuts,
-}
-
 /// All component ids known to this application.
 #[derive(Debug, Default, Eq, PartialEq, Clone, Hash)]
 pub enum Cid {
     List(ListCid),
-    Patch(PatchCid),
     #[default]
     GlobalListener,
     Popup,
-}
-
-#[derive(Clone, Debug, Eq, PartialEq)]
-pub enum PatchMessage {
-    Show(PatchId),
-    Leave,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -67,13 +52,10 @@ pub enum PopupMessage {
 
 #[derive(Clone, Default, Debug, Eq, PartialEq)]
 pub enum Message {
-    Patch(PatchMessage),
-    NavigationChanged(u16),
-    FormSubmitted(String),
     Popup(PopupMessage),
     #[default]
     Tick,
-    Quit,
+    Quit(Option<PatchId>),
     Batch(Vec<Message>),
 }
 
@@ -83,11 +65,11 @@ pub struct App {
     pages: PageStack<Cid, Message>,
     theme: Theme,
     quit: bool,
+    patch_id: Option<PatchId>,
 }
 
 /// Creates a new application using a tui-realm-application, mounts all
 /// components and sets focus to a default one.
-#[allow(dead_code)]
 impl App {
     pub fn new(context: Context) -> Self {
         Self {
@@ -95,6 +77,7 @@ impl App {
             pages: PageStack::default(),
             theme: theme::default_dark(),
             quit: false,
+            patch_id: None,
         }
     }
 
@@ -107,26 +90,6 @@ impl App {
         self.pages.push(home, app, &self.context, theme)?;
 
         Ok(())
-    }
-
-    fn view_patch(
-        &mut self,
-        app: &mut Application<Cid, Message, NoUserEvent>,
-        id: PatchId,
-        theme: &Theme,
-    ) -> Result<()> {
-        let repo = self.context.repository();
-
-        if let Some(patch) = cob::patch::find(repo, &id)? {
-            let view = Box::new(PatchView::new(theme.clone(), (id, patch)));
-            self.pages.push(view, app, &self.context, theme)?;
-
-            Ok(())
-        } else {
-            Err(anyhow::anyhow!(
-                "Could not mount 'page::PatchView'. Patch not found."
-            ))
-        }
     }
 
     fn process(
@@ -149,14 +112,6 @@ impl App {
                     _ => Ok(Some(Message::Batch(results))),
                 }
             }
-            Message::Patch(PatchMessage::Show(id)) => {
-                self.view_patch(app, id, &theme)?;
-                Ok(None)
-            }
-            Message::Patch(PatchMessage::Leave) => {
-                self.pages.pop(app)?;
-                Ok(None)
-            }
             Message::Popup(PopupMessage::Info(info)) => {
                 self.show_info_popup(app, &theme, &info)?;
                 Ok(None)
@@ -173,8 +128,9 @@ impl App {
                 self.hide_popup(app)?;
                 Ok(None)
             }
-            Message::Quit => {
+            Message::Quit(id) => {
                 self.quit = true;
+                self.patch_id = id;
                 Ok(None)
             }
             _ => self
@@ -273,7 +229,9 @@ impl Tui<Cid, Message> for App {
 
     fn exit(&self) -> Option<Exit> {
         if self.quit {
-            return Some(Exit { value: None });
+            return Some(Exit {
+                value: self.patch_id.map(|id| format!("{id}")),
+            });
         }
         None
     }

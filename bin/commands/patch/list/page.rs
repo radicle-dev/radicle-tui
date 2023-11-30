@@ -1,0 +1,163 @@
+use std::collections::HashMap;
+
+use anyhow::Result;
+
+use tuirealm::{Frame, NoUserEvent, State, StateValue, Sub, SubClause};
+
+use radicle_tui as tui;
+
+use tui::context::Context;
+use tui::ui::theme::Theme;
+use tui::ui::widget::context::{Progress, Shortcuts};
+use tui::ui::widget::Widget;
+use tui::ui::{layout, subscription};
+use tui::ViewPage;
+
+use super::{ui, Application, Cid, ListCid, Message};
+
+///
+/// Home
+///
+pub struct ListView {
+    active_component: ListCid,
+    shortcuts: HashMap<ListCid, Widget<Shortcuts>>,
+}
+
+impl ListView {
+    pub fn new(theme: Theme) -> Self {
+        let shortcuts = Self::build_shortcuts(&theme);
+        Self {
+            active_component: ListCid::PatchBrowser,
+            shortcuts,
+        }
+    }
+
+    fn build_shortcuts(theme: &Theme) -> HashMap<ListCid, Widget<Shortcuts>> {
+        [(
+            ListCid::PatchBrowser,
+            tui::ui::shortcuts(
+                theme,
+                vec![
+                    tui::ui::shortcut(theme, "tab", "section"),
+                    tui::ui::shortcut(theme, "↑/↓", "navigate"),
+                    tui::ui::shortcut(theme, "enter", "show"),
+                    tui::ui::shortcut(theme, "q", "quit"),
+                ],
+            ),
+        )]
+        .iter()
+        .cloned()
+        .collect()
+    }
+
+    fn update_context(
+        &self,
+        app: &mut Application<Cid, Message, NoUserEvent>,
+        context: &Context,
+        theme: &Theme,
+    ) -> Result<()> {
+        let state = app.state(&Cid::List(ListCid::PatchBrowser))?;
+        let progress = match state {
+            State::Tup2((StateValue::Usize(step), StateValue::Usize(total))) => {
+                Progress::Step(step.saturating_add(1), total)
+            }
+            _ => Progress::None,
+        };
+        let context = ui::browse_context(context, theme, progress);
+
+        app.remount(Cid::List(ListCid::Context), context.to_boxed(), vec![])?;
+
+        Ok(())
+    }
+
+    fn update_shortcuts(
+        &self,
+        app: &mut Application<Cid, Message, NoUserEvent>,
+        cid: ListCid,
+    ) -> Result<()> {
+        if let Some(shortcuts) = self.shortcuts.get(&cid) {
+            app.remount(
+                Cid::List(ListCid::Shortcuts),
+                shortcuts.clone().to_boxed(),
+                vec![],
+            )?;
+        }
+        Ok(())
+    }
+}
+
+impl ViewPage<Cid, Message> for ListView {
+    fn mount(
+        &self,
+        app: &mut Application<Cid, Message, NoUserEvent>,
+        context: &Context,
+        theme: &Theme,
+    ) -> Result<()> {
+        let navigation = ui::list_navigation(theme);
+        let header = tui::ui::app_header(context, theme, Some(navigation)).to_boxed();
+        let patch_browser = ui::patches(context, theme, None).to_boxed();
+
+        app.remount(Cid::List(ListCid::Header), header, vec![])?;
+        app.remount(Cid::List(ListCid::PatchBrowser), patch_browser, vec![])?;
+
+        app.active(&Cid::List(self.active_component.clone()))?;
+        self.update_shortcuts(app, self.active_component.clone())?;
+        self.update_context(app, context, theme)?;
+
+        Ok(())
+    }
+
+    fn unmount(&self, app: &mut Application<Cid, Message, NoUserEvent>) -> Result<()> {
+        app.umount(&Cid::List(ListCid::Header))?;
+        app.umount(&Cid::List(ListCid::PatchBrowser))?;
+        app.umount(&Cid::List(ListCid::Context))?;
+        app.umount(&Cid::List(ListCid::Shortcuts))?;
+        Ok(())
+    }
+
+    fn update(
+        &mut self,
+        app: &mut Application<Cid, Message, NoUserEvent>,
+        context: &Context,
+        theme: &Theme,
+        _message: Message,
+    ) -> Result<Option<Message>> {
+        self.update_context(app, context, theme)?;
+
+        Ok(None)
+    }
+
+    fn view(&mut self, app: &mut Application<Cid, Message, NoUserEvent>, frame: &mut Frame) {
+        let area = frame.size();
+        let shortcuts_h = 1u16;
+        let layout = layout::default_page(area, shortcuts_h);
+
+        app.view(&Cid::List(ListCid::Header), frame, layout.navigation);
+        app.view(
+            &Cid::List(self.active_component.clone()),
+            frame,
+            layout.component,
+        );
+
+        app.view(&Cid::List(ListCid::Context), frame, layout.context);
+        app.view(&Cid::List(ListCid::Shortcuts), frame, layout.shortcuts);
+    }
+
+    fn subscribe(&self, app: &mut Application<Cid, Message, NoUserEvent>) -> Result<()> {
+        app.subscribe(
+            &Cid::List(ListCid::Header),
+            Sub::new(subscription::navigation_clause(), SubClause::Always),
+        )?;
+
+        Ok(())
+    }
+
+    fn unsubscribe(&self, app: &mut Application<Cid, Message, NoUserEvent>) -> Result<()> {
+        app.unsubscribe(
+            &Cid::List(ListCid::Header),
+            subscription::navigation_clause(),
+        )?;
+
+        Ok(())
+    }
+}

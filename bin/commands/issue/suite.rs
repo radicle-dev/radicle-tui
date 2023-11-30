@@ -18,8 +18,7 @@ use tui::cob;
 use tui::context::Context;
 use tui::ui::subscription;
 use tui::ui::theme::{self, Theme};
-use tui::PageStack;
-use tui::Tui;
+use tui::{Exit, PageStack, Tui};
 
 use page::{IssuePage, ListPage};
 
@@ -341,7 +340,10 @@ impl Tui<Cid, Message> for App {
         }
     }
 
-    fn quit(&self) -> bool {
-        self.quit
+    fn exit(&self) -> Option<Exit> {
+        if self.quit {
+            return Some(Exit { value: None });
+        }
+        None
     }
 }

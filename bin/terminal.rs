@@ -46,7 +46,6 @@ where
     }
 }
 
-#[allow(dead_code)]
 pub fn run_command_args<A, C>(help: Help, cmd: C, args: Vec<OsString>) -> !
 where
     A: Args,
