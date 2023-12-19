@@ -360,7 +360,7 @@ impl WidgetComponent for Container {
                 .direction(Direction::Horizontal)
                 .horizontal_margin(1)
                 .vertical_margin(1)
-                .constraints(vec![Constraint::Length(1), Constraint::Min(0)].as_ref())
+                .constraints(vec![Constraint::Length(1), Constraint::Min(0)])
                 .split(area);
             // reverse draw order: child needs to be drawn first?
             self.component
