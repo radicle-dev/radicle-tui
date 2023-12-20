@@ -29,7 +29,7 @@ pub fn create<G: Signer>(
     assignees: &[Did],
 ) -> Result<IssueId> {
     let mut issues = Issues::open(repository)?;
-    let issue = issues.create(title, description.trim(), labels, assignees, signer)?;
+    let issue = issues.create(title, description.trim(), labels, assignees, [], signer)?;
 
     Ok(*issue.id())
 }

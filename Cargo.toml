@@ -16,12 +16,13 @@ path = "src/patch/main.rs"
 
 [dependencies]
 anyhow = { version = "1" }
+inquire = { version = "0.6.2", default-features = false, features = ["termion", "editor"] }
 lexopt = { version = "0.2" }
 log = { version = "0.4.19" }
 simple-logging = { version = "2.0.2" }
-radicle = { version = "0.2.0" }
-radicle-term = { version = "0.1.0" }
-radicle-surf = { version = "0.14.0" }
+radicle = { git = "https://github.com/radicle-dev/heartwood" }
+radicle-term = { git = "https://github.com/radicle-dev/heartwood", package = "radicle-term" }
+radicle-surf = { version = "0.18.0" }
 timeago = { version = "0.4.1" }
 textwrap = { version = "0.16.0" }
 tuirealm = { version = "1.9.0", default-features = false, features = [ "with-termion" ] }

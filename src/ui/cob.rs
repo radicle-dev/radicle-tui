@@ -227,7 +227,7 @@ impl From<(&Profile, &Repository, IssueId, Issue)> for IssueItem {
             },
             labels: issue.labels().cloned().collect(),
             assignees: issue
-                .assigned()
+                .assignees()
                 .map(|did| AuthorItem {
                     did: *did,
                     is_you: *did == profile.did(),
