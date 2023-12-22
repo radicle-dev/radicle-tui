@@ -36,9 +36,8 @@ impl ItemState {
     pub fn select_previous(&mut self) -> Option<usize> {
         let old_index = self.selected();
         let new_index = match old_index {
-            Some(selected) if selected == 0 => Some(0),
+            Some(0) | None => Some(0),
             Some(selected) => Some(selected.saturating_sub(1)),
-            None => Some(0),
         };
 
         if old_index != new_index {
@@ -102,9 +101,8 @@ impl FormState {
     pub fn focus_previous(&mut self) -> Option<usize> {
         let old_index = self.focus();
         let new_index = match old_index {
-            Some(focus) if focus == 0 => Some(0),
+            Some(0) | None => Some(0),
             Some(focus) => Some(focus.saturating_sub(1)),
-            None => Some(0),
         };
 
         if old_index != new_index {

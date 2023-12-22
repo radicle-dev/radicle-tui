@@ -95,7 +95,7 @@ pub struct Textarea {
 }
 
 impl Textarea {
-    pub const PROP_DISPLAY_PROGRESS: &str = "display-progress";
+    pub const PROP_DISPLAY_PROGRESS: &'static str = "display-progress";
 
     pub fn new(theme: Theme) -> Self {
         Self {
@@ -163,7 +163,10 @@ impl WidgetComponent for Textarea {
         self.len = body.len();
         self.height = (layout[0].height - 1) as usize;
 
-        let body: String = body.iter().map(|line| format!("{}\n", line)).collect();
+        let body: String = body.iter().fold(String::new(), |mut body, line| {
+            body.push_str(&format!("{}\n", line));
+            body
+        });
 
         let paragraph = Paragraph::new(body)
             .scroll((self.offset as u16, 0))

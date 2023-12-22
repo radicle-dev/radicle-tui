@@ -182,12 +182,12 @@ pub struct Form {
 }
 
 impl Form {
-    pub const CMD_FOCUS_PREVIOUS: &str = "cmd-focus-previous";
-    pub const CMD_FOCUS_NEXT: &str = "cmd-focus-next";
-    pub const CMD_NEWLINE: &str = "cmd-newline";
-    pub const CMD_PASTE: &str = "cmd-paste";
+    pub const CMD_FOCUS_PREVIOUS: &'static str = "cmd-focus-previous";
+    pub const CMD_FOCUS_NEXT: &'static str = "cmd-focus-next";
+    pub const CMD_NEWLINE: &'static str = "cmd-newline";
+    pub const CMD_PASTE: &'static str = "cmd-paste";
 
-    pub const PROP_ID: &str = "prop-id";
+    pub const PROP_ID: &'static str = "prop-id";
 
     pub fn new(_theme: Theme, inputs: Vec<Box<dyn MockComponent>>) -> Self {
         let state = FormState::new(Some(0), inputs.len());

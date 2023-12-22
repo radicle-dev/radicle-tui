@@ -35,6 +35,7 @@ Options
 struct Options;
 
 impl Options {
+    #[allow(clippy::never_loop)]
     fn from_env() -> Result<Self, anyhow::Error> {
         use lexopt::prelude::*;
 

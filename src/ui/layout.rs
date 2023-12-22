@@ -42,7 +42,7 @@ pub fn v_stack(
         .constraints(constraints)
         .split(area);
 
-    widgets.into_iter().zip(layout.into_iter()).collect()
+    widgets.into_iter().zip(layout).collect()
 }
 
 pub fn h_stack(
@@ -64,7 +64,7 @@ pub fn h_stack(
         .constraints(constraints)
         .split(area);
 
-    widgets.into_iter().zip(layout.into_iter()).collect()
+    widgets.into_iter().zip(layout).collect()
 }
 
 pub fn app_header(area: Rect, info_w: u16) -> AppHeader {

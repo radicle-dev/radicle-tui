@@ -132,7 +132,7 @@ pub struct ContextBar {
 }
 
 impl ContextBar {
-    pub const PROP_EDIT_MODE: &str = "edit-mode";
+    pub const PROP_EDIT_MODE: &'static str = "edit-mode";
 
     pub fn new(
         theme: Theme,
