@@ -1,5 +1,8 @@
+#[path = "suite/event.rs"]
 mod event;
+#[path = "suite/page.rs"]
 mod page;
+#[path = "suite/ui.rs"]
 mod ui;
 
 use std::hash::Hash;
@@ -85,6 +88,7 @@ pub struct App {
 
 /// Creates a new application using a tui-realm-application, mounts all
 /// components and sets focus to a default one.
+#[allow(dead_code)]
 impl App {
     pub fn new(context: Context) -> Self {
         Self {

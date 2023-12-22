@@ -1,9 +1,10 @@
 pub mod args;
-pub use args::{Args, Error, Help};
 pub mod io;
 
 use std::ffi::OsString;
 use std::process;
+
+pub use args::{Args, Error, Help};
 
 use radicle_term as term;
 
@@ -45,15 +46,15 @@ where
     }
 }
 
-pub fn run_command<A, C>(help: Help, cmd: C) -> !
-where
-    A: Args,
-    C: Command<A, fn() -> anyhow::Result<Profile>>,
-{
-    let args = std::env::args_os().skip(1).collect();
+// pub fn run_command<A, C>(help: Help, cmd: C) -> !
+// where
+//     A: Args,
+//     C: Command<A, fn() -> anyhow::Result<Profile>>,
+// {
+//     let args = std::env::args_os().skip(1).collect();
 
-    run_command_args(help, cmd, args)
-}
+//     run_command_args(help, cmd, args)
+// }
 
 pub fn run_command_args<A, C>(help: Help, cmd: C, args: Vec<OsString>) -> !
 where
@@ -91,7 +92,7 @@ where
             term::error(format!("rad {}: {err}", help.name));
 
             if let Some(hint) = hint {
-            term::hint(hint);
+                term::hint(hint);
             }
             process::exit(1);
         }
@@ -129,6 +130,6 @@ pub fn fail(_name: &str, error: &anyhow::Error) {
     }
 
     if let Some(Error::WithHint { hint, .. }) = error.downcast_ref::<Error>() {
-    term::hint(hint);
+        term::hint(hint);
     }
 }

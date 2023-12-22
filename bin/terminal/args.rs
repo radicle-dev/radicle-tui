@@ -1,14 +1,9 @@
 use std::ffi::OsString;
 use std::str::FromStr;
-use std::time;
 
 use anyhow::anyhow;
 
-use radicle::cob::{self, issue, patch};
-use radicle::crypto;
-use radicle::git::RefString;
-use radicle::node::{Address, Alias};
-use radicle::prelude::{Did, Id, NodeId};
+use radicle::cob::{issue, patch};
 
 /// Git revision parameter. Supports extended SHA-1 syntax.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -21,6 +16,7 @@ impl From<String> for Rev {
 }
 
 #[derive(thiserror::Error, Debug)]
+#[allow(dead_code)]
 pub enum Error {
     /// If this error is returned from argument parsing, help is displayed.
     #[error("help invoked")]
@@ -63,6 +59,7 @@ pub trait Args: Sized {
     fn from_args(args: Vec<OsString>) -> anyhow::Result<(Self, Vec<OsString>)>;
 }
 
+#[allow(dead_code)]
 pub fn parse_value<T: FromStr>(flag: &str, value: OsString) -> anyhow::Result<T>
 where
     <T as FromStr>::Err: std::error::Error,
@@ -74,6 +71,7 @@ where
         .map_err(|e| anyhow!("invalid value specified for '--{}' ({})", flag, e))
 }
 
+#[allow(dead_code)]
 pub fn format(arg: lexopt::Arg) -> OsString {
     match arg {
         lexopt::Arg::Long(flag) => format!("--{flag}").into(),
@@ -82,6 +80,7 @@ pub fn format(arg: lexopt::Arg) -> OsString {
     }
 }
 
+#[allow(dead_code)]
 pub fn finish(unparsed: Vec<OsString>) -> anyhow::Result<()> {
     if let Some(arg) = unparsed.first() {
         return Err(anyhow::anyhow!(
@@ -92,103 +91,20 @@ pub fn finish(unparsed: Vec<OsString>) -> anyhow::Result<()> {
     Ok(())
 }
 
-pub fn refstring(flag: &str, value: OsString) -> anyhow::Result<RefString> {
-    RefString::try_from(
-        value
-            .into_string()
-            .map_err(|_| anyhow!("the value specified for '--{}' is not valid UTF-8", flag))?,
-    )
-    .map_err(|_| {
-        anyhow!(
-            "the value specified for '--{}' is not a valid ref string",
-            flag
-        )
-    })
-}
-
-pub fn did(val: &OsString) -> anyhow::Result<Did> {
-    let val = val.to_string_lossy();
-    let Ok(peer) = Did::from_str(&val) else {
-        if crypto::PublicKey::from_str(&val).is_ok() {
-            return Err(anyhow!("expected DID, did you mean 'did:key:{val}'?"));
-        } else {
-            return Err(anyhow!("invalid DID '{}', expected 'did:key'", val));
-        }
-    };
-    Ok(peer)
-}
-
-pub fn nid(val: &OsString) -> anyhow::Result<NodeId> {
-    let val = val.to_string_lossy();
-    NodeId::from_str(&val).map_err(|_| anyhow!("invalid Node ID '{}'", val))
-}
-
-pub fn rid(val: &OsString) -> anyhow::Result<Id> {
-    let val = val.to_string_lossy();
-    Id::from_str(&val).map_err(|_| anyhow!("invalid Repository ID '{}'", val))
-}
-
-pub fn pubkey(val: &OsString) -> anyhow::Result<NodeId> {
-    let Ok(did) = did(val) else {
-        let nid = nid(val)?;
-        return Ok(nid);
-    };
-    Ok(did.as_key().to_owned())
-}
-
-pub fn addr(val: &OsString) -> anyhow::Result<Address> {
-    let val = val.to_string_lossy();
-    Address::from_str(&val).map_err(|_| anyhow!("invalid address '{}'", val))
-}
-
-pub fn number(val: &OsString) -> anyhow::Result<usize> {
-    let val = val.to_string_lossy();
-    usize::from_str(&val).map_err(|_| anyhow!("invalid number '{}'", val))
-}
-
-pub fn seconds(val: &OsString) -> anyhow::Result<time::Duration> {
-    let val = val.to_string_lossy();
-    let secs = u64::from_str(&val).map_err(|_| anyhow!("invalid number of seconds '{}'", val))?;
-
-    Ok(time::Duration::from_secs(secs))
-}
-
-pub fn string(val: &OsString) -> String {
-    val.to_string_lossy().to_string()
-}
-
+#[allow(dead_code)]
 pub fn rev(val: &OsString) -> anyhow::Result<Rev> {
     let s = val.to_str().ok_or(anyhow!("invalid git rev {val:?}"))?;
     Ok(Rev::from(s.to_owned()))
 }
 
-pub fn oid(val: &OsString) -> anyhow::Result<Rev> {
-    let s = string(val);
-    let _ = radicle::git::Oid::from_str(&s).map_err(|_| anyhow!("invalid git oid '{s}'"))?;
-
-    Ok(Rev::from(s))
-}
-
-pub fn alias(val: &OsString) -> anyhow::Result<Alias> {
-    let val = val.as_os_str();
-    let val = val
-        .to_str()
-        .ok_or_else(|| anyhow!("alias must be valid UTF-8"))?;
-
-    Alias::from_str(val).map_err(|e| e.into())
-}
-
+#[allow(dead_code)]
 pub fn issue(val: &OsString) -> anyhow::Result<issue::IssueId> {
     let val = val.to_string_lossy();
     issue::IssueId::from_str(&val).map_err(|_| anyhow!("invalid Issue ID '{}'", val))
 }
 
+#[allow(dead_code)]
 pub fn patch(val: &OsString) -> anyhow::Result<patch::PatchId> {
     let val = val.to_string_lossy();
     patch::PatchId::from_str(&val).map_err(|_| anyhow!("invalid Patch ID '{}'", val))
-}
-
-pub fn cob(val: &OsString) -> anyhow::Result<cob::ObjectId> {
-    let val = val.to_string_lossy();
-    cob::ObjectId::from_str(&val).map_err(|_| anyhow!("invalid Object ID '{}'", val))
 }

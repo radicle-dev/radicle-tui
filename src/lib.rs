@@ -10,6 +10,7 @@ use tuirealm::{Application, EventListenerCfg, NoUserEvent};
 
 pub mod cob;
 pub mod context;
+pub mod log;
 pub mod ui;
 
 use context::Context;

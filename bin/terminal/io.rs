@@ -14,6 +14,7 @@ pub struct PassphraseValidator {
     keystore: Keystore,
 }
 
+#[allow(dead_code)]
 impl PassphraseValidator {
     /// Create a new validator.
     pub fn new(keystore: Keystore) -> Self {
@@ -39,6 +40,7 @@ impl inquire::validator::StringValidator for PassphraseValidator {
 
 /// Get the signer. First we try getting it from ssh-agent, otherwise we prompt the user,
 /// if we're connected to a TTY.
+#[allow(dead_code)]
 pub fn signer(profile: &Profile) -> anyhow::Result<Box<dyn Signer>> {
     if let Ok(signer) = profile.signer() {
         return Ok(signer);
