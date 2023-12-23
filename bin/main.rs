@@ -101,6 +101,13 @@ fn run(command: Command) -> Result<(), Option<anyhow::Error>> {
 
 fn run_other(exe: &str, args: &[OsString]) -> Result<(), Option<anyhow::Error>> {
     match exe {
+        "issue" => {
+            terminal::run_command_args::<tui_issue::Options, _>(
+                tui_issue::HELP,
+                tui_issue::run,
+                args.to_vec(),
+            );
+        }
         "patch" => {
             terminal::run_command_args::<tui_patch::Options, _>(
                 tui_patch::HELP,
