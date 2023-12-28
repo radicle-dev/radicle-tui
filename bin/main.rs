@@ -51,15 +51,11 @@ fn parse_args() -> anyhow::Result<Command> {
                 command = Some(Command::Version);
             }
             Value(val) if command.is_none() => {
-                if val == *"." {
-                    command = Some(Command::Other(vec![OsString::from("inspect")]));
-                } else {
-                    let args = iter::once(val)
-                        .chain(iter::from_fn(|| parser.value().ok()))
-                        .collect();
+                let args = iter::once(val)
+                    .chain(iter::from_fn(|| parser.value().ok()))
+                    .collect();
 
-                    command = Some(Command::Other(args))
-                }
+                command = Some(Command::Other(args))
             }
             _ => return Err(anyhow::anyhow!(arg.unexpected())),
         }
@@ -99,24 +95,8 @@ fn run(command: Command) -> Result<(), Option<anyhow::Error>> {
     Ok(())
 }
 
-fn run_other(exe: &str, args: &[OsString]) -> Result<(), Option<anyhow::Error>> {
-    match exe {
-        "issue" => {
-            terminal::run_command_args::<tui_issue::Options, _>(
-                tui_issue::HELP,
-                tui_issue::run,
-                args.to_vec(),
-            );
-        }
-        "patch" => {
-            terminal::run_command_args::<tui_patch::Options, _>(
-                tui_patch::HELP,
-                tui_patch::run,
-                args.to_vec(),
-            );
-        }
-        other => Err(Some(anyhow!(
-            "`{other}` is not a command. See `rad-tui --help` for a list of commands.",
-        ))),
-    }
+fn run_other(exe: &str, _args: &[OsString]) -> Result<(), Option<anyhow::Error>> {
+    Err(Some(anyhow!(
+        "`{exe}` is not a command. See `rad-tui --help` for a list of commands.",
+    )))
 }

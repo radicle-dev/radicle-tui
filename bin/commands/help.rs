@@ -14,7 +14,7 @@ pub const HELP: Help = Help {
     usage: "Usage: rad-tui help [--help]",
 };
 
-const COMMANDS: &[Help] = &[tui_help::HELP, tui_patch::HELP];
+const COMMANDS: &[Help] = &[tui_help::HELP];
 
 #[derive(Default)]
 pub struct Options {}

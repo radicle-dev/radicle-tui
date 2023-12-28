@@ -14,7 +14,7 @@
 
 > Requires the Rust toolchain.
 
-You can install the binaries from source, by running the following
+You can install the binary from source, by running the following
 commands from inside this repository:
 
     cargo install --path . --force --locked
@@ -23,10 +23,11 @@ Or directly from our seed node:
 
     cargo install --force --locked --git https://seed.radicle.xyz/z39mP9rQAaGmERfUMPULfPUi473tY.git
 
-This will install the following binaries:
+This will install `rad-tui`. You can execute it by running `rad tui`.
 
-- `rad-issue-tui`
-- `rad-patch-tui`
+## Commands
+
+All available commands can be shown by running `rad tui --help`.
 
 ## License
 

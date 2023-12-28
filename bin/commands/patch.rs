@@ -8,6 +8,7 @@ use anyhow::anyhow;
 use crate::terminal;
 use crate::terminal::args::{Args, Error, Help};
 
+#[allow(dead_code)]
 pub const HELP: Help = Help {
     name: "patch",
     description: "Terminal interfaces for patches",
@@ -62,6 +63,7 @@ impl Args for Options {
     }
 }
 
+#[allow(dead_code)]
 pub fn run(_options: Options, _ctx: impl terminal::Context) -> anyhow::Result<()> {
     Ok(())
 }

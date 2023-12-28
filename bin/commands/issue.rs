@@ -8,14 +8,15 @@ use anyhow::anyhow;
 use crate::terminal;
 use crate::terminal::args::{Args, Error, Help};
 
+#[allow(dead_code)]
 pub const HELP: Help = Help {
     name: "issue",
-    description: "Terminal interfaces for patches",
+    description: "Terminal interfaces for issues",
     version: env!("CARGO_PKG_VERSION"),
     usage: r#"
 Usage
 
-    rad-tui patch
+    rad-tui issue
 
 General options
 
@@ -62,6 +63,7 @@ impl Args for Options {
     }
 }
 
+#[allow(dead_code)]
 pub fn run(_options: Options, _ctx: impl terminal::Context) -> anyhow::Result<()> {
     Ok(())
 }

@@ -46,16 +46,7 @@ where
     }
 }
 
-// pub fn run_command<A, C>(help: Help, cmd: C) -> !
-// where
-//     A: Args,
-//     C: Command<A, fn() -> anyhow::Result<Profile>>,
-// {
-//     let args = std::env::args_os().skip(1).collect();
-
-//     run_command_args(help, cmd, args)
-// }
-
+#[allow(dead_code)]
 pub fn run_command_args<A, C>(help: Help, cmd: C, args: Vec<OsString>) -> !
 where
     A: Args,
@@ -77,7 +68,7 @@ where
                 }
                 Some(Error::HelpManual { name }) => {
                     let Ok(status) = term::manual(name) else {
-                        term::error(format!("rad {}: failed to load manual page", help.name));
+                        term::error(format!("rad-tui {}: failed to load manual page", help.name));
                         process::exit(1);
                     };
                     process::exit(status.code().unwrap_or(0));
@@ -89,7 +80,7 @@ where
                 Some(Error::WithHint { hint, .. }) => Some(hint),
                 None => None,
             };
-            term::error(format!("rad {}: {err}", help.name));
+            term::error(format!("rad-tui {}: {err}", help.name));
 
             if let Some(hint) = hint {
                 term::hint(hint);
