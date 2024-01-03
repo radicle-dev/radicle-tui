@@ -196,7 +196,7 @@ impl Tui<Cid, Message> for App {
             Cid::GlobalListener,
             global,
             vec![Sub::new(
-                subscription::quit_clause(Key::Char('q')),
+                subscription::quit_clause(Key::Esc),
                 SubClause::Always,
             )],
         )?;

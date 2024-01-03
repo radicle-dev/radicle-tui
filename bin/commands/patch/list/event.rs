@@ -2,11 +2,13 @@ use tuirealm::command::{Cmd, CmdResult, Direction as MoveDirection};
 use tuirealm::event::{Event, Key, KeyEvent};
 use tuirealm::{MockComponent, NoUserEvent, State, StateValue};
 
-use radicle_tui::ui::widget::container::{AppHeader, GlobalListener, LabeledContainer, Popup};
-use radicle_tui::ui::widget::context::{ContextBar, Shortcuts};
-use radicle_tui::ui::widget::list::PropertyList;
+use radicle_tui as tui;
 
-use radicle_tui::ui::widget::Widget;
+use tui::ui::widget::container::{AppHeader, GlobalListener, LabeledContainer, Popup};
+use tui::ui::widget::context::{ContextBar, Shortcuts};
+use tui::ui::widget::list::PropertyList;
+
+use tui::ui::widget::Widget;
 
 use super::{ui, Message, PopupMessage};
 
@@ -18,10 +20,7 @@ use super::{ui, Message, PopupMessage};
 impl tuirealm::Component<Message, NoUserEvent> for Widget<GlobalListener> {
     fn on(&mut self, event: Event<NoUserEvent>) -> Option<Message> {
         match event {
-            Event::Keyboard(KeyEvent {
-                code: Key::Char('q'),
-                ..
-            }) => Some(Message::Quit(None)),
+            Event::Keyboard(KeyEvent { code: Key::Esc, .. }) => Some(Message::Quit(None)),
             _ => None,
         }
     }

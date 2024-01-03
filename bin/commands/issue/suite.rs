@@ -310,7 +310,10 @@ impl Tui<Cid, Message> for App {
         app.mount(
             Cid::GlobalListener,
             global,
-            vec![Sub::new(subscription::quit_clause(Key::Char('q')), SubClause::Always)],
+            vec![Sub::new(
+                subscription::quit_clause(Key::Char('q')),
+                SubClause::Always,
+            )],
         )?;
 
         Ok(())
