@@ -73,7 +73,7 @@ pub fn run(options: Options, _ctx: impl terminal::Context) -> anyhow::Result<()>
     let (_, id) = radicle::rad::cwd()
         .map_err(|_| anyhow!("this command must be run in the context of a project"))?;
 
-    let context = context::Context::new(id)?;
+    let context = context::Context::new(id)?.with_patches();
 
     match options.op {
         Operation::List => {
@@ -81,7 +81,7 @@ pub fn run(options: Options, _ctx: impl terminal::Context) -> anyhow::Result<()>
 
             let patch_id = Window::default()
                 .run(&mut list::App::new(context), 1000 / FPS)?
-                .ok_or_else(|| anyhow!("expected patch id"))?;
+                .ok_or_else(|| anyhow!("expected a patch id"))?;
 
             eprint!("{patch_id}");
         }

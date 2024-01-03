@@ -54,7 +54,8 @@ impl IssueBrowser {
         let repo = context.repository();
         let mut items = vec![];
 
-        for (id, issue) in context.issues() {
+        let issues = context.issues().as_ref().unwrap();
+        for (id, issue) in issues {
             if let Ok(item) = IssueItem::try_from((context.profile(), repo, *id, issue.clone())) {
                 items.push(item);
             }
@@ -107,8 +108,8 @@ impl LargeList {
     pub fn new(context: &Context, theme: &Theme, selected: Option<(IssueId, Issue)>) -> Self {
         let repo = context.repository();
 
-        let mut items = context
-            .issues()
+        let issues = context.issues().as_ref().unwrap();
+        let mut items = issues
             .iter()
             .map(|(id, issue)| IssueItem::from((context.profile(), repo, *id, issue.clone())))
             .collect::<Vec<_>>();
@@ -392,7 +393,7 @@ pub fn details(
 pub fn browse_context(context: &Context, theme: &Theme, progress: Progress) -> Widget<ContextBar> {
     use radicle::cob::issue::State;
 
-    let issues = context.issues();
+    let issues = context.issues().as_ref().unwrap();
     let open = issues
         .iter()
         .filter(|issue| *issue.1.state() == State::Open)

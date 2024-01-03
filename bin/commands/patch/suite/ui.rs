@@ -49,8 +49,9 @@ impl PatchBrowser {
 
         let repo = context.repository();
         let mut items = vec![];
+        let patches = context.patches().as_ref().unwrap();
 
-        for (id, patch) in context.patches() {
+        for (id, patch) in patches {
             if let Ok(item) = PatchItem::try_from((context.profile(), repo, *id, patch.clone())) {
                 items.push(item);
             }
@@ -213,12 +214,12 @@ pub fn context(context: &Context, theme: &Theme, patch: (PatchId, Patch)) -> Wid
 pub fn browse_context(context: &Context, theme: &Theme, progress: Progress) -> Widget<ContextBar> {
     use radicle::cob::patch::State;
 
-    let patches = context.patches();
     let mut draft = 0;
     let mut open = 0;
     let mut archived = 0;
     let mut merged = 0;
 
+    let patches = context.patches().as_ref().unwrap();
     for (_, patch) in patches {
         match patch.state() {
             State::Draft => draft += 1,

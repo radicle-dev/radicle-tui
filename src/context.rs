@@ -38,8 +38,8 @@ pub struct Context {
     id: Id,
     project: Project,
     repository: Repository,
-    issues: Vec<(IssueId, Issue)>,
-    patches: Vec<(PatchId, Patch)>,
+    issues: Option<Vec<(IssueId, Issue)>>,
+    patches: Option<Vec<(PatchId, Patch)>>,
     signer: Box<dyn Signer>,
 }
 
@@ -47,12 +47,10 @@ impl Context {
     pub fn new(id: Id) -> Result<Self, anyhow::Error> {
         let profile = profile()?;
         let signer = signer(&profile)?;
-
         let repository = profile.storage.repository(id).unwrap();
-        let issues = crate::cob::issue::all(&repository).unwrap_or_default();
-        let patches = crate::cob::patch::all(&repository).unwrap_or_default();
-
         let project = repository.identity_doc()?.project()?;
+        let issues = None;
+        let patches = None;
 
         Ok(Self {
             id,
@@ -63,6 +61,18 @@ impl Context {
             patches,
             signer,
         })
+    }
+
+    pub fn with_issues(mut self) -> Self {
+        use crate::cob::issue;
+        self.issues = Some(issue::all(&self.repository).unwrap_or_default());
+        self
+    }
+
+    pub fn with_patches(mut self) -> Self {
+        use crate::cob::patch;
+        self.patches = Some(patch::all(&self.repository).unwrap_or_default());
+        self
     }
 
     pub fn profile(&self) -> &Profile {
@@ -81,11 +91,11 @@ impl Context {
         &self.repository
     }
 
-    pub fn issues(&self) -> &Vec<(IssueId, Issue)> {
+    pub fn issues(&self) -> &Option<Vec<(IssueId, Issue)>> {
         &self.issues
     }
 
-    pub fn patches(&self) -> &Vec<(PatchId, Patch)> {
+    pub fn patches(&self) -> &Option<Vec<(PatchId, Patch)>> {
         &self.patches
     }
 
@@ -95,8 +105,15 @@ impl Context {
     }
 
     pub fn reload(&mut self) {
-        self.issues = crate::cob::issue::all(&self.repository).unwrap_or_default();
-        self.patches = crate::cob::patch::all(&self.repository).unwrap_or_default();
+        use crate::cob::issue;
+        use crate::cob::patch;
+
+        if self.issues.is_some() {
+            self.issues = Some(issue::all(&self.repository).unwrap_or_default());
+        }
+        if self.patches.is_some() {
+            self.patches = Some(patch::all(&self.repository).unwrap_or_default());
+        }
     }
 }
 
