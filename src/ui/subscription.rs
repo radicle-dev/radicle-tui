@@ -11,12 +11,12 @@ where
     })
 }
 
-pub fn global_clause<UserEvent>() -> SubEventClause<UserEvent>
+pub fn quit_clause<UserEvent>(key: Key) -> SubEventClause<UserEvent>
 where
     UserEvent: Clone + Eq + PartialEq + PartialOrd,
 {
     SubEventClause::Keyboard(KeyEvent {
-        code: Key::Char('q'),
+        code: key,
         modifiers: KeyModifiers::NONE,
     })
 }

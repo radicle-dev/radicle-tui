@@ -4,6 +4,7 @@ use anyhow::Result;
 
 use radicle::cob::issue::{Issue, IssueId};
 
+use tuirealm::event::Key;
 use tuirealm::{AttrValue, Attribute, Frame, NoUserEvent, State, StateValue, Sub, SubClause};
 
 use radicle_tui as tui;
@@ -435,7 +436,10 @@ impl ViewPage<Cid, Message> for IssuePage {
                 app.remount(Cid::Issue(IssueCid::Form), new_form, vec![])?;
                 app.active(&Cid::Issue(IssueCid::Form))?;
 
-                app.unsubscribe(&Cid::GlobalListener, subscription::global_clause())?;
+                app.unsubscribe(
+                    &Cid::GlobalListener,
+                    subscription::quit_clause(Key::Char('q')),
+                )?;
 
                 return Ok(Some(Message::Issue(IssueMessage::Focus(IssueCid::Form))));
             }
@@ -447,7 +451,7 @@ impl ViewPage<Cid, Message> for IssuePage {
 
                 app.subscribe(
                     &Cid::GlobalListener,
-                    Sub::new(subscription::global_clause(), SubClause::Always),
+                    Sub::new(subscription::quit_clause(Key::Char('q')), SubClause::Always),
                 )?;
 
                 if self.issue.is_none() {

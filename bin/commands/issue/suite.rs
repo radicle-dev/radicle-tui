@@ -10,6 +10,7 @@ use anyhow::Result;
 use radicle::cob::issue::IssueId;
 
 use tuirealm::application::PollStrategy;
+use tuirealm::event::Key;
 use tuirealm::{Application, Frame, NoUserEvent, Sub, SubClause};
 
 use radicle_tui as tui;
@@ -309,7 +310,7 @@ impl Tui<Cid, Message> for App {
         app.mount(
             Cid::GlobalListener,
             global,
-            vec![Sub::new(subscription::global_clause(), SubClause::Always)],
+            vec![Sub::new(subscription::quit_clause(Key::Char('q')), SubClause::Always)],
         )?;
 
         Ok(())
