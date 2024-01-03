@@ -129,10 +129,8 @@ impl ViewPage<Cid, Message> for ListView {
 
     fn view(&mut self, app: &mut Application<Cid, Message, NoUserEvent>, frame: &mut Frame) {
         let area = frame.size();
-        let shortcuts_h = 1u16;
-        let layout = layout::default_page(area, shortcuts_h);
+        let layout = layout::default_page(area);
 
-        app.view(&Cid::List(ListCid::Header), frame, layout.navigation);
         app.view(
             &Cid::List(self.active_component.clone()),
             frame,
@@ -140,7 +138,6 @@ impl ViewPage<Cid, Message> for ListView {
         );
 
         app.view(&Cid::List(ListCid::Context), frame, layout.context);
-        app.view(&Cid::List(ListCid::Shortcuts), frame, layout.shortcuts);
     }
 
     fn subscribe(&self, app: &mut Application<Cid, Message, NoUserEvent>) -> Result<()> {

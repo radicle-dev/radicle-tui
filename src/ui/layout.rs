@@ -8,11 +8,16 @@ pub struct AppHeader {
     pub line: Rect,
 }
 
-pub struct DefaultPage {
+pub struct FullPage {
     pub navigation: Rect,
     pub component: Rect,
     pub context: Rect,
     pub shortcuts: Rect,
+}
+
+pub struct DefaultPage {
+    pub component: Rect,
+    pub context: Rect,
 }
 
 pub struct IssuePage {
@@ -91,7 +96,7 @@ pub fn app_header(area: Rect, info_w: u16) -> AppHeader {
     }
 }
 
-pub fn default_page(area: Rect, shortcuts_h: u16) -> DefaultPage {
+pub fn full_page(area: Rect, shortcuts_h: u16) -> FullPage {
     let nav_h = 3u16;
     let context_h = 1u16;
     let margin_h = 1u16;
@@ -113,11 +118,34 @@ pub fn default_page(area: Rect, shortcuts_h: u16) -> DefaultPage {
         )
         .split(area);
 
-    DefaultPage {
+    FullPage {
         navigation: layout[0],
         component: layout[1],
         context: layout[2],
         shortcuts: layout[3],
+    }
+}
+
+pub fn default_page(area: Rect) -> DefaultPage {
+    let context_h = 1u16;
+    let margin_h = 1u16;
+    let component_h = area.height.saturating_sub(context_h);
+
+    let layout = Layout::default()
+        .direction(Direction::Vertical)
+        .horizontal_margin(margin_h)
+        .constraints(
+            [
+                Constraint::Length(component_h),
+                Constraint::Length(context_h),
+            ]
+            .as_ref(),
+        )
+        .split(area);
+
+    DefaultPage {
+        component: layout[0],
+        context: layout[1],
     }
 }
 

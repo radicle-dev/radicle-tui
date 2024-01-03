@@ -131,7 +131,7 @@ pub fn browse_context(context: &Context, theme: &Theme, progress: Progress) -> W
 
     tui::ui::widget::context::bar(
         theme,
-        "Browse",
+        "Patches",
         "",
         "",
         &format!("{draft} draft | {open} open | {archived} archived | {merged} merged"),

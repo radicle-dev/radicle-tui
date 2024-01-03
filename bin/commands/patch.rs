@@ -1,7 +1,7 @@
-#[path = "patch/suite.rs"]
-mod suite;
 #[path = "patch/list.rs"]
 mod list;
+#[path = "patch/suite.rs"]
+mod suite;
 
 use std::ffi::OsString;
 

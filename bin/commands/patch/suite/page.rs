@@ -132,7 +132,7 @@ impl ViewPage<Cid, Message> for ListView {
     fn view(&mut self, app: &mut Application<Cid, Message, NoUserEvent>, frame: &mut Frame) {
         let area = frame.size();
         let shortcuts_h = 1u16;
-        let layout = layout::default_page(area, shortcuts_h);
+        let layout = layout::full_page(area, shortcuts_h);
 
         app.view(&Cid::List(ListCid::Header), frame, layout.navigation);
         app.view(
@@ -284,7 +284,7 @@ impl ViewPage<Cid, Message> for PatchView {
     fn view(&mut self, app: &mut Application<Cid, Message, NoUserEvent>, frame: &mut Frame) {
         let area = frame.size();
         let shortcuts_h = 1u16;
-        let layout = layout::default_page(area, shortcuts_h);
+        let layout = layout::full_page(area, shortcuts_h);
 
         app.view(&Cid::Patch(PatchCid::Header), frame, layout.navigation);
         app.view(

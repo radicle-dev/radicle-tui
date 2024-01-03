@@ -11,17 +11,15 @@ use anyhow::Result;
 
 use radicle::cob::patch::PatchId;
 
-use tui::Exit;
 use tuirealm::application::PollStrategy;
 use tuirealm::{Application, Frame, NoUserEvent, Sub, SubClause};
 
 use radicle_tui as tui;
 
-use radicle_tui::context::Context;
-use radicle_tui::ui::subscription;
-use radicle_tui::ui::theme::{self, Theme};
-use radicle_tui::PageStack;
-use radicle_tui::Tui;
+use tui::context::Context;
+use tui::ui::subscription;
+use tui::ui::theme::{self, Theme};
+use tui::{Exit, PageStack, Tui};
 
 use page::ListView;
 
