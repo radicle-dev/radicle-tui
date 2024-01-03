@@ -40,6 +40,7 @@ pub enum OperationName {
 }
 
 impl Args for Options {
+    #[allow(clippy::unnecessary_literal_unwrap)]
     fn from_args(args: Vec<OsString>) -> anyhow::Result<(Self, Vec<OsString>)> {
         use lexopt::prelude::*;
 
