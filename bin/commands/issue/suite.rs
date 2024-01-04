@@ -285,7 +285,7 @@ impl App {
         assignees: String,
     ) -> Result<IssueId> {
         let repository = self.context.repository();
-        let signer = self.context.signer();
+        let signer = self.context.signer().as_ref().unwrap();
 
         let labels = cob::parse_labels(labels)?;
         let assignees = cob::parse_assignees(assignees)?;

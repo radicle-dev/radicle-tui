@@ -73,11 +73,11 @@ pub fn run(options: Options, _ctx: impl terminal::Context) -> anyhow::Result<()>
     let (_, id) = radicle::rad::cwd()
         .map_err(|_| anyhow!("this command must be run in the context of a project"))?;
 
-    let context = context::Context::new(id)?.with_patches();
-
     match options.op {
         Operation::List => {
-            log::enable("patch", "list", context.profile())?;
+            let context = context::Context::new(id)?.with_patches();
+
+            log::enable(context.profile(), "patch", "list")?;
 
             let patch_id = Window::default()
                 .run(&mut list::App::new(context), 1000 / FPS)?

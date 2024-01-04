@@ -2,7 +2,7 @@ use log::LevelFilter;
 
 use radicle::profile::Profile;
 
-pub fn enable(cmd: &str, op: &str, profile: &Profile) -> Result<(), anyhow::Error> {
+pub fn enable(profile: &Profile, cmd: &str, op: &str) -> Result<(), anyhow::Error> {
     let logfile = format!(
         "{}/rad-tui-{}-{}.log",
         profile.home().path().to_string_lossy(),

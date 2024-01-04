@@ -40,17 +40,17 @@ pub struct Context {
     repository: Repository,
     issues: Option<Vec<(IssueId, Issue)>>,
     patches: Option<Vec<(PatchId, Patch)>>,
-    signer: Box<dyn Signer>,
+    signer: Option<Box<dyn Signer>>,
 }
 
 impl Context {
     pub fn new(id: Id) -> Result<Self, anyhow::Error> {
         let profile = profile()?;
-        let signer = signer(&profile)?;
         let repository = profile.storage.repository(id).unwrap();
         let project = repository.identity_doc()?.project()?;
         let issues = None;
         let patches = None;
+        let signer = None;
 
         Ok(Self {
             id,
@@ -72,6 +72,11 @@ impl Context {
     pub fn with_patches(mut self) -> Self {
         use crate::cob::patch;
         self.patches = Some(patch::all(&self.repository).unwrap_or_default());
+        self
+    }
+
+    pub fn with_signer(mut self) -> Self {
+        self.signer = signer(&self.profile).ok();
         self
     }
 
@@ -100,7 +105,7 @@ impl Context {
     }
 
     #[allow(clippy::borrowed_box)]
-    pub fn signer(&self) -> &Box<dyn Signer> {
+    pub fn signer(&self) -> &Option<Box<dyn Signer>> {
         &self.signer
     }
 
