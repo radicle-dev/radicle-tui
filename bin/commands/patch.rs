@@ -81,7 +81,7 @@ pub fn run(options: Options, _ctx: impl terminal::Context) -> anyhow::Result<()>
 
             let patch_id = Window::default()
                 .run(&mut list::App::new(context), 1000 / FPS)?
-                .ok_or_else(|| anyhow!("expected a patch id"))?;
+                .unwrap_or_default();
 
             eprint!("{patch_id}");
         }
