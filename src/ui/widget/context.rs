@@ -3,7 +3,7 @@ use tuirealm::props::{AttrValue, Attribute, Props};
 use tuirealm::tui::layout::Rect;
 use tuirealm::{Frame, MockComponent, State};
 
-use super::label::Label;
+use super::label::{Label, LabelGroup};
 
 use crate::ui::layout;
 use crate::ui::theme::Theme;
@@ -123,11 +123,11 @@ impl WidgetComponent for Shortcuts {
 }
 
 pub struct ContextBar {
-    label_0: Widget<Label>,
-    label_1: Widget<Label>,
-    label_2: Widget<Label>,
-    label_3: Widget<Label>,
-    label_4: Widget<Label>,
+    col_0: Widget<LabelGroup>,
+    col_1: Widget<LabelGroup>,
+    col_2: Widget<LabelGroup>,
+    col_3: Widget<LabelGroup>,
+    col_4: Widget<LabelGroup>,
     theme: Theme,
 }
 
@@ -136,19 +136,19 @@ impl ContextBar {
 
     pub fn new(
         theme: Theme,
-        label_0: Widget<Label>,
-        label_1: Widget<Label>,
-        label_2: Widget<Label>,
-        label_3: Widget<Label>,
-        label_4: Widget<Label>,
+        col_0: Widget<LabelGroup>,
+        col_1: Widget<LabelGroup>,
+        col_2: Widget<LabelGroup>,
+        col_3: Widget<LabelGroup>,
+        col_4: Widget<LabelGroup>,
     ) -> Self {
         Self {
             theme,
-            label_0,
-            label_1,
-            label_2,
-            label_3,
-            label_4,
+            col_0,
+            col_1,
+            col_2,
+            col_3,
+            col_4,
         }
     }
 }
@@ -165,13 +165,13 @@ impl WidgetComponent for ContextBar {
             )
             .unwrap_flag();
 
-        let label_0_w = self.label_0.query(Attribute::Width).unwrap().unwrap_size();
-        let label_1_w = self.label_1.query(Attribute::Width).unwrap().unwrap_size();
-        let label_2_w = self.label_2.query(Attribute::Width).unwrap().unwrap_size();
-        let label_4_w = self.label_4.query(Attribute::Width).unwrap().unwrap_size();
+        let col_0_w = self.col_0.query(Attribute::Width).unwrap().unwrap_size();
+        let col_1_w = self.col_1.query(Attribute::Width).unwrap().unwrap_size();
+        let col_3_w = self.col_3.query(Attribute::Width).unwrap().unwrap_size();
+        let col_4_w = self.col_4.query(Attribute::Width).unwrap().unwrap_size();
 
         if edit_mode {
-            self.label_0.attr(
+            self.col_0.attr(
                 Attribute::Background,
                 AttrValue::Color(self.theme.colors.context_badge_edit_bg),
             )
@@ -180,17 +180,17 @@ impl WidgetComponent for ContextBar {
         if display {
             let layout = layout::h_stack(
                 vec![
-                    self.label_0.clone().to_boxed(),
-                    self.label_1.clone().to_boxed(),
-                    self.label_3
+                    self.col_0.clone().to_boxed(),
+                    self.col_1.clone().to_boxed(),
+                    self.col_2
                         .clone()
                         .width(
                             area.width
-                                .saturating_sub(label_0_w + label_1_w + label_2_w + label_4_w),
+                                .saturating_sub(col_0_w + col_1_w + col_3_w + col_4_w),
                         )
                         .to_boxed(),
-                    self.label_2.clone().to_boxed(),
-                    self.label_4.clone().to_boxed(),
+                    self.col_3.clone().to_boxed(),
+                    self.col_4.clone().to_boxed(),
                 ],
                 area,
             );
@@ -218,23 +218,31 @@ pub fn bar(
     label_3: &str,
     label_4: &str,
 ) -> Widget<ContextBar> {
-    let context = crate::ui::label(&format!(" {label_0} "))
+    use crate::ui::{label, label_group};
+
+    let label_0 = label(&format!(" {label_0} "))
         .foreground(theme.colors.context_bg)
         .background(theme.colors.context_badge_bg);
-    let id = crate::ui::label(&format!(" {label_1} "))
+    let label_1 = label(&format!(" {label_1} "))
         .foreground(theme.colors.context_color_fg)
         .background(theme.colors.context_bg);
-    let title = crate::ui::label(&format!(" {label_2} "))
+    let label_2 = label(&format!(" {label_2} "))
         .foreground(theme.colors.default_fg)
         .background(theme.colors.context_bg);
-    let author = crate::ui::label(&format!(" {label_3} "))
+    let label_3 = label(&format!(" {label_3} "))
         .foreground(theme.colors.context_light)
         .background(theme.colors.context_bg);
-    let comments = crate::ui::label(&format!(" {label_4} "))
+    let label_4 = label(&format!(" {label_4} "))
         .foreground(theme.colors.context_light)
         .background(theme.colors.context_bg);
 
-    let context_bar = ContextBar::new(theme.clone(), context, id, author, title, comments);
+    let label_0 = label_group(&[label_0]);
+    let label_1 = label_group(&[label_1]);
+    let label_2 = label_group(&[label_2]);
+    let label_3 = label_group(&[label_3]);
+    let label_4 = label_group(&[label_4]);
+
+    let context_bar = ContextBar::new(theme.clone(), label_0, label_1, label_2, label_3, label_4);
 
     Widget::new(context_bar).height(1)
 }

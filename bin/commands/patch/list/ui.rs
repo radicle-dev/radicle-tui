@@ -135,7 +135,7 @@ pub fn browse_context(context: &Context, theme: &Theme, progress: Progress) -> W
         "Patches",
         "",
         "",
-        &format!("{draft} draft | {open} open | {archived} archived | {merged} merged"),
+        &format!("Draft {draft} | Open {open} | Archived {archived} | Merged {merged}"),
         &progress.to_string(),
     )
 }

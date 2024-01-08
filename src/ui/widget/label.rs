@@ -4,6 +4,7 @@ use tuirealm::tui::layout::{Constraint, Direction, Layout, Rect};
 use tuirealm::tui::text::{Span, Spans, Text};
 use tuirealm::{Frame, MockComponent, State, StateValue};
 
+use crate::ui::layout;
 use crate::ui::theme::Theme;
 use crate::ui::widget::{Widget, WidgetComponent};
 
@@ -78,6 +79,47 @@ impl From<&Widget<Label>> for Text<'_> {
             .unwrap_color();
 
         Text::styled(content, Style::default().fg(foreground))
+    }
+}
+
+#[derive(Clone, Default)]
+pub struct LabelGroup {
+    labels: Vec<Widget<Label>>,
+}
+
+impl LabelGroup {
+    pub fn new(labels: &[Widget<Label>]) -> Self {
+        Self {
+            labels: labels.to_vec(),
+        }
+    }
+}
+
+impl WidgetComponent for LabelGroup {
+    fn view(&mut self, properties: &Props, frame: &mut Frame, area: Rect) {
+        let display = properties
+            .get_or(Attribute::Display, AttrValue::Flag(true))
+            .unwrap_flag();
+
+        if display {
+            let mut labels: Vec<Box<dyn MockComponent>> = vec![];
+            for label in &self.labels {
+                labels.push(label.clone().to_boxed());
+            }
+
+            let layout = layout::h_stack(labels, area);
+            for (mut label, area) in layout {
+                label.view(frame, area);
+            }
+        }
+    }
+
+    fn state(&self) -> State {
+        State::None
+    }
+
+    fn perform(&mut self, _properties: &Props, _cmd: Cmd) -> CmdResult {
+        CmdResult::None
     }
 }
 

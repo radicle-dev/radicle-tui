@@ -19,6 +19,8 @@ use widget::list::{ColumnWidth, Property, PropertyList, PropertyTable};
 
 use widget::Widget;
 
+use self::widget::label::LabelGroup;
+
 use super::context::Context;
 use crate::ui::theme::Theme;
 
@@ -34,6 +36,19 @@ pub fn label(content: &str) -> Widget<Label> {
         .content(AttrValue::String(content.to_string()))
         .height(1)
         .width(width)
+}
+
+pub fn label_group(labels: &[Widget<Label>]) -> Widget<LabelGroup> {
+    let group = LabelGroup::new(labels);
+    let width = labels.iter().fold(0, |total, label| {
+        total
+            + label
+                .query(Attribute::Width)
+                .unwrap_or(AttrValue::Size(0))
+                .unwrap_size()
+    });
+
+    Widget::new(group).width(width)
 }
 
 pub fn reversable_label(content: &str) -> Widget<Label> {
