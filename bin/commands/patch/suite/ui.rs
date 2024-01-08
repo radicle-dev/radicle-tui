@@ -1,4 +1,5 @@
 use radicle::cob::patch::{Patch, PatchId};
+use radicle::node::AliasStore;
 
 use tuirealm::command::{Cmd, CmdResult};
 use tuirealm::tui::layout::Rect;
@@ -205,7 +206,9 @@ pub fn context(context: &Context, theme: &Theme, patch: (PatchId, Patch)) -> Wid
 
     let id = cob::format::cob(&id);
     let title = patch.title();
-    let author = cob::format_author(patch.author().id(), is_you);
+    let author = patch.author().id();
+    let alias = context.profile().aliases().alias(author);
+    let author = cob::format_author(author, &alias, is_you);
     let comments = rev.discussion().len();
 
     tui::ui::widget::context::bar(theme, "Patch", &id, title, &author, &comments.to_string())

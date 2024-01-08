@@ -95,7 +95,7 @@ pub fn default_dark() -> Theme {
             browser_list_id: Color::Cyan,
             browser_list_title: COLOR_DEFAULT_FG,
             browser_list_description: COLOR_DEFAULT_DARK,
-            browser_list_author: Color::Gray,
+            browser_list_author: Color::Magenta,
             browser_list_labels: Color::LightBlue,
             browser_list_comments: COLOR_DEFAULT_DARK_FG,
             browser_list_timestamp: COLOR_DEFAULT_DARK,

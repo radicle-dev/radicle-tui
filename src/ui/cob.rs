@@ -6,6 +6,8 @@ use tuirealm::props::{Color, Style};
 use tuirealm::tui::text::{Span, Spans};
 use tuirealm::tui::widgets::Cell;
 
+use radicle::node::{Alias, AliasStore};
+
 use radicle::prelude::Did;
 use radicle::storage::git::Repository;
 use radicle::storage::{Oid, ReadRepository};
@@ -26,6 +28,8 @@ use crate::ui::widget::list::{ListItem, TableItem};
 pub struct AuthorItem {
     /// The author's DID.
     did: Did,
+    /// The author's alias
+    alias: Option<Alias>,
     /// True if the author is the current user.
     is_you: bool,
 }
@@ -37,6 +41,10 @@ impl AuthorItem {
 
     pub fn is_you(&self) -> bool {
         self.is_you
+    }
+
+    pub fn alias(&self) -> Option<Alias> {
+        self.alias.clone()
     }
 }
 
@@ -114,13 +122,15 @@ impl TryFrom<(&Profile, &Repository, PatchId, Patch)> for PatchItem {
         let base = repo.commit(rev.base())?;
         let head = repo.commit(rev.head())?;
         let diff = repo.diff(base.id, head.id)?;
+        let author = patch.author().id;
 
         Ok(PatchItem {
             id,
             state: patch.state().clone(),
             title: patch.title().into(),
             author: AuthorItem {
-                did: patch.author().id,
+                did: author,
+                alias: profile.aliases().alias(&author),
                 is_you: *patch.author().id == *profile.did(),
             },
             head: rev.head(),
@@ -142,8 +152,12 @@ impl TableItem<8> for PatchItem {
         let title = Cell::from(self.title.clone())
             .style(Style::default().fg(theme.colors.browser_list_title));
 
-        let author = Cell::from(format_author(&self.author.did, self.author.is_you))
-            .style(Style::default().fg(theme.colors.browser_list_author));
+        let author = Cell::from(format_author(
+            &self.author.did,
+            &self.author.alias,
+            self.author.is_you,
+        ))
+        .style(Style::default().fg(theme.colors.browser_list_author));
 
         let head = Cell::from(format::oid(self.head))
             .style(Style::default().fg(theme.colors.browser_patch_list_head));
@@ -216,6 +230,7 @@ impl IssueItem {
 impl From<(&Profile, &Repository, IssueId, Issue)> for IssueItem {
     fn from(value: (&Profile, &Repository, IssueId, Issue)) -> Self {
         let (profile, _, id, issue) = value;
+        let author = issue.author().id;
 
         IssueItem {
             id,
@@ -223,6 +238,7 @@ impl From<(&Profile, &Repository, IssueId, Issue)> for IssueItem {
             title: issue.title().into(),
             author: AuthorItem {
                 did: issue.author().id,
+                alias: profile.aliases().alias(&author),
                 is_you: *issue.author().id == *profile.did(),
             },
             labels: issue.labels().cloned().collect(),
@@ -230,6 +246,7 @@ impl From<(&Profile, &Repository, IssueId, Issue)> for IssueItem {
                 .assignees()
                 .map(|did| AuthorItem {
                     did: *did,
+                    alias: profile.aliases().alias(did),
                     is_you: *did == profile.did(),
                 })
                 .collect::<Vec<_>>(),
@@ -249,8 +266,12 @@ impl TableItem<7> for IssueItem {
         let title = Cell::from(self.title.clone())
             .style(Style::default().fg(theme.colors.browser_list_title));
 
-        let author = Cell::from(format_author(&self.author.did, self.author.is_you))
-            .style(Style::default().fg(theme.colors.browser_list_author));
+        let author = Cell::from(format_author(
+            &self.author.did,
+            &self.author.alias,
+            self.author.is_you,
+        ))
+        .style(Style::default().fg(theme.colors.browser_list_author));
 
         let labels = Cell::from(format_labels(&self.labels))
             .style(Style::default().fg(theme.colors.browser_list_labels));
@@ -258,7 +279,7 @@ impl TableItem<7> for IssueItem {
         let assignees = self
             .assignees
             .iter()
-            .map(|author| (author.did, author.is_you))
+            .map(|author| (author.did, author.alias.clone(), author.is_you))
             .collect::<Vec<_>>();
         let assignees = Cell::from(format_assignees(&assignees))
             .style(Style::default().fg(theme.colors.browser_list_author));
@@ -284,7 +305,7 @@ impl ListItem for IssueItem {
             Spans::from(vec![
                 Span::raw(String::from("   ")),
                 Span::styled(
-                    format_author(&self.author.did, self.author.is_you),
+                    format_author(&self.author.did, &self.author.alias, self.author.is_you),
                     Style::default().fg(theme.colors.browser_list_author),
                 ),
                 Span::styled(
@@ -319,11 +340,16 @@ pub fn format_patch_state(state: &PatchState) -> (String, Color) {
     }
 }
 
-pub fn format_author(did: &Did, is_you: bool) -> String {
+pub fn format_author(did: &Did, alias: &Option<Alias>, is_you: bool) -> String {
+    let author = match alias {
+        Some(alias) => format!("{alias}"),
+        None => format::did(did),
+    };
+
     if is_you {
-        format!("{} (you)", format::did(did))
+        format!("{} (you)", author)
     } else {
-        format::did(did)
+        author
     }
 }
 
@@ -348,12 +374,12 @@ pub fn format_labels(labels: &[Label]) -> String {
     output
 }
 
-pub fn format_assignees(assignees: &[(Did, bool)]) -> String {
+pub fn format_assignees(assignees: &[(Did, Option<Alias>, bool)]) -> String {
     let mut output = String::new();
     let mut assignees = assignees.iter().peekable();
 
-    while let Some((assignee, is_you)) = assignees.next() {
-        output.push_str(&format_author(assignee, *is_you));
+    while let Some((assignee, alias, is_you)) = assignees.next() {
+        output.push_str(&format_author(assignee, alias, *is_you));
 
         if assignees.peek().is_some() {
             output.push(',');

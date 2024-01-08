@@ -1,3 +1,5 @@
+use radicle::node::AliasStore;
+
 use radicle::cob::thread::Comment;
 use radicle::cob::thread::CommentId;
 
@@ -164,7 +166,10 @@ impl IssueHeader {
         let repo = context.repository();
 
         let (id, issue) = issue;
-        let by_you = *issue.author().id() == context.profile().did();
+        let author = issue.author();
+        let author = author.id();
+        let alias = context.profile().aliases().alias(author);
+        let by_you = *author == context.profile().did();
         let item = IssueItem::from((context.profile(), repo, id, issue.clone()));
 
         let title = Property::new(
@@ -174,7 +179,7 @@ impl IssueHeader {
 
         let author = Property::new(
             tui::ui::label("Author").foreground(theme.colors.property_name_fg),
-            tui::ui::label(&cob::format_author(issue.author().id(), by_you))
+            tui::ui::label(&cob::format_author(issue.author().id(), &alias, by_you))
                 .foreground(theme.colors.browser_list_author),
         );
 
@@ -195,7 +200,7 @@ impl IssueHeader {
                 &item
                     .assignees()
                     .iter()
-                    .map(|item| (item.did(), item.is_you()))
+                    .map(|item| (item.did(), item.alias(), item.is_you()))
                     .collect::<Vec<_>>(),
             ))
             .foreground(theme.colors.browser_list_author),
