@@ -111,6 +111,7 @@ pub fn patches(
 
 pub fn browse_context(context: &Context, theme: &Theme, progress: Progress) -> Widget<ContextBar> {
     use radicle::cob::patch::State;
+    use tui::ui::{label, label_group};
 
     let mut draft = 0;
     let mut open = 0;
@@ -130,12 +131,68 @@ pub fn browse_context(context: &Context, theme: &Theme, progress: Progress) -> W
         }
     }
 
-    tui::ui::widget::context::bar(
-        theme,
-        "Patches",
-        "",
-        "",
-        &format!("Draft {draft} | Open {open} | Archived {archived} | Merged {merged}"),
-        &progress.to_string(),
-    )
+    let context = label(" Patches ")
+        .foreground(theme.colors.context_bg)
+        .background(theme.colors.context_badge_bg);
+
+    let divider = label(" | ")
+        .foreground(theme.colors.context_light)
+        .background(theme.colors.context_bg);
+
+    let draft_n = label(&format!("{draft}"))
+        .foreground(tuirealm::props::Color::Gray)
+        .background(theme.colors.context_bg);
+    let draft = label(" Draft")
+        .foreground(theme.colors.context_light)
+        .background(theme.colors.context_bg);
+
+    let open_n = label(&format!("{open}"))
+        .foreground(tuirealm::props::Color::Green)
+        .background(theme.colors.context_bg);
+    let open = label(" Open")
+        .foreground(theme.colors.context_light)
+        .background(theme.colors.context_bg);
+
+    let archived_n = label(&format!("{archived}"))
+        .foreground(tuirealm::props::Color::Yellow)
+        .background(theme.colors.context_bg);
+    let archived = label(" Archived")
+        .foreground(theme.colors.context_light)
+        .background(theme.colors.context_bg);
+
+    let merged_n = label(&format!("{merged}"))
+        .foreground(tuirealm::props::Color::Cyan)
+        .background(theme.colors.context_bg);
+    let merged = label(" Merged ")
+        .foreground(theme.colors.context_light)
+        .background(theme.colors.context_bg);
+
+    let progress = label(&format!(" {} ", progress.to_string()))
+        .foreground(theme.colors.context_bg)
+        .background(theme.colors.context_badge_bg);
+
+    let spacer = label("").background(theme.colors.context_bg);
+
+    let context_bar = ContextBar::new(
+        theme.clone(),
+        label_group(&[context]),
+        label_group(&[spacer.clone()]),
+        label_group(&[spacer]),
+        label_group(&[
+            draft_n,
+            draft,
+            divider.clone(),
+            open_n,
+            open,
+            divider.clone(),
+            archived_n,
+            archived,
+            divider,
+            merged_n,
+            merged,
+        ]),
+        label_group(&[progress]),
+    );
+
+    Widget::new(context_bar).height(1)
 }
