@@ -148,10 +148,10 @@ impl TableItem<8> for PatchItem {
         let head = Cell::from(format::oid(self.head))
             .style(Style::default().fg(theme.colors.browser_patch_list_head));
 
-        let added = Cell::from(format!("{}", self.added))
+        let added = Cell::from(format!("+{}", self.added))
             .style(Style::default().fg(theme.colors.browser_patch_list_added));
 
-        let removed = Cell::from(format!("{}", self.removed))
+        let removed = Cell::from(format!("-{}", self.removed))
             .style(Style::default().fg(theme.colors.browser_patch_list_removed));
 
         let updated = Cell::from(format::timestamp(&self.timestamp))
