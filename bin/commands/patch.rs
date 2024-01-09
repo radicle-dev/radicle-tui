@@ -20,7 +20,7 @@ pub const HELP: Help = Help {
     usage: r#"
 Usage
 
-    rad-tui patch
+    rad-tui patch select
 
 General options
 
