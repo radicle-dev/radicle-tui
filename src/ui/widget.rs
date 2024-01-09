@@ -8,7 +8,7 @@ mod utils;
 use std::ops::Deref;
 
 use tuirealm::command::{Cmd, CmdResult};
-use tuirealm::props::{AttrValue, Attribute, Color, Layout, Props};
+use tuirealm::props::{AttrValue, Attribute, Color, Layout, Props, TextModifiers};
 use tuirealm::tui::layout::Rect;
 use tuirealm::{Frame, MockComponent, State};
 
@@ -46,6 +46,18 @@ impl<T: WidgetComponent> Widget<T> {
 
     pub fn foreground(mut self, fg: Color) -> Self {
         self.attr(Attribute::Foreground, AttrValue::Color(fg));
+        self
+    }
+
+    pub fn dim(mut self) -> Self {
+        let props = self
+            .query(Attribute::TextProps)
+            .unwrap_or(AttrValue::TextModifiers(TextModifiers::empty()));
+
+        self.attr(
+            Attribute::TextProps,
+            AttrValue::TextModifiers(props.unwrap_text_modifiers() | TextModifiers::DIM),
+        );
         self
     }
 

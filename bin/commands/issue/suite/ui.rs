@@ -177,10 +177,16 @@ impl IssueHeader {
             tui::ui::label(item.title()).foreground(theme.colors.browser_list_title),
         );
 
+        let author = match alias {
+            Some(_) => tui::ui::label(&cob::format_author(issue.author().id(), &alias, by_you))
+                .foreground(theme.colors.browser_list_author),
+            None => tui::ui::label(&cob::format_author(issue.author().id(), &alias, by_you))
+                .foreground(theme.colors.browser_list_author)
+                .dim(),
+        };
         let author = Property::new(
             tui::ui::label("Author").foreground(theme.colors.property_name_fg),
-            tui::ui::label(&cob::format_author(issue.author().id(), &alias, by_you))
-                .foreground(theme.colors.browser_list_author),
+            author,
         );
 
         let issue_id = Property::new(

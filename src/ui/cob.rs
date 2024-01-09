@@ -2,7 +2,7 @@ pub mod format;
 
 use radicle_surf;
 
-use tuirealm::props::{Color, Style};
+use tuirealm::props::{Color, Style, TextModifiers};
 use tuirealm::tui::text::{Span, Spans};
 use tuirealm::tui::widgets::Cell;
 
@@ -152,12 +152,18 @@ impl TableItem<8> for PatchItem {
         let title = Cell::from(self.title.clone())
             .style(Style::default().fg(theme.colors.browser_list_title));
 
+        let author_style = match &self.author.alias {
+            Some(_) => Style::default().fg(theme.colors.browser_list_author),
+            None => Style::default()
+                .fg(theme.colors.browser_list_author)
+                .add_modifier(TextModifiers::DIM),
+        };
         let author = Cell::from(format_author(
             &self.author.did,
             &self.author.alias,
             self.author.is_you,
         ))
-        .style(Style::default().fg(theme.colors.browser_list_author));
+        .style(author_style);
 
         let head = Cell::from(format::oid(self.head))
             .style(Style::default().fg(theme.colors.browser_patch_list_head));
@@ -266,12 +272,18 @@ impl TableItem<7> for IssueItem {
         let title = Cell::from(self.title.clone())
             .style(Style::default().fg(theme.colors.browser_list_title));
 
+        let author_style = match &self.author.alias {
+            Some(_) => Style::default().fg(theme.colors.browser_list_author),
+            None => Style::default()
+                .fg(theme.colors.browser_list_author)
+                .add_modifier(TextModifiers::DIM),
+        };
         let author = Cell::from(format_author(
             &self.author.did,
             &self.author.alias,
             self.author.is_you,
         ))
-        .style(Style::default().fg(theme.colors.browser_list_author));
+        .style(author_style);
 
         let labels = Cell::from(format_labels(&self.labels))
             .style(Style::default().fg(theme.colors.browser_list_labels));
@@ -294,6 +306,12 @@ impl TableItem<7> for IssueItem {
 impl ListItem for IssueItem {
     fn row(&self, theme: &Theme) -> tuirealm::tui::widgets::ListItem {
         let (state, state_color) = format_issue_state(&self.state);
+        let author_style = match &self.author.alias {
+            Some(_) => Style::default().fg(theme.colors.browser_list_author),
+            None => Style::default()
+                .fg(theme.colors.browser_list_author)
+                .add_modifier(TextModifiers::DIM),
+        };
         let lines = vec![
             Spans::from(vec![
                 Span::styled(state, Style::default().fg(state_color)),
@@ -306,7 +324,7 @@ impl ListItem for IssueItem {
                 Span::raw(String::from("   ")),
                 Span::styled(
                     format_author(&self.author.did, &self.author.alias, self.author.is_you),
-                    Style::default().fg(theme.colors.browser_list_author),
+                    author_style,
                 ),
                 Span::styled(
                     format!(" {} ", theme.icons.property_divider),
