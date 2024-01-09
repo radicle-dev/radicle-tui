@@ -1,5 +1,5 @@
-#[path = "patch/list.rs"]
-mod list;
+#[path = "patch/select.rs"]
+mod select;
 #[path = "patch/suite.rs"]
 mod suite;
 
@@ -33,12 +33,12 @@ pub struct Options {
 }
 
 pub enum Operation {
-    List,
+    Select,
 }
 
 #[derive(PartialEq, Eq)]
 pub enum OperationName {
-    List,
+    Select,
 }
 
 impl Args for Options {
@@ -55,7 +55,7 @@ impl Args for Options {
                     return Err(Error::Help.into());
                 }
                 Value(val) if op.is_none() => match val.to_string_lossy().as_ref() {
-                    "list" => op = Some(OperationName::List),
+                    "select" => op = Some(OperationName::Select),
                     unknown => anyhow::bail!("unknown operation '{}'", unknown),
                 },
                 _ => return Err(anyhow!(arg.unexpected())),
@@ -63,7 +63,7 @@ impl Args for Options {
         }
 
         let op = match op.ok_or_else(|| anyhow!("an operation must be provided"))? {
-            OperationName::List => Operation::List,
+            OperationName::Select => Operation::Select,
         };
         Ok((Options { op }, vec![]))
     }
@@ -74,13 +74,13 @@ pub fn run(options: Options, _ctx: impl terminal::Context) -> anyhow::Result<()>
         .map_err(|_| anyhow!("this command must be run in the context of a project"))?;
 
     match options.op {
-        Operation::List => {
+        Operation::Select => {
             let context = context::Context::new(id)?.with_patches();
 
-            log::enable(context.profile(), "patch", "list")?;
+            log::enable(context.profile(), "patch", "select")?;
 
             let patch_id = Window::default()
-                .run(&mut list::App::new(context), 1000 / FPS)?
+                .run(&mut select::App::new(context), 1000 / FPS)?
                 .unwrap_or_default();
 
             eprint!("{patch_id}");
