@@ -19,10 +19,10 @@ use widget::list::{ColumnWidth, Property, PropertyList, PropertyTable};
 
 use widget::Widget;
 
+use self::theme::{style, Theme};
 use self::widget::label::LabelGroup;
 
 use super::context::Context;
-use crate::ui::theme::Theme;
 
 pub fn global_listener() -> Widget<GlobalListener> {
     Widget::new(GlobalListener::default())
@@ -75,7 +75,7 @@ pub fn labeled_container(
 ) -> Widget<LabeledContainer> {
     let header = container_header(
         theme,
-        label(&format!(" {title} ")).foreground(theme.colors.default_fg),
+        label(&format!(" {title} ")).foreground(style::reset().fg.unwrap()),
     );
     let container = LabeledContainer::new(header, component, theme.clone());
 
@@ -107,9 +107,9 @@ pub fn shortcuts(theme: &Theme, shortcuts: Vec<Widget<Shortcut>>) -> Widget<Shor
 }
 
 pub fn property(theme: &Theme, name: &str, value: &str) -> Widget<Property> {
-    let name = label(name).foreground(theme.colors.property_name_fg);
+    let name = label(name).foreground(style::cyan().fg.unwrap());
     let divider = label(&format!(" {} ", theme.icons.property_divider));
-    let value = label(value).foreground(theme.colors.default_fg);
+    let value = label(value).foreground(style::reset().fg.unwrap());
 
     // TODO: Remove when size constraints are implemented
     let name_w = name.query(Attribute::Width).unwrap().unwrap_size();
@@ -141,8 +141,8 @@ pub fn tabs(_theme: &Theme, tabs: Vec<Widget<Label>>) -> Widget<Tabs> {
 }
 
 pub fn app_info(context: &Context, theme: &Theme) -> Widget<AppInfo> {
-    let project = label(context.project().name()).foreground(theme.colors.app_header_project_fg);
-    let rid = label(&format!(" ({})", context.id())).foreground(theme.colors.app_header_rid_fg);
+    let project = label(context.project().name()).foreground(style::cyan().fg.unwrap());
+    let rid = label(&format!(" ({})", context.id())).foreground(style::yellow().fg.unwrap());
 
     let project_w = project
         .query(Attribute::Width)
@@ -163,7 +163,7 @@ pub fn app_header(
     nav: Option<Widget<Tabs>>,
 ) -> Widget<AppHeader> {
     let line =
-        label(&theme.icons.tab_overline.to_string()).foreground(theme.colors.tabs_highlighted_fg);
+        label(&theme.icons.tab_overline.to_string()).foreground(style::magenta().fg.unwrap());
     let line = Widget::new(VerticalLine::new(line));
     let info = app_info(context, theme);
     let header = AppHeader::new(nav, info, line);

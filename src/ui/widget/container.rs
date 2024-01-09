@@ -7,7 +7,7 @@ use tuirealm::{Frame, MockComponent, State, StateValue};
 use crate::ui::ext::HeaderBlock;
 use crate::ui::layout;
 use crate::ui::state::TabState;
-use crate::ui::theme::Theme;
+use crate::ui::theme::{style, Theme};
 use crate::ui::widget::{utils, Widget, WidgetComponent};
 
 use super::label::Label;
@@ -279,9 +279,9 @@ impl<const W: usize> WidgetComponent for Header<W> {
             .unwrap_flag();
 
         let color = if focus {
-            self.theme.colors.container_border_focus_fg
+            style::gray().fg.unwrap()
         } else {
-            self.theme.colors.container_border_fg
+            style::darkgray().fg.unwrap()
         };
 
         if display {
@@ -304,7 +304,7 @@ impl<const W: usize> WidgetComponent for Header<W> {
                 .iter()
                 .map(|label| {
                     let cell: Cell = label.into();
-                    cell.style(Style::default().fg(self.theme.colors.default_fg))
+                    cell.style(style::reset())
                 })
                 .collect::<Vec<_>>()
                 .try_into()
@@ -349,9 +349,9 @@ impl WidgetComponent for Container {
             .unwrap_flag();
 
         let color = if focus {
-            self.theme.colors.container_border_focus_fg
+            style::gray().fg.unwrap()
         } else {
-            self.theme.colors.container_border_fg
+            style::darkgray().fg.unwrap()
         };
 
         if display {
@@ -410,9 +410,9 @@ impl WidgetComponent for LabeledContainer {
             .unwrap_flag();
 
         let color = if focus {
-            self.theme.colors.container_border_focus_fg
+            style::gray().fg.unwrap()
         } else {
-            self.theme.colors.container_border_fg
+            style::darkgray().fg.unwrap()
         };
 
         let header_height = self

@@ -5,7 +5,7 @@ use tuirealm::tui::text::{Span, Spans, Text};
 use tuirealm::{Frame, MockComponent, State, StateValue};
 
 use crate::ui::layout;
-use crate::ui::theme::Theme;
+use crate::ui::theme::{Theme, style};
 use crate::ui::widget::{Widget, WidgetComponent};
 
 /// A label that can be styled using a foreground color and text modifiers.
@@ -190,9 +190,9 @@ impl WidgetComponent for Textarea {
             .split(area);
 
         let highlight_color = if focus {
-            self.theme.colors.container_border_focus_fg
+            style::gray().fg.unwrap()
         } else {
-            self.theme.colors.container_border_fg
+            style::darkgray().fg.unwrap()
         };
 
         // TODO: replace with `ratatui`'s reflow module when that becomes

@@ -6,7 +6,7 @@ use tuirealm::{Frame, MockComponent, State, StateValue};
 
 use crate::ui::layout;
 use crate::ui::state::ItemState;
-use crate::ui::theme::Theme;
+use crate::ui::theme::{Theme, style};
 use crate::ui::widget::{utils, Widget, WidgetComponent};
 
 use super::container::Header;
@@ -235,9 +235,9 @@ where
             .unwrap_flag();
 
         let color = if focus {
-            self.theme.colors.container_border_focus_fg
+            style::gray().fg.unwrap()
         } else {
-            self.theme.colors.container_border_fg
+            style::darkgray().fg.unwrap()
         };
 
         let layout = Layout::default()

@@ -11,7 +11,7 @@ use tui::context::Context;
 use tui::ui::cob;
 use tui::ui::cob::PatchItem;
 use tui::ui::layout;
-use tui::ui::theme::Theme;
+use tui::ui::theme::{style, Theme};
 use tui::ui::widget::{Widget, WidgetComponent};
 
 use tui::ui::widget::container::Tabs;
@@ -163,7 +163,7 @@ impl WidgetComponent for Files {
 pub fn list_navigation(theme: &Theme) -> Widget<Tabs> {
     tui::ui::tabs(
         theme,
-        vec![tui::ui::reversable_label("Patches").foreground(theme.colors.tabs_highlighted_fg)],
+        vec![tui::ui::reversable_label("Patches").foreground(style::magenta().fg.unwrap())],
     )
 }
 
@@ -171,8 +171,8 @@ pub fn navigation(theme: &Theme) -> Widget<Tabs> {
     tui::ui::tabs(
         theme,
         vec![
-            tui::ui::reversable_label("Activity").foreground(theme.colors.tabs_highlighted_fg),
-            tui::ui::reversable_label("Files").foreground(theme.colors.tabs_highlighted_fg),
+            tui::ui::reversable_label("Activity").foreground(style::magenta().fg.unwrap()),
+            tui::ui::reversable_label("Files").foreground(style::magenta().fg.unwrap()),
         ],
     )
 }
@@ -186,14 +186,14 @@ pub fn patches(
 }
 
 pub fn activity(theme: &Theme) -> Widget<Activity> {
-    let not_implemented = tui::ui::label("not implemented").foreground(theme.colors.default_fg);
+    let not_implemented = tui::ui::label("not implemented").foreground(style::reset().fg.unwrap());
     let activity = Activity::new(not_implemented);
 
     Widget::new(activity)
 }
 
 pub fn files(theme: &Theme) -> Widget<Files> {
-    let not_implemented = tui::ui::label("not implemented").foreground(theme.colors.default_fg);
+    let not_implemented = tui::ui::label("not implemented").foreground(style::reset().fg.unwrap());
     let files = Files::new(not_implemented);
 
     Widget::new(files)
