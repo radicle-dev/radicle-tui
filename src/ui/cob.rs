@@ -2,7 +2,7 @@ pub mod format;
 
 use radicle_surf;
 
-use tuirealm::props::{Color, Style, TextModifiers};
+use tuirealm::props::{Color, Style};
 use tuirealm::tui::text::{Span, Spans};
 use tuirealm::tui::widgets::Cell;
 
@@ -19,6 +19,8 @@ use radicle::cob::{Label, Timestamp};
 
 use crate::ui::theme::Theme;
 use crate::ui::widget::list::{ListItem, TableItem};
+
+use super::theme::style;
 
 /// An author item that can be used in tables, list or trees.
 ///
@@ -142,21 +144,16 @@ impl TryFrom<(&Profile, &Repository, PatchId, Patch)> for PatchItem {
 }
 
 impl TableItem<8> for PatchItem {
-    fn row(&self, theme: &Theme) -> [Cell; 8] {
+    fn row(&self, _theme: &Theme) -> [Cell; 8] {
         let (icon, color) = format_patch_state(&self.state);
+
         let state = Cell::from(icon).style(Style::default().fg(color));
-
-        let id = Cell::from(format::cob(&self.id))
-            .style(Style::default().fg(theme.colors.browser_list_id));
-
-        let title = Cell::from(self.title.clone())
-            .style(Style::default().fg(theme.colors.browser_list_title));
+        let id = Cell::from(format::cob(&self.id)).style(style::cyan());
+        let title = Cell::from(self.title.clone()).style(style::reset());
 
         let author_style = match &self.author.alias {
-            Some(_) => Style::default().fg(theme.colors.browser_list_author),
-            None => Style::default()
-                .fg(theme.colors.browser_list_author)
-                .add_modifier(TextModifiers::DIM),
+            Some(_) => style::magenta(),
+            None => style::magenta_dim(),
         };
         let author = Cell::from(format_author(
             &self.author.did,
@@ -165,17 +162,10 @@ impl TableItem<8> for PatchItem {
         ))
         .style(author_style);
 
-        let head = Cell::from(format::oid(self.head))
-            .style(Style::default().fg(theme.colors.browser_patch_list_head));
-
-        let added = Cell::from(format!("+{}", self.added))
-            .style(Style::default().fg(theme.colors.browser_patch_list_added));
-
-        let removed = Cell::from(format!("-{}", self.removed))
-            .style(Style::default().fg(theme.colors.browser_patch_list_removed));
-
-        let updated = Cell::from(format::timestamp(&self.timestamp))
-            .style(Style::default().fg(theme.colors.browser_list_timestamp));
+        let head = Cell::from(format::oid(self.head)).style(style::lightblue());
+        let added = Cell::from(format!("+{}", self.added)).style(style::green());
+        let removed = Cell::from(format!("-{}", self.removed)).style(style::red());
+        let updated = Cell::from(format::timestamp(&self.timestamp)).style(style::gray());
 
         [state, id, title, author, head, added, removed, updated]
     }
@@ -262,21 +252,16 @@ impl From<(&Profile, &Repository, IssueId, Issue)> for IssueItem {
 }
 
 impl TableItem<7> for IssueItem {
-    fn row(&self, theme: &Theme) -> [Cell; 7] {
+    fn row(&self, _theme: &Theme) -> [Cell; 7] {
         let (icon, color) = format_issue_state(&self.state);
+
         let state = Cell::from(icon).style(Style::default().fg(color));
-
-        let id = Cell::from(format::cob(&self.id))
-            .style(Style::default().fg(theme.colors.browser_list_id));
-
-        let title = Cell::from(self.title.clone())
-            .style(Style::default().fg(theme.colors.browser_list_title));
+        let id = Cell::from(format::cob(&self.id)).style(style::cyan());
+        let title = Cell::from(self.title.clone()).style(style::reset());
 
         let author_style = match &self.author.alias {
-            Some(_) => Style::default().fg(theme.colors.browser_list_author),
-            None => Style::default()
-                .fg(theme.colors.browser_list_author)
-                .add_modifier(TextModifiers::DIM),
+            Some(_) => style::magenta(),
+            None => style::magenta_dim(),
         };
         let author = Cell::from(format_author(
             &self.author.did,
@@ -285,19 +270,15 @@ impl TableItem<7> for IssueItem {
         ))
         .style(author_style);
 
-        let labels = Cell::from(format_labels(&self.labels))
-            .style(Style::default().fg(theme.colors.browser_list_labels));
-
+        let labels = Cell::from(format_labels(&self.labels)).style(style::lightblue());
         let assignees = self
             .assignees
             .iter()
             .map(|author| (author.did, author.alias.clone(), author.is_you))
             .collect::<Vec<_>>();
-        let assignees = Cell::from(format_assignees(&assignees))
-            .style(Style::default().fg(theme.colors.browser_list_author));
 
-        let opened = Cell::from(format::timestamp(&self.timestamp))
-            .style(Style::default().fg(theme.colors.browser_list_timestamp));
+        let assignees = Cell::from(format_assignees(&assignees)).style(author_style);
+        let opened = Cell::from(format::timestamp(&self.timestamp)).style(style::gray());
 
         [state, id, title, author, labels, assignees, opened]
     }
@@ -307,18 +288,14 @@ impl ListItem for IssueItem {
     fn row(&self, theme: &Theme) -> tuirealm::tui::widgets::ListItem {
         let (state, state_color) = format_issue_state(&self.state);
         let author_style = match &self.author.alias {
-            Some(_) => Style::default().fg(theme.colors.browser_list_author),
-            None => Style::default()
-                .fg(theme.colors.browser_list_author)
-                .add_modifier(TextModifiers::DIM),
+            Some(_) => style::magenta(),
+            None => style::magenta_dim(),
         };
+
         let lines = vec![
             Spans::from(vec![
                 Span::styled(state, Style::default().fg(state_color)),
-                Span::styled(
-                    self.title.clone(),
-                    Style::default().fg(theme.colors.browser_list_title),
-                ),
+                Span::styled(self.title.clone(), style::reset()),
             ]),
             Spans::from(vec![
                 Span::raw(String::from("   ")),
@@ -326,14 +303,8 @@ impl ListItem for IssueItem {
                     format_author(&self.author.did, &self.author.alias, self.author.is_you),
                     author_style,
                 ),
-                Span::styled(
-                    format!(" {} ", theme.icons.property_divider),
-                    Style::default().fg(theme.colors.property_divider_fg),
-                ),
-                Span::styled(
-                    format::timestamp(&self.timestamp),
-                    Style::default().fg(theme.colors.browser_list_timestamp),
-                ),
+                Span::styled(format!(" {} ", theme.icons.property_divider), style::gray()),
+                Span::styled(format::timestamp(&self.timestamp), style::gray()),
             ]),
         ];
         tuirealm::tui::widgets::ListItem::new(lines)

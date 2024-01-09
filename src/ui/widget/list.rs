@@ -1,12 +1,12 @@
 use tuirealm::command::{Cmd, CmdResult};
-use tuirealm::props::{AttrValue, Attribute, BorderSides, BorderType, Color, Props, Style};
+use tuirealm::props::{AttrValue, Attribute, BorderSides, Color, Props, Style};
 use tuirealm::tui::layout::{Constraint, Direction, Layout, Rect};
 use tuirealm::tui::widgets::{Block, Cell, ListState, Row, TableState};
 use tuirealm::{Frame, MockComponent, State, StateValue};
 
 use crate::ui::layout;
 use crate::ui::state::ItemState;
-use crate::ui::theme::Theme;
+use crate::ui::theme::{style, Theme};
 use crate::ui::widget::{utils, Widget, WidgetComponent};
 
 use super::container::Header;
@@ -234,12 +234,6 @@ where
             .get_or(Attribute::Focus, AttrValue::Flag(false))
             .unwrap_flag();
 
-        let color = if focus {
-            self.theme.colors.container_border_focus_fg
-        } else {
-            self.theme.colors.container_border_fg
-        };
-
         let layout = Layout::default()
             .direction(Direction::Vertical)
             .constraints(vec![Constraint::Length(3), Constraint::Min(1)])
@@ -256,8 +250,8 @@ where
             .block(
                 Block::default()
                     .borders(BorderSides::BOTTOM | BorderSides::LEFT | BorderSides::RIGHT)
-                    .border_style(Style::default().fg(color))
-                    .border_type(BorderType::Rounded),
+                    .border_style(style::border(focus))
+                    .border_type(self.theme.border_type),
             )
             .highlight_style(Style::default().bg(highlight))
             .column_spacing(self.theme.tables.spacing)

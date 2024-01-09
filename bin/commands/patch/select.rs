@@ -19,7 +19,7 @@ use radicle_tui as tui;
 
 use tui::context::Context;
 use tui::ui::subscription;
-use tui::ui::theme::{self, Theme};
+use tui::ui::theme::Theme;
 use tui::{Exit, PageStack, Tui};
 
 use page::ListView;
@@ -74,7 +74,7 @@ impl App {
         Self {
             context,
             pages: PageStack::default(),
-            theme: theme::default_dark(),
+            theme: Theme::default(),
             quit: false,
             patch_id: None,
         }
@@ -96,7 +96,7 @@ impl App {
         app: &mut Application<Cid, Message, NoUserEvent>,
         message: Message,
     ) -> Result<Option<Message>> {
-        let theme = theme::default_dark();
+        let theme = Theme::default();
         match message {
             Message::Batch(messages) => {
                 let mut results = vec![];

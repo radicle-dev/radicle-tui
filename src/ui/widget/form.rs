@@ -6,7 +6,7 @@ use tuirealm::tui::layout::{Constraint, Direction, Margin, Rect};
 use tuirealm::{AttrValue, Attribute, Frame, MockComponent, Props, State, StateValue};
 
 use crate::ui::state::FormState;
-use crate::ui::theme::Theme;
+use crate::ui::theme::{style, Theme};
 use crate::ui::widget::{Widget, WidgetComponent};
 
 use super::container::Container;
@@ -24,12 +24,12 @@ impl TextField {
             .wrap(false)
             .single_line(true)
             .cursor_line_style(Style::reset())
-            .style(Style::default().fg(theme.colors.default_fg));
+            .style(style::reset());
         let container = crate::ui::container(&theme, Box::new(input));
 
         Self {
             input: container,
-            placeholder: crate::ui::label(title).foreground(theme.colors.input_placeholder_fg),
+            placeholder: crate::ui::label(title).foreground(style::gray_dim().fg.unwrap()),
             show_placeholder: true,
         }
     }
@@ -98,12 +98,12 @@ impl TextArea {
             .wrap(true)
             .single_line(false)
             .cursor_line_style(Style::reset())
-            .style(Style::default().fg(theme.colors.default_fg));
+            .style(style::reset());
         let container = crate::ui::container(&theme, Box::new(input));
 
         Self {
             input: container,
-            placeholder: crate::ui::label(title).foreground(theme.colors.input_placeholder_fg),
+            placeholder: crate::ui::label(title).foreground(style::gray_dim().fg.unwrap()),
             show_placeholder: true,
         }
     }

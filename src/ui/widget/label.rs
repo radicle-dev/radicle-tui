@@ -5,7 +5,7 @@ use tuirealm::tui::text::{Span, Spans, Text};
 use tuirealm::{Frame, MockComponent, State, StateValue};
 
 use crate::ui::layout;
-use crate::ui::theme::Theme;
+use crate::ui::theme::style;
 use crate::ui::widget::{Widget, WidgetComponent};
 
 /// A label that can be styled using a foreground color and text modifiers.
@@ -123,9 +123,8 @@ impl WidgetComponent for LabelGroup {
     }
 }
 
+#[derive(Default)]
 pub struct Textarea {
-    /// The current theme.
-    theme: Theme,
     /// The scroll offset.
     offset: usize,
     /// The current line count.
@@ -138,16 +137,6 @@ pub struct Textarea {
 
 impl Textarea {
     pub const PROP_DISPLAY_PROGRESS: &'static str = "display-progress";
-
-    pub fn new(theme: Theme) -> Self {
-        Self {
-            theme,
-            offset: 0,
-            len: 0,
-            height: 0,
-            scroll_percent: 0,
-        }
-    }
 
     fn scroll_percent(offset: usize, len: usize, height: usize) -> usize {
         if height >= len {
@@ -170,9 +159,6 @@ impl WidgetComponent for Textarea {
         let focus = properties
             .get_or(Attribute::Focus, AttrValue::Flag(false))
             .unwrap_flag();
-        let fg = properties
-            .get_or(Attribute::Foreground, AttrValue::Color(Color::Reset))
-            .unwrap_color();
         let display_progress = properties
             .get_or(
                 Attribute::Custom(Self::PROP_DISPLAY_PROGRESS),
@@ -188,12 +174,6 @@ impl WidgetComponent for Textarea {
             .direction(Direction::Vertical)
             .constraints([Constraint::Min(1), Constraint::Length(1)])
             .split(area);
-
-        let highlight_color = if focus {
-            self.theme.colors.container_border_focus_fg
-        } else {
-            self.theme.colors.container_border_fg
-        };
 
         // TODO: replace with `ratatui`'s reflow module when that becomes
         // public: https://github.com/tui-rs-revival/ratatui/pull/9.
@@ -212,7 +192,7 @@ impl WidgetComponent for Textarea {
 
         let paragraph = Paragraph::new(body)
             .scroll((self.offset as u16, 0))
-            .style(Style::default().fg(fg));
+            .style(style::reset());
         frame.render_widget(paragraph, layout[0]);
 
         self.scroll_percent = Self::scroll_percent(self.offset, self.len, self.height);
@@ -220,7 +200,7 @@ impl WidgetComponent for Textarea {
         if display_progress {
             let progress = Spans::from(vec![Span::styled(
                 format!("{} %", self.scroll_percent),
-                Style::default().fg(highlight_color),
+                style::border(focus),
             )]);
 
             let progress = Paragraph::new(progress).alignment(Alignment::Right);

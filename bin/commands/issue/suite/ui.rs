@@ -6,6 +6,7 @@ use radicle::cob::thread::CommentId;
 use radicle::cob::issue::Issue;
 use radicle::cob::issue::IssueId;
 
+use tui::ui::theme::style;
 use tuirealm::command::{Cmd, CmdResult};
 use tuirealm::tui::layout::{Constraint, Direction, Layout, Rect};
 use tuirealm::{AttrValue, Attribute, Frame, MockComponent, Props, State};
@@ -72,7 +73,7 @@ impl IssueBrowser {
         };
 
         let table = Widget::new(Table::new(&items, selected, header, widths, theme.clone()))
-            .highlight(theme.colors.item_list_highlighted_bg);
+            .highlight(style::highlight().fg.unwrap());
 
         Self { items, table }
     }
@@ -123,7 +124,7 @@ impl LargeList {
             selected.map(|(id, issue)| IssueItem::from((context.profile(), repo, id, issue)));
 
         let list = Widget::new(List::new(&items, selected, theme.clone()))
-            .highlight(theme.colors.item_list_highlighted_bg);
+            .highlight(style::highlight().fg.unwrap());
 
         let container = tui::ui::container(theme, list.to_boxed());
 
@@ -173,35 +174,35 @@ impl IssueHeader {
         let item = IssueItem::from((context.profile(), repo, id, issue.clone()));
 
         let title = Property::new(
-            tui::ui::label("Title").foreground(theme.colors.property_name_fg),
-            tui::ui::label(item.title()).foreground(theme.colors.browser_list_title),
+            tui::ui::label("Title").foreground(style::cyan().fg.unwrap()),
+            tui::ui::label(item.title()).foreground(style::reset().fg.unwrap()),
         );
 
-        let author = match alias {
-            Some(_) => tui::ui::label(&cob::format_author(issue.author().id(), &alias, by_you))
-                .foreground(theme.colors.browser_list_author),
-            None => tui::ui::label(&cob::format_author(issue.author().id(), &alias, by_you))
-                .foreground(theme.colors.browser_list_author)
-                .dim(),
+        let author_style = match alias {
+            Some(_) => style::magenta(),
+            None => style::magenta_dim(),
         };
+
+        let author = tui::ui::label(&cob::format_author(issue.author().id(), &alias, by_you))
+            .foreground(author_style.fg.unwrap());
         let author = Property::new(
-            tui::ui::label("Author").foreground(theme.colors.property_name_fg),
+            tui::ui::label("Author").foreground(style::cyan().fg.unwrap()),
             author,
         );
 
         let issue_id = Property::new(
-            tui::ui::label("Issue").foreground(theme.colors.property_name_fg),
-            tui::ui::label(&id.to_string()).foreground(theme.colors.browser_list_description),
+            tui::ui::label("Issue").foreground(style::cyan().fg.unwrap()),
+            tui::ui::label(&id.to_string()).foreground(style::gray().fg.unwrap()),
         );
 
         let labels = Property::new(
-            tui::ui::label("Labels").foreground(theme.colors.property_name_fg),
+            tui::ui::label("Labels").foreground(style::cyan().fg.unwrap()),
             tui::ui::label(&cob::format_labels(item.labels()))
-                .foreground(theme.colors.browser_list_labels),
+                .foreground(style::lightblue().fg.unwrap()),
         );
 
         let assignees = Property::new(
-            tui::ui::label("Assignees").foreground(theme.colors.property_name_fg),
+            tui::ui::label("Assignees").foreground(style::cyan().fg.unwrap()),
             tui::ui::label(&cob::format_assignees(
                 &item
                     .assignees()
@@ -209,12 +210,12 @@ impl IssueHeader {
                     .map(|item| (item.did(), item.alias(), item.is_you()))
                     .collect::<Vec<_>>(),
             ))
-            .foreground(theme.colors.browser_list_author),
+            .foreground(author_style.fg.unwrap()),
         );
 
         let state = Property::new(
-            tui::ui::label("Status").foreground(theme.colors.property_name_fg),
-            tui::ui::label(&item.state().to_string()).foreground(theme.colors.browser_list_title),
+            tui::ui::label("Status").foreground(style::cyan().fg.unwrap()),
+            tui::ui::label(&item.state().to_string()).foreground(style::reset().fg.unwrap()),
         );
 
         let table = tui::ui::property_table(
@@ -303,9 +304,9 @@ impl CommentBody {
             Some((_, comment)) => comment.body().to_string(),
             None => String::new(),
         };
-        let textarea = Widget::new(Textarea::new(theme.clone()))
+        let textarea = Widget::new(Textarea::default())
             .content(AttrValue::String(content))
-            .foreground(theme.colors.default_fg);
+            .foreground(style::reset().fg.unwrap());
 
         let textarea = tui::ui::container(theme, textarea.to_boxed());
 
@@ -335,7 +336,7 @@ impl WidgetComponent for CommentBody {
 pub fn list_navigation(theme: &Theme) -> Widget<Tabs> {
     tui::ui::tabs(
         theme,
-        vec![tui::ui::reversable_label("Issues").foreground(theme.colors.tabs_highlighted_fg)],
+        vec![tui::ui::reversable_label("Issues").foreground(style::magenta().fg.unwrap())],
     )
 }
 

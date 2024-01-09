@@ -8,7 +8,7 @@ use radicle_tui as tui;
 
 use tui::context::Context;
 use tui::ui::cob::PatchItem;
-use tui::ui::theme::Theme;
+use tui::ui::theme::{style, Theme};
 use tui::ui::widget::{Widget, WidgetComponent};
 
 use tui::ui::widget::container::Tabs;
@@ -23,14 +23,14 @@ pub struct PatchBrowser {
 impl PatchBrowser {
     pub fn new(context: &Context, theme: &Theme, selected: Option<(PatchId, Patch)>) -> Self {
         let header = [
-            tui::ui::label(" ● "),
-            tui::ui::label("ID"),
-            tui::ui::label("Title"),
-            tui::ui::label("Author"),
-            tui::ui::label("Head"),
-            tui::ui::label("+"),
-            tui::ui::label("-"),
-            tui::ui::label("Updated"),
+            tui::ui::label(" ● ").foreground(style::reset_dim().fg.unwrap()),
+            tui::ui::label("ID").foreground(style::reset_dim().fg.unwrap()),
+            tui::ui::label("Title").foreground(style::reset_dim().fg.unwrap()),
+            tui::ui::label("Author").foreground(style::reset_dim().fg.unwrap()),
+            tui::ui::label("Head").foreground(style::reset_dim().fg.unwrap()),
+            tui::ui::label("+").foreground(style::reset_dim().fg.unwrap()),
+            tui::ui::label("-").foreground(style::reset_dim().fg.unwrap()),
+            tui::ui::label("Updated").foreground(style::reset_dim().fg.unwrap()),
         ];
 
         let widths = [
@@ -65,7 +65,7 @@ impl PatchBrowser {
         };
 
         let table = Widget::new(Table::new(&items, selected, header, widths, theme.clone()))
-            .highlight(theme.colors.item_list_highlighted_bg);
+            .highlight(style::highlight().fg.unwrap());
 
         Self { items, table }
     }
@@ -97,7 +97,7 @@ impl WidgetComponent for PatchBrowser {
 pub fn list_navigation(theme: &Theme) -> Widget<Tabs> {
     tui::ui::tabs(
         theme,
-        vec![tui::ui::reversable_label("Patches").foreground(theme.colors.tabs_highlighted_fg)],
+        vec![tui::ui::reversable_label("Patches").foreground(style::cyan().fg.unwrap())],
     )
 }
 
@@ -109,7 +109,7 @@ pub fn patches(
     Widget::new(PatchBrowser::new(context, theme, selected))
 }
 
-pub fn browse_context(context: &Context, theme: &Theme, progress: Progress) -> Widget<ContextBar> {
+pub fn browse_context(context: &Context, _theme: &Theme, progress: Progress) -> Widget<ContextBar> {
     use radicle::cob::patch::State;
     use tui::ui::{label, label_group};
 
@@ -132,49 +132,48 @@ pub fn browse_context(context: &Context, theme: &Theme, progress: Progress) -> W
     }
 
     let context = label(" Patches ")
-        .foreground(theme.colors.context_bg)
-        .background(theme.colors.context_badge_bg);
+        .foreground(style::magenta_reversed().fg.unwrap())
+        .background(style::magenta_reversed().bg.unwrap());
 
     let divider = label(" | ")
-        .foreground(theme.colors.context_light)
-        .background(theme.colors.context_bg);
+        .foreground(style::default_reversed().fg.unwrap())
+        .background(style::default_reversed().bg.unwrap());
 
     let draft_n = label(&format!("{draft}"))
-        .foreground(tuirealm::props::Color::Gray)
-        .background(theme.colors.context_bg);
+        .foreground(style::default_reversed().fg.unwrap())
+        .background(style::default_reversed().bg.unwrap());
     let draft = label(" Draft")
-        .foreground(theme.colors.context_light)
-        .background(theme.colors.context_bg);
+        .foreground(style::default_reversed().fg.unwrap())
+        .background(style::default_reversed().bg.unwrap());
 
     let open_n = label(&format!("{open}"))
-        .foreground(tuirealm::props::Color::Green)
-        .background(theme.colors.context_bg);
+        .foreground(style::green().fg.unwrap())
+        .background(style::default_reversed().bg.unwrap());
     let open = label(" Open")
-        .foreground(theme.colors.context_light)
-        .background(theme.colors.context_bg);
+        .foreground(style::default_reversed().fg.unwrap())
+        .background(style::default_reversed().bg.unwrap());
 
     let archived_n = label(&format!("{archived}"))
-        .foreground(tuirealm::props::Color::Yellow)
-        .background(theme.colors.context_bg);
+        .foreground(style::yellow().fg.unwrap())
+        .background(style::default_reversed().bg.unwrap());
     let archived = label(" Archived")
-        .foreground(theme.colors.context_light)
-        .background(theme.colors.context_bg);
+        .foreground(style::default_reversed().fg.unwrap())
+        .background(style::default_reversed().bg.unwrap());
 
     let merged_n = label(&format!("{merged}"))
-        .foreground(tuirealm::props::Color::Cyan)
-        .background(theme.colors.context_bg);
+        .foreground(style::cyan().fg.unwrap())
+        .background(style::default_reversed().bg.unwrap());
     let merged = label(" Merged ")
-        .foreground(theme.colors.context_light)
-        .background(theme.colors.context_bg);
+        .foreground(style::default_reversed().fg.unwrap())
+        .background(style::default_reversed().bg.unwrap());
 
     let progress = label(&format!(" {} ", progress.to_string()))
-        .foreground(theme.colors.context_bg)
-        .background(theme.colors.context_badge_bg);
+        .foreground(style::magenta_reversed().fg.unwrap())
+        .background(style::magenta_reversed().bg.unwrap());
 
-    let spacer = label("").background(theme.colors.context_bg);
+    let spacer = label("").background(style::default_reversed().bg.unwrap());
 
     let context_bar = ContextBar::new(
-        theme.clone(),
         label_group(&[context]),
         label_group(&[spacer.clone()]),
         label_group(&[spacer]),

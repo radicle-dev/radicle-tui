@@ -6,7 +6,7 @@ use tuirealm::{Frame, MockComponent, State};
 use super::label::{Label, LabelGroup};
 
 use crate::ui::layout;
-use crate::ui::theme::Theme;
+use crate::ui::theme::{style, Theme};
 use crate::ui::widget::{Widget, WidgetComponent};
 
 pub enum Progress {
@@ -128,14 +128,12 @@ pub struct ContextBar {
     col_2: Widget<LabelGroup>,
     col_3: Widget<LabelGroup>,
     col_4: Widget<LabelGroup>,
-    theme: Theme,
 }
 
 impl ContextBar {
     pub const PROP_EDIT_MODE: &'static str = "edit-mode";
 
     pub fn new(
-        theme: Theme,
         col_0: Widget<LabelGroup>,
         col_1: Widget<LabelGroup>,
         col_2: Widget<LabelGroup>,
@@ -143,7 +141,6 @@ impl ContextBar {
         col_4: Widget<LabelGroup>,
     ) -> Self {
         Self {
-            theme,
             col_0,
             col_1,
             col_2,
@@ -173,7 +170,7 @@ impl WidgetComponent for ContextBar {
         if edit_mode {
             self.col_0.attr(
                 Attribute::Background,
-                AttrValue::Color(self.theme.colors.context_badge_edit_bg),
+                AttrValue::Color(style::yellow_reversed().bg.unwrap()),
             )
         }
 
@@ -211,7 +208,7 @@ impl WidgetComponent for ContextBar {
 }
 
 pub fn bar(
-    theme: &Theme,
+    _theme: &Theme,
     label_0: &str,
     label_1: &str,
     label_2: &str,
@@ -221,20 +218,20 @@ pub fn bar(
     use crate::ui::{label, label_group};
 
     let label_0 = label(&format!(" {label_0} "))
-        .foreground(theme.colors.context_bg)
-        .background(theme.colors.context_badge_bg);
+        .foreground(style::magenta_reversed().fg.unwrap())
+        .background(style::magenta_reversed().bg.unwrap());
     let label_1 = label(&format!(" {label_1} "))
-        .foreground(theme.colors.context_color_fg)
-        .background(theme.colors.context_bg);
+        .foreground(style::default_reversed().fg.unwrap())
+        .background(style::default_reversed().bg.unwrap());
     let label_2 = label(&format!(" {label_2} "))
-        .foreground(theme.colors.default_fg)
-        .background(theme.colors.context_bg);
+        .foreground(style::default_reversed().fg.unwrap())
+        .background(style::default_reversed().bg.unwrap());
     let label_3 = label(&format!(" {label_3} "))
-        .foreground(theme.colors.context_light)
-        .background(theme.colors.context_bg);
+        .foreground(style::default_reversed().fg.unwrap())
+        .background(style::default_reversed().bg.unwrap());
     let label_4 = label(&format!(" {label_4} "))
-        .foreground(theme.colors.context_light)
-        .background(theme.colors.context_bg);
+        .foreground(style::default_reversed().fg.unwrap())
+        .background(style::default_reversed().bg.unwrap());
 
     let label_0 = label_group(&[label_0]);
     let label_1 = label_group(&[label_1]);
@@ -242,7 +239,7 @@ pub fn bar(
     let label_3 = label_group(&[label_3]);
     let label_4 = label_group(&[label_4]);
 
-    let context_bar = ContextBar::new(theme.clone(), label_0, label_1, label_2, label_3, label_4);
+    let context_bar = ContextBar::new(label_0, label_1, label_2, label_3, label_4);
 
     Widget::new(context_bar).height(1)
 }

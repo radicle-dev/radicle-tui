@@ -1,5 +1,5 @@
 use tuirealm::command::{Cmd, CmdResult};
-use tuirealm::props::{AttrValue, Attribute, BorderSides, BorderType, Props, Style, TextModifiers};
+use tuirealm::props::{AttrValue, Attribute, BorderSides, Props, TextModifiers};
 use tuirealm::tui::layout::{Constraint, Direction, Layout, Margin, Rect};
 use tuirealm::tui::widgets::{Block, Cell, Clear, Row};
 use tuirealm::{Frame, MockComponent, State, StateValue};
@@ -7,7 +7,7 @@ use tuirealm::{Frame, MockComponent, State, StateValue};
 use crate::ui::ext::HeaderBlock;
 use crate::ui::layout;
 use crate::ui::state::TabState;
-use crate::ui::theme::Theme;
+use crate::ui::theme::{style, Theme};
 use crate::ui::widget::{utils, Widget, WidgetComponent};
 
 use super::label::Label;
@@ -71,8 +71,6 @@ impl WidgetComponent for VerticalLine {
         CmdResult::None
     }
 }
-
-////////////////////////////////////////////////
 
 /// A tab header that displays all labels horizontally aligned and separated
 /// by a divider. Highlights the label defined by the current tab index.
@@ -278,17 +276,11 @@ impl<const W: usize> WidgetComponent for Header<W> {
             .get_or(Attribute::Focus, AttrValue::Flag(false))
             .unwrap_flag();
 
-        let color = if focus {
-            self.theme.colors.container_border_focus_fg
-        } else {
-            self.theme.colors.container_border_fg
-        };
-
         if display {
             let block = HeaderBlock::default()
                 .borders(BorderSides::all())
-                .border_style(Style::default().fg(color))
-                .border_type(BorderType::Rounded);
+                .border_style(style::border(focus))
+                .border_type(self.theme.border_type);
             frame.render_widget(block, area);
 
             let layout = Layout::default()
@@ -304,7 +296,7 @@ impl<const W: usize> WidgetComponent for Header<W> {
                 .iter()
                 .map(|label| {
                     let cell: Cell = label.into();
-                    cell.style(Style::default().fg(self.theme.colors.default_fg))
+                    cell.style(style::reset())
                 })
                 .collect::<Vec<_>>()
                 .try_into()
@@ -348,12 +340,6 @@ impl WidgetComponent for Container {
             .get_or(Attribute::Focus, AttrValue::Flag(false))
             .unwrap_flag();
 
-        let color = if focus {
-            self.theme.colors.container_border_focus_fg
-        } else {
-            self.theme.colors.container_border_fg
-        };
-
         if display {
             // Make some space on the left
             let layout = Layout::default()
@@ -369,8 +355,8 @@ impl WidgetComponent for Container {
 
             let block = Block::default()
                 .borders(BorderSides::ALL)
-                .border_style(Style::default().fg(color))
-                .border_type(BorderType::Rounded);
+                .border_style(style::border(focus))
+                .border_type(self.theme.border_type);
             frame.render_widget(block, area);
         }
     }
@@ -409,12 +395,6 @@ impl WidgetComponent for LabeledContainer {
             .get_or(Attribute::Focus, AttrValue::Flag(false))
             .unwrap_flag();
 
-        let color = if focus {
-            self.theme.colors.container_border_focus_fg
-        } else {
-            self.theme.colors.container_border_fg
-        };
-
         let header_height = self
             .header
             .query(Attribute::Height)
@@ -432,8 +412,8 @@ impl WidgetComponent for LabeledContainer {
 
             let block = Block::default()
                 .borders(BorderSides::BOTTOM | BorderSides::LEFT | BorderSides::RIGHT)
-                .border_style(Style::default().fg(color))
-                .border_type(BorderType::Rounded);
+                .border_style(style::border(focus))
+                .border_type(self.theme.border_type);
             frame.render_widget(block.clone(), layout[1]);
 
             self.component
