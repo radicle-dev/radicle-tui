@@ -215,11 +215,11 @@ pub fn bar(
     label_3: &str,
     label_4: &str,
 ) -> Widget<ContextBar> {
-    let label_0 = label::default(&format!(" {label_0} ")).style(style::magenta_reversed());
-    let label_1 = label::default(&format!(" {label_1} ")).style(style::default_reversed());
-    let label_2 = label::default(&format!(" {label_2} ")).style(style::default_reversed());
-    let label_3 = label::default(&format!(" {label_3} ")).style(style::default_reversed());
-    let label_4 = label::default(&format!(" {label_4} ")).style(style::default_reversed());
+    let label_0 = label::badge(&format!(" {label_0} "));
+    let label_1 = label::default_reversed(&format!(" {label_1} "));
+    let label_2 = label::default_reversed(&format!(" {label_2} "));
+    let label_3 = label::default_reversed(&format!(" {label_3} "));
+    let label_4 = label::default_reversed(&format!(" {label_4} "));
 
     let label_0 = label::group(&[label_0]);
     let label_1 = label::group(&[label_1]);

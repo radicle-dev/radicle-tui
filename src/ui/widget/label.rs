@@ -18,6 +18,10 @@ pub fn default(content: &str) -> Widget<Label> {
         .width(width)
 }
 
+pub fn default_reversed(content: &str) -> Widget<Label> {
+    default(content).style(style::default_reversed())
+}
+
 pub fn group(labels: &[Widget<Label>]) -> Widget<LabelGroup> {
     let group = LabelGroup::new(labels);
     let width = labels.iter().fold(0, |total, label| {
@@ -35,6 +39,30 @@ pub fn reversable(content: &str) -> Widget<Label> {
     let content = &format!(" {content} ");
 
     default(content)
+}
+
+pub fn header(content: &str) -> Widget<Label> {
+    default(content).style(style::reset_dim())
+}
+
+pub fn property(content: &str) -> Widget<Label> {
+    default(content).style(style::cyan())
+}
+
+pub fn badge(content: &str) -> Widget<Label> {
+    default(content).style(style::magenta_reversed())
+}
+
+pub fn labels(content: &str) -> Widget<Label> {
+    default(content).style(style::lightblue())
+}
+
+pub fn alias(content: &str) -> Widget<Label> {
+    default(content).style(style::magenta())
+}
+
+pub fn did(content: &str) -> Widget<Label> {
+    default(content).style(style::magenta_dim())
 }
 
 /// A label that can be styled using a foreground color and text modifiers.

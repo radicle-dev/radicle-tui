@@ -42,10 +42,7 @@ pub fn labeled_container(
     title: &str,
     component: Box<dyn MockComponent>,
 ) -> Widget<LabeledContainer> {
-    let header = container_header(
-        theme,
-        label::default(&format!(" {title} ")).style(style::reset()),
-    );
+    let header = container_header(theme, label::header(&format!(" {title} ")));
     let container = LabeledContainer::new(header, component, theme.clone());
 
     Widget::new(container)
@@ -76,9 +73,9 @@ pub fn shortcuts(theme: &Theme, shortcuts: Vec<Widget<Shortcut>>) -> Widget<Shor
 }
 
 pub fn property(theme: &Theme, name: &str, value: &str) -> Widget<Property> {
-    let name = label::default(name).style(style::cyan());
+    let name = label::property(name);
     let divider = label::default(&format!(" {} ", theme.icons.property_divider));
-    let value = label::default(value).style(style::reset());
+    let value = label::default(value);
 
     // TODO: Remove when size constraints are implemented
     let name_w = name.query(Attribute::Width).unwrap().unwrap_size();

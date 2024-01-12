@@ -27,14 +27,14 @@ pub struct PatchBrowser {
 impl PatchBrowser {
     pub fn new(context: &Context, theme: &Theme, selected: Option<(PatchId, Patch)>) -> Self {
         let header = [
-            label::default(" ● ").style(style::reset_dim()),
-            label::default("ID").style(style::reset_dim()),
-            label::default("Title").style(style::reset_dim()),
-            label::default("Author").style(style::reset_dim()),
-            label::default("Head").style(style::reset_dim()),
-            label::default("+").style(style::reset_dim()),
-            label::default("-").style(style::reset_dim()),
-            label::default("Updated").style(style::reset_dim()),
+            label::header(" ● "),
+            label::header("ID"),
+            label::header("Title"),
+            label::header("Author"),
+            label::header("Head"),
+            label::header("+"),
+            label::header("-"),
+            label::header("Updated"),
         ];
 
         let widths = [

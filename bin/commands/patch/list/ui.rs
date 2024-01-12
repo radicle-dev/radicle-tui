@@ -24,14 +24,14 @@ pub struct PatchBrowser {
 impl PatchBrowser {
     pub fn new(context: &Context, theme: &Theme, selected: Option<(PatchId, Patch)>) -> Self {
         let header = [
-            label::default(" ● ").style(style::reset_dim()),
-            label::default("ID").style(style::reset_dim()),
-            label::default("Title").style(style::reset_dim()),
-            label::default("Author").style(style::reset_dim()),
-            label::default("Head").style(style::reset_dim()),
-            label::default("+").style(style::reset_dim()),
-            label::default("-").style(style::reset_dim()),
-            label::default("Updated").style(style::reset_dim()),
+            label::header(" ● "),
+            label::header("ID"),
+            label::header("Title"),
+            label::header("Author"),
+            label::header("Head"),
+            label::header("+"),
+            label::header("-"),
+            label::header("Updated"),
         ];
 
         let widths = [
@@ -130,24 +130,24 @@ pub fn browse_context(context: &Context, _theme: &Theme, progress: Progress) -> 
         }
     }
 
-    let context = label::default(" Patches ").style(style::magenta_reversed());
-    let divider = label::default(" | ").style(style::default_reversed());
+    let context = label::badge(" Patches ");
+    let divider = label::default_reversed(" | ");
 
-    let draft_n = label::default(&format!("{draft}")).style(style::default_reversed());
-    let draft = label::default(" Draft").style(style::default_reversed());
+    let draft_n = label::default_reversed(&format!("{draft}"));
+    let draft = label::default_reversed(" Draft");
 
     let open_n = label::default(&format!("{open}")).style(style::green_default_reversed());
-    let open = label::default(" Open").style(style::default_reversed());
+    let open = label::default_reversed(" Open");
 
     let archived_n = label::default(&format!("{archived}")).style(style::yellow_default_reversed());
-    let archived = label::default(" Archived").style(style::default_reversed());
+    let archived = label::default_reversed(" Archived");
 
     let merged_n = label::default(&format!("{merged}")).style(style::cyan_default_reversed());
-    let merged = label::default(" Merged ").style(style::default_reversed());
+    let merged = label::default_reversed(" Merged ");
 
     let progress =
         label::default(&format!(" {} ", progress.to_string())).style(style::magenta_reversed());
-    let spacer = label::default("").style(style::default_reversed());
+    let spacer = label::default_reversed("");
 
     let context_bar = ContextBar::new(
         label::group(&[context]),

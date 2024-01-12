@@ -35,13 +35,13 @@ pub struct IssueBrowser {
 impl IssueBrowser {
     pub fn new(context: &Context, theme: &Theme, selected: Option<(IssueId, Issue)>) -> Self {
         let header = [
-            label::default(" ● ").style(style::reset_dim()),
-            label::default("ID").style(style::reset_dim()),
-            label::default("Title").style(style::reset_dim()),
-            label::default("Author").style(style::reset_dim()),
-            label::default("Tags").style(style::reset_dim()),
-            label::default("Assignees").style(style::reset_dim()),
-            label::default("Opened").style(style::reset_dim()),
+            label::header(" ● "),
+            label::header("ID"),
+            label::header("Title"),
+            label::header("Author"),
+            label::header("Tags"),
+            label::header("Assignees"),
+            label::header("Opened"),
         ];
 
         let widths = [
@@ -171,45 +171,38 @@ impl IssueHeader {
         let by_you = *author == context.profile().did();
         let item = IssueItem::from((context.profile(), repo, id, issue.clone()));
 
-        let title = Property::new(
-            label::default("Title").style(style::cyan()),
-            label::default(item.title()).style(style::reset()),
-        );
+        let title = Property::new(label::property("Title"), label::default(item.title()));
 
-        let author_style = match alias {
-            Some(_) => style::magenta(),
-            None => style::magenta_dim(),
+        let author = match alias {
+            Some(_) => label::alias(&cob::format_author(issue.author().id(), &alias, by_you)),
+            None => label::did(&cob::format_author(issue.author().id(), &alias, by_you)),
         };
-
-        let author = label::default(&cob::format_author(issue.author().id(), &alias, by_you))
-            .style(author_style);
-        let author = Property::new(label::default("Author").style(style::cyan()), author);
+        let author = Property::new(label::property("Author"), author);
 
         let issue_id = Property::new(
-            label::default("Issue").style(style::cyan()),
+            label::property("Issue"),
             label::default(&id.to_string()).style(style::gray()),
         );
 
         let labels = Property::new(
-            label::default("Labels").style(style::cyan()),
-            label::default(&cob::format_labels(item.labels())).style(style::lightblue()),
+            label::property("Labels"),
+            label::labels(&cob::format_labels(item.labels())),
         );
 
         let assignees = Property::new(
-            label::default("Assignees").style(style::cyan()),
-            label::default(&cob::format_assignees(
+            label::property("Assignees"),
+            label::did(&cob::format_assignees(
                 &item
                     .assignees()
                     .iter()
                     .map(|item| (item.did(), item.alias(), item.is_you()))
                     .collect::<Vec<_>>(),
-            ))
-            .style(author_style),
+            )),
         );
 
         let state = Property::new(
-            label::default("Status").style(style::cyan()),
-            label::default(&item.state().to_string()).style(style::reset()),
+            label::property("Status"),
+            label::default(&item.state().to_string()),
         );
 
         let table = tui::ui::property_table(
