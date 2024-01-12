@@ -18,6 +18,7 @@ pub struct FullPage {
 pub struct DefaultPage {
     pub component: Rect,
     pub context: Rect,
+    pub shortcuts: Rect,
 }
 
 pub struct IssuePage {
@@ -126,10 +127,12 @@ pub fn full_page(area: Rect, shortcuts_h: u16) -> FullPage {
     }
 }
 
-pub fn default_page(area: Rect) -> DefaultPage {
+pub fn default_page(area: Rect, shortcuts_h: u16) -> DefaultPage {
     let context_h = 1u16;
     let margin_h = 1u16;
-    let component_h = area.height.saturating_sub(context_h);
+    let component_h = area
+        .height
+        .saturating_sub(context_h.saturating_add(shortcuts_h));
 
     let layout = Layout::default()
         .direction(Direction::Vertical)
@@ -138,6 +141,7 @@ pub fn default_page(area: Rect) -> DefaultPage {
             [
                 Constraint::Length(component_h),
                 Constraint::Length(context_h),
+                Constraint::Length(shortcuts_h),
             ]
             .as_ref(),
         )
@@ -146,6 +150,7 @@ pub fn default_page(area: Rect) -> DefaultPage {
     DefaultPage {
         component: layout[0],
         context: layout[1],
+        shortcuts: layout[2],
     }
 }
 

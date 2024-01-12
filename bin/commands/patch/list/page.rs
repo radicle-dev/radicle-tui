@@ -38,9 +38,7 @@ impl ListView {
             tui::ui::shortcuts(
                 theme,
                 vec![
-                    tui::ui::shortcut(theme, "tab", "section"),
                     tui::ui::shortcut(theme, "↑/↓", "navigate"),
-                    tui::ui::shortcut(theme, "enter", "show"),
                     tui::ui::shortcut(theme, "q", "quit"),
                 ],
             ),
@@ -129,7 +127,7 @@ impl ViewPage<Cid, Message> for ListView {
 
     fn view(&mut self, app: &mut Application<Cid, Message, NoUserEvent>, frame: &mut Frame) {
         let area = frame.size();
-        let shortcuts_h = 0u16;
+        let shortcuts_h = 1u16;
         let layout = layout::default_page(area, shortcuts_h);
 
         app.view(
@@ -139,6 +137,7 @@ impl ViewPage<Cid, Message> for ListView {
         );
 
         app.view(&Cid::List(ListCid::Context), frame, layout.context);
+        app.view(&Cid::List(ListCid::Shortcuts), frame, layout.shortcuts);
     }
 
     fn subscribe(&self, app: &mut Application<Cid, Message, NoUserEvent>) -> Result<()> {
