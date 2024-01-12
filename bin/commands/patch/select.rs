@@ -1,8 +1,8 @@
-#[path = "list/event.rs"]
+#[path = "select/event.rs"]
 mod event;
-#[path = "list/page.rs"]
+#[path = "select/page.rs"]
 mod page;
-#[path = "list/ui.rs"]
+#[path = "select/ui.rs"]
 mod ui;
 
 use std::hash::Hash;
