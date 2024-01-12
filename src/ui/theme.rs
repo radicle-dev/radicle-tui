@@ -138,6 +138,13 @@ pub mod style {
             .add_modifier(TextModifiers::DIM)
     }
 
+    pub fn gray_default_reversed() -> Style {
+        Style::default()
+            .fg(Color::Gray)
+            .bg(Color::DarkGray)
+            .add_modifier(TextModifiers::DIM)
+    }
+
     pub fn border(focus: bool) -> Style {
         if focus {
             gray_dim()

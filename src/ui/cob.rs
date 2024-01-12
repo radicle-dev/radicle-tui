@@ -344,7 +344,7 @@ pub fn format_patch_state(state: &PatchState) -> (String, Color) {
         PatchState::Merged {
             revision: _,
             commit: _,
-        } => (" ✔ ".into(), Color::Blue),
+        } => (" ● ".into(), Color::Cyan),
     }
 }
 

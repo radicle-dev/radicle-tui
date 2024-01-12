@@ -51,7 +51,7 @@ pub fn browse_context(context: &Context, _theme: &Theme, progress: Progress) -> 
     let context = label::badge(" Patches ");
     let divider = label::default_reversed(" | ");
 
-    let draft_n = label::default_reversed(&format!("{draft}"));
+    let draft_n = label::default(&format!("{draft}")).style(style::gray_default_reversed());
     let draft = label::default_reversed(" Draft");
 
     let open_n = label::default(&format!("{open}")).style(style::green_default_reversed());
