@@ -8,6 +8,7 @@ use radicle_tui::ui::widget::list::PropertyList;
 
 use radicle_tui::ui::widget::Widget;
 
+use super::super::common;
 use super::{ui, Message, PatchMessage, PopupMessage};
 
 /// Since the framework does not know the type of messages that are being
@@ -43,7 +44,7 @@ impl tuirealm::Component<Message, NoUserEvent> for Widget<AppHeader> {
     }
 }
 
-impl tuirealm::Component<Message, NoUserEvent> for Widget<ui::PatchBrowser> {
+impl tuirealm::Component<Message, NoUserEvent> for Widget<common::ui::PatchBrowser> {
     fn on(&mut self, event: Event<NoUserEvent>) -> Option<Message> {
         match event {
             Event::Keyboard(KeyEvent { code: Key::Up, .. })

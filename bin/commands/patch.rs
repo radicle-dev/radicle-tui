@@ -1,3 +1,5 @@
+#[path = "patch/common.rs"]
+mod common;
 #[path = "patch/select.rs"]
 mod select;
 #[path = "patch/suite.rs"]

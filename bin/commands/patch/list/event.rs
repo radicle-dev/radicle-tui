@@ -10,7 +10,8 @@ use tui::ui::widget::list::PropertyList;
 
 use tui::ui::widget::Widget;
 
-use super::{ui, Message, PopupMessage};
+use super::super::common;
+use super::{Message, PopupMessage};
 
 /// Since the framework does not know the type of messages that are being
 /// passed around in the app, the following handlers need to be implemented for
@@ -26,7 +27,7 @@ impl tuirealm::Component<Message, NoUserEvent> for Widget<GlobalListener> {
     }
 }
 
-impl tuirealm::Component<Message, NoUserEvent> for Widget<ui::PatchBrowser> {
+impl tuirealm::Component<Message, NoUserEvent> for Widget<common::ui::PatchBrowser> {
     fn on(&mut self, event: Event<NoUserEvent>) -> Option<Message> {
         match event {
             Event::Keyboard(KeyEvent { code: Key::Up, .. })
