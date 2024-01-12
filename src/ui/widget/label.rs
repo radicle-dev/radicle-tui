@@ -49,8 +49,16 @@ pub fn property(content: &str) -> Widget<Label> {
     default(content).style(style::cyan())
 }
 
+pub fn property_divider(content: &str) -> Widget<Label> {
+    default(content).style(style::gray())
+}
+
 pub fn badge(content: &str) -> Widget<Label> {
     default(content).style(style::magenta_reversed())
+}
+
+pub fn title(content: &str) -> Widget<Label> {
+    default(content)
 }
 
 pub fn labels(content: &str) -> Widget<Label> {
@@ -63,6 +71,26 @@ pub fn alias(content: &str) -> Widget<Label> {
 
 pub fn did(content: &str) -> Widget<Label> {
     default(content).style(style::magenta_dim())
+}
+
+pub fn id(content: &str) -> Widget<Label> {
+    default(content).style(style::cyan())
+}
+
+pub fn oid(content: &str) -> Widget<Label> {
+    default(content).style(style::lightblue())
+}
+
+pub fn timestamp(content: &str) -> Widget<Label> {
+    default(content).style(style::gray())
+}
+
+pub fn positive(content: &str) -> Widget<Label> {
+    default(content).style(style::green())
+}
+
+pub fn negative(content: &str) -> Widget<Label> {
+    default(content).style(style::red())
 }
 
 /// A label that can be styled using a foreground color and text modifiers.
@@ -110,8 +138,27 @@ impl From<&Widget<Label>> for Span<'_> {
             .query(Attribute::Content)
             .unwrap_or(AttrValue::String(String::default()))
             .unwrap_string();
+        let style = label
+            .query(Attribute::Style)
+            .unwrap_or(AttrValue::Style(Style::default()))
+            .unwrap_style();
 
-        Span::styled(content, Style::default())
+        Span::styled(content, style)
+    }
+}
+
+impl From<Widget<Label>> for Span<'_> {
+    fn from(label: Widget<Label>) -> Self {
+        let content = label
+            .query(Attribute::Content)
+            .unwrap_or(AttrValue::String(String::default()))
+            .unwrap_string();
+        let style = label
+            .query(Attribute::Style)
+            .unwrap_or(AttrValue::Style(Style::default()))
+            .unwrap_style();
+
+        Span::styled(content, style)
     }
 }
 
@@ -121,12 +168,27 @@ impl From<&Widget<Label>> for Text<'_> {
             .query(Attribute::Content)
             .unwrap_or(AttrValue::String(String::default()))
             .unwrap_string();
-        let foreground = label
-            .query(Attribute::Foreground)
-            .unwrap_or(AttrValue::Color(Color::Reset))
-            .unwrap_color();
+        let style = label
+            .query(Attribute::Style)
+            .unwrap_or(AttrValue::Style(Style::default()))
+            .unwrap_style();
 
-        Text::styled(content, Style::default().fg(foreground))
+        Text::styled(content, style)
+    }
+}
+
+impl From<Widget<Label>> for Text<'_> {
+    fn from(label: Widget<Label>) -> Self {
+        let content = label
+            .query(Attribute::Content)
+            .unwrap_or(AttrValue::String(String::default()))
+            .unwrap_string();
+        let style = label
+            .query(Attribute::Style)
+            .unwrap_or(AttrValue::Style(Style::default()))
+            .unwrap_style();
+
+        Text::styled(content, style)
     }
 }
 

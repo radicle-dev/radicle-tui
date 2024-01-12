@@ -3,7 +3,7 @@ pub mod format;
 use radicle_surf;
 
 use tuirealm::props::{Color, Style};
-use tuirealm::tui::text::{Span, Spans};
+use tuirealm::tui::text::Spans;
 use tuirealm::tui::widgets::Cell;
 
 use radicle::node::{Alias, AliasStore};
@@ -20,7 +20,7 @@ use radicle::cob::{Label, Timestamp};
 use crate::ui::theme::Theme;
 use crate::ui::widget::list::{ListItem, TableItem};
 
-use super::theme::style;
+use super::widget::label;
 
 /// An author item that can be used in tables, list or trees.
 ///
@@ -147,25 +147,31 @@ impl TableItem<8> for PatchItem {
     fn row(&self, _theme: &Theme) -> [Cell; 8] {
         let (icon, color) = format_patch_state(&self.state);
 
-        let state = Cell::from(icon).style(Style::default().fg(color));
-        let id = Cell::from(format::cob(&self.id)).style(style::cyan());
-        let title = Cell::from(self.title.clone()).style(style::reset());
+        let state = label::default(&icon)
+            .style(Style::default().fg(color))
+            .into();
+        let id = label::id(&format::cob(&self.id)).into();
+        let title = label::default(&self.title.clone()).into();
 
-        let author_style = match &self.author.alias {
-            Some(_) => style::magenta(),
-            None => style::magenta_dim(),
+        let author = match &self.author.alias {
+            Some(_) => label::alias(&format_author(
+                &self.author.did,
+                &self.author.alias,
+                self.author.is_you,
+            ))
+            .into(),
+            None => label::did(&format_author(
+                &self.author.did,
+                &self.author.alias,
+                self.author.is_you,
+            ))
+            .into(),
         };
-        let author = Cell::from(format_author(
-            &self.author.did,
-            &self.author.alias,
-            self.author.is_you,
-        ))
-        .style(author_style);
 
-        let head = Cell::from(format::oid(self.head)).style(style::lightblue());
-        let added = Cell::from(format!("+{}", self.added)).style(style::green());
-        let removed = Cell::from(format!("-{}", self.removed)).style(style::red());
-        let updated = Cell::from(format::timestamp(&self.timestamp)).style(style::gray());
+        let head = label::oid(&format::oid(self.head)).into();
+        let added = label::positive(&format!("+{}", self.added)).into();
+        let removed = label::negative(&format!("-{}", self.removed)).into();
+        let updated = label::timestamp(&format::timestamp(&self.timestamp)).into();
 
         [state, id, title, author, head, added, removed, updated]
     }
@@ -255,30 +261,35 @@ impl TableItem<7> for IssueItem {
     fn row(&self, _theme: &Theme) -> [Cell; 7] {
         let (icon, color) = format_issue_state(&self.state);
 
-        let state = Cell::from(icon).style(Style::default().fg(color));
-        let id = Cell::from(format::cob(&self.id)).style(style::cyan());
-        let title = Cell::from(self.title.clone()).style(style::reset());
+        let state = label::default(&icon)
+            .style(Style::default().fg(color))
+            .into();
+        let id = label::id(&format::cob(&self.id)).into();
+        let title = label::default(&self.title.clone()).into();
 
-        let author_style = match &self.author.alias {
-            Some(_) => style::magenta(),
-            None => style::magenta_dim(),
+        let author = match &self.author.alias {
+            Some(_) => label::alias(&format_author(
+                &self.author.did,
+                &self.author.alias,
+                self.author.is_you,
+            ))
+            .into(),
+            None => label::did(&format_author(
+                &self.author.did,
+                &self.author.alias,
+                self.author.is_you,
+            ))
+            .into(),
         };
-        let author = Cell::from(format_author(
-            &self.author.did,
-            &self.author.alias,
-            self.author.is_you,
-        ))
-        .style(author_style);
 
-        let labels = Cell::from(format_labels(&self.labels)).style(style::lightblue());
+        let labels = label::labels(&format_labels(&self.labels)).into();
         let assignees = self
             .assignees
             .iter()
             .map(|author| (author.did, author.alias.clone(), author.is_you))
             .collect::<Vec<_>>();
-
-        let assignees = Cell::from(format_assignees(&assignees)).style(author_style);
-        let opened = Cell::from(format::timestamp(&self.timestamp)).style(style::gray());
+        let assignees = label::did(&format_assignees(&assignees)).into();
+        let opened = label::timestamp(&format::timestamp(&self.timestamp)).into();
 
         [state, id, title, author, labels, assignees, opened]
     }
@@ -287,24 +298,32 @@ impl TableItem<7> for IssueItem {
 impl ListItem for IssueItem {
     fn row(&self, theme: &Theme) -> tuirealm::tui::widgets::ListItem {
         let (state, state_color) = format_issue_state(&self.state);
-        let author_style = match &self.author.alias {
-            Some(_) => style::magenta(),
-            None => style::magenta_dim(),
-        };
 
         let lines = vec![
             Spans::from(vec![
-                Span::styled(state, Style::default().fg(state_color)),
-                Span::styled(self.title.clone(), style::reset()),
+                label::default(&state)
+                    .style(Style::default().fg(state_color))
+                    .into(),
+                label::title(&self.title).into(),
             ]),
             Spans::from(vec![
-                Span::raw(String::from("   ")),
-                Span::styled(
-                    format_author(&self.author.did, &self.author.alias, self.author.is_you),
-                    author_style,
-                ),
-                Span::styled(format!(" {} ", theme.icons.property_divider), style::gray()),
-                Span::styled(format::timestamp(&self.timestamp), style::gray()),
+                label::default("   ").into(),
+                match &self.author.alias {
+                    Some(_) => label::alias(&format_author(
+                        &self.author.did,
+                        &self.author.alias,
+                        self.author.is_you,
+                    ))
+                    .into(),
+                    None => label::did(&format_author(
+                        &self.author.did,
+                        &self.author.alias,
+                        self.author.is_you,
+                    ))
+                    .into(),
+                },
+                label::property_divider(&format!(" {} ", theme.icons.property_divider)).into(),
+                label::timestamp(&format::timestamp(&self.timestamp)).into(),
             ]),
         ];
         tuirealm::tui::widgets::ListItem::new(lines)
