@@ -117,6 +117,27 @@ pub mod style {
         Style::default().fg(Color::DarkGray).bg(Color::Yellow)
     }
 
+    pub fn green_default_reversed() -> Style {
+        Style::default()
+            .fg(Color::Green)
+            .bg(Color::DarkGray)
+            .add_modifier(TextModifiers::DIM)
+    }
+
+    pub fn yellow_default_reversed() -> Style {
+        Style::default()
+            .fg(Color::Yellow)
+            .bg(Color::DarkGray)
+            .add_modifier(TextModifiers::DIM)
+    }
+
+    pub fn cyan_default_reversed() -> Style {
+        Style::default()
+            .fg(Color::Cyan)
+            .bg(Color::DarkGray)
+            .add_modifier(TextModifiers::DIM)
+    }
+
     pub fn border(focus: bool) -> Style {
         if focus {
             gray_dim()
@@ -126,6 +147,6 @@ pub mod style {
     }
 
     pub fn highlight() -> Style {
-        darkgray()
+        Style::default().bg(Color::DarkGray)
     }
 }

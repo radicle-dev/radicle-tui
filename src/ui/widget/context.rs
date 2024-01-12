@@ -217,21 +217,11 @@ pub fn bar(
 ) -> Widget<ContextBar> {
     use crate::ui::{label, label_group};
 
-    let label_0 = label(&format!(" {label_0} "))
-        .foreground(style::magenta_reversed().fg.unwrap())
-        .background(style::magenta_reversed().bg.unwrap());
-    let label_1 = label(&format!(" {label_1} "))
-        .foreground(style::default_reversed().fg.unwrap())
-        .background(style::default_reversed().bg.unwrap());
-    let label_2 = label(&format!(" {label_2} "))
-        .foreground(style::default_reversed().fg.unwrap())
-        .background(style::default_reversed().bg.unwrap());
-    let label_3 = label(&format!(" {label_3} "))
-        .foreground(style::default_reversed().fg.unwrap())
-        .background(style::default_reversed().bg.unwrap());
-    let label_4 = label(&format!(" {label_4} "))
-        .foreground(style::default_reversed().fg.unwrap())
-        .background(style::default_reversed().bg.unwrap());
+    let label_0 = label(&format!(" {label_0} ")).style(style::magenta_reversed());
+    let label_1 = label(&format!(" {label_1} ")).style(style::default_reversed());
+    let label_2 = label(&format!(" {label_2} ")).style(style::default_reversed());
+    let label_3 = label(&format!(" {label_3} ")).style(style::default_reversed());
+    let label_4 = label(&format!(" {label_4} ")).style(style::default_reversed());
 
     let label_0 = label_group(&[label_0]);
     let label_1 = label_group(&[label_1]);

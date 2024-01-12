@@ -23,25 +23,16 @@ impl WidgetComponent for Label {
         let display = properties
             .get_or(Attribute::Display, AttrValue::Flag(true))
             .unwrap_flag();
-        let foreground = properties
-            .get_or(Attribute::Foreground, AttrValue::Color(Color::Reset))
-            .unwrap_color();
-        let background = properties
-            .get_or(Attribute::Background, AttrValue::Color(Color::Reset))
-            .unwrap_color();
+        let style = properties
+            .get_or(Attribute::Style, AttrValue::Style(Style::default()))
+            .unwrap_style();
 
         if display {
-            let mut label = match properties.get(Attribute::TextProps) {
-                Some(modifiers) => Label::default()
-                    .foreground(foreground)
-                    .background(background)
-                    .modifiers(modifiers.unwrap_text_modifiers())
-                    .text(content),
-                None => Label::default()
-                    .foreground(foreground)
-                    .background(background)
-                    .text(content),
-            };
+            let mut label = Label::default()
+                .foreground(style.fg.unwrap_or(Color::Reset))
+                .background(style.bg.unwrap_or(Color::Reset))
+                .modifiers(style.add_modifier)
+                .text(content);
 
             label.view(frame, area);
         }

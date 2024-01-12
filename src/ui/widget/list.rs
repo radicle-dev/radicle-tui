@@ -1,5 +1,5 @@
 use tuirealm::command::{Cmd, CmdResult};
-use tuirealm::props::{AttrValue, Attribute, BorderSides, Color, Props, Style};
+use tuirealm::props::{AttrValue, Attribute, BorderSides, Props};
 use tuirealm::tui::layout::{Constraint, Direction, Layout, Rect};
 use tuirealm::tui::widgets::{Block, Cell, ListState, Row, TableState};
 use tuirealm::{Frame, MockComponent, State, StateValue};
@@ -226,10 +226,6 @@ where
     V: TableItem<W> + Clone + PartialEq,
 {
     fn view(&mut self, properties: &Props, frame: &mut Frame, area: Rect) {
-        let highlight = properties
-            .get_or(Attribute::HighlightedColor, AttrValue::Color(Color::Reset))
-            .unwrap_color();
-
         let focus = properties
             .get_or(Attribute::Focus, AttrValue::Flag(false))
             .unwrap_flag();
@@ -253,7 +249,7 @@ where
                     .border_style(style::border(focus))
                     .border_type(self.theme.border_type),
             )
-            .highlight_style(Style::default().bg(highlight))
+            .highlight_style(style::highlight())
             .column_spacing(self.theme.tables.spacing)
             .widths(&widths);
 
@@ -330,19 +326,15 @@ impl<V> WidgetComponent for List<V>
 where
     V: ListItem + Clone + PartialEq,
 {
-    fn view(&mut self, properties: &Props, frame: &mut Frame, area: Rect) {
+    fn view(&mut self, _properties: &Props, frame: &mut Frame, area: Rect) {
         use tuirealm::tui::widgets::{List, ListItem};
-
-        let highlight = properties
-            .get_or(Attribute::HighlightedColor, AttrValue::Color(Color::Reset))
-            .unwrap_color();
 
         let rows: Vec<ListItem> = self
             .items
             .iter()
             .map(|item| item.row(&self.theme))
             .collect();
-        let list = List::new(rows).highlight_style(Style::default().bg(highlight));
+        let list = List::new(rows).highlight_style(style::highlight());
 
         frame.render_stateful_widget(list, area, &mut ListState::from(&self.state));
     }

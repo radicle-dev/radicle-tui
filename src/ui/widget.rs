@@ -8,7 +8,7 @@ mod utils;
 use std::ops::Deref;
 
 use tuirealm::command::{Cmd, CmdResult};
-use tuirealm::props::{AttrValue, Attribute, Color, Layout, Props, TextModifiers};
+use tuirealm::props::{AttrValue, Attribute, Layout, Props, Style};
 use tuirealm::tui::layout::Rect;
 use tuirealm::{Frame, MockComponent, State};
 
@@ -44,33 +44,6 @@ impl<T: WidgetComponent> Widget<T> {
         }
     }
 
-    pub fn foreground(mut self, fg: Color) -> Self {
-        self.attr(Attribute::Foreground, AttrValue::Color(fg));
-        self
-    }
-
-    pub fn dim(mut self) -> Self {
-        let props = self
-            .query(Attribute::TextProps)
-            .unwrap_or(AttrValue::TextModifiers(TextModifiers::empty()));
-
-        self.attr(
-            Attribute::TextProps,
-            AttrValue::TextModifiers(props.unwrap_text_modifiers() | TextModifiers::DIM),
-        );
-        self
-    }
-
-    pub fn highlight(mut self, fg: Color) -> Self {
-        self.attr(Attribute::HighlightedColor, AttrValue::Color(fg));
-        self
-    }
-
-    pub fn background(mut self, bg: Color) -> Self {
-        self.attr(Attribute::Background, AttrValue::Color(bg));
-        self
-    }
-
     pub fn height(mut self, h: u16) -> Self {
         self.attr(Attribute::Height, AttrValue::Size(h));
         self
@@ -93,6 +66,11 @@ impl<T: WidgetComponent> Widget<T> {
 
     pub fn layout(mut self, layout: Layout) -> Self {
         self.attr(Attribute::Layout, AttrValue::Layout(layout));
+        self
+    }
+
+    pub fn style(mut self, style: Style) -> Self {
+        self.attr(Attribute::Style, AttrValue::Style(style));
         self
     }
 

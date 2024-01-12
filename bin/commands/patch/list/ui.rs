@@ -23,14 +23,14 @@ pub struct PatchBrowser {
 impl PatchBrowser {
     pub fn new(context: &Context, theme: &Theme, selected: Option<(PatchId, Patch)>) -> Self {
         let header = [
-            tui::ui::label(" ● ").foreground(style::reset_dim().fg.unwrap()),
-            tui::ui::label("ID").foreground(style::reset_dim().fg.unwrap()),
-            tui::ui::label("Title").foreground(style::reset_dim().fg.unwrap()),
-            tui::ui::label("Author").foreground(style::reset_dim().fg.unwrap()),
-            tui::ui::label("Head").foreground(style::reset_dim().fg.unwrap()),
-            tui::ui::label("+").foreground(style::reset_dim().fg.unwrap()),
-            tui::ui::label("-").foreground(style::reset_dim().fg.unwrap()),
-            tui::ui::label("Updated").foreground(style::reset_dim().fg.unwrap()),
+            tui::ui::label(" ● ").style(style::reset_dim()),
+            tui::ui::label("ID").style(style::reset_dim()),
+            tui::ui::label("Title").style(style::reset_dim()),
+            tui::ui::label("Author").style(style::reset_dim()),
+            tui::ui::label("Head").style(style::reset_dim()),
+            tui::ui::label("+").style(style::reset_dim()),
+            tui::ui::label("-").style(style::reset_dim()),
+            tui::ui::label("Updated").style(style::reset_dim()),
         ];
 
         let widths = [
@@ -64,8 +64,7 @@ impl PatchBrowser {
             _ => items.first().cloned(),
         };
 
-        let table = Widget::new(Table::new(&items, selected, header, widths, theme.clone()))
-            .highlight(style::highlight().fg.unwrap());
+        let table = Widget::new(Table::new(&items, selected, header, widths, theme.clone()));
 
         Self { items, table }
     }
@@ -97,7 +96,7 @@ impl WidgetComponent for PatchBrowser {
 pub fn list_navigation(theme: &Theme) -> Widget<Tabs> {
     tui::ui::tabs(
         theme,
-        vec![tui::ui::reversable_label("Patches").foreground(style::cyan().fg.unwrap())],
+        vec![tui::ui::reversable_label("Patches").style(style::cyan())],
     )
 }
 
@@ -131,47 +130,23 @@ pub fn browse_context(context: &Context, _theme: &Theme, progress: Progress) -> 
         }
     }
 
-    let context = label(" Patches ")
-        .foreground(style::magenta_reversed().fg.unwrap())
-        .background(style::magenta_reversed().bg.unwrap());
+    let context = label(" Patches ").style(style::magenta_reversed());
+    let divider = label(" | ").style(style::default_reversed());
 
-    let divider = label(" | ")
-        .foreground(style::default_reversed().fg.unwrap())
-        .background(style::default_reversed().bg.unwrap());
+    let draft_n = label(&format!("{draft}")).style(style::default_reversed());
+    let draft = label(" Draft").style(style::default_reversed());
 
-    let draft_n = label(&format!("{draft}"))
-        .foreground(style::default_reversed().fg.unwrap())
-        .background(style::default_reversed().bg.unwrap());
-    let draft = label(" Draft")
-        .foreground(style::default_reversed().fg.unwrap())
-        .background(style::default_reversed().bg.unwrap());
+    let open_n = label(&format!("{open}")).style(style::green_default_reversed());
+    let open = label(" Open").style(style::default_reversed());
 
-    let open_n = label(&format!("{open}"))
-        .foreground(style::green().fg.unwrap())
-        .background(style::default_reversed().bg.unwrap());
-    let open = label(" Open")
-        .foreground(style::default_reversed().fg.unwrap())
-        .background(style::default_reversed().bg.unwrap());
+    let archived_n = label(&format!("{archived}")).style(style::yellow_default_reversed());
+    let archived = label(" Archived").style(style::default_reversed());
 
-    let archived_n = label(&format!("{archived}"))
-        .foreground(style::yellow().fg.unwrap())
-        .background(style::default_reversed().bg.unwrap());
-    let archived = label(" Archived")
-        .foreground(style::default_reversed().fg.unwrap())
-        .background(style::default_reversed().bg.unwrap());
+    let merged_n = label(&format!("{merged}")).style(style::cyan_default_reversed());
+    let merged = label(" Merged ").style(style::default_reversed());
 
-    let merged_n = label(&format!("{merged}"))
-        .foreground(style::cyan().fg.unwrap())
-        .background(style::default_reversed().bg.unwrap());
-    let merged = label(" Merged ")
-        .foreground(style::default_reversed().fg.unwrap())
-        .background(style::default_reversed().bg.unwrap());
-
-    let progress = label(&format!(" {} ", progress.to_string()))
-        .foreground(style::magenta_reversed().fg.unwrap())
-        .background(style::magenta_reversed().bg.unwrap());
-
-    let spacer = label("").background(style::default_reversed().bg.unwrap());
+    let progress = label(&format!(" {} ", progress.to_string())).style(style::magenta_reversed());
+    let spacer = label("").style(style::default_reversed());
 
     let context_bar = ContextBar::new(
         label_group(&[context]),

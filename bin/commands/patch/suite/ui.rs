@@ -68,8 +68,7 @@ impl PatchBrowser {
             _ => items.first().cloned(),
         };
 
-        let table = Widget::new(Table::new(&items, selected, header, widths, theme.clone()))
-            .highlight(style::highlight().fg.unwrap());
+        let table = Widget::new(Table::new(&items, selected, header, widths, theme.clone()));
 
         Self { items, table }
     }
@@ -163,7 +162,7 @@ impl WidgetComponent for Files {
 pub fn list_navigation(theme: &Theme) -> Widget<Tabs> {
     tui::ui::tabs(
         theme,
-        vec![tui::ui::reversable_label("Patches").foreground(style::magenta().fg.unwrap())],
+        vec![tui::ui::reversable_label("Patches").style(style::magenta())],
     )
 }
 
@@ -171,8 +170,8 @@ pub fn navigation(theme: &Theme) -> Widget<Tabs> {
     tui::ui::tabs(
         theme,
         vec![
-            tui::ui::reversable_label("Activity").foreground(style::magenta().fg.unwrap()),
-            tui::ui::reversable_label("Files").foreground(style::magenta().fg.unwrap()),
+            tui::ui::reversable_label("Activity").style(style::magenta()),
+            tui::ui::reversable_label("Files").style(style::magenta()),
         ],
     )
 }
@@ -186,14 +185,14 @@ pub fn patches(
 }
 
 pub fn activity(_theme: &Theme) -> Widget<Activity> {
-    let not_implemented = tui::ui::label("not implemented").foreground(style::reset().fg.unwrap());
+    let not_implemented = tui::ui::label("not implemented").style(style::reset());
     let activity = Activity::new(not_implemented);
 
     Widget::new(activity)
 }
 
 pub fn files(_theme: &Theme) -> Widget<Files> {
-    let not_implemented = tui::ui::label("not implemented").foreground(style::reset().fg.unwrap());
+    let not_implemented = tui::ui::label("not implemented").style(style::reset());
     let files = Files::new(not_implemented);
 
     Widget::new(files)

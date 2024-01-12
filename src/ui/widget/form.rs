@@ -29,7 +29,7 @@ impl TextField {
 
         Self {
             input: container,
-            placeholder: crate::ui::label(title).foreground(style::gray_dim().fg.unwrap()),
+            placeholder: crate::ui::label(title).style(style::gray_dim()),
             show_placeholder: true,
         }
     }
@@ -103,7 +103,7 @@ impl TextArea {
 
         Self {
             input: container,
-            placeholder: crate::ui::label(title).foreground(style::gray_dim().fg.unwrap()),
+            placeholder: crate::ui::label(title).style(style::gray_dim()),
             show_placeholder: true,
         }
     }

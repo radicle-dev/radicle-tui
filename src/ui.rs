@@ -73,18 +73,15 @@ pub fn labeled_container(
     title: &str,
     component: Box<dyn MockComponent>,
 ) -> Widget<LabeledContainer> {
-    let header = container_header(
-        theme,
-        label(&format!(" {title} ")).foreground(style::reset().fg.unwrap()),
-    );
+    let header = container_header(theme, label(&format!(" {title} ")).style(style::reset()));
     let container = LabeledContainer::new(header, component, theme.clone());
 
     Widget::new(container)
 }
 
 pub fn shortcut(theme: &Theme, short: &str, long: &str) -> Widget<Shortcut> {
-    let short = label(short).foreground(style::gray().fg.unwrap());
-    let long = label(long).foreground(style::gray_dim().fg.unwrap());
+    let short = label(short).style(style::gray());
+    let long = label(long).style(style::gray_dim());
     let divider = label(&theme.icons.whitespace.to_string());
 
     // TODO: Remove when size constraints are implemented
@@ -99,17 +96,16 @@ pub fn shortcut(theme: &Theme, short: &str, long: &str) -> Widget<Shortcut> {
 }
 
 pub fn shortcuts(theme: &Theme, shortcuts: Vec<Widget<Shortcut>>) -> Widget<Shortcuts> {
-    let divider = label(&format!(" {} ", theme.icons.shortcutbar_divider))
-        .foreground(style::gray_dim().fg.unwrap());
+    let divider = label(&format!(" {} ", theme.icons.shortcutbar_divider)).style(style::gray_dim());
     let shortcut_bar = Shortcuts::new(shortcuts, divider);
 
     Widget::new(shortcut_bar).height(1)
 }
 
 pub fn property(theme: &Theme, name: &str, value: &str) -> Widget<Property> {
-    let name = label(name).foreground(style::cyan().fg.unwrap());
+    let name = label(name).style(style::cyan());
     let divider = label(&format!(" {} ", theme.icons.property_divider));
-    let value = label(value).foreground(style::reset().fg.unwrap());
+    let value = label(value).style(style::reset());
 
     // TODO: Remove when size constraints are implemented
     let name_w = name.query(Attribute::Width).unwrap().unwrap_size();
@@ -141,8 +137,8 @@ pub fn tabs(_theme: &Theme, tabs: Vec<Widget<Label>>) -> Widget<Tabs> {
 }
 
 pub fn app_info(context: &Context) -> Widget<AppInfo> {
-    let project = label(context.project().name()).foreground(style::cyan().fg.unwrap());
-    let rid = label(&format!(" ({})", context.id())).foreground(style::yellow().fg.unwrap());
+    let project = label(context.project().name()).style(style::cyan());
+    let rid = label(&format!(" ({})", context.id())).style(style::yellow());
 
     let project_w = project
         .query(Attribute::Width)
@@ -162,8 +158,7 @@ pub fn app_header(
     theme: &Theme,
     nav: Option<Widget<Tabs>>,
 ) -> Widget<AppHeader> {
-    let line =
-        label(&theme.icons.tab_overline.to_string()).foreground(style::magenta().fg.unwrap());
+    let line = label(&theme.icons.tab_overline.to_string()).style(style::magenta());
     let line = Widget::new(VerticalLine::new(line));
     let info = app_info(context);
     let header = AppHeader::new(nav, info, line);
