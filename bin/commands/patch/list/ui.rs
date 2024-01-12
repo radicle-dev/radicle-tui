@@ -13,6 +13,7 @@ use tui::ui::widget::{Widget, WidgetComponent};
 
 use tui::ui::widget::container::Tabs;
 use tui::ui::widget::context::{ContextBar, Progress};
+use tui::ui::widget::label::{self};
 use tui::ui::widget::list::{ColumnWidth, Table};
 
 pub struct PatchBrowser {
@@ -23,14 +24,14 @@ pub struct PatchBrowser {
 impl PatchBrowser {
     pub fn new(context: &Context, theme: &Theme, selected: Option<(PatchId, Patch)>) -> Self {
         let header = [
-            tui::ui::label(" ● ").style(style::reset_dim()),
-            tui::ui::label("ID").style(style::reset_dim()),
-            tui::ui::label("Title").style(style::reset_dim()),
-            tui::ui::label("Author").style(style::reset_dim()),
-            tui::ui::label("Head").style(style::reset_dim()),
-            tui::ui::label("+").style(style::reset_dim()),
-            tui::ui::label("-").style(style::reset_dim()),
-            tui::ui::label("Updated").style(style::reset_dim()),
+            label::default(" ● ").style(style::reset_dim()),
+            label::default("ID").style(style::reset_dim()),
+            label::default("Title").style(style::reset_dim()),
+            label::default("Author").style(style::reset_dim()),
+            label::default("Head").style(style::reset_dim()),
+            label::default("+").style(style::reset_dim()),
+            label::default("-").style(style::reset_dim()),
+            label::default("Updated").style(style::reset_dim()),
         ];
 
         let widths = [
@@ -96,7 +97,7 @@ impl WidgetComponent for PatchBrowser {
 pub fn list_navigation(theme: &Theme) -> Widget<Tabs> {
     tui::ui::tabs(
         theme,
-        vec![tui::ui::reversable_label("Patches").style(style::cyan())],
+        vec![label::reversable("Patches").style(style::cyan())],
     )
 }
 
@@ -110,7 +111,6 @@ pub fn patches(
 
 pub fn browse_context(context: &Context, _theme: &Theme, progress: Progress) -> Widget<ContextBar> {
     use radicle::cob::patch::State;
-    use tui::ui::{label, label_group};
 
     let mut draft = 0;
     let mut open = 0;
@@ -130,29 +130,30 @@ pub fn browse_context(context: &Context, _theme: &Theme, progress: Progress) -> 
         }
     }
 
-    let context = label(" Patches ").style(style::magenta_reversed());
-    let divider = label(" | ").style(style::default_reversed());
+    let context = label::default(" Patches ").style(style::magenta_reversed());
+    let divider = label::default(" | ").style(style::default_reversed());
 
-    let draft_n = label(&format!("{draft}")).style(style::default_reversed());
-    let draft = label(" Draft").style(style::default_reversed());
+    let draft_n = label::default(&format!("{draft}")).style(style::default_reversed());
+    let draft = label::default(" Draft").style(style::default_reversed());
 
-    let open_n = label(&format!("{open}")).style(style::green_default_reversed());
-    let open = label(" Open").style(style::default_reversed());
+    let open_n = label::default(&format!("{open}")).style(style::green_default_reversed());
+    let open = label::default(" Open").style(style::default_reversed());
 
-    let archived_n = label(&format!("{archived}")).style(style::yellow_default_reversed());
-    let archived = label(" Archived").style(style::default_reversed());
+    let archived_n = label::default(&format!("{archived}")).style(style::yellow_default_reversed());
+    let archived = label::default(" Archived").style(style::default_reversed());
 
-    let merged_n = label(&format!("{merged}")).style(style::cyan_default_reversed());
-    let merged = label(" Merged ").style(style::default_reversed());
+    let merged_n = label::default(&format!("{merged}")).style(style::cyan_default_reversed());
+    let merged = label::default(" Merged ").style(style::default_reversed());
 
-    let progress = label(&format!(" {} ", progress.to_string())).style(style::magenta_reversed());
-    let spacer = label("").style(style::default_reversed());
+    let progress =
+        label::default(&format!(" {} ", progress.to_string())).style(style::magenta_reversed());
+    let spacer = label::default("").style(style::default_reversed());
 
     let context_bar = ContextBar::new(
-        label_group(&[context]),
-        label_group(&[spacer.clone()]),
-        label_group(&[spacer]),
-        label_group(&[
+        label::group(&[context]),
+        label::group(&[spacer.clone()]),
+        label::group(&[spacer]),
+        label::group(&[
             draft_n,
             draft,
             divider.clone(),
@@ -165,7 +166,7 @@ pub fn browse_context(context: &Context, _theme: &Theme, progress: Progress) -> 
             merged_n,
             merged,
         ]),
-        label_group(&[progress]),
+        label::group(&[progress]),
     );
 
     Widget::new(context_bar).height(1)

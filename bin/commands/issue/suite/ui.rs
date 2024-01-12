@@ -22,7 +22,7 @@ use tui::ui::widget::{Widget, WidgetComponent};
 use tui::ui::widget::container::{Container, Tabs};
 use tui::ui::widget::context::{ContextBar, Progress};
 use tui::ui::widget::form::{Form, TextArea, TextField};
-use tui::ui::widget::label::Textarea;
+use tui::ui::widget::label::{self, Textarea};
 use tui::ui::widget::list::{ColumnWidth, List, Property, Table};
 
 pub const FORM_ID_EDIT: &str = "edit-form";
@@ -35,13 +35,13 @@ pub struct IssueBrowser {
 impl IssueBrowser {
     pub fn new(context: &Context, theme: &Theme, selected: Option<(IssueId, Issue)>) -> Self {
         let header = [
-            tui::ui::label(" ● "),
-            tui::ui::label("ID"),
-            tui::ui::label("Title"),
-            tui::ui::label("Author"),
-            tui::ui::label("Tags"),
-            tui::ui::label("Assignees"),
-            tui::ui::label("Opened"),
+            label::default(" ● ").style(style::reset_dim()),
+            label::default("ID").style(style::reset_dim()),
+            label::default("Title").style(style::reset_dim()),
+            label::default("Author").style(style::reset_dim()),
+            label::default("Tags").style(style::reset_dim()),
+            label::default("Assignees").style(style::reset_dim()),
+            label::default("Opened").style(style::reset_dim()),
         ];
 
         let widths = [
@@ -172,8 +172,8 @@ impl IssueHeader {
         let item = IssueItem::from((context.profile(), repo, id, issue.clone()));
 
         let title = Property::new(
-            tui::ui::label("Title").style(style::cyan()),
-            tui::ui::label(item.title()).style(style::reset()),
+            label::default("Title").style(style::cyan()),
+            label::default(item.title()).style(style::reset()),
         );
 
         let author_style = match alias {
@@ -181,23 +181,23 @@ impl IssueHeader {
             None => style::magenta_dim(),
         };
 
-        let author = tui::ui::label(&cob::format_author(issue.author().id(), &alias, by_you))
+        let author = label::default(&cob::format_author(issue.author().id(), &alias, by_you))
             .style(author_style);
-        let author = Property::new(tui::ui::label("Author").style(style::cyan()), author);
+        let author = Property::new(label::default("Author").style(style::cyan()), author);
 
         let issue_id = Property::new(
-            tui::ui::label("Issue").style(style::cyan()),
-            tui::ui::label(&id.to_string()).style(style::gray()),
+            label::default("Issue").style(style::cyan()),
+            label::default(&id.to_string()).style(style::gray()),
         );
 
         let labels = Property::new(
-            tui::ui::label("Labels").style(style::cyan()),
-            tui::ui::label(&cob::format_labels(item.labels())).style(style::lightblue()),
+            label::default("Labels").style(style::cyan()),
+            label::default(&cob::format_labels(item.labels())).style(style::lightblue()),
         );
 
         let assignees = Property::new(
-            tui::ui::label("Assignees").style(style::cyan()),
-            tui::ui::label(&cob::format_assignees(
+            label::default("Assignees").style(style::cyan()),
+            label::default(&cob::format_assignees(
                 &item
                     .assignees()
                     .iter()
@@ -208,8 +208,8 @@ impl IssueHeader {
         );
 
         let state = Property::new(
-            tui::ui::label("Status").style(style::cyan()),
-            tui::ui::label(&item.state().to_string()).style(style::reset()),
+            label::default("Status").style(style::cyan()),
+            label::default(&item.state().to_string()).style(style::reset()),
         );
 
         let table = tui::ui::property_table(
@@ -330,7 +330,7 @@ impl WidgetComponent for CommentBody {
 pub fn list_navigation(theme: &Theme) -> Widget<Tabs> {
     tui::ui::tabs(
         theme,
-        vec![tui::ui::reversable_label("Issues").style(style::magenta())],
+        vec![label::reversable("Issues").style(style::magenta())],
     )
 }
 

@@ -10,7 +10,7 @@ use crate::ui::theme::{style, Theme};
 use crate::ui::widget::{Widget, WidgetComponent};
 
 use super::container::Container;
-use super::label::Label;
+use super::label::{self, Label};
 
 pub struct TextField {
     input: Widget<Container>,
@@ -29,7 +29,7 @@ impl TextField {
 
         Self {
             input: container,
-            placeholder: crate::ui::label(title).style(style::gray_dim()),
+            placeholder: label::default(title).style(style::gray_dim()),
             show_placeholder: true,
         }
     }
@@ -103,7 +103,7 @@ impl TextArea {
 
         Self {
             input: container,
-            placeholder: crate::ui::label(title).style(style::gray_dim()),
+            placeholder: label::default(title).style(style::gray_dim()),
             show_placeholder: true,
         }
     }

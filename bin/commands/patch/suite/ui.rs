@@ -16,7 +16,7 @@ use tui::ui::widget::{Widget, WidgetComponent};
 
 use tui::ui::widget::container::Tabs;
 use tui::ui::widget::context::{ContextBar, Progress};
-use tui::ui::widget::label::Label;
+use tui::ui::widget::label::{self, Label};
 use tui::ui::widget::list::{ColumnWidth, Table};
 
 pub struct PatchBrowser {
@@ -27,14 +27,14 @@ pub struct PatchBrowser {
 impl PatchBrowser {
     pub fn new(context: &Context, theme: &Theme, selected: Option<(PatchId, Patch)>) -> Self {
         let header = [
-            tui::ui::label(" ● "),
-            tui::ui::label("ID"),
-            tui::ui::label("Title"),
-            tui::ui::label("Author"),
-            tui::ui::label("Head"),
-            tui::ui::label("+"),
-            tui::ui::label("-"),
-            tui::ui::label("Updated"),
+            label::default(" ● ").style(style::reset_dim()),
+            label::default("ID").style(style::reset_dim()),
+            label::default("Title").style(style::reset_dim()),
+            label::default("Author").style(style::reset_dim()),
+            label::default("Head").style(style::reset_dim()),
+            label::default("+").style(style::reset_dim()),
+            label::default("-").style(style::reset_dim()),
+            label::default("Updated").style(style::reset_dim()),
         ];
 
         let widths = [
@@ -162,7 +162,7 @@ impl WidgetComponent for Files {
 pub fn list_navigation(theme: &Theme) -> Widget<Tabs> {
     tui::ui::tabs(
         theme,
-        vec![tui::ui::reversable_label("Patches").style(style::magenta())],
+        vec![label::reversable("Patches").style(style::magenta())],
     )
 }
 
@@ -170,8 +170,8 @@ pub fn navigation(theme: &Theme) -> Widget<Tabs> {
     tui::ui::tabs(
         theme,
         vec![
-            tui::ui::reversable_label("Activity").style(style::magenta()),
-            tui::ui::reversable_label("Files").style(style::magenta()),
+            label::reversable("Activity").style(style::magenta()),
+            label::reversable("Files").style(style::magenta()),
         ],
     )
 }
@@ -185,14 +185,14 @@ pub fn patches(
 }
 
 pub fn activity(_theme: &Theme) -> Widget<Activity> {
-    let not_implemented = tui::ui::label("not implemented").style(style::reset());
+    let not_implemented = label::default("not implemented").style(style::reset());
     let activity = Activity::new(not_implemented);
 
     Widget::new(activity)
 }
 
 pub fn files(_theme: &Theme) -> Widget<Files> {
-    let not_implemented = tui::ui::label("not implemented").style(style::reset());
+    let not_implemented = label::default("not implemented").style(style::reset());
     let files = Files::new(not_implemented);
 
     Widget::new(files)

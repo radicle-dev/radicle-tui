@@ -8,6 +8,35 @@ use crate::ui::layout;
 use crate::ui::theme::style;
 use crate::ui::widget::{Widget, WidgetComponent};
 
+pub fn default(content: &str) -> Widget<Label> {
+    // TODO: Remove when size constraints are implemented
+    let width = content.chars().count() as u16;
+
+    Widget::new(Label)
+        .content(AttrValue::String(content.to_string()))
+        .height(1)
+        .width(width)
+}
+
+pub fn group(labels: &[Widget<Label>]) -> Widget<LabelGroup> {
+    let group = LabelGroup::new(labels);
+    let width = labels.iter().fold(0, |total, label| {
+        total
+            + label
+                .query(Attribute::Width)
+                .unwrap_or(AttrValue::Size(0))
+                .unwrap_size()
+    });
+
+    Widget::new(group).width(width)
+}
+
+pub fn reversable(content: &str) -> Widget<Label> {
+    let content = &format!(" {content} ");
+
+    default(content)
+}
+
 /// A label that can be styled using a foreground color and text modifiers.
 /// Its height is fixed, its width depends on the length of the text it displays.
 #[derive(Clone, Default)]
