@@ -8,6 +8,7 @@ mod select;
 mod suite;
 
 use std::ffi::OsString;
+use std::process::Command;
 
 use anyhow::anyhow;
 
@@ -15,6 +16,8 @@ use radicle_tui::{context, log, Window};
 
 use crate::terminal;
 use crate::terminal::args::{Args, Error, Help};
+
+use self::list::PatchCommand;
 
 pub const FPS: u64 = 60;
 pub const HELP: Help = Help {
@@ -88,11 +91,46 @@ pub fn run(options: Options, _ctx: impl terminal::Context) -> anyhow::Result<()>
 
             log::enable(context.profile(), "patch", "list")?;
 
-            let patch_id = Window::default()
-                .run(&mut list::App::new(context), 1000 / FPS)?
-                .unwrap_or_default();
+            let mut app = list::App::new(context);
+            if let Some(command) = Window::default().run(&mut app, 1000 / FPS)? {
+                match command {
+                    PatchCommand::Show(id) => {
+                        match Command::new("rad")
+                            .arg("patch")
+                            .arg("show")
+                            .arg(id.to_string())
+                            .spawn()
+                        {
+                            Ok(_) => {}
+                            Err(_) => {}
+                        }
+                    },
+                    PatchCommand::Edit(id) => {
+                        match Command::new("rad")
+                            .arg("patch")
+                            .arg("edit")
+                            .arg(id.to_string())
+                            .spawn()
+                        {
+                            Ok(_) => {}
+                            Err(_) => {}
+                        }
+                    }
+                    PatchCommand::Checkout(id) => {
+                        match Command::new("rad")
+                            .arg("patch")
+                            .arg("checkout")
+                            .arg(id.to_string())
+                            .spawn()
+                        {
+                            Ok(_) => {}
+                            Err(_) => {}
+                        }
+                    }
+                }
+            }
 
-            eprint!("{patch_id}");
+            // eprint!("{patch_id}");
         }
         Operation::Select => {
             let context = context::Context::new(id)?.with_patches();

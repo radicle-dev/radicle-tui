@@ -24,6 +24,13 @@ use tui::{Exit, PageStack, Tui};
 
 use page::ListView;
 
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub enum PatchCommand {
+    Show(PatchId),
+    Edit(PatchId),
+    Checkout(PatchId),
+}
+
 #[derive(Debug, Eq, PartialEq, Clone, Hash)]
 pub enum ListCid {
     Header,
@@ -44,7 +51,7 @@ pub enum Cid {
 pub enum Message {
     #[default]
     Tick,
-    Quit(Option<PatchId>),
+    Quit(Option<PatchCommand>),
     Batch(Vec<Message>),
 }
 
@@ -53,7 +60,7 @@ pub struct App {
     pages: PageStack<Cid, Message>,
     theme: Theme,
     quit: bool,
-    result: Option<PatchId>,
+    result: Option<PatchCommand>,
 }
 
 /// Creates a new application using a tui-realm-application, mounts all
@@ -113,7 +120,7 @@ impl App {
     }
 }
 
-impl Tui<Cid, Message> for App {
+impl Tui<Cid, Message, PatchCommand> for App {
     fn init(&mut self, app: &mut Application<Cid, Message, NoUserEvent>) -> Result<()> {
         self.view_list(app, &self.theme.clone())?;
 
@@ -152,10 +159,10 @@ impl Tui<Cid, Message> for App {
         }
     }
 
-    fn exit(&self) -> Option<Exit> {
+    fn exit(&self) -> Option<Exit<PatchCommand>> {
         if self.quit {
             return Some(Exit {
-                value: self.result.map(|id| format!("{id}")),
+                value: self.result.clone(),
             });
         }
         None

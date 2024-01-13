@@ -113,7 +113,7 @@ impl App {
     }
 }
 
-impl Tui<Cid, Message> for App {
+impl Tui<Cid, Message, String> for App {
     fn init(&mut self, app: &mut Application<Cid, Message, NoUserEvent>) -> Result<()> {
         self.view_list(app, &self.theme.clone())?;
 
@@ -152,7 +152,7 @@ impl Tui<Cid, Message> for App {
         }
     }
 
-    fn exit(&self) -> Option<Exit> {
+    fn exit(&self) -> Option<Exit<String>> {
         if self.quit {
             return Some(Exit {
                 value: self.result.map(|id| format!("{id}")),

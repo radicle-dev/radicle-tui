@@ -1,6 +1,6 @@
-use tuirealm::command::{Cmd, Direction as MoveDirection};
+use tuirealm::command::{Cmd, CmdResult, Direction as MoveDirection};
 use tuirealm::event::{Event, Key, KeyEvent};
-use tuirealm::{MockComponent, NoUserEvent};
+use tuirealm::{MockComponent, NoUserEvent, State, StateValue};
 
 use radicle_tui as tui;
 
@@ -11,7 +11,7 @@ use tui::ui::widget::list::PropertyList;
 use tui::ui::widget::Widget;
 
 use super::super::common;
-use super::Message;
+use super::{Message, PatchCommand};
 
 /// Since the framework does not know the type of messages that are being
 /// passed around in the app, the following handlers need to be implemented for
@@ -50,6 +50,48 @@ impl tuirealm::Component<Message, NoUserEvent> for Widget<common::ui::PatchBrows
             }) => {
                 self.perform(Cmd::Move(MoveDirection::Down));
                 Some(Message::Tick)
+            }
+            Event::Keyboard(KeyEvent {
+                code: Key::Enter, ..
+            }) => {
+                let result = self.perform(Cmd::Submit);
+                match result {
+                    CmdResult::Submit(State::One(StateValue::Usize(selected))) => {
+                        let item = self.items().get(selected)?;
+                        Some(Message::Quit(Some(PatchCommand::Show(
+                            item.id().to_owned(),
+                        ))))
+                    }
+                    _ => None,
+                }
+            }
+            Event::Keyboard(KeyEvent {
+                code: Key::Char('e'), ..
+            }) => {
+                let result = self.perform(Cmd::Submit);
+                match result {
+                    CmdResult::Submit(State::One(StateValue::Usize(selected))) => {
+                        let item = self.items().get(selected)?;
+                        Some(Message::Quit(Some(PatchCommand::Edit(
+                            item.id().to_owned(),
+                        ))))
+                    }
+                    _ => None,
+                }
+            }
+            Event::Keyboard(KeyEvent {
+                code: Key::Char('c'), ..
+            }) => {
+                let result = self.perform(Cmd::Submit);
+                match result {
+                    CmdResult::Submit(State::One(StateValue::Usize(selected))) => {
+                        let item = self.items().get(selected)?;
+                        Some(Message::Quit(Some(PatchCommand::Checkout(
+                            item.id().to_owned(),
+                        ))))
+                    }
+                    _ => None,
+                }
             }
             _ => None,
         }

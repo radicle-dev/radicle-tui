@@ -39,6 +39,9 @@ impl ListView {
                 theme,
                 vec![
                     tui::ui::shortcut(theme, "↑/↓", "navigate"),
+                    tui::ui::shortcut(theme, "enter", "show"),
+                    tui::ui::shortcut(theme, "c", "checkout"),
+                    tui::ui::shortcut(theme, "e", "edit"),
                     tui::ui::shortcut(theme, "q", "quit"),
                 ],
             ),

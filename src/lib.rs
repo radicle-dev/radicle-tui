@@ -22,7 +22,7 @@ use ui::theme::Theme;
 /// accordingly and rendered with new state.
 ///
 /// Please see `examples/` for further information on how to use it.
-pub trait Tui<Id, Message>
+pub trait Tui<Id, Message, Return>
 where
     Id: Eq + PartialEq + Clone + Hash,
     Message: Eq,
@@ -38,12 +38,12 @@ where
     fn view(&mut self, app: &mut Application<Id, Message, NoUserEvent>, frame: &mut Frame);
 
     /// Should return `Some` if the application is requested to quit.
-    fn exit(&self) -> Option<Exit>;
+    fn exit(&self) -> Option<Exit<Return>>;
 }
 
 /// An optional return value.
-pub struct Exit {
-    pub value: Option<String>,
+pub struct Exit<T> {
+    pub value: Option<T>,
 }
 
 /// A tui-window using the cross-platform Terminal helper provided
@@ -77,9 +77,13 @@ impl Window {
     ///    - update application state
     ///    - redraw view
     /// 3. Leave alternative terminal screen
-    pub fn run<T, Id, Message>(&mut self, tui: &mut T, interval: u64) -> Result<Option<String>>
+    pub fn run<T, Id, Message, Return>(
+        &mut self,
+        tui: &mut T,
+        interval: u64,
+    ) -> Result<Option<Return>>
     where
-        T: Tui<Id, Message>,
+        T: Tui<Id, Message, Return>,
         Id: Eq + PartialEq + Clone + Hash,
         Message: Eq,
     {
