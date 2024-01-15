@@ -48,24 +48,24 @@ pub fn browse_context(context: &Context, _theme: &Theme, progress: Progress) -> 
         }
     }
 
-    let context = label::badge(" Patches ");
-    let divider = label::default_reversed(" | ");
+    let context = label::default("");
+    let divider = label::default(" | ");
 
-    let draft_n = label::default(&format!("{draft}")).style(style::gray_default_reversed());
-    let draft = label::default_reversed(" Draft");
+    let draft_n = label::default(&format!("{draft}")).style(style::gray_dim());
+    let draft = label::default(" Draft");
 
-    let open_n = label::default(&format!("{open}")).style(style::green_default_reversed());
-    let open = label::default_reversed(" Open");
+    let open_n = label::default(&format!("{open}")).style(style::green());
+    let open = label::default(" Open");
 
-    let archived_n = label::default(&format!("{archived}")).style(style::yellow_default_reversed());
-    let archived = label::default_reversed(" Archived");
+    let archived_n = label::default(&format!("{archived}")).style(style::yellow());
+    let archived = label::default(" Archived");
 
-    let merged_n = label::default(&format!("{merged}")).style(style::cyan_default_reversed());
-    let merged = label::default_reversed(" Merged ");
+    let merged_n = label::default(&format!("{merged}")).style(style::cyan());
+    let merged = label::default(" Merged ");
 
     let progress =
         label::default(&format!(" {} ", progress.to_string())).style(style::magenta_reversed());
-    let spacer = label::default_reversed("");
+    let spacer = label::default("");
 
     let context_bar = ContextBar::new(
         label::group(&[context]),

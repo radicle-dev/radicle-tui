@@ -15,7 +15,7 @@ use super::label::{self, Label};
 /// A generic item that can be displayed in a table with [`const W: usize`] columns.
 pub trait TableItem<const W: usize> {
     /// Should return fields as table cells.
-    fn row(&self, theme: &Theme) -> [Cell; W];
+    fn row(&self, theme: &Theme, highlight: bool) -> [Cell; W];
 }
 
 /// A generic item that can be displayed in a list.
@@ -239,7 +239,16 @@ where
         let rows: Vec<Row<'_>> = self
             .items
             .iter()
-            .map(|item| Row::new(item.row(&self.theme)))
+            .enumerate()
+            .map(|(index, item)| {
+                Row::new(item.row(
+                    &self.theme,
+                    match self.state.selected() {
+                        Some(selected) => index == selected,
+                        None => false,
+                    },
+                ))
+            })
             .collect();
 
         let table = tuirealm::tui::widgets::Table::new(rows)

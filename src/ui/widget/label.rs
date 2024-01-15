@@ -18,6 +18,10 @@ pub fn default(content: &str) -> Widget<Label> {
         .width(width)
 }
 
+pub fn reversed(content: &str) -> Widget<Label> {
+    default(content).style(style::reversed())
+}
+
 pub fn default_reversed(content: &str) -> Widget<Label> {
     default(content).style(style::default_reversed())
 }
@@ -82,7 +86,7 @@ pub fn oid(content: &str) -> Widget<Label> {
 }
 
 pub fn timestamp(content: &str) -> Widget<Label> {
-    default(content).style(style::gray())
+    default(content).style(style::gray_dim())
 }
 
 pub fn positive(content: &str) -> Widget<Label> {

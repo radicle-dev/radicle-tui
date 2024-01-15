@@ -102,47 +102,24 @@ pub mod style {
         Style::default().fg(Color::DarkGray)
     }
 
+    pub fn reversed() -> Style {
+        Style::default().add_modifier(TextModifiers::REVERSED)
+    }
+
     pub fn default_reversed() -> Style {
         Style::default()
-            .fg(Color::Reset)
-            .bg(Color::DarkGray)
             .add_modifier(TextModifiers::DIM)
+            .add_modifier(TextModifiers::REVERSED)
     }
 
     pub fn magenta_reversed() -> Style {
-        Style::default().fg(Color::DarkGray).bg(Color::Magenta)
+        Style::default()
+            .fg(Color::Magenta)
+            .add_modifier(TextModifiers::REVERSED)
     }
 
     pub fn yellow_reversed() -> Style {
         Style::default().fg(Color::DarkGray).bg(Color::Yellow)
-    }
-
-    pub fn green_default_reversed() -> Style {
-        Style::default()
-            .fg(Color::Green)
-            .bg(Color::DarkGray)
-            .add_modifier(TextModifiers::DIM)
-    }
-
-    pub fn yellow_default_reversed() -> Style {
-        Style::default()
-            .fg(Color::Yellow)
-            .bg(Color::DarkGray)
-            .add_modifier(TextModifiers::DIM)
-    }
-
-    pub fn cyan_default_reversed() -> Style {
-        Style::default()
-            .fg(Color::Cyan)
-            .bg(Color::DarkGray)
-            .add_modifier(TextModifiers::DIM)
-    }
-
-    pub fn gray_default_reversed() -> Style {
-        Style::default()
-            .fg(Color::Gray)
-            .bg(Color::DarkGray)
-            .add_modifier(TextModifiers::DIM)
     }
 
     pub fn border(focus: bool) -> Style {
@@ -154,6 +131,8 @@ pub mod style {
     }
 
     pub fn highlight() -> Style {
-        Style::default().bg(Color::DarkGray)
+        Style::default()
+            .fg(Color::Cyan)
+            .add_modifier(TextModifiers::REVERSED)
     }
 }
