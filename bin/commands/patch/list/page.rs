@@ -14,6 +14,7 @@ use tui::ui::{layout, subscription};
 use tui::ViewPage;
 
 use super::{ui, Application, Cid, ListCid, Message};
+use super::super::common;
 
 ///
 /// Home
@@ -64,7 +65,7 @@ impl ListView {
             }
             _ => Progress::None,
         };
-        let context = ui::browse_context(context, theme, progress);
+        let context = common::ui::browse_context(context, theme, progress);
 
         app.remount(Cid::List(ListCid::Context), context.to_boxed(), vec![])?;
 
