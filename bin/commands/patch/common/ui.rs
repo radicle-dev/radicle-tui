@@ -9,7 +9,7 @@ use radicle_tui as tui;
 
 use tui::context::Context;
 use tui::ui::cob::PatchItem;
-use tui::ui::theme::{Theme, style};
+use tui::ui::theme::{style, Theme};
 use tui::ui::widget::{Widget, WidgetComponent};
 
 use tui::ui::widget::label::{self};
@@ -129,8 +129,7 @@ pub fn browse_context(context: &Context, _theme: &Theme, progress: Progress) -> 
     let merged_n = label::default(&format!("{merged}")).style(style::cyan());
     let merged = label::default(" Merged ");
 
-    let progress =
-        label::default(&format!(" {} ", progress.to_string())).style(style::magenta_reversed());
+    let progress = label::reversable(&progress.to_string()).style(style::magenta_reversed());
     let spacer = label::default("");
 
     let context_bar = ContextBar::new(

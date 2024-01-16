@@ -2,7 +2,7 @@ use std::collections::HashMap;
 
 use anyhow::Result;
 
-use tuirealm::{Frame, NoUserEvent, State, StateValue, Sub, SubClause};
+use tuirealm::{AttrValue, Attribute, Frame, NoUserEvent, State, StateValue, Sub, SubClause};
 
 use radicle_tui as tui;
 
@@ -13,8 +13,8 @@ use tui::ui::widget::Widget;
 use tui::ui::{layout, subscription};
 use tui::ViewPage;
 
-use super::{ui, Application, Cid, ListCid, Message};
 use super::super::common;
+use super::{ui, Application, Cid, ListCid, Message};
 
 ///
 /// Home
@@ -131,8 +131,14 @@ impl ViewPage<Cid, Message> for ListView {
 
     fn view(&mut self, app: &mut Application<Cid, Message, NoUserEvent>, frame: &mut Frame) {
         let area = frame.size();
+        let context_h = app
+            .query(&Cid::List(ListCid::Context), Attribute::Height)
+            .unwrap_or_default()
+            .unwrap_or(AttrValue::Size(0))
+            .unwrap_size();
         let shortcuts_h = 1u16;
-        let layout = layout::default_page(area, shortcuts_h);
+
+        let layout = layout::default_page(area, context_h, shortcuts_h);
 
         app.view(
             &Cid::List(self.active_component.clone()),

@@ -4,7 +4,7 @@ use anyhow::Result;
 
 use radicle::cob::patch::{Patch, PatchId};
 
-use tuirealm::{Frame, NoUserEvent, State, StateValue, Sub, SubClause};
+use tuirealm::{AttrValue, Attribute, Frame, NoUserEvent, State, StateValue, Sub, SubClause};
 
 use radicle_tui as tui;
 
@@ -131,8 +131,14 @@ impl ViewPage<Cid, Message> for ListView {
 
     fn view(&mut self, app: &mut Application<Cid, Message, NoUserEvent>, frame: &mut Frame) {
         let area = frame.size();
+        let context_h = app
+            .query(&Cid::List(ListCid::Context), Attribute::Height)
+            .unwrap_or_default()
+            .unwrap_or(AttrValue::Size(0))
+            .unwrap_size();
         let shortcuts_h = 1u16;
-        let layout = layout::full_page(area, shortcuts_h);
+
+        let layout = layout::full_page(area, context_h, shortcuts_h);
 
         app.view(&Cid::List(ListCid::Header), frame, layout.navigation);
         app.view(
@@ -283,8 +289,14 @@ impl ViewPage<Cid, Message> for PatchView {
 
     fn view(&mut self, app: &mut Application<Cid, Message, NoUserEvent>, frame: &mut Frame) {
         let area = frame.size();
+        let context_h = app
+            .query(&Cid::List(ListCid::Context), Attribute::Height)
+            .unwrap_or_default()
+            .unwrap_or(AttrValue::Size(0))
+            .unwrap_size();
         let shortcuts_h = 1u16;
-        let layout = layout::full_page(area, shortcuts_h);
+
+        let layout = layout::full_page(area, context_h, shortcuts_h);
 
         app.view(&Cid::Patch(PatchCid::Header), frame, layout.navigation);
         app.view(

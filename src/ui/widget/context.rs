@@ -175,7 +175,7 @@ impl WidgetComponent for ContextBar {
         }
 
         if display {
-            let layout = layout::h_stack(
+            let content_layout = layout::h_stack(
                 vec![
                     self.col_0.clone().to_boxed(),
                     self.col_1.clone().to_boxed(),
@@ -192,7 +192,7 @@ impl WidgetComponent for ContextBar {
                 area,
             );
 
-            for (mut component, area) in layout {
+            for (mut component, area) in content_layout {
                 component.view(frame, area);
             }
         }

@@ -97,9 +97,8 @@ pub fn app_header(area: Rect, info_w: u16) -> AppHeader {
     }
 }
 
-pub fn full_page(area: Rect, shortcuts_h: u16) -> FullPage {
+pub fn full_page(area: Rect, context_h: u16, shortcuts_h: u16) -> FullPage {
     let nav_h = 3u16;
-    let context_h = 1u16;
     let margin_h = 1u16;
     let component_h = area
         .height
@@ -127,8 +126,7 @@ pub fn full_page(area: Rect, shortcuts_h: u16) -> FullPage {
     }
 }
 
-pub fn default_page(area: Rect, shortcuts_h: u16) -> DefaultPage {
-    let context_h = 1u16;
+pub fn default_page(area: Rect, context_h: u16, shortcuts_h: u16) -> DefaultPage {
     let margin_h = 1u16;
     let component_h = area
         .height
