@@ -66,7 +66,8 @@ impl tuirealm::Component<Message, NoUserEvent> for Widget<common::ui::PatchBrows
                 }
             }
             Event::Keyboard(KeyEvent {
-                code: Key::Char('e'), ..
+                code: Key::Char('e'),
+                ..
             }) => {
                 let result = self.perform(Cmd::Submit);
                 match result {
@@ -80,7 +81,8 @@ impl tuirealm::Component<Message, NoUserEvent> for Widget<common::ui::PatchBrows
                 }
             }
             Event::Keyboard(KeyEvent {
-                code: Key::Char('c'), ..
+                code: Key::Char('c'),
+                ..
             }) => {
                 let result = self.perform(Cmd::Submit);
                 match result {

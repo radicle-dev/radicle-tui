@@ -104,7 +104,7 @@ pub fn run(options: Options, _ctx: impl terminal::Context) -> anyhow::Result<()>
                             Ok(_) => {}
                             Err(_) => {}
                         }
-                    },
+                    }
                     PatchCommand::Edit(id) => {
                         match Command::new("rad")
                             .arg("patch")
