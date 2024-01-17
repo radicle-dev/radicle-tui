@@ -125,7 +125,7 @@ where
 {
     /// Will be called whenever a view page is pushed onto the page stack. Should create and mount all widgets.
     fn mount(
-        &self,
+        &mut self,
         app: &mut Application<Id, Message, NoUserEvent>,
         context: &Context,
         theme: &Theme,
@@ -180,7 +180,7 @@ where
 {
     pub fn push(
         &mut self,
-        page: Box<dyn ViewPage<Id, Message>>,
+        mut page: Box<dyn ViewPage<Id, Message>>,
         app: &mut Application<Id, Message, NoUserEvent>,
         context: &Context,
         theme: &Theme,

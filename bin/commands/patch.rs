@@ -1,7 +1,5 @@
 #[path = "patch/common.rs"]
 mod common;
-#[path = "patch/list.rs"]
-mod list;
 #[path = "patch/select.rs"]
 mod select;
 #[path = "patch/suite.rs"]
@@ -24,12 +22,19 @@ pub const HELP: Help = Help {
     usage: r#"
 Usage
 
-    rad-tui patch select
-    rad-tui patch list
+    rad-tui patch [<option>...]
+    rad-tui patch select [--operation | --id] [<option>...]
 
-General options
+Select options
 
-    --help               Print help
+    --operation         Select patch id and operation (default)
+    --id                Select patch id only
+    
+
+
+Other options
+
+    --help              Print help
 "#,
 };
 
@@ -38,14 +43,23 @@ pub struct Options {
 }
 
 pub enum Operation {
-    List,
-    Select,
+    Select { opts: SelectOptions },
 }
 
 #[derive(PartialEq, Eq)]
 pub enum OperationName {
-    List,
     Select,
+}
+
+#[derive(Debug, Default, PartialEq, Eq)]
+pub struct SelectOptions {
+    subject: select::Subject,
+}
+
+impl SelectOptions {
+    pub fn new(subject: select::Subject) -> Self {
+        Self { subject }
+    }
 }
 
 impl Args for Options {
@@ -54,6 +68,7 @@ impl Args for Options {
 
         let mut parser = lexopt::Parser::from_args(args);
         let mut op: Option<OperationName> = None;
+        let mut select_opts: Option<SelectOptions> = None;
 
         #[allow(clippy::never_loop)]
         while let Some(arg) = parser.next()? {
@@ -61,8 +76,22 @@ impl Args for Options {
                 Long("help") | Short('h') => {
                     return Err(Error::Help.into());
                 }
+
+                // Select options.
+                Long("operation") | Short('o') if op == Some(OperationName::Select) => {
+                    if select_opts.is_some() {
+                        anyhow::bail!("select option already given")
+                    }
+                    select_opts = Some(SelectOptions::new(select::Subject::Operation));
+                }
+                Long("id") | Short('i') if op == Some(OperationName::Select) => {
+                    if select_opts.is_some() {
+                        anyhow::bail!("select option already given")
+                    }
+                    select_opts = Some(SelectOptions::new(select::Subject::Id));
+                }
+
                 Value(val) if op.is_none() => match val.to_string_lossy().as_ref() {
-                    "list" => op = Some(OperationName::List),
                     "select" => op = Some(OperationName::Select),
                     unknown => anyhow::bail!("unknown operation '{}'", unknown),
                 },
@@ -71,8 +100,9 @@ impl Args for Options {
         }
 
         let op = match op.ok_or_else(|| anyhow!("an operation must be provided"))? {
-            OperationName::List => Operation::List,
-            OperationName::Select => Operation::Select,
+            OperationName::Select => Operation::Select {
+                opts: select_opts.unwrap_or_default(),
+            },
         };
         Ok((Options { op }, vec![]))
     }
@@ -83,29 +113,19 @@ pub fn run(options: Options, _ctx: impl terminal::Context) -> anyhow::Result<()>
         .map_err(|_| anyhow!("this command must be run in the context of a project"))?;
 
     match options.op {
-        Operation::List => {
-            let context = context::Context::new(id)?.with_patches();
-
-            log::enable(context.profile(), "patch", "list")?;
-
-            let mut app = list::App::new(context);
-            let command = Window::default().run(&mut app, 1000 / FPS)?;
-            let output = command
-                .map(|command| serde_json::to_string(&command).unwrap_or_default())
-                .unwrap_or_default();
-
-            eprint!("{output}");
-        }
-        Operation::Select => {
+        Operation::Select { opts } => {
             let context = context::Context::new(id)?.with_patches();
 
             log::enable(context.profile(), "patch", "select")?;
 
-            let patch_id = Window::default()
-                .run(&mut select::App::new(context), 1000 / FPS)?
+            let mut app = select::App::new(context, opts.subject);
+            let output = Window::default().run(&mut app, 1000 / FPS)?;
+
+            let json = output
+                .map(|output| serde_json::to_string(&output).unwrap_or_default())
                 .unwrap_or_default();
 
-            eprint!("{patch_id}");
+            eprint!("{json}");
         }
     }
 

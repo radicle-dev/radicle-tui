@@ -90,7 +90,7 @@ impl ListView {
 
 impl ViewPage<Cid, Message> for ListView {
     fn mount(
-        &self,
+        &mut self,
         app: &mut Application<Cid, Message, NoUserEvent>,
         context: &Context,
         theme: &Theme,
@@ -237,7 +237,7 @@ impl PatchView {
 
 impl ViewPage<Cid, Message> for PatchView {
     fn mount(
-        &self,
+        &mut self,
         app: &mut Application<Cid, Message, NoUserEvent>,
         context: &Context,
         theme: &Theme,

@@ -8,8 +8,7 @@ mod ui;
 use std::hash::Hash;
 
 use anyhow::Result;
-
-use radicle::cob::patch::PatchId;
+use serde::{Serialize, Serializer};
 
 use tuirealm::application::PollStrategy;
 use tuirealm::event::Key;
@@ -23,6 +22,54 @@ use tui::ui::theme::Theme;
 use tui::{Exit, PageStack, Tui};
 
 use page::ListView;
+
+/// Wrapper around radicle's `PatchId` that serializes
+/// to a human-readable string.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct PatchId(radicle::cob::patch::PatchId);
+
+impl From<radicle::cob::patch::PatchId> for PatchId {
+    fn from(value: radicle::cob::patch::PatchId) -> Self {
+        PatchId(value)
+    }
+}
+
+impl Serialize for PatchId {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        serializer.serialize_str(&format!("{}", *self.0))
+    }
+}
+
+/// The application's subject. It tells the application
+/// which widgets to render and which output to produce.
+///
+/// Depends on CLI arguments given by the user.
+#[derive(Clone, Default, Debug, Eq, PartialEq)]
+pub enum Subject {
+    #[default]
+    Operation,
+    Id,
+}
+
+/// The selected patch operation returned by the operation
+/// selection widget.
+#[derive(Clone, Debug, Eq, PartialEq, Serialize)]
+pub enum PatchOperation {
+    Show,
+    Edit,
+    Checkout,
+}
+
+/// The application's output that depends on the application's
+/// subject.
+#[derive(Clone, Debug, Eq, PartialEq, Serialize)]
+pub struct Output {
+    operation: Option<PatchOperation>,
+    id: PatchId,
+}
 
 #[derive(Debug, Eq, PartialEq, Clone, Hash)]
 pub enum ListCid {
@@ -44,7 +91,7 @@ pub enum Cid {
 pub enum Message {
     #[default]
     Tick,
-    Quit(Option<PatchId>),
+    Quit(Option<Output>),
     Batch(Vec<Message>),
 }
 
@@ -53,19 +100,21 @@ pub struct App {
     pages: PageStack<Cid, Message>,
     theme: Theme,
     quit: bool,
-    result: Option<PatchId>,
+    subject: Subject,
+    output: Option<Output>,
 }
 
 /// Creates a new application using a tui-realm-application, mounts all
 /// components and sets focus to a default one.
 impl App {
-    pub fn new(context: Context) -> Self {
+    pub fn new(context: Context, subject: Subject) -> Self {
         Self {
             context,
             pages: PageStack::default(),
             theme: Theme::default(),
             quit: false,
-            result: None,
+            subject,
+            output: None,
         }
     }
 
@@ -74,7 +123,7 @@ impl App {
         app: &mut Application<Cid, Message, NoUserEvent>,
         theme: &Theme,
     ) -> Result<()> {
-        let home = Box::new(ListView::new(theme.clone()));
+        let home = Box::new(ListView::new(self.subject.clone()));
         self.pages.push(home, app, &self.context, theme)?;
 
         Ok(())
@@ -100,9 +149,9 @@ impl App {
                     _ => Ok(Some(Message::Batch(results))),
                 }
             }
-            Message::Quit(id) => {
+            Message::Quit(output) => {
                 self.quit = true;
-                self.result = id;
+                self.output = output;
                 Ok(None)
             }
             _ => self
@@ -113,7 +162,7 @@ impl App {
     }
 }
 
-impl Tui<Cid, Message, String> for App {
+impl Tui<Cid, Message, Output> for App {
     fn init(&mut self, app: &mut Application<Cid, Message, NoUserEvent>) -> Result<()> {
         self.view_list(app, &self.theme.clone())?;
 
@@ -123,7 +172,7 @@ impl Tui<Cid, Message, String> for App {
             Cid::GlobalListener,
             global,
             vec![Sub::new(
-                subscription::quit_clause(Key::Esc),
+                subscription::quit_clause(Key::Char('q')),
                 SubClause::Always,
             )],
         )?;
@@ -152,10 +201,10 @@ impl Tui<Cid, Message, String> for App {
         }
     }
 
-    fn exit(&self) -> Option<Exit<String>> {
+    fn exit(&self) -> Option<Exit<Output>> {
         if self.quit {
             return Some(Exit {
-                value: self.result.map(|id| format!("{id}")),
+                value: self.output.clone(),
             });
         }
         None
