@@ -19,6 +19,8 @@ radicle = { git = "https://github.com/radicle-dev/heartwood" }
 radicle-term = { git = "https://github.com/radicle-dev/heartwood", package = "radicle-term" }
 radicle-surf = { version = "0.18.0" }
 simple-logging = { version = "2.0.2" }
+serde = { version = "1.0", features = ["derive"] }
+serde_json = { version = "1.0" }
 timeago = { version = "0.4.1" }
 textwrap = { version = "0.16.0" }
 thiserror = { version = "1" }

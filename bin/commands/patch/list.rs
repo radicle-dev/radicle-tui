@@ -8,8 +8,7 @@ mod ui;
 use std::hash::Hash;
 
 use anyhow::Result;
-
-use radicle::cob::patch::PatchId;
+use serde::{Serialize, Serializer};
 
 use tuirealm::application::PollStrategy;
 use tuirealm::event::Key;
@@ -25,10 +24,22 @@ use tui::{Exit, PageStack, Tui};
 use page::ListView;
 
 #[derive(Clone, Debug, Eq, PartialEq)]
+pub struct PatchId(radicle::cob::patch::PatchId);
+
+impl Serialize for PatchId {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        serializer.serialize_str(&format!("{}", *self.0))
+    }
+}
+
+#[derive(Clone, Debug, Eq, PartialEq, Serialize)]
 pub enum PatchCommand {
-    Show(PatchId),
-    Edit(PatchId),
-    Checkout(PatchId),
+    Show { id: PatchId },
+    Edit { id: PatchId },
+    Checkout { id: PatchId },
 }
 
 #[derive(Debug, Eq, PartialEq, Clone, Hash)]

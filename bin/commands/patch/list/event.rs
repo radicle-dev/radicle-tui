@@ -58,37 +58,39 @@ impl tuirealm::Component<Message, NoUserEvent> for Widget<common::ui::PatchBrows
                 match result {
                     CmdResult::Submit(State::One(StateValue::Usize(selected))) => {
                         let item = self.items().get(selected)?;
-                        Some(Message::Quit(Some(PatchCommand::Show(
-                            item.id().to_owned(),
-                        ))))
+                        Some(Message::Quit(Some(PatchCommand::Show {
+                            id: super::PatchId(item.id().to_owned()),
+                        })))
                     }
                     _ => None,
                 }
             }
             Event::Keyboard(KeyEvent {
-                code: Key::Char('e'), ..
+                code: Key::Char('e'),
+                ..
             }) => {
                 let result = self.perform(Cmd::Submit);
                 match result {
                     CmdResult::Submit(State::One(StateValue::Usize(selected))) => {
                         let item = self.items().get(selected)?;
-                        Some(Message::Quit(Some(PatchCommand::Edit(
-                            item.id().to_owned(),
-                        ))))
+                        Some(Message::Quit(Some(PatchCommand::Edit {
+                            id: super::PatchId(item.id().to_owned()),
+                        })))
                     }
                     _ => None,
                 }
             }
             Event::Keyboard(KeyEvent {
-                code: Key::Char('c'), ..
+                code: Key::Char('c'),
+                ..
             }) => {
                 let result = self.perform(Cmd::Submit);
                 match result {
                     CmdResult::Submit(State::One(StateValue::Usize(selected))) => {
                         let item = self.items().get(selected)?;
-                        Some(Message::Quit(Some(PatchCommand::Checkout(
-                            item.id().to_owned(),
-                        ))))
+                        Some(Message::Quit(Some(PatchCommand::Checkout {
+                            id: super::PatchId(item.id().to_owned()),
+                        })))
                     }
                     _ => None,
                 }
