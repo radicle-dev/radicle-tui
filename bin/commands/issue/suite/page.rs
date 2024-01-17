@@ -110,7 +110,7 @@ impl ListPage {
 
 impl ViewPage<Cid, Message> for ListPage {
     fn mount(
-        &self,
+        &mut self,
         app: &mut Application<Cid, Message, NoUserEvent>,
         context: &Context,
         theme: &Theme,
@@ -338,7 +338,7 @@ impl IssuePage {
 
 impl ViewPage<Cid, Message> for IssuePage {
     fn mount(
-        &self,
+        &mut self,
         app: &mut Application<Cid, Message, NoUserEvent>,
         context: &Context,
         theme: &Theme,

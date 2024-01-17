@@ -14,41 +14,24 @@ use tui::ui::{layout, subscription};
 use tui::ViewPage;
 
 use super::super::common;
-use super::{ui, Application, Cid, ListCid, Message};
+use super::{ui, Application, Cid, ListCid, Message, Subject};
 
 ///
 /// Home
 ///
 pub struct ListView {
     active_component: ListCid,
+    subject: Subject,
     shortcuts: HashMap<ListCid, Widget<Shortcuts>>,
 }
 
 impl ListView {
-    pub fn new(theme: Theme) -> Self {
-        let shortcuts = Self::build_shortcuts(&theme);
+    pub fn new(subject: Subject) -> Self {
         Self {
             active_component: ListCid::PatchBrowser,
-            shortcuts,
+            subject,
+            shortcuts: HashMap::default(),
         }
-    }
-
-    fn build_shortcuts(theme: &Theme) -> HashMap<ListCid, Widget<Shortcuts>> {
-        [(
-            ListCid::PatchBrowser,
-            tui::ui::shortcuts(
-                theme,
-                vec![
-                    tui::ui::shortcut(theme, "tab", "section"),
-                    tui::ui::shortcut(theme, "↑/↓", "navigate"),
-                    tui::ui::shortcut(theme, "enter", "show"),
-                    tui::ui::shortcut(theme, "q", "quit"),
-                ],
-            ),
-        )]
-        .iter()
-        .cloned()
-        .collect()
     }
 
     fn update_context(
@@ -83,23 +66,37 @@ impl ListView {
                 vec![],
             )?;
         }
+
         Ok(())
     }
 }
 
 impl ViewPage<Cid, Message> for ListView {
     fn mount(
-        &self,
+        &mut self,
         app: &mut Application<Cid, Message, NoUserEvent>,
         context: &Context,
         theme: &Theme,
     ) -> Result<()> {
         let navigation = ui::list_navigation(theme);
         let header = tui::ui::app_header(context, theme, Some(navigation)).to_boxed();
-        let patch_browser = ui::patches(context, theme, None).to_boxed();
 
         app.remount(Cid::List(ListCid::Header), header, vec![])?;
-        app.remount(Cid::List(ListCid::PatchBrowser), patch_browser, vec![])?;
+
+        match self.subject {
+            Subject::Id => {
+                let patch_browser = ui::id_select(context, theme, None).to_boxed();
+                self.shortcuts = patch_browser.as_ref().shortcuts();
+
+                app.remount(Cid::List(ListCid::PatchBrowser), patch_browser, vec![])?;
+            }
+            Subject::Operation => {
+                let patch_browser = ui::operation_select(context, theme, None).to_boxed();
+                self.shortcuts = patch_browser.as_ref().shortcuts();
+
+                app.remount(Cid::List(ListCid::PatchBrowser), patch_browser, vec![])?;
+            }
+        };
 
         app.active(&Cid::List(self.active_component.clone()))?;
         self.update_shortcuts(app, self.active_component.clone())?;
@@ -135,7 +132,7 @@ impl ViewPage<Cid, Message> for ListView {
             .unwrap_or_default()
             .unwrap_or(AttrValue::Size(0))
             .unwrap_size();
-        let shortcuts_h = 0u16;
+        let shortcuts_h = 1u16;
 
         let layout = layout::default_page(area, context_h, shortcuts_h);
 
@@ -146,6 +143,7 @@ impl ViewPage<Cid, Message> for ListView {
         );
 
         app.view(&Cid::List(ListCid::Context), frame, layout.context);
+        app.view(&Cid::List(ListCid::Shortcuts), frame, layout.shortcuts);
     }
 
     fn subscribe(&self, app: &mut Application<Cid, Message, NoUserEvent>) -> Result<()> {
