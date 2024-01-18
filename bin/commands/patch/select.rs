@@ -5,6 +5,7 @@ mod page;
 #[path = "select/ui.rs"]
 mod ui;
 
+use std::fmt::Display;
 use std::hash::Hash;
 
 use anyhow::Result;
@@ -31,6 +32,12 @@ pub struct PatchId(radicle::cob::patch::PatchId);
 impl From<radicle::cob::patch::PatchId> for PatchId {
     fn from(value: radicle::cob::patch::PatchId) -> Self {
         PatchId(value)
+    }
+}
+
+impl Display for PatchId {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.0)
     }
 }
 
@@ -63,12 +70,37 @@ pub enum PatchOperation {
     Checkout,
 }
 
+impl Display for PatchOperation {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            PatchOperation::Show => {
+                write!(f, "show")
+            }
+            PatchOperation::Edit => {
+                write!(f, "edit")
+            }
+            PatchOperation::Checkout => {
+                write!(f, "checkout")
+            }
+        }
+    }
+}
+
 /// The application's output that depends on the application's
 /// subject.
 #[derive(Clone, Debug, Eq, PartialEq, Serialize)]
 pub struct Output {
     operation: Option<PatchOperation>,
     id: PatchId,
+}
+
+impl Display for Output {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match &self.operation {
+            Some(op) => write!(f, "{} {}", op, self.id),
+            None => write!(f, "{}", self.id),
+        }
+    }
 }
 
 #[derive(Debug, Eq, PartialEq, Clone, Hash)]

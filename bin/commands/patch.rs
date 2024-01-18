@@ -34,12 +34,14 @@ Select options
 
 Other options
 
+    --json              Output is JSON (default: false)
     --help              Print help
 "#,
 };
 
 pub struct Options {
     op: Operation,
+    json: bool,
 }
 
 pub enum Operation {
@@ -68,6 +70,7 @@ impl Args for Options {
 
         let mut parser = lexopt::Parser::from_args(args);
         let mut op: Option<OperationName> = None;
+        let mut json = false;
         let mut select_opts: Option<SelectOptions> = None;
 
         #[allow(clippy::never_loop)]
@@ -75,6 +78,9 @@ impl Args for Options {
             match arg {
                 Long("help") | Short('h') => {
                     return Err(Error::Help.into());
+                }
+                Long("json") | Short('j') => {
+                    json = true;
                 }
 
                 // Select options.
@@ -104,7 +110,7 @@ impl Args for Options {
                 opts: select_opts.unwrap_or_default(),
             },
         };
-        Ok((Options { op }, vec![]))
+        Ok((Options { op, json }, vec![]))
     }
 }
 
@@ -121,11 +127,17 @@ pub fn run(options: Options, _ctx: impl terminal::Context) -> anyhow::Result<()>
             let mut app = select::App::new(context, opts.subject);
             let output = Window::default().run(&mut app, 1000 / FPS)?;
 
-            let json = output
-                .map(|output| serde_json::to_string(&output).unwrap_or_default())
-                .unwrap_or_default();
+            let output = if options.json {
+                output
+                    .map(|o| serde_json::to_string(&o).unwrap_or_default())
+                    .unwrap_or_default()
+            } else {
+                output
+                    .map(|o| format!("rad patch {}", o))
+                    .unwrap_or_default()
+            };
 
-            eprint!("{json}");
+            eprint!("{output}");
         }
     }
 
