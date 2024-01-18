@@ -32,6 +32,17 @@ impl tuirealm::Component<Message, NoUserEvent> for Widget<GlobalListener> {
 
 impl tuirealm::Component<Message, NoUserEvent> for Widget<IdSelect> {
     fn on(&mut self, event: Event<NoUserEvent>) -> Option<Message> {
+        let mut submit = || -> Option<radicle::cob::patch::PatchId> {
+            let result = self.perform(Cmd::Submit);
+            match result {
+                CmdResult::Submit(State::One(StateValue::Usize(selected))) => {
+                    let item = self.items().get(selected)?;
+                    Some(item.id().to_owned())
+                }
+                _ => None,
+            }
+        };
+
         match event {
             Event::Keyboard(KeyEvent { code: Key::Up, .. })
             | Event::Keyboard(KeyEvent {
@@ -53,20 +64,10 @@ impl tuirealm::Component<Message, NoUserEvent> for Widget<IdSelect> {
             }
             Event::Keyboard(KeyEvent {
                 code: Key::Enter, ..
-            }) => {
-                let result = self.perform(Cmd::Submit);
-                match result {
-                    CmdResult::Submit(State::One(StateValue::Usize(selected))) => {
-                        let item = self.items().get(selected)?;
-                        let output = Output {
-                            operation: None,
-                            id: PatchId::from(item.id().to_owned()),
-                        };
-                        Some(Message::Quit(Some(output)))
-                    }
-                    _ => None,
-                }
-            }
+            }) => submit().map(|id| {
+                let output = Output::new(None, PatchId::from(id));
+                Message::Quit(Some(output))
+            }),
             _ => None,
         }
     }
@@ -74,6 +75,17 @@ impl tuirealm::Component<Message, NoUserEvent> for Widget<IdSelect> {
 
 impl tuirealm::Component<Message, NoUserEvent> for Widget<OperationSelect> {
     fn on(&mut self, event: Event<NoUserEvent>) -> Option<Message> {
+        let mut submit = || -> Option<radicle::cob::patch::PatchId> {
+            let result = self.perform(Cmd::Submit);
+            match result {
+                CmdResult::Submit(State::One(StateValue::Usize(selected))) => {
+                    let item = self.items().get(selected)?;
+                    Some(item.id().to_owned())
+                }
+                _ => None,
+            }
+        };
+
         match event {
             Event::Keyboard(KeyEvent { code: Key::Up, .. })
             | Event::Keyboard(KeyEvent {
@@ -95,54 +107,45 @@ impl tuirealm::Component<Message, NoUserEvent> for Widget<OperationSelect> {
             }
             Event::Keyboard(KeyEvent {
                 code: Key::Enter, ..
-            }) => {
-                let result = self.perform(Cmd::Submit);
-                match result {
-                    CmdResult::Submit(State::One(StateValue::Usize(selected))) => {
-                        let item = self.items().get(selected)?;
-                        let output = Output {
-                            operation: Some(PatchOperation::Show),
-                            id: PatchId::from(item.id().to_owned()),
-                        };
-                        Some(Message::Quit(Some(output)))
-                    }
-                    _ => None,
-                }
-            }
+            }) => submit().map(|id| {
+                let output = Output::new(Some(PatchOperation::Show), PatchId::from(id));
+                Message::Quit(Some(output))
+            }),
             Event::Keyboard(KeyEvent {
-                code: Key::Char('e'),
+                code: Key::Char('u'),
                 ..
-            }) => {
-                let result = self.perform(Cmd::Submit);
-                match result {
-                    CmdResult::Submit(State::One(StateValue::Usize(selected))) => {
-                        let item = self.items().get(selected)?;
-                        let output = Output {
-                            operation: Some(PatchOperation::Edit),
-                            id: PatchId::from(item.id().to_owned()),
-                        };
-                        Some(Message::Quit(Some(output)))
-                    }
-                    _ => None,
-                }
-            }
+            }) => submit().map(|id| {
+                let output = Output::new(Some(PatchOperation::Update), PatchId::from(id));
+                Message::Quit(Some(output))
+            }),
             Event::Keyboard(KeyEvent {
                 code: Key::Char('c'),
                 ..
-            }) => {
-                let result = self.perform(Cmd::Submit);
-                match result {
-                    CmdResult::Submit(State::One(StateValue::Usize(selected))) => {
-                        let item = self.items().get(selected)?;
-                        let output = Output {
-                            operation: Some(PatchOperation::Checkout),
-                            id: PatchId::from(item.id().to_owned()),
-                        };
-                        Some(Message::Quit(Some(output)))
-                    }
-                    _ => None,
-                }
-            }
+            }) => submit().map(|id| {
+                let output = Output::new(Some(PatchOperation::Checkout), PatchId::from(id));
+                Message::Quit(Some(output))
+            }),
+            Event::Keyboard(KeyEvent {
+                code: Key::Char('d'),
+                ..
+            }) => submit().map(|id| {
+                let output = Output::new(Some(PatchOperation::Delete), PatchId::from(id));
+                Message::Quit(Some(output))
+            }),
+            Event::Keyboard(KeyEvent {
+                code: Key::Char('e'),
+                ..
+            }) => submit().map(|id| {
+                let output = Output::new(Some(PatchOperation::Edit), PatchId::from(id));
+                Message::Quit(Some(output))
+            }),
+            Event::Keyboard(KeyEvent {
+                code: Key::Char('m'),
+                ..
+            }) => submit().map(|id| {
+                let output = Output::new(Some(PatchOperation::Comment), PatchId::from(id));
+                Message::Quit(Some(output))
+            }),
             _ => None,
         }
     }

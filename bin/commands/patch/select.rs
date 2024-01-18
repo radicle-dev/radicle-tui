@@ -66,8 +66,12 @@ pub enum Subject {
 #[derive(Clone, Debug, Eq, PartialEq, Serialize)]
 pub enum PatchOperation {
     Show,
-    Edit,
+    Update,
     Checkout,
+    Review,
+    Delete,
+    Edit,
+    Comment,
 }
 
 impl Display for PatchOperation {
@@ -76,11 +80,23 @@ impl Display for PatchOperation {
             PatchOperation::Show => {
                 write!(f, "show")
             }
-            PatchOperation::Edit => {
-                write!(f, "edit")
+            PatchOperation::Update => {
+                write!(f, "update")
             }
             PatchOperation::Checkout => {
                 write!(f, "checkout")
+            }
+            PatchOperation::Review => {
+                write!(f, "review")
+            }
+            PatchOperation::Delete => {
+                write!(f, "delete")
+            }
+            PatchOperation::Edit => {
+                write!(f, "edit")
+            }
+            PatchOperation::Comment => {
+                write!(f, "comment")
             }
         }
     }
@@ -92,6 +108,12 @@ impl Display for PatchOperation {
 pub struct Output {
     operation: Option<PatchOperation>,
     id: PatchId,
+}
+
+impl Output {
+    pub fn new(operation: Option<PatchOperation>, id: PatchId) -> Self {
+        Self { operation, id }
+    }
 }
 
 impl Display for Output {
