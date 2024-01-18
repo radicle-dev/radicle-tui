@@ -27,7 +27,3 @@ thiserror = { version = "1" }
 tuirealm = { version = "1.9.0", default-features = false, features = [ "with-termion" ] }
 tui-realm-stdlib = { version = "1.2.0", default-features = false, features = [ "with-termion" ] }
 tui-realm-textarea = { git = "https://github.com/erak/tui-realm-textarea.git", default-features = false, features = [ "with-termion", "clipboard" ] }
-
-# tuirealm = { version = "1.8.0", default-features = false, features = [ "with-crossterm" ] }
-# tui-realm-stdlib = { version = "1.2.0", default-features = false, features = [ "with-crossterm" ] }
-# tui-realm-textarea = { git = "https://github.com/erak/tui-realm-textarea.git", default-features = false, features = [ "with-crossterm", "clipboard" ] }
