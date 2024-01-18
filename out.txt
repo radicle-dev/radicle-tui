@@ -1,4 +1,0 @@
-   Compiling radicle-tui v0.1.0 (/home/erikli/projects/radicle/dev/radicle-tui)
-    Finished dev [unoptimized + debuginfo] target(s) in 4.38s
-     Running `target/debug/rad-tui patch select --operation`
-rad patch checkout 534e768883ac507f3ec1f4f9da67623486cd0657
