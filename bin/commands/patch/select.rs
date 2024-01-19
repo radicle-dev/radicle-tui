@@ -54,7 +54,7 @@ impl Serialize for PatchId {
 /// which widgets to render and which output to produce.
 ///
 /// Depends on CLI arguments given by the user.
-#[derive(Clone, Default, Debug, Eq, PartialEq)]
+#[derive(Clone, Default, Copy, Debug, Eq, PartialEq)]
 pub enum Subject {
     #[default]
     Operation,
@@ -177,7 +177,7 @@ impl App {
         app: &mut Application<Cid, Message, NoUserEvent>,
         theme: &Theme,
     ) -> Result<()> {
-        let home = Box::new(ListView::new(self.subject.clone()));
+        let home = Box::new(ListView::new(self.subject));
         self.pages.push(home, app, &self.context, theme)?;
 
         Ok(())

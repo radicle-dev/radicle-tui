@@ -53,7 +53,7 @@ pub enum OperationName {
     Select,
 }
 
-#[derive(Debug, Default, PartialEq, Eq)]
+#[derive(Debug, Default, Copy, Clone, PartialEq, Eq)]
 pub struct SelectOptions {
     subject: select::Subject,
 }
@@ -133,9 +133,14 @@ pub fn run(options: Options, _ctx: impl terminal::Context) -> anyhow::Result<()>
                     .map(|o| serde_json::to_string(&o).unwrap_or_default())
                     .unwrap_or_default()
             } else {
-                output
-                    .map(|o| format!("rad patch {}", o))
-                    .unwrap_or_default()
+                match options.op {
+                    Operation::Select { opts } => match opts.subject {
+                        select::Subject::Id => output.map(|o| format!("{}", o)).unwrap_or_default(),
+                        select::Subject::Operation => output
+                            .map(|o| format!("rad patch {}", o))
+                            .unwrap_or_default(),
+                    },
+                }
             };
 
             eprint!("{output}");
