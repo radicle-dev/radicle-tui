@@ -33,6 +33,8 @@ impl Display for Rev {
     }
 }
 
+/// Application context that holds all the project data that are
+/// needed to render it.
 pub struct Context {
     profile: Profile,
     id: Id,
@@ -44,8 +46,7 @@ pub struct Context {
 }
 
 impl Context {
-    pub fn new(id: Id) -> Result<Self, anyhow::Error> {
-        let profile = profile()?;
+    pub fn new(profile: Profile, id: Id) -> Result<Self, anyhow::Error> {
         let repository = profile.storage.repository(id).unwrap();
         let project = repository.identity_doc()?.project()?;
         let issues = None;
@@ -53,8 +54,8 @@ impl Context {
         let signer = None;
 
         Ok(Self {
-            id,
             profile,
+            id,
             project,
             repository,
             issues,
@@ -109,26 +110,26 @@ impl Context {
         &self.signer
     }
 
-    pub fn reload(&mut self) {
-        use crate::cob::issue;
+    // pub fn reload(&mut self) {
+    //     use crate::cob::issue;
+    //     use crate::cob::patch;
+
+    //     if self.issues.is_some() {
+    //         self.issues = Some(issue::all(&self.repository).unwrap_or_default());
+    //     }
+    //     if self.patches.is_some() {
+    //         self.patches = Some(patch::all(&self.repository).unwrap_or_default());
+    //     }
+    // }
+
+    pub fn reload_patches(&mut self) {
         use crate::cob::patch;
-
-        if self.issues.is_some() {
-            self.issues = Some(issue::all(&self.repository).unwrap_or_default());
-        }
-        if self.patches.is_some() {
-            self.patches = Some(patch::all(&self.repository).unwrap_or_default());
-        }
+        self.patches = Some(patch::all(&self.repository).unwrap_or_default());
     }
-}
 
-/// Get the default profile. Fails if there is no profile.
-fn profile() -> Result<Profile, anyhow::Error> {
-    match Profile::load() {
-        Ok(profile) => Ok(profile),
-        Err(_) => Err(anyhow::anyhow!(
-            "Could not load radicle profile. To setup your radicle profile, run `rad auth`."
-        )),
+    pub fn reload_issues(&mut self) {
+        use crate::cob::issue;
+        self.issues = Some(issue::all(&self.repository).unwrap_or_default());
     }
 }
 

@@ -182,7 +182,7 @@ impl App {
                 description,
             })) => match self.create_issue(title, description, tags, assignees) {
                 Ok(id) => {
-                    self.context.reload();
+                    self.context.reload_issues();
 
                     Ok(Some(Message::Batch(vec![
                         Message::Issue(IssueMessage::HideForm),

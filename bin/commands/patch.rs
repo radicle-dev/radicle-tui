@@ -120,7 +120,8 @@ pub fn run(options: Options, _ctx: impl terminal::Context) -> anyhow::Result<()>
 
     match options.op {
         Operation::Select { opts } => {
-            let context = context::Context::new(id)?.with_patches();
+            let profile = terminal::profile()?;
+            let context = context::Context::new(profile, id)?.with_patches();
 
             log::enable(context.profile(), "patch", "select")?;
 
