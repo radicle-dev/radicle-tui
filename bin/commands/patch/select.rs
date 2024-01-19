@@ -66,7 +66,6 @@ pub enum Subject {
 #[derive(Clone, Debug, Eq, PartialEq, Serialize)]
 pub enum PatchOperation {
     Show,
-    Update,
     Checkout,
     Review,
     Delete,
@@ -79,9 +78,6 @@ impl Display for PatchOperation {
         match self {
             PatchOperation::Show => {
                 write!(f, "show")
-            }
-            PatchOperation::Update => {
-                write!(f, "update")
             }
             PatchOperation::Checkout => {
                 write!(f, "checkout")
