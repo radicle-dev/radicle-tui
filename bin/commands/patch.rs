@@ -11,8 +11,9 @@ use std::str::FromStr;
 use anyhow::anyhow;
 
 use radicle_tui as tui;
-use tui::cob::patch::{self, Filter};
+
 use tui::{context, log, Window};
+use tui::cob::patch::{self, Filter};
 
 use crate::terminal;
 use crate::terminal::args::{Args, Error, Help};

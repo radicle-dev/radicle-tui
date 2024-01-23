@@ -1,10 +1,14 @@
 use std::str::FromStr;
 
-use anyhow::Result;
+use anyhow::{anyhow, Result};
 
 use radicle::cob::patch::{Patch, PatchId, Patches};
 use radicle::identity::Did;
 use radicle::storage::git::Repository;
+
+const STATE_PROP: &'static str = "state:";
+const BOOL_PROP: &'static str = "is:";
+const AUTHOR_PROP: &'static str = "authors:";
 
 #[derive(Clone, Default, Debug, Eq, PartialEq)]
 pub enum State {
@@ -43,20 +47,80 @@ impl Filter {
     }
 }
 
+#[derive(thiserror::Error, Debug)]
+pub enum FilterError {
+    ///
+    #[error("unknown property found: {property}")]
+    UnknownProperty { property: String },
+    ///
+    #[error("unknown value for property 'state': {value}")]
+    UnknownStateValue { value: String },
+    ///
+    #[error("unknown value for property 'is': {value}")]
+    UnknownBoolValue { value: String },
+    ///
+    #[error("unknown value for property 'authors': {value}")]
+    UnknownAuthorsValue { value: String },
+    ///
+    #[error("Did parsing failed: {err}")]
+    DidFormat { err: anyhow::Error },
+}
+
 impl FromStr for Filter {
-    type Err = std::io::Error;
+    type Err = FilterError;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         let mut filter = Filter::default();
-        let parts = s.split(',').collect::<Vec<_>>();
+
+        let parts = s.split(' ').collect::<Vec<_>>();
         for part in parts {
-            match part {
-                "state:draft" => filter = filter.with_state(State::Draft),
-                "state:open" => filter = filter.with_state(State::Open),
-                "state:merged" => filter = filter.with_state(State::Merged),
-                "state:archived" => filter = filter.with_state(State::Archived),
-                "is:authored" => filter = filter.with_authored(true),
-                _ => {}
+            if part.starts_with(STATE_PROP) {
+                let state = part.replace(STATE_PROP, "");
+                match state.as_str() {
+                    "draft" => filter = filter.with_state(State::Draft),
+                    "open" => filter = filter.with_state(State::Open),
+                    "merged" => filter = filter.with_state(State::Merged),
+                    "archived" => filter = filter.with_state(State::Archived),
+                    other => {
+                        return Err(FilterError::UnknownStateValue {
+                            value: other.to_string(),
+                        })
+                    }
+                }
+            }
+            if part.starts_with(BOOL_PROP) {
+                let is = part.replace(BOOL_PROP, "");
+                match is.as_str() {
+                    "authored" => filter = filter.with_authored(true),
+                    other => {
+                        return Err(FilterError::UnknownBoolValue {
+                            value: other.to_string(),
+                        })
+                    }
+                }
+            }
+            if part.starts_with(AUTHOR_PROP) {
+                let authors = part.replace(AUTHOR_PROP, "");
+                if let Some(list) = authors.strip_prefix('[') {
+                    if let Some(list) = list.strip_suffix(']') {
+                        match super::parse_dids(list.to_string()) {
+                            Ok(dids) => {
+                                for did in dids {
+                                    filter = filter.with_author(did);
+                                }
+                            }
+                            Err(err) => return Err(FilterError::DidFormat { err }),
+                        }
+                    } else {
+                        return Err(FilterError::UnknownAuthorsValue {
+                            value: authors.to_string(),
+                        });
+                    }
+                } else {
+                    return Err(FilterError::UnknownAuthorsValue {
+                        value: authors.to_string(),
+                    });
+                }
             }
         }
 
