@@ -119,13 +119,6 @@ impl tuirealm::Component<Message, NoUserEvent> for Widget<OperationSelect> {
                 Message::Quit(Some(output))
             }),
             Event::Keyboard(KeyEvent {
-                code: Key::Char('r'),
-                ..
-            }) => submit().map(|id| {
-                let output = Output::new(Some(PatchOperation::Review), PatchId::from(id));
-                Message::Quit(Some(output))
-            }),
-            Event::Keyboard(KeyEvent {
                 code: Key::Char('d'),
                 ..
             }) => submit().map(|id| {

@@ -39,8 +39,7 @@ impl IdSelect {
             tui::ui::shortcuts(
                 &self.theme,
                 vec![
-                    tui::ui::shortcut(&self.theme, "↑/↓", "navigate"),
-                    tui::ui::shortcut(&self.theme, "enter", "show"),
+                    tui::ui::shortcut(&self.theme, "enter", "select"),
                     tui::ui::shortcut(&self.theme, "q", "quit"),
                 ],
             ),
@@ -90,13 +89,11 @@ impl OperationSelect {
             tui::ui::shortcuts(
                 &self.theme,
                 vec![
-                    tui::ui::shortcut(&self.theme, "↑/↓", "navigate"),
                     tui::ui::shortcut(&self.theme, "enter", "show"),
                     tui::ui::shortcut(&self.theme, "c", "checkout"),
-                    tui::ui::shortcut(&self.theme, "r", "review"),
-                    tui::ui::shortcut(&self.theme, "d", "delete"),
-                    tui::ui::shortcut(&self.theme, "e", "edit"),
                     tui::ui::shortcut(&self.theme, "m", "comment"),
+                    tui::ui::shortcut(&self.theme, "e", "edit"),
+                    tui::ui::shortcut(&self.theme, "d", "delete"),
                     tui::ui::shortcut(&self.theme, "q", "quit"),
                 ],
             ),
