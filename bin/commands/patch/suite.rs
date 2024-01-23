@@ -18,6 +18,7 @@ use tuirealm::{Application, Frame, NoUserEvent, Sub, SubClause};
 use radicle_tui as tui;
 
 use tui::cob;
+use tui::cob::patch::Filter;
 use tui::context::Context;
 use tui::ui::subscription;
 use tui::ui::theme::Theme;
@@ -83,6 +84,7 @@ pub struct App {
     context: Context,
     pages: PageStack<Cid, Message>,
     theme: Theme,
+    filter: Filter,
     quit: bool,
 }
 
@@ -90,11 +92,12 @@ pub struct App {
 /// components and sets focus to a default one.
 #[allow(dead_code)]
 impl App {
-    pub fn new(context: Context) -> Self {
+    pub fn new(context: Context, filter: Filter) -> Self {
         Self {
             context,
             pages: PageStack::default(),
             theme: Theme::default(),
+            filter,
             quit: false,
         }
     }
@@ -104,7 +107,7 @@ impl App {
         app: &mut Application<Cid, Message, NoUserEvent>,
         theme: &Theme,
     ) -> Result<()> {
-        let home = Box::new(ListView::new(theme.clone()));
+        let home = Box::new(ListView::new(theme.clone(), self.filter.clone()));
         self.pages.push(home, app, &self.context, theme)?;
 
         Ok(())

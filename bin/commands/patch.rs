@@ -9,7 +9,9 @@ use std::ffi::OsString;
 
 use anyhow::anyhow;
 
-use radicle_tui::{context, log, Window};
+use radicle_tui as tui;
+use tui::cob::patch;
+use tui::{context, log, Window};
 
 use crate::terminal;
 use crate::terminal::args::{Args, Error, Help};
@@ -53,14 +55,15 @@ pub enum OperationName {
     Select,
 }
 
-#[derive(Debug, Default, Copy, Clone, PartialEq, Eq)]
+#[derive(Debug, Default, Clone, PartialEq, Eq)]
 pub struct SelectOptions {
     subject: select::Subject,
+    filter: patch::Filter,
 }
 
 impl SelectOptions {
-    pub fn new(subject: select::Subject) -> Self {
-        Self { subject }
+    pub fn new(subject: select::Subject, filter: patch::Filter) -> Self {
+        Self { subject, filter }
     }
 }
 
@@ -70,6 +73,7 @@ impl Args for Options {
 
         let mut parser = lexopt::Parser::from_args(args);
         let mut op: Option<OperationName> = None;
+        let filter = patch::Filter::default();
         let mut json = false;
         let mut select_opts: Option<SelectOptions> = None;
 
@@ -88,13 +92,16 @@ impl Args for Options {
                     if select_opts.is_some() {
                         anyhow::bail!("select option already given")
                     }
-                    select_opts = Some(SelectOptions::new(select::Subject::Operation));
+                    select_opts = Some(SelectOptions::new(
+                        select::Subject::Operation,
+                        filter.clone(),
+                    ));
                 }
                 Long("id") | Short('i') if op == Some(OperationName::Select) => {
                     if select_opts.is_some() {
                         anyhow::bail!("select option already given")
                     }
-                    select_opts = Some(SelectOptions::new(select::Subject::Id));
+                    select_opts = Some(SelectOptions::new(select::Subject::Id, filter.clone()));
                 }
 
                 Value(val) if op.is_none() => match val.to_string_lossy().as_ref() {
@@ -119,13 +126,13 @@ pub fn run(options: Options, _ctx: impl terminal::Context) -> anyhow::Result<()>
         .map_err(|_| anyhow!("this command must be run in the context of a project"))?;
 
     match options.op {
-        Operation::Select { opts } => {
+        Operation::Select { ref opts } => {
             let profile = terminal::profile()?;
             let context = context::Context::new(profile, id)?.with_patches();
 
             log::enable(context.profile(), "patch", "select")?;
 
-            let mut app = select::App::new(context, opts.subject);
+            let mut app = select::App::new(context, opts.subject.clone(), opts.filter.clone());
             let output = Window::default().run(&mut app, 1000 / FPS)?;
 
             let output = if options.json {
@@ -134,7 +141,7 @@ pub fn run(options: Options, _ctx: impl terminal::Context) -> anyhow::Result<()>
                     .unwrap_or_default()
             } else {
                 match options.op {
-                    Operation::Select { opts } => match opts.subject {
+                    Operation::Select { ref opts } => match &opts.subject {
                         select::Subject::Id => output.map(|o| format!("{}", o)).unwrap_or_default(),
                         select::Subject::Operation => output
                             .map(|o| format!("rad patch {}", o))

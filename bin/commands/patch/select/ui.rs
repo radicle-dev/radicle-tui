@@ -4,6 +4,7 @@ use radicle::cob::patch::{Patch, PatchId};
 
 use radicle_tui as tui;
 
+use tui::cob::patch::Filter;
 use tui::context::Context;
 use tui::ui::cob::PatchItem;
 use tui::ui::theme::{style, Theme};
@@ -131,21 +132,27 @@ pub fn list_navigation(theme: &Theme) -> Widget<Tabs> {
 }
 
 pub fn id_select(
-    context: &Context,
     theme: &Theme,
+    context: &Context,
+    filter: Filter,
     selected: Option<(PatchId, Patch)>,
 ) -> Widget<IdSelect> {
-    let browser = Widget::new(common::ui::PatchBrowser::new(context, theme, selected));
+    let browser = Widget::new(common::ui::PatchBrowser::new(
+        theme, context, filter, selected,
+    ));
 
     Widget::new(IdSelect::new(theme.clone(), browser))
 }
 
 pub fn operation_select(
-    context: &Context,
     theme: &Theme,
+    context: &Context,
+    filter: Filter,
     selected: Option<(PatchId, Patch)>,
 ) -> Widget<OperationSelect> {
-    let browser = Widget::new(common::ui::PatchBrowser::new(context, theme, selected));
+    let browser = Widget::new(common::ui::PatchBrowser::new(
+        theme, context, filter, selected,
+    ));
 
     Widget::new(OperationSelect::new(theme.clone(), browser))
 }

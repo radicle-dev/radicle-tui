@@ -7,6 +7,7 @@ use tuirealm::{AttrValue, Attribute, Frame, MockComponent, Props, State};
 
 use radicle_tui as tui;
 
+use tui::cob::patch::Filter;
 use tui::context::Context;
 use tui::ui::cob::PatchItem;
 use tui::ui::theme::{style, Theme};
@@ -21,7 +22,12 @@ pub struct PatchBrowser {
 }
 
 impl PatchBrowser {
-    pub fn new(context: &Context, theme: &Theme, selected: Option<(PatchId, Patch)>) -> Self {
+    pub fn new(
+        theme: &Theme,
+        context: &Context,
+        filter: Filter,
+        selected: Option<(PatchId, Patch)>,
+    ) -> Self {
         let header = [
             label::header(" ● "),
             label::header("ID"),
@@ -45,9 +51,14 @@ impl PatchBrowser {
         ];
 
         let repo = context.repository();
-        let patches = context.patches().as_ref().unwrap();
-        let mut items = vec![];
+        let patches = context
+            .patches()
+            .as_ref()
+            .unwrap()
+            .iter()
+            .filter(|(_, patch)| filter.matches(patch));
 
+        let mut items = vec![];
         for (id, patch) in patches {
             if let Ok(item) = PatchItem::try_from((context.profile(), repo, *id, patch.clone())) {
                 items.push(item);

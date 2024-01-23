@@ -7,6 +7,7 @@ use tuirealm::{AttrValue, Attribute, Frame, MockComponent, Props, State};
 
 use radicle_tui as tui;
 
+use tui::cob::patch::Filter;
 use tui::context::Context;
 use tui::ui::cob;
 use tui::ui::layout;
@@ -99,11 +100,14 @@ pub fn navigation(theme: &Theme) -> Widget<Tabs> {
 }
 
 pub fn patches(
-    context: &Context,
     theme: &Theme,
+    context: &Context,
+    filter: Filter,
     selected: Option<(PatchId, Patch)>,
 ) -> Widget<common::ui::PatchBrowser> {
-    Widget::new(common::ui::PatchBrowser::new(context, theme, selected))
+    Widget::new(common::ui::PatchBrowser::new(
+        theme, context, filter, selected,
+    ))
 }
 
 pub fn activity(_theme: &Theme) -> Widget<Activity> {

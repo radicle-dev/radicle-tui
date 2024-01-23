@@ -17,7 +17,9 @@ use tuirealm::{Application, Frame, NoUserEvent, Sub, SubClause};
 
 use radicle_tui as tui;
 
+use tui::cob::patch::Filter;
 use tui::context::Context;
+
 use tui::ui::subscription;
 use tui::ui::theme::Theme;
 use tui::{Exit, PageStack, Tui};
@@ -54,7 +56,7 @@ impl Serialize for PatchId {
 /// which widgets to render and which output to produce.
 ///
 /// Depends on CLI arguments given by the user.
-#[derive(Clone, Default, Copy, Debug, Eq, PartialEq)]
+#[derive(Clone, Default, Debug, Eq, PartialEq)]
 pub enum Subject {
     #[default]
     Operation,
@@ -151,19 +153,21 @@ pub struct App {
     theme: Theme,
     quit: bool,
     subject: Subject,
+    filter: Filter,
     output: Option<Output>,
 }
 
 /// Creates a new application using a tui-realm-application, mounts all
 /// components and sets focus to a default one.
 impl App {
-    pub fn new(context: Context, subject: Subject) -> Self {
+    pub fn new(context: Context, subject: Subject, filter: Filter) -> Self {
         Self {
             context,
             pages: PageStack::default(),
             theme: Theme::default(),
             quit: false,
             subject,
+            filter,
             output: None,
         }
     }
@@ -173,7 +177,7 @@ impl App {
         app: &mut Application<Cid, Message, NoUserEvent>,
         theme: &Theme,
     ) -> Result<()> {
-        let home = Box::new(ListView::new(self.subject));
+        let home = Box::new(ListView::new(self.subject.clone(), self.filter.clone()));
         self.pages.push(home, app, &self.context, theme)?;
 
         Ok(())

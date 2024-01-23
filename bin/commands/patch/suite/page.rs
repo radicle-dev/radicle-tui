@@ -8,6 +8,7 @@ use tuirealm::{AttrValue, Attribute, Frame, NoUserEvent, State, StateValue, Sub,
 
 use radicle_tui as tui;
 
+use tui::cob::patch::Filter;
 use tui::context::Context;
 use tui::ui::theme::Theme;
 use tui::ui::widget::context::{Progress, Shortcuts};
@@ -23,14 +24,16 @@ use super::{ui, Application, Cid, ListCid, Message, PatchCid};
 pub struct ListView {
     active_component: ListCid,
     shortcuts: HashMap<ListCid, Widget<Shortcuts>>,
+    filter: Filter,
 }
 
 impl ListView {
-    pub fn new(theme: Theme) -> Self {
+    pub fn new(theme: Theme, filter: Filter) -> Self {
         let shortcuts = Self::build_shortcuts(&theme);
         Self {
             active_component: ListCid::PatchBrowser,
             shortcuts,
+            filter,
         }
     }
 
@@ -97,7 +100,7 @@ impl ViewPage<Cid, Message> for ListView {
     ) -> Result<()> {
         let navigation = ui::list_navigation(theme);
         let header = tui::ui::app_header(context, theme, Some(navigation)).to_boxed();
-        let patch_browser = ui::patches(context, theme, None).to_boxed();
+        let patch_browser = ui::patches(theme, context, self.filter.clone(), None).to_boxed();
 
         app.remount(Cid::List(ListCid::Header), header, vec![])?;
         app.remount(Cid::List(ListCid::PatchBrowser), patch_browser, vec![])?;

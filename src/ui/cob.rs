@@ -13,8 +13,8 @@ use radicle::storage::git::Repository;
 use radicle::storage::{Oid, ReadRepository};
 use radicle::Profile;
 
-use radicle::cob::issue::{Issue, IssueId, State as IssueState};
-use radicle::cob::patch::{Patch, PatchId, State as PatchState};
+use radicle::cob::issue::{self, Issue, IssueId};
+use radicle::cob::patch::{self, Patch, PatchId};
 use radicle::cob::{Label, Timestamp};
 
 use crate::ui::theme::Theme;
@@ -59,7 +59,7 @@ pub struct PatchItem {
     /// Patch OID.
     id: PatchId,
     /// Patch state.
-    state: PatchState,
+    state: patch::State,
     /// Patch title.
     title: String,
     /// Author of the latest revision.
@@ -79,7 +79,7 @@ impl PatchItem {
         &self.id
     }
 
-    pub fn state(&self) -> &PatchState {
+    pub fn state(&self) -> &patch::State {
         &self.state
     }
 
@@ -206,7 +206,7 @@ pub struct IssueItem {
     /// Issue OID.
     id: IssueId,
     /// Issue state.
-    state: IssueState,
+    state: issue::State,
     /// Issue title.
     title: String,
     /// Issue author.
@@ -224,7 +224,7 @@ impl IssueItem {
         &self.id
     }
 
-    pub fn state(&self) -> &IssueState {
+    pub fn state(&self) -> &issue::State {
         &self.state
     }
 
@@ -356,12 +356,12 @@ impl PartialEq for IssueItem {
     }
 }
 
-pub fn format_patch_state(state: &PatchState) -> (String, Color) {
+pub fn format_patch_state(state: &patch::State) -> (String, Color) {
     match state {
-        PatchState::Open { conflicts: _ } => (" ● ".into(), Color::Green),
-        PatchState::Archived => (" ● ".into(), Color::Yellow),
-        PatchState::Draft => (" ● ".into(), Color::Gray),
-        PatchState::Merged {
+        patch::State::Open { conflicts: _ } => (" ● ".into(), Color::Green),
+        patch::State::Archived => (" ● ".into(), Color::Yellow),
+        patch::State::Draft => (" ● ".into(), Color::Gray),
+        patch::State::Merged {
             revision: _,
             commit: _,
         } => (" ● ".into(), Color::Cyan),
@@ -381,10 +381,10 @@ pub fn format_author(did: &Did, alias: &Option<Alias>, is_you: bool) -> String {
     }
 }
 
-pub fn format_issue_state(state: &IssueState) -> (String, Color) {
+pub fn format_issue_state(state: &issue::State) -> (String, Color) {
     match state {
-        IssueState::Open => (" ● ".into(), Color::Green),
-        IssueState::Closed { reason: _ } => (" ● ".into(), Color::Red),
+        issue::State::Open => (" ● ".into(), Color::Green),
+        issue::State::Closed { reason: _ } => (" ● ".into(), Color::Red),
     }
 }
 

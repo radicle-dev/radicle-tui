@@ -4,8 +4,10 @@ use std::str::FromStr;
 use anyhow::anyhow;
 
 use radicle::cob::{issue, patch};
+use radicle::crypto;
+use radicle::identity::Did;
 
-/// Git revision parameter. Supports extended SHA-1 syntax.
+/// Git revision parameter. Supports     extended SHA-1 syntax.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Rev(String);
 
@@ -95,6 +97,19 @@ pub fn finish(unparsed: Vec<OsString>) -> anyhow::Result<()> {
 pub fn rev(val: &OsString) -> anyhow::Result<Rev> {
     let s = val.to_str().ok_or(anyhow!("invalid git rev {val:?}"))?;
     Ok(Rev::from(s.to_owned()))
+}
+
+#[allow(dead_code)]
+pub fn did(val: &OsString) -> anyhow::Result<Did> {
+    let val = val.to_string_lossy();
+    let Ok(peer) = Did::from_str(&val) else {
+        if crypto::PublicKey::from_str(&val).is_ok() {
+            return Err(anyhow!("expected DID, did you mean 'did:key:{val}'?"));
+        } else {
+            return Err(anyhow!("invalid DID '{}', expected 'did:key'", val));
+        }
+    };
+    Ok(peer)
 }
 
 #[allow(dead_code)]
