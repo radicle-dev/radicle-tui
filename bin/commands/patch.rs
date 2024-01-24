@@ -6,11 +6,12 @@ mod select;
 mod suite;
 
 use std::ffi::OsString;
+use std::str::FromStr;
 
 use anyhow::anyhow;
 
 use radicle_tui as tui;
-use tui::cob::patch;
+use tui::cob::patch::{self, Filter};
 use tui::{context, log, Window};
 
 use crate::terminal;
@@ -73,7 +74,7 @@ impl Args for Options {
 
         let mut parser = lexopt::Parser::from_args(args);
         let mut op: Option<OperationName> = None;
-        let filter = patch::Filter::default();
+        let mut filter = patch::Filter::default();
         let mut json = false;
         let mut select_opts: Option<SelectOptions> = None;
 
@@ -103,6 +104,13 @@ impl Args for Options {
                     }
                     select_opts = Some(SelectOptions::new(select::Subject::Id, filter.clone()));
                 }
+                Long("filter") | Short('f') if op == Some(OperationName::Select) => {
+                    let val = parser.value()?;
+                    println!("--filter {val:?}");
+
+                    filter = Filter::from_str(&val.to_string_lossy())?;
+                    println!("{filter:?}");
+                }
 
                 Value(val) if op.is_none() => match val.to_string_lossy().as_ref() {
                     "select" => op = Some(OperationName::Select),
@@ -130,27 +138,27 @@ pub fn run(options: Options, _ctx: impl terminal::Context) -> anyhow::Result<()>
             let profile = terminal::profile()?;
             let context = context::Context::new(profile, id)?.with_patches();
 
-            log::enable(context.profile(), "patch", "select")?;
+            // log::enable(context.profile(), "patch", "select")?;
 
-            let mut app = select::App::new(context, opts.subject.clone(), opts.filter.clone());
-            let output = Window::default().run(&mut app, 1000 / FPS)?;
+            // let mut app = select::App::new(context, opts.subject.clone(), opts.filter.clone());
+            // let output = Window::default().run(&mut app, 1000 / FPS)?;
 
-            let output = if options.json {
-                output
-                    .map(|o| serde_json::to_string(&o).unwrap_or_default())
-                    .unwrap_or_default()
-            } else {
-                match options.op {
-                    Operation::Select { ref opts } => match &opts.subject {
-                        select::Subject::Id => output.map(|o| format!("{}", o)).unwrap_or_default(),
-                        select::Subject::Operation => output
-                            .map(|o| format!("rad patch {}", o))
-                            .unwrap_or_default(),
-                    },
-                }
-            };
+            // let output = if options.json {
+            //     output
+            //         .map(|o| serde_json::to_string(&o).unwrap_or_default())
+            //         .unwrap_or_default()
+            // } else {
+            //     match options.op {
+            //         Operation::Select { ref opts } => match &opts.subject {
+            //             select::Subject::Id => output.map(|o| format!("{}", o)).unwrap_or_default(),
+            //             select::Subject::Operation => output
+            //                 .map(|o| format!("rad patch {}", o))
+            //                 .unwrap_or_default(),
+            //         },
+            //     }
+            // };
 
-            eprint!("{output}");
+            // eprint!("{output}");
         }
     }
 

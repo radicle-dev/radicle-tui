@@ -1,3 +1,5 @@
+use std::str::FromStr;
+
 use anyhow::Result;
 
 use radicle::cob::patch::{Patch, PatchId, Patches};
@@ -38,6 +40,27 @@ impl Filter {
 
     pub fn matches(&self, _patch: &Patch) -> bool {
         true
+    }
+}
+
+impl FromStr for Filter {
+    type Err = std::io::Error;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        let mut filter = Filter::default();
+        let parts = s.split(',').collect::<Vec<_>>();
+        for part in parts {
+            match part {
+                "state:draft" => filter = filter.with_state(State::Draft),
+                "state:open" => filter = filter.with_state(State::Open),
+                "state:merged" => filter = filter.with_state(State::Merged),
+                "state:archived" => filter = filter.with_state(State::Archived),
+                "is:authored" => filter = filter.with_authored(true),
+                _ => {}
+            }
+        }
+
+        Ok(filter)
     }
 }
 
