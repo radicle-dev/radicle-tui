@@ -56,7 +56,7 @@ impl PatchBrowser {
             .as_ref()
             .unwrap()
             .iter()
-            .filter(|(_, patch)| filter.matches(patch));
+            .filter(|(_, patch)| filter.matches(context.profile(), patch));
 
         let mut items = vec![];
         for (id, patch) in patches {
@@ -104,7 +104,12 @@ impl WidgetComponent for PatchBrowser {
     }
 }
 
-pub fn browse_context(context: &Context, _theme: &Theme, progress: Progress) -> Widget<ContextBar> {
+pub fn browse_context(
+    context: &Context,
+    _theme: &Theme,
+    filter: Filter,
+    progress: Progress,
+) -> Widget<ContextBar> {
     use radicle::cob::patch::State;
 
     let mut draft = 0;
@@ -112,7 +117,13 @@ pub fn browse_context(context: &Context, _theme: &Theme, progress: Progress) -> 
     let mut archived = 0;
     let mut merged = 0;
 
-    let patches = context.patches().as_ref().unwrap();
+    let patches = context
+        .patches()
+        .as_ref()
+        .unwrap()
+        .iter()
+        .filter(|(_, patch)| filter.matches(context.profile(), patch));
+
     for (_, patch) in patches {
         match patch.state() {
             State::Draft => draft += 1,
@@ -125,8 +136,8 @@ pub fn browse_context(context: &Context, _theme: &Theme, progress: Progress) -> 
         }
     }
 
-    let context = label::default("");
-    let divider = label::default(" | ");
+    let context = label::reversable("/").style(style::magenta_reversed());
+    let filter = label::default(&filter.to_string()).style(style::magenta_dim());
 
     let draft_n = label::default(&format!("{draft}")).style(style::gray_dim());
     let draft = label::default(" Draft");
@@ -141,11 +152,13 @@ pub fn browse_context(context: &Context, _theme: &Theme, progress: Progress) -> 
     let merged = label::default(" Merged ");
 
     let progress = label::reversable(&progress.to_string()).style(style::magenta_reversed());
+
     let spacer = label::default("");
+    let divider = label::default(" | ");
 
     let context_bar = ContextBar::new(
         label::group(&[context]),
-        label::group(&[spacer.clone()]),
+        label::group(&[filter]),
         label::group(&[spacer]),
         label::group(&[
             draft_n,

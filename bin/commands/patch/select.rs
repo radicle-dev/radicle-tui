@@ -57,7 +57,7 @@ impl Serialize for PatchId {
 ///
 /// Depends on CLI arguments given by the user.
 #[derive(Clone, Default, Debug, Eq, PartialEq)]
-pub enum Subject {
+pub enum Mode {
     #[default]
     Operation,
     Id,
@@ -152,7 +152,7 @@ pub struct App {
     pages: PageStack<Cid, Message>,
     theme: Theme,
     quit: bool,
-    subject: Subject,
+    mode: Mode,
     filter: Filter,
     output: Option<Output>,
 }
@@ -160,13 +160,13 @@ pub struct App {
 /// Creates a new application using a tui-realm-application, mounts all
 /// components and sets focus to a default one.
 impl App {
-    pub fn new(context: Context, subject: Subject, filter: Filter) -> Self {
+    pub fn new(context: Context, mode: Mode, filter: Filter) -> Self {
         Self {
             context,
             pages: PageStack::default(),
             theme: Theme::default(),
             quit: false,
-            subject,
+            mode,
             filter,
             output: None,
         }
@@ -177,7 +177,7 @@ impl App {
         app: &mut Application<Cid, Message, NoUserEvent>,
         theme: &Theme,
     ) -> Result<()> {
-        let home = Box::new(ListView::new(self.subject.clone(), self.filter.clone()));
+        let home = Box::new(ListView::new(self.mode.clone(), self.filter.clone()));
         self.pages.push(home, app, &self.context, theme)?;
 
         Ok(())

@@ -10,7 +10,8 @@ use std::ffi::OsString;
 use anyhow::anyhow;
 
 use radicle_tui as tui;
-use tui::cob::patch;
+
+use tui::cob::patch::{self, State};
 use tui::{context, log, Window};
 
 use crate::terminal;
@@ -24,15 +25,23 @@ pub const HELP: Help = Help {
     usage: r#"
 Usage
 
-    rad-tui patch [<option>...]
-    rad-tui patch select [--operation | --id] [<option>...]
+    rad-tui patch select [<option>...]
 
 Select options
 
-    --operation         Select patch id and operation (default)
-    --id                Select patch id only
-    
+    --mode <MODE>           Set selection mode; see MODE below (default: operation)
+    --all                   Show all patches, including merged and archived patches
+    --archived              Show only archived patches
+    --merged                Show only merged patches
+    --open                  Show only open patches (default)
+    --draft                 Show only draft patches
+    --authored              Show only patches that you have authored
+    --author <did>          Show only patched where the given user is an author
+                            (may be specified multiple times)
 
+    The MODE argument can be 'operation' or 'id'. 'operation' selects a patch id and
+    an operation, whereas 'id' selects a patch id only.
+    
 
 Other options
 
@@ -57,14 +66,8 @@ pub enum OperationName {
 
 #[derive(Debug, Default, Clone, PartialEq, Eq)]
 pub struct SelectOptions {
-    subject: select::Subject,
+    mode: select::Mode,
     filter: patch::Filter,
-}
-
-impl SelectOptions {
-    pub fn new(subject: select::Subject, filter: patch::Filter) -> Self {
-        Self { subject, filter }
-    }
 }
 
 impl Args for Options {
@@ -73,9 +76,8 @@ impl Args for Options {
 
         let mut parser = lexopt::Parser::from_args(args);
         let mut op: Option<OperationName> = None;
-        let filter = patch::Filter::default();
         let mut json = false;
-        let mut select_opts: Option<SelectOptions> = None;
+        let mut select_opts = SelectOptions::default();
 
         #[allow(clippy::never_loop)]
         while let Some(arg) = parser.next()? {
@@ -87,21 +89,39 @@ impl Args for Options {
                     json = true;
                 }
 
-                // Select options.
-                Long("operation") | Short('o') if op == Some(OperationName::Select) => {
-                    if select_opts.is_some() {
-                        anyhow::bail!("select option already given")
-                    }
-                    select_opts = Some(SelectOptions::new(
-                        select::Subject::Operation,
-                        filter.clone(),
-                    ));
+                // select options.
+                Long("mode") | Short('m') if op == Some(OperationName::Select) => {
+                    let val = parser.value()?;
+                    let val = val.to_str().unwrap_or_default();
+
+                    select_opts.mode = match val {
+                        "operation" => select::Mode::Operation,
+                        "id" => select::Mode::Id,
+                        unknown => anyhow::bail!("unknown mode '{}'", unknown),
+                    };
                 }
-                Long("id") | Short('i') if op == Some(OperationName::Select) => {
-                    if select_opts.is_some() {
-                        anyhow::bail!("select option already given")
-                    }
-                    select_opts = Some(SelectOptions::new(select::Subject::Id, filter.clone()));
+                Long("all") if op == Some(OperationName::Select) => {
+                    select_opts.filter = select_opts.filter.with_state(None);
+                }
+                Long("draft") if op == Some(OperationName::Select) => {
+                    select_opts.filter = select_opts.filter.with_state(Some(State::Draft));
+                }
+                Long("archived") if op == Some(OperationName::Select) => {
+                    select_opts.filter = select_opts.filter.with_state(Some(State::Archived));
+                }
+                Long("merged") if op == Some(OperationName::Select) => {
+                    select_opts.filter = select_opts.filter.with_state(Some(State::Merged));
+                }
+                Long("open") if op == Some(OperationName::Select) => {
+                    select_opts.filter = select_opts.filter.with_state(Some(State::Open));
+                }
+                Long("authored") if op == Some(OperationName::Select) => {
+                    select_opts.filter = select_opts.filter.with_authored(true);
+                }
+                Long("author") if op == Some(OperationName::Select) => {
+                    select_opts.filter = select_opts
+                        .filter
+                        .with_author(terminal::args::did(&parser.value()?)?);
                 }
 
                 Value(val) if op.is_none() => match val.to_string_lossy().as_ref() {
@@ -113,9 +133,7 @@ impl Args for Options {
         }
 
         let op = match op.ok_or_else(|| anyhow!("an operation must be provided"))? {
-            OperationName::Select => Operation::Select {
-                opts: select_opts.unwrap_or_default(),
-            },
+            OperationName::Select => Operation::Select { opts: select_opts },
         };
         Ok((Options { op, json }, vec![]))
     }
@@ -132,7 +150,7 @@ pub fn run(options: Options, _ctx: impl terminal::Context) -> anyhow::Result<()>
 
             log::enable(context.profile(), "patch", "select")?;
 
-            let mut app = select::App::new(context, opts.subject.clone(), opts.filter.clone());
+            let mut app = select::App::new(context, opts.mode.clone(), opts.filter.clone());
             let output = Window::default().run(&mut app, 1000 / FPS)?;
 
             let output = if options.json {
@@ -141,9 +159,9 @@ pub fn run(options: Options, _ctx: impl terminal::Context) -> anyhow::Result<()>
                     .unwrap_or_default()
             } else {
                 match options.op {
-                    Operation::Select { ref opts } => match &opts.subject {
-                        select::Subject::Id => output.map(|o| format!("{}", o)).unwrap_or_default(),
-                        select::Subject::Operation => output
+                    Operation::Select { ref opts } => match &opts.mode {
+                        select::Mode::Id => output.map(|o| format!("{}", o)).unwrap_or_default(),
+                        select::Mode::Operation => output
                             .map(|o| format!("rad patch {}", o))
                             .unwrap_or_default(),
                     },

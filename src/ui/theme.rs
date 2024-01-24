@@ -66,6 +66,14 @@ pub mod style {
         Style::default().fg(Color::Yellow)
     }
 
+    pub fn yellow_dim() -> Style {
+        yellow().add_modifier(TextModifiers::DIM)
+    }
+
+    pub fn yellow_dim_reversed() -> Style {
+        yellow_dim().add_modifier(TextModifiers::REVERSED)
+    }
+
     pub fn blue() -> Style {
         Style::default().fg(Color::Blue)
     }
@@ -108,7 +116,8 @@ pub mod style {
 
     pub fn default_reversed() -> Style {
         Style::default()
-            .add_modifier(TextModifiers::DIM)
+            .fg(Color::DarkGray)
+            // .add_modifier(TextModifiers::DIM)
             .add_modifier(TextModifiers::REVERSED)
     }
 

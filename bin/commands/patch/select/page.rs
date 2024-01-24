@@ -15,20 +15,20 @@ use tui::ui::{layout, subscription};
 use tui::ViewPage;
 
 use super::super::common;
-use super::{ui, Application, Cid, ListCid, Message, Subject};
+use super::{ui, Application, Cid, ListCid, Message, Mode};
 
 ///
 /// Home
 ///
 pub struct ListView {
     active_component: ListCid,
-    subject: Subject,
+    subject: Mode,
     filter: Filter,
     shortcuts: HashMap<ListCid, Widget<Shortcuts>>,
 }
 
 impl ListView {
-    pub fn new(subject: Subject, filter: Filter) -> Self {
+    pub fn new(subject: Mode, filter: Filter) -> Self {
         Self {
             active_component: ListCid::PatchBrowser,
             subject,
@@ -50,7 +50,7 @@ impl ListView {
             }
             _ => Progress::None,
         };
-        let context = common::ui::browse_context(context, theme, progress);
+        let context = common::ui::browse_context(context, theme, self.filter.clone(), progress);
 
         app.remount(Cid::List(ListCid::Context), context.to_boxed(), vec![])?;
 
@@ -87,14 +87,14 @@ impl ViewPage<Cid, Message> for ListView {
         app.remount(Cid::List(ListCid::Header), header, vec![])?;
 
         match self.subject {
-            Subject::Id => {
+            Mode::Id => {
                 let patch_browser =
                     ui::id_select(theme, context, self.filter.clone(), None).to_boxed();
                 self.shortcuts = patch_browser.as_ref().shortcuts();
 
                 app.remount(Cid::List(ListCid::PatchBrowser), patch_browser, vec![])?;
             }
-            Subject::Operation => {
+            Mode::Operation => {
                 let patch_browser =
                     ui::operation_select(theme, context, self.filter.clone(), None).to_boxed();
                 self.shortcuts = patch_browser.as_ref().shortcuts();
