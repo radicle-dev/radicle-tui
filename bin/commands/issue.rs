@@ -11,7 +11,7 @@ use anyhow::anyhow;
 
 use radicle_tui as tui;
 
-use tui::cob::issue::{self};
+use tui::cob::issue::{self, State};
 use tui::{context, log, Window};
 
 use crate::terminal;
@@ -88,6 +88,26 @@ impl Args for Options {
                         "id" => select::Mode::Id,
                         unknown => anyhow::bail!("unknown mode '{}'", unknown),
                     };
+                }
+                Long("all") if op == Some(OperationName::Select) => {
+                    select_opts.filter = select_opts.filter.with_state(None);
+                }
+                Long("open") if op == Some(OperationName::Select) => {
+                    select_opts.filter = select_opts.filter.with_state(Some(State::Open));
+                }
+                Long("solved") if op == Some(OperationName::Select) => {
+                    select_opts.filter = select_opts.filter.with_state(Some(State::Solved));
+                }
+                Long("closed") if op == Some(OperationName::Select) => {
+                    select_opts.filter = select_opts.filter.with_state(Some(State::Closed));
+                }
+                Long("assigned") if op == Some(OperationName::Select) => {
+                    if let Ok(val) = parser.value() {
+                        select_opts.filter =
+                            select_opts.filter.with_assginee(terminal::args::did(&val)?);
+                    } else {
+                        select_opts.filter = select_opts.filter.with_assgined(true);
+                    }
                 }
 
                 Value(val) if op.is_none() => match val.to_string_lossy().as_ref() {
