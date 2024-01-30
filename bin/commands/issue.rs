@@ -1,3 +1,7 @@
+#[path = "issue/common.rs"]
+mod common;
+#[path = "issue/select.rs"]
+mod select;
 #[path = "issue/suite.rs"]
 mod suite;
 
@@ -5,10 +9,15 @@ use std::ffi::OsString;
 
 use anyhow::anyhow;
 
+use radicle_tui as tui;
+
+use tui::cob::issue::{self};
+use tui::{context, log, Window};
+
 use crate::terminal;
 use crate::terminal::args::{Args, Error, Help};
 
-#[allow(dead_code)]
+pub const FPS: u64 = 60;
 pub const HELP: Help = Help {
     name: "issue",
     description: "Terminal interfaces for issues",
@@ -16,55 +25,118 @@ pub const HELP: Help = Help {
     usage: r#"
 Usage
 
-    rad-tui issue
+    rad-tui patch select [<option>...]
 
-General options
+Select options
+
+    --mode <MODE>           Set selection mode; see MODE below (default: operation)
+
+    The MODE argument can be 'operation' or 'id'. 'operation' selects an issue id and
+    an operation, whereas 'id' selects an issue id only.
+
+Other options
 
     --help               Print help
 "#,
 };
 
-#[allow(dead_code)]
 pub struct Options {
     op: Operation,
+    json: bool,
 }
 
 pub enum Operation {
-    Suite,
+    Select { opts: SelectOptions },
 }
 
-#[derive(Default, PartialEq, Eq)]
+#[derive(PartialEq, Eq)]
 pub enum OperationName {
-    #[default]
-    Suite,
+    Select,
+}
+
+#[derive(Debug, Default, Clone, PartialEq, Eq)]
+pub struct SelectOptions {
+    mode: select::Mode,
+    filter: issue::Filter,
 }
 
 impl Args for Options {
-    #[allow(clippy::unnecessary_literal_unwrap)]
     fn from_args(args: Vec<OsString>) -> anyhow::Result<(Self, Vec<OsString>)> {
         use lexopt::prelude::*;
 
         let mut parser = lexopt::Parser::from_args(args);
-        let op: Option<OperationName> = None;
+        let mut op: Option<OperationName> = None;
+        let mut json = false;
+        let mut select_opts = SelectOptions::default();
 
-        #[allow(clippy::never_loop)]
         while let Some(arg) = parser.next()? {
             match arg {
                 Long("help") | Short('h') => {
                     return Err(Error::Help.into());
                 }
+                Long("json") | Short('j') => {
+                    json = true;
+                }
+
+                // select options.
+                Long("mode") | Short('m') if op == Some(OperationName::Select) => {
+                    let val = parser.value()?;
+                    let val = val.to_str().unwrap_or_default();
+
+                    select_opts.mode = match val {
+                        "operation" => select::Mode::Operation,
+                        "id" => select::Mode::Id,
+                        unknown => anyhow::bail!("unknown mode '{}'", unknown),
+                    };
+                }
+
+                Value(val) if op.is_none() => match val.to_string_lossy().as_ref() {
+                    "select" => op = Some(OperationName::Select),
+                    unknown => anyhow::bail!("unknown operation '{}'", unknown),
+                },
                 _ => return Err(anyhow!(arg.unexpected())),
             }
         }
 
-        let op = match op.unwrap_or_default() {
-            OperationName::Suite => Operation::Suite,
+        let op = match op.ok_or_else(|| anyhow!("an operation must be provided"))? {
+            OperationName::Select => Operation::Select { opts: select_opts },
         };
-        Ok((Options { op }, vec![]))
+        Ok((Options { op, json }, vec![]))
     }
 }
 
-#[allow(dead_code)]
-pub fn run(_options: Options, _ctx: impl terminal::Context) -> anyhow::Result<()> {
+pub fn run(options: Options, _ctx: impl terminal::Context) -> anyhow::Result<()> {
+    let (_, id) = radicle::rad::cwd()
+        .map_err(|_| anyhow!("this command must be run in the context of a project"))?;
+
+    match options.op {
+        Operation::Select { ref opts } => {
+            let profile = terminal::profile()?;
+            let context = context::Context::new(profile, id)?.with_issues();
+
+            log::enable(context.profile(), "issue", "select")?;
+
+            let mut app = select::App::new(context, opts.mode.clone(), opts.filter.clone());
+            let output = Window::default().run(&mut app, 1000 / FPS)?;
+
+            let output = if options.json {
+                output
+                    .map(|o| serde_json::to_string(&o).unwrap_or_default())
+                    .unwrap_or_default()
+            } else {
+                match options.op {
+                    Operation::Select { ref opts } => match &opts.mode {
+                        select::Mode::Id => output.map(|o| format!("{}", o)).unwrap_or_default(),
+                        select::Mode::Operation => output
+                            .map(|o| format!("rad patch {}", o))
+                            .unwrap_or_default(),
+                    },
+                }
+            };
+
+            eprint!("{output}");
+        }
+    }
+
     Ok(())
 }

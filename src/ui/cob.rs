@@ -278,40 +278,64 @@ impl From<(&Profile, &Repository, IssueId, Issue)> for IssueItem {
 }
 
 impl TableItem<7> for IssueItem {
-    fn row(&self, _theme: &Theme, _highlight: bool) -> [Cell; 7] {
+    fn row(&self, _theme: &Theme, highlight: bool) -> [Cell; 7] {
         let (icon, color) = format_issue_state(&self.state);
 
-        let state = label::default(&icon)
-            .style(Style::default().fg(color))
+        if highlight {
+            let state = label::reversed(&icon).into();
+            let id = label::reversed(&format::cob(&self.id)).into();
+            let title = label::reversed(&self.title.clone()).into();
+
+            let author = label::reversed(&format_author(
+                &self.author.did,
+                &self.author.alias,
+                self.author.is_you,
+            ))
             .into();
-        let id = label::id(&format::cob(&self.id)).into();
-        let title = label::default(&self.title.clone()).into();
 
-        let author = match &self.author.alias {
-            Some(_) => label::alias(&format_author(
-                &self.author.did,
-                &self.author.alias,
-                self.author.is_you,
-            ))
-            .into(),
-            None => label::did(&format_author(
-                &self.author.did,
-                &self.author.alias,
-                self.author.is_you,
-            ))
-            .into(),
-        };
+            let labels = label::reversed(&format_labels(&self.labels)).into();
+            let assignees = self
+                .assignees
+                .iter()
+                .map(|author| (author.did, author.alias.clone(), author.is_you))
+                .collect::<Vec<_>>();
+            let assignees = label::reversed(&format_assignees(&assignees)).into();
+            let opened = label::reversed(&format::timestamp(&self.timestamp)).into();
 
-        let labels = label::labels(&format_labels(&self.labels)).into();
-        let assignees = self
-            .assignees
-            .iter()
-            .map(|author| (author.did, author.alias.clone(), author.is_you))
-            .collect::<Vec<_>>();
-        let assignees = label::did(&format_assignees(&assignees)).into();
-        let opened = label::timestamp(&format::timestamp(&self.timestamp)).into();
+            [state, id, title, author, labels, assignees, opened]
+        } else {
+            let state = label::default(&icon)
+                .style(Style::default().fg(color))
+                .into();
+            let id = label::id(&format::cob(&self.id)).into();
+            let title = label::default(&self.title.clone()).into();
 
-        [state, id, title, author, labels, assignees, opened]
+            let author = match &self.author.alias {
+                Some(_) => label::alias(&format_author(
+                    &self.author.did,
+                    &self.author.alias,
+                    self.author.is_you,
+                ))
+                .into(),
+                None => label::did(&format_author(
+                    &self.author.did,
+                    &self.author.alias,
+                    self.author.is_you,
+                ))
+                .into(),
+            };
+
+            let labels = label::labels(&format_labels(&self.labels)).into();
+            let assignees = self
+                .assignees
+                .iter()
+                .map(|author| (author.did, author.alias.clone(), author.is_you))
+                .collect::<Vec<_>>();
+            let assignees = label::did(&format_assignees(&assignees)).into();
+            let opened = label::timestamp(&format::timestamp(&self.timestamp)).into();
+
+            [state, id, title, author, labels, assignees, opened]
+        }
     }
 }
 

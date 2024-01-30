@@ -79,7 +79,6 @@ impl Args for Options {
         let mut json = false;
         let mut select_opts = SelectOptions::default();
 
-        #[allow(clippy::never_loop)]
         while let Some(arg) = parser.next()? {
             match arg {
                 Long("help") | Short('h') => {
