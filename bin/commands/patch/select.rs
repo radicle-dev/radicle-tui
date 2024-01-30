@@ -9,7 +9,7 @@ use std::fmt::Display;
 use std::hash::Hash;
 
 use anyhow::Result;
-use serde::{Serialize, Serializer};
+use serde::Serialize;
 
 use tuirealm::application::PollStrategy;
 use tuirealm::event::Key;
@@ -22,35 +22,35 @@ use tui::context::Context;
 
 use tui::ui::subscription;
 use tui::ui::theme::Theme;
-use tui::{Exit, PageStack, Tui};
+use tui::{Exit, PageStack, SelectionExit, Tui};
 
 use page::ListView;
 
 /// Wrapper around radicle's `PatchId` that serializes
 /// to a human-readable string.
-#[derive(Clone, Debug, Eq, PartialEq)]
-pub struct PatchId(radicle::cob::patch::PatchId);
+// #[derive(Clone, Debug, Eq, PartialEq)]
+// pub struct PatchId(radicle::cob::patch::PatchId);
 
-impl From<radicle::cob::patch::PatchId> for PatchId {
-    fn from(value: radicle::cob::patch::PatchId) -> Self {
-        PatchId(value)
-    }
-}
+// impl From<radicle::cob::patch::PatchId> for PatchId {
+//     fn from(value: radicle::cob::patch::PatchId) -> Self {
+//         PatchId(value)
+//     }
+// }
 
-impl Display for PatchId {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}", self.0)
-    }
-}
+// impl Display for PatchId {
+//     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+//         write!(f, "{}", self.0)
+//     }
+// }
 
-impl Serialize for PatchId {
-    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
-    where
-        S: Serializer,
-    {
-        serializer.serialize_str(&format!("{}", *self.0))
-    }
-}
+// impl Serialize for PatchId {
+//     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+//     where
+//         S: Serializer,
+//     {
+//         serializer.serialize_str(&format!("{}", *self.0))
+//     }
+// }
 
 /// The application's subject. It tells the application
 /// which widgets to render and which output to produce.
@@ -69,7 +69,6 @@ pub enum Mode {
 pub enum PatchOperation {
     Show,
     Checkout,
-    Review,
     Delete,
     Edit,
     Comment,
@@ -84,9 +83,6 @@ impl Display for PatchOperation {
             PatchOperation::Checkout => {
                 write!(f, "checkout")
             }
-            PatchOperation::Review => {
-                write!(f, "review")
-            }
             PatchOperation::Delete => {
                 write!(f, "delete")
             }
@@ -96,29 +92,6 @@ impl Display for PatchOperation {
             PatchOperation::Comment => {
                 write!(f, "comment")
             }
-        }
-    }
-}
-
-/// The application's output that depends on the application's
-/// subject.
-#[derive(Clone, Debug, Eq, PartialEq, Serialize)]
-pub struct Output {
-    operation: Option<PatchOperation>,
-    id: PatchId,
-}
-
-impl Output {
-    pub fn new(operation: Option<PatchOperation>, id: PatchId) -> Self {
-        Self { operation, id }
-    }
-}
-
-impl Display for Output {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match &self.operation {
-            Some(op) => write!(f, "{} {}", op, self.id),
-            None => write!(f, "{}", self.id),
         }
     }
 }
@@ -143,7 +116,7 @@ pub enum Cid {
 pub enum Message {
     #[default]
     Tick,
-    Quit(Option<Output>),
+    Quit(Option<SelectionExit>),
     Batch(Vec<Message>),
 }
 
@@ -154,7 +127,7 @@ pub struct App {
     quit: bool,
     mode: Mode,
     filter: Filter,
-    output: Option<Output>,
+    output: Option<SelectionExit>,
 }
 
 /// Creates a new application using a tui-realm-application, mounts all
@@ -216,7 +189,7 @@ impl App {
     }
 }
 
-impl Tui<Cid, Message, Output> for App {
+impl Tui<Cid, Message, SelectionExit> for App {
     fn init(&mut self, app: &mut Application<Cid, Message, NoUserEvent>) -> Result<()> {
         self.view_list(app, &self.theme.clone())?;
 
@@ -255,7 +228,7 @@ impl Tui<Cid, Message, Output> for App {
         }
     }
 
-    fn exit(&self) -> Option<Exit<Output>> {
+    fn exit(&self) -> Option<Exit<SelectionExit>> {
         if self.quit {
             return Some(Exit {
                 value: self.output.clone(),

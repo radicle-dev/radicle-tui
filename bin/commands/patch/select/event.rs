@@ -1,3 +1,5 @@
+use radicle::patch::PatchId;
+use tui::SelectionExit;
 use tuirealm::command::{Cmd, CmdResult, Direction as MoveDirection};
 use tuirealm::event::{Event, Key, KeyEvent};
 use tuirealm::{MockComponent, NoUserEvent, State, StateValue};
@@ -11,7 +13,7 @@ use tui::ui::widget::list::PropertyList;
 use tui::ui::widget::Widget;
 
 use super::ui::{IdSelect, OperationSelect};
-use super::{Message, Output, PatchId, PatchOperation};
+use super::{Message, PatchOperation};
 
 /// Since the framework does not know the type of messages that are being
 /// passed around in the app, the following handlers need to be implemented for
@@ -65,7 +67,7 @@ impl tuirealm::Component<Message, NoUserEvent> for Widget<IdSelect> {
             Event::Keyboard(KeyEvent {
                 code: Key::Enter, ..
             }) => submit().map(|id| {
-                let output = Output::new(None, PatchId::from(id));
+                let output = SelectionExit::new(None, PatchId::from(id));
                 Message::Quit(Some(output))
             }),
             _ => None,
@@ -108,36 +110,51 @@ impl tuirealm::Component<Message, NoUserEvent> for Widget<OperationSelect> {
             Event::Keyboard(KeyEvent {
                 code: Key::Enter, ..
             }) => submit().map(|id| {
-                let output = Output::new(Some(PatchOperation::Show), PatchId::from(id));
-                Message::Quit(Some(output))
+                let exit = SelectionExit::new(
+                    Some(format!("{}", PatchOperation::Show)),
+                    PatchId::from(id),
+                );
+                Message::Quit(Some(exit))
             }),
             Event::Keyboard(KeyEvent {
                 code: Key::Char('c'),
                 ..
             }) => submit().map(|id| {
-                let output = Output::new(Some(PatchOperation::Checkout), PatchId::from(id));
-                Message::Quit(Some(output))
+                let exit = SelectionExit::new(
+                    Some(format!("{}", PatchOperation::Checkout)),
+                    PatchId::from(id),
+                );
+                Message::Quit(Some(exit))
             }),
             Event::Keyboard(KeyEvent {
                 code: Key::Char('d'),
                 ..
             }) => submit().map(|id| {
-                let output = Output::new(Some(PatchOperation::Delete), PatchId::from(id));
-                Message::Quit(Some(output))
+                let exit = SelectionExit::new(
+                    Some(format!("{}", PatchOperation::Delete)),
+                    PatchId::from(id),
+                );
+                Message::Quit(Some(exit))
             }),
             Event::Keyboard(KeyEvent {
                 code: Key::Char('e'),
                 ..
             }) => submit().map(|id| {
-                let output = Output::new(Some(PatchOperation::Edit), PatchId::from(id));
-                Message::Quit(Some(output))
+                let exit = SelectionExit::new(
+                    Some(format!("{}", PatchOperation::Edit)),
+                    PatchId::from(id),
+                );
+                Message::Quit(Some(exit))
             }),
             Event::Keyboard(KeyEvent {
                 code: Key::Char('m'),
                 ..
             }) => submit().map(|id| {
-                let output = Output::new(Some(PatchOperation::Comment), PatchId::from(id));
-                Message::Quit(Some(output))
+                let exit = SelectionExit::new(
+                    Some(format!("{}", PatchOperation::Comment)),
+                    PatchId::from(id),
+                );
+                Message::Quit(Some(exit))
             }),
             _ => None,
         }
