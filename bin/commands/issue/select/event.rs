@@ -1,4 +1,5 @@
 use radicle::issue::IssueId;
+use tui::SelectionExit;
 use tuirealm::command::{Cmd, CmdResult, Direction as MoveDirection};
 use tuirealm::event::{Event, Key, KeyEvent};
 use tuirealm::{MockComponent, NoUserEvent, State, StateValue};
@@ -12,7 +13,7 @@ use tui::ui::widget::list::PropertyList;
 use tui::ui::widget::Widget;
 
 use super::ui::{IdSelect, OperationSelect};
-use super::{IssueOperation, Message, Output};
+use super::{IssueOperation, Message};
 
 /// Since the framework does not know the type of messages that are being
 /// passed around in the app, the following handlers need to be implemented for
@@ -66,7 +67,7 @@ impl tuirealm::Component<Message, NoUserEvent> for Widget<IdSelect> {
             Event::Keyboard(KeyEvent {
                 code: Key::Enter, ..
             }) => submit().map(|id| {
-                let output = Output::new(None, IssueId::from(id));
+                let output = SelectionExit::new(None, IssueId::from(id));
                 Message::Quit(Some(output))
             }),
             _ => None,
@@ -109,29 +110,41 @@ impl tuirealm::Component<Message, NoUserEvent> for Widget<OperationSelect> {
             Event::Keyboard(KeyEvent {
                 code: Key::Enter, ..
             }) => submit().map(|id| {
-                let output = Output::new(Some(IssueOperation::Show), IssueId::from(id));
-                Message::Quit(Some(output))
+                let exit = SelectionExit::new(
+                    Some(format!("{}", IssueOperation::Show)),
+                    IssueId::from(id),
+                );
+                Message::Quit(Some(exit))
             }),
             Event::Keyboard(KeyEvent {
                 code: Key::Char('d'),
                 ..
             }) => submit().map(|id| {
-                let output = Output::new(Some(IssueOperation::Delete), IssueId::from(id));
-                Message::Quit(Some(output))
+                let exit = SelectionExit::new(
+                    Some(format!("{}", IssueOperation::Delete)),
+                    IssueId::from(id),
+                );
+                Message::Quit(Some(exit))
             }),
             Event::Keyboard(KeyEvent {
                 code: Key::Char('e'),
                 ..
             }) => submit().map(|id| {
-                let output = Output::new(Some(IssueOperation::Edit), IssueId::from(id));
-                Message::Quit(Some(output))
+                let exit = SelectionExit::new(
+                    Some(format!("{}", IssueOperation::Edit)),
+                    IssueId::from(id),
+                );
+                Message::Quit(Some(exit))
             }),
             Event::Keyboard(KeyEvent {
                 code: Key::Char('m'),
                 ..
             }) => submit().map(|id| {
-                let output = Output::new(Some(IssueOperation::Comment), IssueId::from(id));
-                Message::Quit(Some(output))
+                let exit = SelectionExit::new(
+                    Some(format!("{}", IssueOperation::Comment)),
+                    IssueId::from(id),
+                );
+                Message::Quit(Some(exit))
             }),
             _ => None,
         }

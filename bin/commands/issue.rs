@@ -135,7 +135,7 @@ pub fn run(options: Options, _ctx: impl terminal::Context) -> anyhow::Result<()>
             let output = Window::default().run(&mut app, 1000 / FPS)?;
 
             let output = output
-                    .map(|o| serde_json::to_string(&o).unwrap_or_default())
+                .map(|o| serde_json::to_string(&o).unwrap_or_default())
                 .unwrap_or_default();
 
             eprint!("{output}");

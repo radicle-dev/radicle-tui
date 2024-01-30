@@ -9,7 +9,6 @@ use std::fmt::Display;
 use std::hash::Hash;
 
 use anyhow::Result;
-use radicle::issue::IssueId;
 use serde::{Serialize, Serializer};
 
 use tuirealm::application::PollStrategy;
@@ -23,7 +22,7 @@ use tui::context::Context;
 
 use tui::ui::subscription;
 use tui::ui::theme::Theme;
-use tui::{Exit, PageStack, Tui};
+use tui::{Exit, PageStack, SelectionExit, Tui};
 
 use page::ListView;
 
@@ -93,29 +92,6 @@ impl Display for IssueOperation {
     }
 }
 
-/// The application's output that depends on the application's
-/// subject.
-#[derive(Clone, Debug, Eq, PartialEq, Serialize)]
-pub struct Output {
-    operation: Option<IssueOperation>,
-    id: IssueId,
-}
-
-impl Output {
-    pub fn new(operation: Option<IssueOperation>, id: IssueId) -> Self {
-        Self { operation, id }
-    }
-}
-
-impl Display for Output {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match &self.operation {
-            Some(op) => write!(f, "{} {}", op, self.id),
-            None => write!(f, "{}", self.id),
-        }
-    }
-}
-
 #[derive(Debug, Eq, PartialEq, Clone, Hash)]
 pub enum ListCid {
     Header,
@@ -136,7 +112,7 @@ pub enum Cid {
 pub enum Message {
     #[default]
     Tick,
-    Quit(Option<Output>),
+    Quit(Option<SelectionExit>),
     Batch(Vec<Message>),
 }
 
@@ -147,7 +123,7 @@ pub struct App {
     quit: bool,
     mode: Mode,
     filter: Filter,
-    output: Option<Output>,
+    output: Option<SelectionExit>,
 }
 
 /// Creates a new application using a tui-realm-application, mounts all
@@ -209,7 +185,7 @@ impl App {
     }
 }
 
-impl Tui<Cid, Message, Output> for App {
+impl Tui<Cid, Message, SelectionExit> for App {
     fn init(&mut self, app: &mut Application<Cid, Message, NoUserEvent>) -> Result<()> {
         self.view_list(app, &self.theme.clone())?;
 
@@ -248,7 +224,7 @@ impl Tui<Cid, Message, Output> for App {
         }
     }
 
-    fn exit(&self) -> Option<Exit<Output>> {
+    fn exit(&self) -> Option<Exit<SelectionExit>> {
         if self.quit {
             return Some(Exit {
                 value: self.output.clone(),
