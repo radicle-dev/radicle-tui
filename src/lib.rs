@@ -2,6 +2,9 @@ use std::hash::Hash;
 use std::time::Duration;
 
 use anyhow::Result;
+use serde::ser::{Serialize, SerializeStruct, Serializer};
+
+use radicle::cob::ObjectId;
 
 use tuirealm::terminal::TerminalBridge;
 use tuirealm::tui::layout::Rect;
@@ -44,6 +47,37 @@ where
 /// An optional return value.
 pub struct Exit<T> {
     pub value: Option<T>,
+}
+
+/// The output that is returned by all selection interfaces.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct SelectionExit {
+    operation: Option<String>,
+    id: ObjectId,
+    args: Vec<String>,
+}
+
+impl SelectionExit {
+    pub fn new(operation: Option<String>, id: ObjectId) -> Self {
+        Self {
+            operation,
+            id,
+            args: vec![],
+        }
+    }
+}
+
+impl Serialize for SelectionExit {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        let mut state = serializer.serialize_struct("", 3)?;
+        state.serialize_field("operation", &self.operation)?;
+        state.serialize_field("id", &format!("{}", &self.id))?;
+        state.serialize_field("args", &self.args)?;
+        state.end()
+    }
 }
 
 /// A tui-window using the cross-platform Terminal helper provided
