@@ -42,7 +42,6 @@ Other options
 
 pub struct Options {
     op: Operation,
-    json: bool,
 }
 
 pub enum Operation {
@@ -66,16 +65,12 @@ impl Args for Options {
 
         let mut parser = lexopt::Parser::from_args(args);
         let mut op: Option<OperationName> = None;
-        let mut json = false;
         let mut select_opts = SelectOptions::default();
 
         while let Some(arg) = parser.next()? {
             match arg {
                 Long("help") | Short('h') => {
                     return Err(Error::Help.into());
-                }
-                Long("json") | Short('j') => {
-                    json = true;
                 }
 
                 // select options.
@@ -121,7 +116,7 @@ impl Args for Options {
         let op = match op.ok_or_else(|| anyhow!("an operation must be provided"))? {
             OperationName::Select => Operation::Select { opts: select_opts },
         };
-        Ok((Options { op, json }, vec![]))
+        Ok((Options { op }, vec![]))
     }
 }
 
@@ -139,20 +134,9 @@ pub fn run(options: Options, _ctx: impl terminal::Context) -> anyhow::Result<()>
             let mut app = select::App::new(context, opts.mode.clone(), opts.filter.clone());
             let output = Window::default().run(&mut app, 1000 / FPS)?;
 
-            let output = if options.json {
-                output
+            let output = output
                     .map(|o| serde_json::to_string(&o).unwrap_or_default())
-                    .unwrap_or_default()
-            } else {
-                match options.op {
-                    Operation::Select { ref opts } => match &opts.mode {
-                        select::Mode::Id => output.map(|o| format!("{}", o)).unwrap_or_default(),
-                        select::Mode::Operation => output
-                            .map(|o| format!("rad patch {}", o))
-                            .unwrap_or_default(),
-                    },
-                }
-            };
+                .unwrap_or_default();
 
             eprint!("{output}");
         }
