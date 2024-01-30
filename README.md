@@ -33,39 +33,25 @@ The Radicle terminal interfaces are designed to be modular and to integrate well
 
 #### Patches
 
-Select a patch and an operation, return both formatted as `rad` command:
+Select a patch and an operation:
 
 ```
 $ rad tui patch select
-rad patch show 546443226b300484a97a2b2d7c7000af6e8169ba (stderr)
+{ "operation": "show", "id": "546443226b300484a97a2b2d7c7000af6e8169ba", args:[] } (stderr)
 ```
 
 Same as above:
 
 ```
 $ rad tui patch select --operation
-rad patch show 546443226b300484a97a2b2d7c7000af6e8169ba (stderr)
-```
-
-Select a patch and an operation, return both as JSON:
-
-```
-$ rad tui patch select --operation --json
-{ "operation": "show", "id": "546443226b300484a97a2b2d7c7000af6e8169ba" } (stderr)
+{ "operation": "show", "id": "546443226b300484a97a2b2d7c7000af6e8169ba", args:[] } (stderr)
 ```
 
 Select a patch only and return its id:
 
 ```
 $ rad tui patch select --id
-546443226b300484a97a2b2d7c7000af6e8169ba (stderr)
-```
-
-Select a patch only and return its id as JSON:
-
-```
-$ rad tui patch select --id --json
-{ "operation": "null", "id": "546443226b300484a97a2b2d7c7000af6e8169ba" } (stderr)
+{ "operation": "null", "id": "546443226b300484a97a2b2d7c7000af6e8169ba", args:[] } (stderr)
 ```
 
 ## License
