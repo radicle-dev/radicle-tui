@@ -111,7 +111,7 @@ impl tuirealm::Component<Message, NoUserEvent> for Widget<OperationSelect> {
                 code: Key::Enter, ..
             }) => submit().map(|id| {
                 let exit = SelectionExit::default()
-                    .with_operation(format!("{}", IssueOperation::Show))
+                    .with_operation(IssueOperation::Show.to_string())
                     .with_id(IssueId::from(id));
                 Message::Quit(Some(exit))
             }),
@@ -120,7 +120,7 @@ impl tuirealm::Component<Message, NoUserEvent> for Widget<OperationSelect> {
                 ..
             }) => submit().map(|id| {
                 let exit = SelectionExit::default()
-                    .with_operation(format!("{}", IssueOperation::Delete))
+                    .with_operation(IssueOperation::Delete.to_string())
                     .with_id(IssueId::from(id));
                 Message::Quit(Some(exit))
             }),
@@ -129,7 +129,7 @@ impl tuirealm::Component<Message, NoUserEvent> for Widget<OperationSelect> {
                 ..
             }) => submit().map(|id| {
                 let exit = SelectionExit::default()
-                    .with_operation(format!("{}", IssueOperation::Edit))
+                    .with_operation(IssueOperation::Edit.to_string())
                     .with_id(IssueId::from(id));
                 Message::Quit(Some(exit))
             }),
@@ -138,7 +138,7 @@ impl tuirealm::Component<Message, NoUserEvent> for Widget<OperationSelect> {
                 ..
             }) => submit().map(|id| {
                 let exit = SelectionExit::default()
-                    .with_operation(format!("{}", IssueOperation::Comment))
+                    .with_operation(IssueOperation::Comment.to_string())
                     .with_id(IssueId::from(id));
                 Message::Quit(Some(exit))
             }),

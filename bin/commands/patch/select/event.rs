@@ -111,7 +111,7 @@ impl tuirealm::Component<Message, NoUserEvent> for Widget<OperationSelect> {
                 code: Key::Enter, ..
             }) => submit().map(|id| {
                 let exit = SelectionExit::default()
-                    .with_operation(format!("{}", PatchOperation::Show))
+                    .with_operation(PatchOperation::Show.to_string())
                     .with_id(PatchId::from(id));
                 Message::Quit(Some(exit))
             }),
@@ -120,7 +120,7 @@ impl tuirealm::Component<Message, NoUserEvent> for Widget<OperationSelect> {
                 ..
             }) => submit().map(|id| {
                 let exit = SelectionExit::default()
-                    .with_operation(format!("{}", PatchOperation::Checkout))
+                    .with_operation(PatchOperation::Checkout.to_string())
                     .with_id(PatchId::from(id));
                 Message::Quit(Some(exit))
             }),
@@ -129,7 +129,7 @@ impl tuirealm::Component<Message, NoUserEvent> for Widget<OperationSelect> {
                 ..
             }) => submit().map(|id| {
                 let exit = SelectionExit::default()
-                    .with_operation(format!("{}", PatchOperation::Delete))
+                    .with_operation(PatchOperation::Delete.to_string())
                     .with_id(PatchId::from(id));
                 Message::Quit(Some(exit))
             }),
@@ -138,7 +138,7 @@ impl tuirealm::Component<Message, NoUserEvent> for Widget<OperationSelect> {
                 ..
             }) => submit().map(|id| {
                 let exit = SelectionExit::default()
-                    .with_operation(format!("{}", PatchOperation::Edit))
+                    .with_operation(PatchOperation::Edit.to_string())
                     .with_id(PatchId::from(id));
                 Message::Quit(Some(exit))
             }),
@@ -147,7 +147,7 @@ impl tuirealm::Component<Message, NoUserEvent> for Widget<OperationSelect> {
                 ..
             }) => submit().map(|id| {
                 let exit = SelectionExit::default()
-                    .with_operation(format!("{}", PatchOperation::Comment))
+                    .with_operation(PatchOperation::Comment.to_string())
                     .with_id(PatchId::from(id));
                 Message::Quit(Some(exit))
             }),
