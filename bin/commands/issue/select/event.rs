@@ -67,7 +67,7 @@ impl tuirealm::Component<Message, NoUserEvent> for Widget<IdSelect> {
             Event::Keyboard(KeyEvent {
                 code: Key::Enter, ..
             }) => submit().map(|id| {
-                let output = SelectionExit::new(None, IssueId::from(id));
+                let output = SelectionExit::default().with_id(IssueId::from(id));
                 Message::Quit(Some(output))
             }),
             _ => None,
@@ -110,40 +110,36 @@ impl tuirealm::Component<Message, NoUserEvent> for Widget<OperationSelect> {
             Event::Keyboard(KeyEvent {
                 code: Key::Enter, ..
             }) => submit().map(|id| {
-                let exit = SelectionExit::new(
-                    Some(format!("{}", IssueOperation::Show)),
-                    IssueId::from(id),
-                );
+                let exit = SelectionExit::default()
+                    .with_operation(format!("{}", IssueOperation::Show))
+                    .with_id(IssueId::from(id));
                 Message::Quit(Some(exit))
             }),
             Event::Keyboard(KeyEvent {
                 code: Key::Char('d'),
                 ..
             }) => submit().map(|id| {
-                let exit = SelectionExit::new(
-                    Some(format!("{}", IssueOperation::Delete)),
-                    IssueId::from(id),
-                );
+                let exit = SelectionExit::default()
+                    .with_operation(format!("{}", IssueOperation::Delete))
+                    .with_id(IssueId::from(id));
                 Message::Quit(Some(exit))
             }),
             Event::Keyboard(KeyEvent {
                 code: Key::Char('e'),
                 ..
             }) => submit().map(|id| {
-                let exit = SelectionExit::new(
-                    Some(format!("{}", IssueOperation::Edit)),
-                    IssueId::from(id),
-                );
+                let exit = SelectionExit::default()
+                    .with_operation(format!("{}", IssueOperation::Edit))
+                    .with_id(IssueId::from(id));
                 Message::Quit(Some(exit))
             }),
             Event::Keyboard(KeyEvent {
                 code: Key::Char('m'),
                 ..
             }) => submit().map(|id| {
-                let exit = SelectionExit::new(
-                    Some(format!("{}", IssueOperation::Comment)),
-                    IssueId::from(id),
-                );
+                let exit = SelectionExit::default()
+                    .with_operation(format!("{}", IssueOperation::Comment))
+                    .with_id(IssueId::from(id));
                 Message::Quit(Some(exit))
             }),
             _ => None,

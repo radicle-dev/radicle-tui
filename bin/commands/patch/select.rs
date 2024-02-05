@@ -26,35 +26,8 @@ use tui::{Exit, PageStack, SelectionExit, Tui};
 
 use page::ListView;
 
-/// Wrapper around radicle's `PatchId` that serializes
-/// to a human-readable string.
-// #[derive(Clone, Debug, Eq, PartialEq)]
-// pub struct PatchId(radicle::cob::patch::PatchId);
-
-// impl From<radicle::cob::patch::PatchId> for PatchId {
-//     fn from(value: radicle::cob::patch::PatchId) -> Self {
-//         PatchId(value)
-//     }
-// }
-
-// impl Display for PatchId {
-//     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-//         write!(f, "{}", self.0)
-//     }
-// }
-
-// impl Serialize for PatchId {
-//     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
-//     where
-//         S: Serializer,
-//     {
-//         serializer.serialize_str(&format!("{}", *self.0))
-//     }
-// }
-
-/// The application's subject. It tells the application
+/// The application's mode. It tells the application
 /// which widgets to render and which output to produce.
-///
 /// Depends on CLI arguments given by the user.
 #[derive(Clone, Default, Debug, Eq, PartialEq)]
 pub enum Mode {

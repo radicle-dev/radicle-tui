@@ -67,7 +67,7 @@ impl tuirealm::Component<Message, NoUserEvent> for Widget<IdSelect> {
             Event::Keyboard(KeyEvent {
                 code: Key::Enter, ..
             }) => submit().map(|id| {
-                let output = SelectionExit::new(None, PatchId::from(id));
+                let output = SelectionExit::default().with_id(PatchId::from(id));
                 Message::Quit(Some(output))
             }),
             _ => None,
@@ -110,50 +110,45 @@ impl tuirealm::Component<Message, NoUserEvent> for Widget<OperationSelect> {
             Event::Keyboard(KeyEvent {
                 code: Key::Enter, ..
             }) => submit().map(|id| {
-                let exit = SelectionExit::new(
-                    Some(format!("{}", PatchOperation::Show)),
-                    PatchId::from(id),
-                );
+                let exit = SelectionExit::default()
+                    .with_operation(format!("{}", PatchOperation::Show))
+                    .with_id(PatchId::from(id));
                 Message::Quit(Some(exit))
             }),
             Event::Keyboard(KeyEvent {
                 code: Key::Char('c'),
                 ..
             }) => submit().map(|id| {
-                let exit = SelectionExit::new(
-                    Some(format!("{}", PatchOperation::Checkout)),
-                    PatchId::from(id),
-                );
+                let exit = SelectionExit::default()
+                    .with_operation(format!("{}", PatchOperation::Checkout))
+                    .with_id(PatchId::from(id));
                 Message::Quit(Some(exit))
             }),
             Event::Keyboard(KeyEvent {
                 code: Key::Char('d'),
                 ..
             }) => submit().map(|id| {
-                let exit = SelectionExit::new(
-                    Some(format!("{}", PatchOperation::Delete)),
-                    PatchId::from(id),
-                );
+                let exit = SelectionExit::default()
+                    .with_operation(format!("{}", PatchOperation::Delete))
+                    .with_id(PatchId::from(id));
                 Message::Quit(Some(exit))
             }),
             Event::Keyboard(KeyEvent {
                 code: Key::Char('e'),
                 ..
             }) => submit().map(|id| {
-                let exit = SelectionExit::new(
-                    Some(format!("{}", PatchOperation::Edit)),
-                    PatchId::from(id),
-                );
+                let exit = SelectionExit::default()
+                    .with_operation(format!("{}", PatchOperation::Edit))
+                    .with_id(PatchId::from(id));
                 Message::Quit(Some(exit))
             }),
             Event::Keyboard(KeyEvent {
                 code: Key::Char('m'),
                 ..
             }) => submit().map(|id| {
-                let exit = SelectionExit::new(
-                    Some(format!("{}", PatchOperation::Comment)),
-                    PatchId::from(id),
-                );
+                let exit = SelectionExit::default()
+                    .with_operation(format!("{}", PatchOperation::Comment))
+                    .with_id(PatchId::from(id));
                 Message::Quit(Some(exit))
             }),
             _ => None,

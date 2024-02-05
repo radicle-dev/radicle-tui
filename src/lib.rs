@@ -50,20 +50,27 @@ pub struct Exit<T> {
 }
 
 /// The output that is returned by all selection interfaces.
-#[derive(Clone, Debug, Eq, PartialEq)]
+#[derive(Clone, Default, Debug, Eq, PartialEq)]
 pub struct SelectionExit {
     operation: Option<String>,
-    id: ObjectId,
+    ids: Vec<ObjectId>,
     args: Vec<String>,
 }
 
 impl SelectionExit {
-    pub fn new(operation: Option<String>, id: ObjectId) -> Self {
-        Self {
-            operation,
-            id,
-            args: vec![],
-        }
+    pub fn with_operation(mut self, operation: String) -> Self {
+        self.operation = Some(operation);
+        self
+    }
+
+    pub fn with_id(mut self, id: ObjectId) -> Self {
+        self.ids.push(id);
+        self
+    }
+
+    pub fn with_args(mut self, arg: String) -> Self {
+        self.args.push(arg);
+        self
     }
 }
 
@@ -74,7 +81,14 @@ impl Serialize for SelectionExit {
     {
         let mut state = serializer.serialize_struct("", 3)?;
         state.serialize_field("operation", &self.operation)?;
-        state.serialize_field("id", &format!("{}", &self.id))?;
+        state.serialize_field(
+            "ids",
+            &self
+                .ids
+                .iter()
+                .map(|id| format!("{}", id))
+                .collect::<Vec<_>>(),
+        )?;
         state.serialize_field("args", &self.args)?;
         state.end()
     }
