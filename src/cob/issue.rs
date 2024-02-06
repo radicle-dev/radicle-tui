@@ -97,7 +97,7 @@ impl ToString for Filter {
             filter.push(' ');
         }
         if self.assigned {
-            filter.push_str("is:assgined");
+            filter.push_str("is:assigned");
             filter.push(' ');
         }
         if !self.assignees.is_empty() {
