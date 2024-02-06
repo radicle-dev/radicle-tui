@@ -284,15 +284,15 @@ where
         use tuirealm::command::Direction;
         match cmd {
             Cmd::Move(Direction::Up) => match self.state.select_previous() {
-                Some(selected) => CmdResult::Changed(State::One(StateValue::Usize(selected))),
+                Some(_) => CmdResult::Changed(self.state()),
                 None => CmdResult::None,
             },
             Cmd::Move(Direction::Down) => match self.state.select_next() {
-                Some(selected) => CmdResult::Changed(State::One(StateValue::Usize(selected))),
+                Some(_) => CmdResult::Changed(self.state()),
                 None => CmdResult::None,
             },
             Cmd::Submit => match self.state.selected() {
-                Some(selected) => CmdResult::Submit(State::One(StateValue::Usize(selected))),
+                Some(_) => CmdResult::Submit(self.state()),
                 None => CmdResult::None,
             },
             _ => CmdResult::None,
@@ -358,15 +358,15 @@ where
         use tuirealm::command::Direction;
         match cmd {
             Cmd::Move(Direction::Up) => match self.state.select_previous() {
-                Some(selected) => CmdResult::Changed(State::One(StateValue::Usize(selected))),
+                Some(_) => CmdResult::Changed(self.state()),
                 None => CmdResult::None,
             },
             Cmd::Move(Direction::Down) => match self.state.select_next() {
-                Some(selected) => CmdResult::Changed(State::One(StateValue::Usize(selected))),
+                Some(_) => CmdResult::Changed(self.state()),
                 None => CmdResult::None,
             },
             Cmd::Submit => match self.state.selected() {
-                Some(selected) => CmdResult::Submit(State::One(StateValue::Usize(selected))),
+                Some(_) => CmdResult::Submit(self.state()),
                 None => CmdResult::None,
             },
             _ => CmdResult::None,

@@ -1,4 +1,7 @@
+use anyhow::anyhow;
+
 use tuirealm::tui::widgets::{ListState, TableState};
+use tuirealm::{State, StateValue};
 
 /// State that holds the index of a selected tab item and the count of all tab items.
 /// The index can be increased and will start at 0, if length was reached.
@@ -30,7 +33,11 @@ impl ItemState {
     }
 
     pub fn selected(&self) -> Option<usize> {
-        self.selected
+        if !self.is_empty() {
+            self.selected
+        } else {
+            None
+        }
     }
 
     pub fn select_previous(&mut self) -> Option<usize> {
@@ -63,6 +70,31 @@ impl ItemState {
             self.selected()
         } else {
             None
+        }
+    }
+
+    pub fn len(&self) -> usize {
+        self.len
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.len == 0
+    }
+}
+
+impl TryFrom<State> for ItemState {
+    type Error = anyhow::Error;
+
+    fn try_from(state: State) -> Result<Self, Self::Error> {
+        match state {
+            State::Tup2((StateValue::Usize(selected), StateValue::Usize(len))) => Ok(Self {
+                selected: Some(selected),
+                len,
+            }),
+            _ => Err(anyhow!(format!(
+                "Cannot convert into item state: {:?}",
+                state
+            ))),
         }
     }
 }

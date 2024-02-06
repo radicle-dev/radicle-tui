@@ -1,4 +1,5 @@
 use radicle::cob::issue::IssueId;
+use tui::ui::state::ItemState;
 use tuirealm::command::{Cmd, CmdResult, Direction as MoveDirection, Position};
 use tuirealm::event::{Event, Key, KeyEvent, KeyModifiers};
 use tuirealm::{MockComponent, NoUserEvent, State, StateValue};
@@ -51,45 +52,41 @@ impl tuirealm::Component<Message, NoUserEvent> for Widget<AppHeader> {
 impl tuirealm::Component<Message, NoUserEvent> for Widget<ui::LargeList> {
     fn on(&mut self, event: Event<NoUserEvent>) -> Option<Message> {
         match event {
-            Event::Keyboard(KeyEvent { code: Key::Esc, .. }) => match self.state() {
-                State::Tup2((StateValue::Usize(selected), StateValue::Usize(_))) => {
-                    let item = self.items().get(selected)?;
-                    Some(Message::Issue(IssueMessage::Leave(Some(
-                        item.id().to_owned(),
-                    ))))
-                }
-                _ => None,
-            },
+            Event::Keyboard(KeyEvent { code: Key::Esc, .. }) => {
+                let selected = ItemState::try_from(self.state()).ok()?.selected()?;
+                let item = self.items().get(selected)?;
+
+                Some(Message::Issue(IssueMessage::Leave(Some(
+                    item.id().to_owned(),
+                ))))
+            }
             Event::Keyboard(KeyEvent { code: Key::Up, .. })
             | Event::Keyboard(KeyEvent {
                 code: Key::Char('k'),
                 ..
-            }) => {
-                let result = self.perform(Cmd::Move(MoveDirection::Up));
-                match result {
-                    CmdResult::Changed(State::One(StateValue::Usize(selected))) => {
-                        let item = self.items().get(selected)?;
-                        Some(Message::Issue(IssueMessage::Changed(item.id().to_owned())))
-                    }
-                    _ => None,
+            }) => match self.perform(Cmd::Move(MoveDirection::Up)) {
+                CmdResult::Changed(state) => {
+                    let selected = ItemState::try_from(state).ok()?.selected()?;
+                    let item = self.items().get(selected)?;
+
+                    Some(Message::Issue(IssueMessage::Changed(item.id().to_owned())))
                 }
-            }
+                _ => None,
+            },
             Event::Keyboard(KeyEvent {
                 code: Key::Down, ..
             })
             | Event::Keyboard(KeyEvent {
                 code: Key::Char('j'),
                 ..
-            }) => {
-                let result = self.perform(Cmd::Move(MoveDirection::Down));
-                match result {
-                    CmdResult::Changed(State::One(StateValue::Usize(selected))) => {
-                        let item = self.items().get(selected)?;
-                        Some(Message::Issue(IssueMessage::Changed(item.id().to_owned())))
-                    }
-                    _ => None,
+            }) => match self.perform(Cmd::Move(MoveDirection::Down)) {
+                CmdResult::Changed(state) => {
+                    let selected = ItemState::try_from(state).ok()?.selected()?;
+                    let item = self.items().get(selected)?;
+                    Some(Message::Issue(IssueMessage::Changed(item.id().to_owned())))
                 }
-            }
+                _ => None,
+            },
             Event::Keyboard(KeyEvent {
                 code: Key::Enter, ..
             }) => Some(Message::Issue(IssueMessage::Focus(IssueCid::Details))),
@@ -235,9 +232,9 @@ impl tuirealm::Component<Message, NoUserEvent> for Widget<Form> {
 impl tuirealm::Component<Message, NoUserEvent> for Widget<ui::IssueBrowser> {
     fn on(&mut self, event: Event<NoUserEvent>) -> Option<Message> {
         let mut submit = || -> Option<IssueId> {
-            let result = self.perform(Cmd::Submit);
-            match result {
-                CmdResult::Submit(State::One(StateValue::Usize(selected))) => {
+            match self.perform(Cmd::Submit) {
+                CmdResult::Submit(state) => {
+                    let selected = ItemState::try_from(state).ok()?.selected()?;
                     let item = self.items().get(selected)?;
                     Some(item.id().to_owned())
                 }

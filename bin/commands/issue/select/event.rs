@@ -1,8 +1,9 @@
 use radicle::issue::IssueId;
+use tui::ui::state::ItemState;
 use tui::SelectionExit;
 use tuirealm::command::{Cmd, CmdResult, Direction as MoveDirection};
 use tuirealm::event::{Event, Key, KeyEvent};
-use tuirealm::{MockComponent, NoUserEvent, State, StateValue};
+use tuirealm::{MockComponent, NoUserEvent};
 
 use radicle_tui as tui;
 
@@ -35,9 +36,9 @@ impl tuirealm::Component<Message, NoUserEvent> for Widget<GlobalListener> {
 impl tuirealm::Component<Message, NoUserEvent> for Widget<IdSelect> {
     fn on(&mut self, event: Event<NoUserEvent>) -> Option<Message> {
         let mut submit = || -> Option<radicle::cob::patch::PatchId> {
-            let result = self.perform(Cmd::Submit);
-            match result {
-                CmdResult::Submit(State::One(StateValue::Usize(selected))) => {
+            match self.perform(Cmd::Submit) {
+                CmdResult::Submit(state) => {
+                    let selected = ItemState::try_from(state).ok()?.selected()?;
                     let item = self.items().get(selected)?;
                     Some(item.id().to_owned())
                 }
@@ -78,9 +79,9 @@ impl tuirealm::Component<Message, NoUserEvent> for Widget<IdSelect> {
 impl tuirealm::Component<Message, NoUserEvent> for Widget<OperationSelect> {
     fn on(&mut self, event: Event<NoUserEvent>) -> Option<Message> {
         let mut submit = || -> Option<radicle::cob::patch::PatchId> {
-            let result = self.perform(Cmd::Submit);
-            match result {
-                CmdResult::Submit(State::One(StateValue::Usize(selected))) => {
+            match self.perform(Cmd::Submit) {
+                CmdResult::Submit(state) => {
+                    let selected = ItemState::try_from(state).ok()?.selected()?;
                     let item = self.items().get(selected)?;
                     Some(item.id().to_owned())
                 }

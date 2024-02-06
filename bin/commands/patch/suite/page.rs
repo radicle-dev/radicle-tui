@@ -4,7 +4,8 @@ use anyhow::Result;
 
 use radicle::cob::patch::{Patch, PatchId};
 
-use tuirealm::{AttrValue, Attribute, Frame, NoUserEvent, State, StateValue, Sub, SubClause};
+use tui::ui::state::ItemState;
+use tuirealm::{AttrValue, Attribute, Frame, NoUserEvent, Sub, SubClause};
 
 use radicle_tui as tui;
 
@@ -62,11 +63,15 @@ impl ListView {
         theme: &Theme,
     ) -> Result<()> {
         let state = app.state(&Cid::List(ListCid::PatchBrowser))?;
-        let progress = match state {
-            State::Tup2((StateValue::Usize(step), StateValue::Usize(total))) => {
-                Progress::Step(step.saturating_add(1), total)
-            }
-            _ => Progress::None,
+        let progress = match ItemState::try_from(state) {
+            Ok(state) => Progress::Step(
+                state
+                    .selected()
+                    .map(|s| s.saturating_add(1))
+                    .unwrap_or_default(),
+                state.len(),
+            ),
+            Err(_) => Progress::None,
         };
         let context = ui::browse_context(context, theme, progress);
 

@@ -1,3 +1,4 @@
+use radicle_tui::ui::state::ItemState;
 use tuirealm::command::{Cmd, CmdResult, Direction as MoveDirection};
 use tuirealm::event::{Event, Key, KeyEvent};
 use tuirealm::{MockComponent, NoUserEvent, State, StateValue};
@@ -67,16 +68,14 @@ impl tuirealm::Component<Message, NoUserEvent> for Widget<common::ui::PatchBrows
             }
             Event::Keyboard(KeyEvent {
                 code: Key::Enter, ..
-            }) => {
-                let result = self.perform(Cmd::Submit);
-                match result {
-                    CmdResult::Submit(State::One(StateValue::Usize(selected))) => {
-                        let item = self.items().get(selected)?;
-                        Some(Message::Patch(PatchMessage::Show(item.id().to_owned())))
-                    }
-                    _ => None,
+            }) => match self.perform(Cmd::Submit) {
+                CmdResult::Submit(state) => {
+                    let selected = ItemState::try_from(state).ok()?.selected()?;
+                    let item = self.items().get(selected)?;
+                    Some(Message::Patch(PatchMessage::Show(item.id().to_owned())))
                 }
-            }
+                _ => None,
+            },
             _ => None,
         }
     }
