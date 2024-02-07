@@ -111,6 +111,13 @@ fn run_other(exe: &str, args: &[OsString]) -> Result<(), Option<anyhow::Error>> 
                 args.to_vec(),
             );
         }
+        "inbox" => {
+            terminal::run_command_args::<tui_inbox::Options, _>(
+                tui_inbox::HELP,
+                tui_inbox::run,
+                args.to_vec(),
+            );
+        }
         other => Err(Some(anyhow!(
             "`{other}` is not a command. See `rad-tui --help` for a list of commands.",
         ))),
