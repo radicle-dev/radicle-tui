@@ -8,12 +8,16 @@ use radicle::identity::{Project, RepoId};
 use radicle::profile::env::RAD_PASSPHRASE;
 use radicle::storage::git::Repository;
 use radicle::storage::{ReadRepository, ReadStorage};
+use radicle::node::notifications::*;
+
 use radicle::Profile;
 
 use radicle_term as term;
 use term::{passphrase, spinner, Passphrase};
 
 use inquire::validator;
+
+use crate::cob::inbox;
 
 /// Git revision parameter. Supports extended SHA-1 syntax.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -40,6 +44,7 @@ pub struct Context {
     repository: Repository,
     issues: Option<Vec<(IssueId, Issue)>>,
     patches: Option<Vec<(PatchId, Patch)>>,
+    notifications: Vec<Notification>,
     signer: Option<Box<dyn Signer>>,
 }
 
@@ -47,6 +52,8 @@ impl Context {
     pub fn new(profile: Profile, rid: RepoId) -> Result<Self, anyhow::Error> {
         let repository = profile.storage.repository(rid).unwrap();
         let project = repository.identity_doc()?.project()?;
+        let notifications = inbox::all(&repository, &profile)?;
+
         let issues = None;
         let patches = None;
         let signer = None;
@@ -58,6 +65,7 @@ impl Context {
             repository,
             issues,
             patches,
+            notifications,
             signer,
         })
     }
@@ -101,6 +109,10 @@ impl Context {
 
     pub fn patches(&self) -> &Option<Vec<(PatchId, Patch)>> {
         &self.patches
+    }
+
+    pub fn notifications(&self) -> &Vec<Notification> {
+        &self.notifications
     }
 
     #[allow(clippy::borrowed_box)]

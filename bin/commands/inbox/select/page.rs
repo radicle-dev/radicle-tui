@@ -3,16 +3,16 @@ use std::collections::HashMap;
 use anyhow::Result;
 
 use tui::ui::state::ItemState;
-use tuirealm::{AttrValue, Attribute, Frame, NoUserEvent, Sub, SubClause};
+use tuirealm::{AttrValue, Attribute, Frame, NoUserEvent};
 
 use radicle_tui as tui;
 
 use tui::cob::inbox::Filter;
 use tui::context::Context;
+use tui::ui::layout;
 use tui::ui::theme::Theme;
 use tui::ui::widget::context::{Progress, Shortcuts};
 use tui::ui::widget::Widget;
-use tui::ui::{layout, subscription};
 use tui::ViewPage;
 
 use super::{ui, Application, Cid, ListCid, Message};
@@ -84,7 +84,7 @@ impl ViewPage<Cid, Message> for ListView {
         context: &Context,
         theme: &Theme,
     ) -> Result<()> {
-        let browser = ui::operation_select(theme, context, self.filter.clone(), None).to_boxed();
+        let browser = ui::operation_select(theme, context, self.filter.clone()).to_boxed();
         self.shortcuts = browser.as_ref().shortcuts();
 
         app.remount(Cid::List(ListCid::NotificationBrowser), browser, vec![])?;
@@ -136,11 +136,11 @@ impl ViewPage<Cid, Message> for ListView {
         app.view(&Cid::List(ListCid::Shortcuts), frame, layout.shortcuts);
     }
 
-    fn subscribe(&self, app: &mut Application<Cid, Message, NoUserEvent>) -> Result<()> {
+    fn subscribe(&self, _app: &mut Application<Cid, Message, NoUserEvent>) -> Result<()> {
         Ok(())
     }
 
-    fn unsubscribe(&self, app: &mut Application<Cid, Message, NoUserEvent>) -> Result<()> {
+    fn unsubscribe(&self, _app: &mut Application<Cid, Message, NoUserEvent>) -> Result<()> {
         Ok(())
     }
 }

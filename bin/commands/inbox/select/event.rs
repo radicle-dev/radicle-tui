@@ -36,7 +36,7 @@ impl tuirealm::Component<Message, NoUserEvent> for Widget<OperationSelect> {
     fn on(&mut self, event: Event<NoUserEvent>) -> Option<Message> {
         let mut submit = || -> Option<radicle::cob::patch::PatchId> {
             match self.perform(Cmd::Submit) {
-                CmdResult::Submit(state) => None,
+                CmdResult::Submit(_) => None,
                 _ => None,
             }
         };

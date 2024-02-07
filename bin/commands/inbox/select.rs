@@ -60,6 +60,7 @@ impl Serialize for PatchId {
 pub enum Mode {
     #[default]
     Operation,
+    #[allow(dead_code)]
     Id,
 }
 
