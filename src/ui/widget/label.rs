@@ -8,6 +8,10 @@ use crate::ui::layout;
 use crate::ui::theme::style;
 use crate::ui::widget::{Widget, WidgetComponent};
 
+pub fn blank() -> Widget<Label> {
+    default("")
+}
+
 pub fn default(content: &str) -> Widget<Label> {
     // TODO: Remove when size constraints are implemented
     let width = content.chars().count() as u16;

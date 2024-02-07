@@ -1,21 +1,24 @@
 pub mod format;
 
+use anyhow::anyhow;
+
 use radicle_surf;
 
 use tuirealm::props::{Color, Style};
 use tuirealm::tui::text::Line;
 use tuirealm::tui::widgets::Cell;
 
-use radicle::node::{Alias, AliasStore};
-
-use radicle::prelude::Did;
-use radicle::storage::git::Repository;
-use radicle::storage::{Oid, ReadRepository};
-use radicle::Profile;
-
 use radicle::cob::issue::{self, Issue, IssueId};
 use radicle::cob::patch::{self, Patch, PatchId};
-use radicle::cob::{Label, Timestamp};
+use radicle::cob::{Label, ObjectId, Timestamp};
+use radicle::issue::Issues;
+use radicle::node::notifications::{Notification, NotificationId, NotificationKind};
+use radicle::node::{Alias, AliasStore};
+use radicle::patch::Patches;
+use radicle::prelude::Did;
+use radicle::storage::git::Repository;
+use radicle::storage::{Oid, ReadRepository, RefUpdate};
+use radicle::{cob, Profile};
 
 use crate::ui::theme::Theme;
 use crate::ui::widget::list::{ListItem, TableItem};
@@ -375,6 +378,177 @@ impl ListItem for IssueItem {
 }
 
 impl PartialEq for IssueItem {
+    fn eq(&self, other: &Self) -> bool {
+        self.id == other.id
+    }
+}
+
+//////////////////////////////////////////////////////
+#[derive(Clone)]
+pub enum NotificationKindItem {
+    Branch {
+        name: String,
+        summary: String,
+        status: String,
+        id: Option<ObjectId>,
+    },
+    Cob {
+        type_name: String,
+        summary: String,
+        status: String,
+        id: Option<ObjectId>,
+    },
+}
+
+impl TryFrom<(&Repository, NotificationKind, RefUpdate)> for NotificationKindItem {
+    type Error = anyhow::Error;
+
+    fn try_from(value: (&Repository, NotificationKind, RefUpdate)) -> Result<Self, Self::Error> {
+        let (repo, kind, update) = value;
+        let issues = Issues::open(repo)?;
+        let patches = Patches::open(repo)?;
+
+        match kind {
+            NotificationKind::Branch { name } => {
+                let (head, message) = if let Some(head) = update.new() {
+                    let message = repo.commit(head)?.summary().unwrap_or_default().to_owned();
+                    (Some(head), message)
+                } else {
+                    (None, String::new())
+                };
+                let status = match update {
+                    RefUpdate::Updated { .. } => "updated",
+                    RefUpdate::Created { .. } => "created",
+                    RefUpdate::Deleted { .. } => "deleted",
+                    RefUpdate::Skipped { .. } => "skipped",
+                };
+
+                Ok(NotificationKindItem::Branch {
+                    name: name.to_string(),
+                    summary: message,
+                    status: status.to_string(),
+                    id: head.map(ObjectId::from),
+                })
+            }
+            NotificationKind::Cob { type_name, id } => {
+                let (category, summary) = if type_name == *cob::issue::TYPENAME {
+                    let issue = issues.get(&id)?.ok_or(anyhow!("missing"))?;
+                    (String::from("issue"), issue.title().to_owned())
+                } else if type_name == *cob::patch::TYPENAME {
+                    let patch = patches.get(&id)?.ok_or(anyhow!("missing"))?;
+                    (String::from("patch"), patch.title().to_owned())
+                } else {
+                    (type_name.to_string(), "".to_owned())
+                };
+                let status = match update {
+                    RefUpdate::Updated { .. } => "updated",
+                    RefUpdate::Created { .. } => "opened",
+                    RefUpdate::Deleted { .. } => "deleted",
+                    RefUpdate::Skipped { .. } => "skipped",
+                };
+
+                Ok(NotificationKindItem::Cob {
+                    type_name: category.to_string(),
+                    summary: summary.to_string(),
+                    status: status.to_string(),
+                    id: Some(id),
+                })
+            }
+        }
+    }
+}
+
+#[derive(Clone)]
+pub struct NotificationItem {
+    /// Unique notification ID.
+    pub id: NotificationId,
+    /// Mark this notification as seen.
+    pub seen: bool,
+    /// Wrapped notification kind.
+    pub kind: NotificationKindItem,
+    /// Time the update has happened.
+    timestamp: Timestamp,
+}
+
+impl NotificationItem {
+    pub fn id(&self) -> &NotificationId {
+        &self.id
+    }
+
+    pub fn seen(&self) -> bool {
+        self.seen
+    }
+
+    pub fn kind(&self) -> &NotificationKindItem {
+        &self.kind
+    }
+
+    pub fn timestamp(&self) -> &Timestamp {
+        &self.timestamp
+    }
+}
+
+impl TableItem<7> for NotificationItem {
+    fn row(&self, _theme: &Theme, highlight: bool) -> [Cell; 7] {
+        let seen = if self.seen {
+            label::blank()
+        } else {
+            label::positive(" ● ")
+        };
+
+        let (type_name, summary, status, id) = match &self.kind() {
+            NotificationKindItem::Branch {
+                name,
+                summary,
+                status,
+                id: _,
+            } => ("branch".to_string(), summary, status, name.to_string()),
+            NotificationKindItem::Cob {
+                type_name,
+                summary,
+                status,
+                id,
+            } => {
+                let id = id.map(|id| format::cob(&id)).unwrap_or_default();
+                (type_name.to_string(), summary, status, id.to_string())
+            }
+        };
+
+        let timestamp = if highlight {
+            label::reversed(&format::timestamp(&self.timestamp))
+        } else {
+            label::timestamp(&format::timestamp(&self.timestamp))
+        };
+
+        [
+            label::default(&format!(" {}", &self.id)).into(),
+            seen.into(),
+            label::alias(&type_name).into(),
+            label::default(summary).into(),
+            label::id(&id).into(),
+            label::default(status).into(),
+            timestamp.into(),
+        ]
+    }
+}
+
+impl TryFrom<(&Repository, Notification)> for NotificationItem {
+    type Error = anyhow::Error;
+
+    fn try_from(value: (&Repository, Notification)) -> Result<Self, Self::Error> {
+        let (repo, notification) = value;
+        let kind = NotificationKindItem::try_from((repo, notification.kind, notification.update))?;
+
+        Ok(NotificationItem {
+            id: notification.id,
+            seen: notification.status.is_read(),
+            kind,
+            timestamp: notification.timestamp.into(),
+        })
+    }
+}
+
+impl PartialEq for NotificationItem {
     fn eq(&self, other: &Self) -> bool {
         self.id == other.id
     }

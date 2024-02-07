@@ -1,7 +1,9 @@
 use std::collections::HashMap;
 
-use radicle::issue::{Issue, IssueId};
+use radicle::node::notifications::Notification;
 
+use tui::ui::cob::NotificationItem;
+use tui::ui::widget::list::{ColumnWidth, Table};
 use tuirealm::command::{Cmd, CmdResult};
 use tuirealm::tui::layout::Rect;
 use tuirealm::{AttrValue, Attribute, Frame, MockComponent, Props, State};
@@ -17,21 +19,74 @@ use tui::ui::widget::{Widget, WidgetComponent};
 
 use super::ListCid;
 
-pub struct NotificationBrowser {}
+pub struct NotificationBrowser {
+    items: Vec<NotificationItem>,
+    table: Widget<Table<NotificationItem, 7>>,
+}
+
+impl NotificationBrowser {
+    pub fn new(theme: &Theme, context: &Context, selected: Option<Notification>) -> Self {
+        let header = [
+            label::header(""),
+            label::header(" ● "),
+            label::header("Type"),
+            label::header("Summary"),
+            label::header("ID"),
+            label::header("Status"),
+            label::header("Updated"),
+        ];
+        let widths = [
+            ColumnWidth::Fixed(5),
+            ColumnWidth::Fixed(3),
+            ColumnWidth::Fixed(6),
+            ColumnWidth::Grow,
+            ColumnWidth::Fixed(15),
+            ColumnWidth::Fixed(10),
+            ColumnWidth::Fixed(15),
+        ];
+        
+        let mut items = vec![];
+        for notification in context.notifications() {
+            if let Ok(item) =
+                NotificationItem::try_from((context.repository(), notification.clone()))
+            {
+                items.push(item);
+            }
+        }
+
+        let selected = match selected {
+            Some(notif) => {
+                Some(NotificationItem::try_from((context.repository(), notif.clone())).unwrap())
+            }
+            _ => items.first().cloned(),
+        };
+
+        let table = Widget::new(Table::new(&items, selected, header, widths, theme.clone()));
+
+        Self { items, table }
+    }
+
+    pub fn items(&self) -> &Vec<NotificationItem> {
+        &self.items
+    }
+}
 
 impl WidgetComponent for NotificationBrowser {
     fn view(&mut self, properties: &Props, frame: &mut Frame, area: Rect) {
         let focus = properties
             .get_or(Attribute::Focus, AttrValue::Flag(false))
             .unwrap_flag();
+
+        self.table.attr(Attribute::Focus, AttrValue::Flag(focus));
+        self.table.view(frame, area);
     }
 
     fn state(&self) -> State {
-        State::None
+        self.table.state()
     }
 
     fn perform(&mut self, _properties: &Props, cmd: Cmd) -> CmdResult {
-        CmdResult::None
+        self.table.perform(cmd)
     }
 }
 
@@ -81,18 +136,18 @@ impl WidgetComponent for OperationSelect {
 pub fn operation_select(
     theme: &Theme,
     context: &Context,
-    filter: Filter,
-    selected: Option<(IssueId, Issue)>,
+    _filter: Filter,
+    selected: Option<Notification>,
 ) -> Widget<OperationSelect> {
-    let browser = Widget::new(NotificationBrowser {});
+    let browser = Widget::new(NotificationBrowser::new(theme, context, selected));
 
     Widget::new(OperationSelect::new(theme.clone(), browser))
 }
 
 pub fn browse_context(
-    context: &Context,
+    _context: &Context,
     _theme: &Theme,
-    filter: Filter,
+    _filter: Filter,
     progress: Progress,
 ) -> Widget<ContextBar> {
     let context = label::reversable("/").style(style::magenta_reversed());
@@ -101,7 +156,7 @@ pub fn browse_context(
     let progress = label::reversable(&progress.to_string()).style(style::magenta_reversed());
 
     let spacer = label::default("");
-    let divider = label::default(" | ");
+    let _divider = label::default(" | ");
 
     let context_bar = ContextBar::new(
         label::group(&[context]),
