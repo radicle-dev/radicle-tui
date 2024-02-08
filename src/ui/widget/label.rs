@@ -1,7 +1,7 @@
 use tuirealm::command::{Cmd, CmdResult};
 use tuirealm::props::{Alignment, AttrValue, Attribute, Color, Props, Style};
 use tuirealm::tui::layout::{Constraint, Direction, Layout, Rect};
-use tuirealm::tui::text::{Span, Spans, Text};
+use tuirealm::tui::text::{Line, Span, Text};
 use tuirealm::{Frame, MockComponent, State, StateValue};
 
 use crate::ui::layout;
@@ -312,7 +312,7 @@ impl WidgetComponent for Textarea {
         self.scroll_percent = Self::scroll_percent(self.offset, self.len, self.height);
 
         if display_progress {
-            let progress = Spans::from(vec![Span::styled(
+            let progress = Line::from(vec![Span::styled(
                 format!("{} %", self.scroll_percent),
                 style::border(focus),
             )]);

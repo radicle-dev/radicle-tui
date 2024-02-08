@@ -1,7 +1,6 @@
 use std::collections::LinkedList;
 
 use tuirealm::command::{Cmd, CmdResult};
-use tuirealm::props::Style;
 use tuirealm::tui::layout::{Constraint, Direction, Margin, Rect};
 use tuirealm::{AttrValue, Attribute, Frame, MockComponent, Props, State, StateValue};
 
@@ -20,11 +19,13 @@ pub struct TextField {
 
 impl TextField {
     pub fn new(theme: Theme, title: &str) -> Self {
-        let input = tui_realm_textarea::TextArea::default()
-            .wrap(false)
-            .single_line(true)
-            .cursor_line_style(Style::reset())
-            .style(style::reset());
+        // TODO: activate again
+        // let input = tui_realm_textarea::TextArea::default()
+        //     .wrap(false)
+        //     .single_line(true)
+        //     .cursor_line_style(Style::reset())
+        //     .style(style::reset());
+        let input = tui_realm_stdlib::Textarea::default();
         let container = crate::ui::container(&theme, Box::new(input));
 
         Self {
@@ -66,23 +67,25 @@ impl WidgetComponent for TextField {
         }
     }
 
-    fn perform(&mut self, _properties: &Props, cmd: Cmd) -> CmdResult {
-        use tui_realm_textarea::*;
+    fn perform(&mut self, _properties: &Props, _cmd: Cmd) -> CmdResult {
+        // TODO: activate again
+        // use tui_realm_textarea::*;
 
-        let cmd = match cmd {
-            Cmd::Custom(Form::CMD_PASTE) => Cmd::Custom(TEXTAREA_CMD_PASTE),
-            _ => cmd,
-        };
-        let result = self.input.perform(cmd);
+        // let cmd = match cmd {
+        //     Cmd::Custom(Form::CMD_PASTE) => Cmd::Custom(TEXTAREA_CMD_PASTE),
+        //     _ => cmd,
+        // };
+        // let result = self.input.perform(cmd);
 
-        if let State::Vec(values) = self.input.state() {
-            if let Some(StateValue::String(input)) = values.first() {
-                self.show_placeholder = values.len() == 1 && input.is_empty();
-            } else {
-                self.show_placeholder = false;
-            }
-        }
-        result
+        // if let State::Vec(values) = self.input.state() {
+        //     if let Some(StateValue::String(input)) = values.first() {
+        //         self.show_placeholder = values.len() == 1 && input.is_empty();
+        //     } else {
+        //         self.show_placeholder = false;
+        //     }
+        // }
+        // result
+        CmdResult::None
     }
 }
 
@@ -94,11 +97,13 @@ pub struct TextArea {
 
 impl TextArea {
     pub fn new(theme: Theme, title: &str) -> Self {
-        let input = tui_realm_textarea::TextArea::default()
-            .wrap(true)
-            .single_line(false)
-            .cursor_line_style(Style::reset())
-            .style(style::reset());
+        // TODO: activate again
+        // let input = tui_realm_textarea::TextArea::default()
+        //     .wrap(true)
+        //     .single_line(false)
+        //     .cursor_line_style(Style::reset())
+        //     .style(style::reset());
+        let input = tui_realm_stdlib::Textarea::default();
         let container = crate::ui::container(&theme, Box::new(input));
 
         Self {
@@ -153,24 +158,26 @@ impl WidgetComponent for TextArea {
         }
     }
 
-    fn perform(&mut self, _properties: &Props, cmd: Cmd) -> CmdResult {
-        use tui_realm_textarea::*;
+    fn perform(&mut self, _properties: &Props, _cmd: Cmd) -> CmdResult {
+        // TODO: activate again
+        // use tui_realm_textarea::*;
 
-        let cmd = match cmd {
-            Cmd::Custom(Form::CMD_PASTE) => Cmd::Custom(TEXTAREA_CMD_PASTE),
-            Cmd::Custom(Form::CMD_NEWLINE) => Cmd::Custom(TEXTAREA_CMD_NEWLINE),
-            _ => cmd,
-        };
-        let result = self.input.perform(cmd);
+        // let cmd = match cmd {
+        //     Cmd::Custom(Form::CMD_PASTE) => Cmd::Custom(TEXTAREA_CMD_PASTE),
+        //     Cmd::Custom(Form::CMD_NEWLINE) => Cmd::Custom(TEXTAREA_CMD_NEWLINE),
+        //     _ => cmd,
+        // };
+        // let result = self.input.perform(cmd);
 
-        if let State::Vec(values) = self.input.state() {
-            if let Some(StateValue::String(input)) = values.first() {
-                self.show_placeholder = values.len() == 1 && input.is_empty();
-            } else {
-                self.show_placeholder = false;
-            }
-        }
-        result
+        // if let State::Vec(values) = self.input.state() {
+        //     if let Some(StateValue::String(input)) = values.first() {
+        //         self.show_placeholder = values.len() == 1 && input.is_empty();
+        //     } else {
+        //         self.show_placeholder = false;
+        //     }
+        // }
+        // result
+        CmdResult::None
     }
 }
 

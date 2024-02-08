@@ -108,7 +108,7 @@ pub fn tabs(_theme: &Theme, tabs: Vec<Widget<Label>>) -> Widget<Tabs> {
 
 pub fn app_info(context: &Context) -> Widget<AppInfo> {
     let project = label::default(context.project().name()).style(style::cyan());
-    let rid = label::default(&format!(" ({})", context.id())).style(style::yellow());
+    let rid = label::default(&format!(" ({})", context.rid())).style(style::yellow());
 
     let project_w = project
         .query(Attribute::Width)

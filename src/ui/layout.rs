@@ -46,7 +46,8 @@ pub fn v_stack(
     let layout = Layout::default()
         .direction(Direction::Vertical)
         .constraints(constraints)
-        .split(area);
+        .split(area)
+        .to_vec();
 
     widgets.into_iter().zip(layout).collect()
 }
@@ -68,7 +69,8 @@ pub fn h_stack(
     let layout = Layout::default()
         .direction(Direction::Horizontal)
         .constraints(constraints)
-        .split(area);
+        .split(area)
+        .to_vec();
 
     widgets.into_iter().zip(layout).collect()
 }
@@ -161,6 +163,7 @@ pub fn headerless_page(area: Rect) -> Vec<Rect> {
         .horizontal_margin(margin_h)
         .constraints([Constraint::Length(content_h)].as_ref())
         .split(area)
+        .to_vec()
 }
 
 pub fn root_component_with_context(area: Rect, context_h: u16, shortcuts_h: u16) -> Vec<Rect> {
@@ -179,6 +182,7 @@ pub fn root_component_with_context(area: Rect, context_h: u16, shortcuts_h: u16)
             .as_ref(),
         )
         .split(area)
+        .to_vec()
 }
 
 pub fn centered_label(label_w: u16, area: Rect) -> Rect {
