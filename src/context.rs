@@ -1,18 +1,16 @@
 use std::fmt::Display;
 
-use radicle_term as term;
-
 use radicle::cob::issue::{Issue, IssueId};
 use radicle::cob::patch::{Patch, PatchId};
 use radicle::crypto::ssh::keystore::{Keystore, MemorySigner};
 use radicle::crypto::Signer;
-use radicle::identity::{Id, Project};
+use radicle::identity::{Project, RepoId};
 use radicle::profile::env::RAD_PASSPHRASE;
 use radicle::storage::git::Repository;
 use radicle::storage::{ReadRepository, ReadStorage};
-
 use radicle::Profile;
 
+use radicle_term as term;
 use term::{passphrase, spinner, Passphrase};
 
 use inquire::validator;
@@ -37,7 +35,7 @@ impl Display for Rev {
 /// needed to render it.
 pub struct Context {
     profile: Profile,
-    id: Id,
+    rid: RepoId,
     project: Project,
     repository: Repository,
     issues: Option<Vec<(IssueId, Issue)>>,
@@ -46,8 +44,8 @@ pub struct Context {
 }
 
 impl Context {
-    pub fn new(profile: Profile, id: Id) -> Result<Self, anyhow::Error> {
-        let repository = profile.storage.repository(id).unwrap();
+    pub fn new(profile: Profile, rid: RepoId) -> Result<Self, anyhow::Error> {
+        let repository = profile.storage.repository(rid).unwrap();
         let project = repository.identity_doc()?.project()?;
         let issues = None;
         let patches = None;
@@ -55,7 +53,7 @@ impl Context {
 
         Ok(Self {
             profile,
-            id,
+            rid,
             project,
             repository,
             issues,
@@ -85,8 +83,8 @@ impl Context {
         &self.profile
     }
 
-    pub fn id(&self) -> &Id {
-        &self.id
+    pub fn rid(&self) -> &RepoId {
+        &self.rid
     }
 
     pub fn project(&self) -> &Project {
@@ -109,18 +107,6 @@ impl Context {
     pub fn signer(&self) -> &Option<Box<dyn Signer>> {
         &self.signer
     }
-
-    // pub fn reload(&mut self) {
-    //     use crate::cob::issue;
-    //     use crate::cob::patch;
-
-    //     if self.issues.is_some() {
-    //         self.issues = Some(issue::all(&self.repository).unwrap_or_default());
-    //     }
-    //     if self.patches.is_some() {
-    //         self.patches = Some(patch::all(&self.repository).unwrap_or_default());
-    //     }
-    // }
 
     pub fn reload_patches(&mut self) {
         use crate::cob::patch;

@@ -3,7 +3,7 @@ pub mod format;
 use radicle_surf;
 
 use tuirealm::props::{Color, Style};
-use tuirealm::tui::text::Spans;
+use tuirealm::tui::text::Line;
 use tuirealm::tui::widgets::Cell;
 
 use radicle::node::{Alias, AliasStore};
@@ -344,13 +344,13 @@ impl ListItem for IssueItem {
         let (state, state_color) = format_issue_state(&self.state);
 
         let lines = vec![
-            Spans::from(vec![
+            Line::from(vec![
                 label::default(&state)
                     .style(Style::default().fg(state_color))
                     .into(),
                 label::title(&self.title).into(),
             ]),
-            Spans::from(vec![
+            Line::from(vec![
                 label::default("   ").into(),
                 match &self.author.alias {
                     Some(_) => label::alias(&format_author(
