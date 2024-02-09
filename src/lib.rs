@@ -1,7 +1,9 @@
+use std::fmt::Display;
 use std::hash::Hash;
 use std::time::Duration;
 
 use anyhow::Result;
+use radicle::node::notifications::NotificationId;
 use serde::ser::{Serialize, SerializeStruct, Serializer};
 
 use radicle::cob::ObjectId;
@@ -49,11 +51,31 @@ pub struct Exit<T> {
     pub value: Option<T>,
 }
 
+/// Returned ids can be of type `ObjectId` or `NotificationId`.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub enum Id {
+    Object(ObjectId),
+    Notification(NotificationId),
+}
+
+impl Display for Id {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Id::Object(id) => {
+                write!(f, "{id}")
+            }
+            Id::Notification(id) => {
+                write!(f, "{id}")
+            }
+        }
+    }
+}
+
 /// The output that is returned by all selection interfaces.
 #[derive(Clone, Default, Debug, Eq, PartialEq)]
 pub struct SelectionExit {
     operation: Option<String>,
-    ids: Vec<ObjectId>,
+    ids: Vec<Id>,
     args: Vec<String>,
 }
 
@@ -63,7 +85,7 @@ impl SelectionExit {
         self
     }
 
-    pub fn with_id(mut self, id: ObjectId) -> Self {
+    pub fn with_id(mut self, id: Id) -> Self {
         self.ids.push(id);
         self
     }

@@ -44,7 +44,7 @@ impl NotificationBrowser {
             ColumnWidth::Fixed(10),
             ColumnWidth::Fixed(15),
         ];
-        
+
         let mut items = vec![];
         for notification in context.notifications() {
             if let Ok(item) =
@@ -100,12 +100,20 @@ impl OperationSelect {
         Self { theme, browser }
     }
 
+    pub fn items(&self) -> &Vec<NotificationItem> {
+        self.browser.items()
+    }
+
     pub fn shortcuts(&self) -> HashMap<ListCid, Widget<Shortcuts>> {
         [(
             ListCid::NotificationBrowser,
             tui::ui::shortcuts(
                 &self.theme,
-                vec![tui::ui::shortcut(&self.theme, "q", "quit")],
+                vec![
+                    tui::ui::shortcut(&self.theme, "enter", "show"),
+                    tui::ui::shortcut(&self.theme, "c", "clear"),
+                    tui::ui::shortcut(&self.theme, "q", "quit"),
+                ],
             ),
         )]
         .iter()

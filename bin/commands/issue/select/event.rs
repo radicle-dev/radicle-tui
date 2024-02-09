@@ -1,17 +1,15 @@
-use radicle::issue::IssueId;
-use tui::ui::state::ItemState;
-use tui::SelectionExit;
 use tuirealm::command::{Cmd, CmdResult, Direction as MoveDirection};
 use tuirealm::event::{Event, Key, KeyEvent};
 use tuirealm::{MockComponent, NoUserEvent};
 
 use radicle_tui as tui;
 
+use tui::ui::state::ItemState;
 use tui::ui::widget::container::{AppHeader, GlobalListener, LabeledContainer};
 use tui::ui::widget::context::{ContextBar, Shortcuts};
 use tui::ui::widget::list::PropertyList;
-
 use tui::ui::widget::Widget;
+use tui::{Id, SelectionExit};
 
 use super::ui::{IdSelect, OperationSelect};
 use super::{IssueOperation, Message};
@@ -68,7 +66,7 @@ impl tuirealm::Component<Message, NoUserEvent> for Widget<IdSelect> {
             Event::Keyboard(KeyEvent {
                 code: Key::Enter, ..
             }) => submit().map(|id| {
-                let output = SelectionExit::default().with_id(IssueId::from(id));
+                let output = SelectionExit::default().with_id(Id::Object(id));
                 Message::Quit(Some(output))
             }),
             _ => None,
@@ -113,7 +111,7 @@ impl tuirealm::Component<Message, NoUserEvent> for Widget<OperationSelect> {
             }) => submit().map(|id| {
                 let exit = SelectionExit::default()
                     .with_operation(IssueOperation::Show.to_string())
-                    .with_id(IssueId::from(id));
+                    .with_id(Id::Object(id));
                 Message::Quit(Some(exit))
             }),
             Event::Keyboard(KeyEvent {
@@ -122,7 +120,7 @@ impl tuirealm::Component<Message, NoUserEvent> for Widget<OperationSelect> {
             }) => submit().map(|id| {
                 let exit = SelectionExit::default()
                     .with_operation(IssueOperation::Delete.to_string())
-                    .with_id(IssueId::from(id));
+                    .with_id(Id::Object(id));
                 Message::Quit(Some(exit))
             }),
             Event::Keyboard(KeyEvent {
@@ -131,7 +129,7 @@ impl tuirealm::Component<Message, NoUserEvent> for Widget<OperationSelect> {
             }) => submit().map(|id| {
                 let exit = SelectionExit::default()
                     .with_operation(IssueOperation::Edit.to_string())
-                    .with_id(IssueId::from(id));
+                    .with_id(Id::Object(id));
                 Message::Quit(Some(exit))
             }),
             Event::Keyboard(KeyEvent {
@@ -140,7 +138,7 @@ impl tuirealm::Component<Message, NoUserEvent> for Widget<OperationSelect> {
             }) => submit().map(|id| {
                 let exit = SelectionExit::default()
                     .with_operation(IssueOperation::Comment.to_string())
-                    .with_id(IssueId::from(id));
+                    .with_id(Id::Object(id));
                 Message::Quit(Some(exit))
             }),
             _ => None,
