@@ -1,4 +1,4 @@
-use radicle::issue::IssueId;
+use radicle::node::notifications::NotificationId;
 
 use tuirealm::command::{Cmd, CmdResult, Direction as MoveDirection};
 use tuirealm::event::{Event, Key, KeyEvent};
@@ -6,14 +6,15 @@ use tuirealm::{MockComponent, NoUserEvent};
 
 use radicle_tui as tui;
 
+use tui::ui::state::ItemState;
 use tui::ui::widget::container::{AppHeader, GlobalListener, LabeledContainer};
 use tui::ui::widget::context::{ContextBar, Shortcuts};
 use tui::ui::widget::list::PropertyList;
 use tui::ui::widget::Widget;
-use tui::SelectionExit;
+use tui::{Id, SelectionExit};
 
 use super::ui::OperationSelect;
-use super::{IssueOperation, Message};
+use super::{InboxOperation, Message};
 
 /// Since the framework does not know the type of messages that are being
 /// passed around in the app, the following handlers need to be implemented for
@@ -34,9 +35,13 @@ impl tuirealm::Component<Message, NoUserEvent> for Widget<GlobalListener> {
 
 impl tuirealm::Component<Message, NoUserEvent> for Widget<OperationSelect> {
     fn on(&mut self, event: Event<NoUserEvent>) -> Option<Message> {
-        let mut submit = || -> Option<radicle::cob::patch::PatchId> {
+        let mut submit = || -> Option<NotificationId> {
             match self.perform(Cmd::Submit) {
-                CmdResult::Submit(_) => None,
+                CmdResult::Submit(state) => {
+                    let selected = ItemState::try_from(state).ok()?.selected()?;
+                    let item = self.items().get(selected)?;
+                    Some(item.id().to_owned())
+                }
                 _ => None,
             }
         };
@@ -64,35 +69,17 @@ impl tuirealm::Component<Message, NoUserEvent> for Widget<OperationSelect> {
                 code: Key::Enter, ..
             }) => submit().map(|id| {
                 let exit = SelectionExit::default()
-                    .with_operation(IssueOperation::Show.to_string())
-                    .with_id(IssueId::from(id));
+                    .with_operation(InboxOperation::Show.to_string())
+                    .with_id(Id::Notification(id));
                 Message::Quit(Some(exit))
             }),
             Event::Keyboard(KeyEvent {
-                code: Key::Char('d'),
+                code: Key::Char('c'),
                 ..
             }) => submit().map(|id| {
                 let exit = SelectionExit::default()
-                    .with_operation(IssueOperation::Delete.to_string())
-                    .with_id(IssueId::from(id));
-                Message::Quit(Some(exit))
-            }),
-            Event::Keyboard(KeyEvent {
-                code: Key::Char('e'),
-                ..
-            }) => submit().map(|id| {
-                let exit = SelectionExit::default()
-                    .with_operation(IssueOperation::Edit.to_string())
-                    .with_id(IssueId::from(id));
-                Message::Quit(Some(exit))
-            }),
-            Event::Keyboard(KeyEvent {
-                code: Key::Char('m'),
-                ..
-            }) => submit().map(|id| {
-                let exit = SelectionExit::default()
-                    .with_operation(IssueOperation::Comment.to_string())
-                    .with_id(IssueId::from(id));
+                    .with_operation(InboxOperation::Clear.to_string())
+                    .with_id(Id::Notification(id));
                 Message::Quit(Some(exit))
             }),
             _ => None,

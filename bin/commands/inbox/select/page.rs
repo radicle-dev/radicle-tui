@@ -84,7 +84,7 @@ impl ViewPage<Cid, Message> for ListView {
         context: &Context,
         theme: &Theme,
     ) -> Result<()> {
-        let browser = ui::operation_select(theme, context, self.filter.clone()).to_boxed();
+        let browser = ui::operation_select(theme, context, self.filter.clone(), None).to_boxed();
         self.shortcuts = browser.as_ref().shortcuts();
 
         app.remount(Cid::List(ListCid::NotificationBrowser), browser, vec![])?;

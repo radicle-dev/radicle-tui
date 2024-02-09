@@ -67,27 +67,19 @@ pub enum Mode {
 /// The selected issue operation returned by the operation
 /// selection widget.
 #[derive(Clone, Debug, Eq, PartialEq, Serialize)]
-pub enum IssueOperation {
+pub enum InboxOperation {
     Show,
-    Delete,
-    Edit,
-    Comment,
+    Clear,
 }
 
-impl Display for IssueOperation {
+impl Display for InboxOperation {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            IssueOperation::Show => {
+            InboxOperation::Show => {
                 write!(f, "show")
             }
-            IssueOperation::Delete => {
-                write!(f, "delete")
-            }
-            IssueOperation::Edit => {
-                write!(f, "edit")
-            }
-            IssueOperation::Comment => {
-                write!(f, "comment")
+            InboxOperation::Clear => {
+                write!(f, "clear")
             }
         }
     }

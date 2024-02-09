@@ -8,8 +8,6 @@ use radicle::identity::{Project, RepoId};
 use radicle::profile::env::RAD_PASSPHRASE;
 use radicle::storage::git::Repository;
 use radicle::storage::{ReadRepository, ReadStorage};
-use radicle::node::notifications::*;
-
 use radicle::Profile;
 
 use radicle_term as term;
