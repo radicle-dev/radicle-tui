@@ -1,43 +1,27 @@
 pub mod layout;
+pub mod widget;
+pub mod theme;
 
 use std::io::{self};
 use std::thread;
 use std::time::Duration;
 
-use termion::event::{Event, Key};
+use termion::event::Event;
 use termion::input::TermRead;
 use termion::raw::{IntoRawMode, RawTerminal};
 
 use ratatui::prelude::*;
 
 use tokio::sync::broadcast;
-use tokio::sync::mpsc::{self, UnboundedReceiver, UnboundedSender};
-
-use super::termination::Interrupted;
+use tokio::sync::mpsc::{self, UnboundedReceiver};
 
 use super::store::State;
+use super::termination::Interrupted;
+use super::ui::widget::{Render, Widget};
 
 type Backend = TermionBackend<RawTerminal<io::Stdout>>;
 
 const RENDERING_TICK_RATE: Duration = Duration::from_millis(250);
-
-pub trait Widget<S, A> {
-    fn new(state: &S, action_tx: UnboundedSender<A>) -> Self
-    where
-        Self: Sized;
-
-    fn move_with_state(self, state: &S) -> Self
-    where
-        Self: Sized;
-
-    fn name(&self) -> &str;
-
-    fn handle_key_event(&mut self, key: Key);
-}
-
-pub trait Render<P> {
-    fn render<B: ratatui::backend::Backend>(&self, frame: &mut Frame, props: P);
-}
 
 pub struct Frontend<A> {
     action_tx: mpsc::UnboundedSender<A>,
@@ -85,7 +69,7 @@ impl<A> Frontend<A> {
                 }
             }
 
-            terminal.draw(|frame| root.render::<Backend>(frame, ()))?;
+            terminal.draw(|frame| root.render::<Backend>(frame, frame.size(), ()))?;
         };
 
         restore_terminal(&mut terminal)?;
