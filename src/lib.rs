@@ -18,6 +18,8 @@ pub mod context;
 pub mod log;
 pub mod ui;
 
+pub mod flux;
+
 use context::Context;
 use ui::theme::Theme;
 
