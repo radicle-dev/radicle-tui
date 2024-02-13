@@ -49,7 +49,7 @@ impl NotificationBrowser {
             ColumnWidth::Fixed(10),
             ColumnWidth::Fixed(18),
         ];
-
+        
         let mut items = vec![];
         for notification in context.notifications() {
             if let Ok(item) =
