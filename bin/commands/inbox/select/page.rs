@@ -2,7 +2,6 @@ use std::collections::HashMap;
 
 use anyhow::Result;
 
-use tui::ui::state::ItemState;
 use tuirealm::{AttrValue, Attribute, Frame, NoUserEvent};
 
 use radicle_tui as tui;
@@ -10,26 +9,29 @@ use radicle_tui as tui;
 use tui::cob::inbox::Filter;
 use tui::context::Context;
 use tui::ui::layout;
+use tui::ui::state::ItemState;
 use tui::ui::theme::Theme;
 use tui::ui::widget::context::{Progress, Shortcuts};
 use tui::ui::widget::Widget;
 use tui::ViewPage;
 
-use super::{ui, Application, Cid, ListCid, Message};
+use super::{ui, Application, Cid, ListCid, Message, Mode};
 
 ///
 /// Home
 ///
 pub struct ListView {
     active_component: ListCid,
+    mode: Mode,
     filter: Filter,
     shortcuts: HashMap<ListCid, Widget<Shortcuts>>,
 }
 
 impl ListView {
-    pub fn new(filter: Filter) -> Self {
+    pub fn new(mode: Mode, filter: Filter) -> Self {
         Self {
             active_component: ListCid::NotificationBrowser,
+            mode,
             filter,
             shortcuts: HashMap::default(),
         }
@@ -87,7 +89,22 @@ impl ViewPage<Cid, Message> for ListView {
         let browser = ui::operation_select(theme, context, self.filter.clone(), None).to_boxed();
         self.shortcuts = browser.as_ref().shortcuts();
 
-        app.remount(Cid::List(ListCid::NotificationBrowser), browser, vec![])?;
+        match self.mode {
+            Mode::Id => {
+                let notif_browser =
+                    ui::id_select(theme, context, self.filter.clone(), None).to_boxed();
+                self.shortcuts = notif_browser.as_ref().shortcuts();
+
+                app.remount(Cid::List(ListCid::NotificationBrowser), browser, vec![])?;
+            }
+            Mode::Operation => {
+                let notif_browser =
+                    ui::operation_select(theme, context, self.filter.clone(), None).to_boxed();
+                self.shortcuts = notif_browser.as_ref().shortcuts();
+
+                app.remount(Cid::List(ListCid::NotificationBrowser), browser, vec![])?;
+            }
+        };
 
         app.active(&Cid::List(self.active_component.clone()))?;
         self.update_shortcuts(app, self.active_component.clone())?;

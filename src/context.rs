@@ -1,5 +1,6 @@
 use std::fmt::Display;
 
+use radicle::node::notifications::Notification;
 use radicle::cob::issue::{Issue, IssueId};
 use radicle::cob::patch::{Patch, PatchId};
 use radicle::crypto::ssh::keystore::{Keystore, MemorySigner};

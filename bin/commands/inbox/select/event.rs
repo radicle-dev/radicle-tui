@@ -13,7 +13,7 @@ use tui::ui::widget::list::PropertyList;
 use tui::ui::widget::Widget;
 use tui::{Id, SelectionExit};
 
-use super::ui::OperationSelect;
+use super::ui::{IdSelect, OperationSelect};
 use super::{InboxOperation, Message};
 
 /// Since the framework does not know the type of messages that are being
@@ -28,6 +28,49 @@ impl tuirealm::Component<Message, NoUserEvent> for Widget<GlobalListener> {
                 code: Key::Char('q'),
                 ..
             }) => Some(Message::Quit(None)),
+            _ => None,
+        }
+    }
+}
+
+impl tuirealm::Component<Message, NoUserEvent> for Widget<IdSelect> {
+    fn on(&mut self, event: Event<NoUserEvent>) -> Option<Message> {
+        let mut submit = || -> Option<NotificationId> {
+            match self.perform(Cmd::Submit) {
+                CmdResult::Submit(state) => {
+                    let selected = ItemState::try_from(state).ok()?.selected()?;
+                    let item = self.items().get(selected)?;
+                    Some(item.id().to_owned())
+                }
+                _ => None,
+            }
+        };
+
+        match event {
+            Event::Keyboard(KeyEvent { code: Key::Up, .. })
+            | Event::Keyboard(KeyEvent {
+                code: Key::Char('k'),
+                ..
+            }) => {
+                self.perform(Cmd::Move(MoveDirection::Up));
+                Some(Message::Tick)
+            }
+            Event::Keyboard(KeyEvent {
+                code: Key::Down, ..
+            })
+            | Event::Keyboard(KeyEvent {
+                code: Key::Char('j'),
+                ..
+            }) => {
+                self.perform(Cmd::Move(MoveDirection::Down));
+                Some(Message::Tick)
+            }
+            Event::Keyboard(KeyEvent {
+                code: Key::Enter, ..
+            }) => submit().map(|id| {
+                let output = SelectionExit::default().with_id(Id::Notification(id));
+                Message::Quit(Some(output))
+            }),
             _ => None,
         }
     }

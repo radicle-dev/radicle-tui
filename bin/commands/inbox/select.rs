@@ -112,22 +112,24 @@ pub struct App {
     context: Context,
     pages: PageStack<Cid, Message>,
     theme: Theme,
-    quit: bool,
+    mode: Mode,
     filter: Filter,
     output: Option<SelectionExit>,
+    quit: bool,
 }
 
 /// Creates a new application using a tui-realm-application, mounts all
 /// components and sets focus to a default one.
 impl App {
-    pub fn new(context: Context, filter: Filter) -> Self {
+    pub fn new(context: Context, mode: Mode, filter: Filter) -> Self {
         Self {
             context,
             pages: PageStack::default(),
             theme: Theme::default(),
-            quit: false,
+            mode,
             filter,
             output: None,
+            quit: false,
         }
     }
 
@@ -136,7 +138,7 @@ impl App {
         app: &mut Application<Cid, Message, NoUserEvent>,
         theme: &Theme,
     ) -> Result<()> {
-        let home = Box::new(ListView::new(self.filter.clone()));
+        let home = Box::new(ListView::new(self.mode.clone(), self.filter.clone()));
         self.pages.push(home, app, &self.context, theme)?;
 
         Ok(())
