@@ -90,6 +90,56 @@ impl WidgetComponent for NotificationBrowser {
     }
 }
 
+pub struct IdSelect {
+    theme: Theme,
+    browser: Widget<NotificationBrowser>,
+}
+
+impl IdSelect {
+    pub fn new(theme: Theme, browser: Widget<NotificationBrowser>) -> Self {
+        Self { theme, browser }
+    }
+
+    pub fn items(&self) -> &Vec<NotificationItem> {
+        self.browser.items()
+    }
+
+    pub fn shortcuts(&self) -> HashMap<ListCid, Widget<Shortcuts>> {
+        [(
+            ListCid::NotificationBrowser,
+            tui::ui::shortcuts(
+                &self.theme,
+                vec![
+                    tui::ui::shortcut(&self.theme, "enter", "select"),
+                    tui::ui::shortcut(&self.theme, "q", "quit"),
+                ],
+            ),
+        )]
+        .iter()
+        .cloned()
+        .collect()
+    }
+}
+
+impl WidgetComponent for IdSelect {
+    fn view(&mut self, properties: &Props, frame: &mut Frame, area: Rect) {
+        let focus = properties
+            .get_or(Attribute::Focus, AttrValue::Flag(false))
+            .unwrap_flag();
+
+        self.browser.attr(Attribute::Focus, AttrValue::Flag(focus));
+        self.browser.view(frame, area);
+    }
+
+    fn state(&self) -> State {
+        self.browser.state()
+    }
+
+    fn perform(&mut self, _properties: &Props, cmd: Cmd) -> CmdResult {
+        self.browser.perform(cmd)
+    }
+}
+
 pub struct OperationSelect {
     theme: Theme,
     browser: Widget<NotificationBrowser>,
@@ -139,6 +189,17 @@ impl WidgetComponent for OperationSelect {
     fn perform(&mut self, _properties: &Props, cmd: Cmd) -> CmdResult {
         self.browser.perform(cmd)
     }
+}
+
+pub fn id_select(
+    theme: &Theme,
+    context: &Context,
+    _filter: Filter,
+    selected: Option<Notification>,
+) -> Widget<IdSelect> {
+    let browser = Widget::new(NotificationBrowser::new(theme, context, selected));
+
+    Widget::new(IdSelect::new(theme.clone(), browser))
 }
 
 pub fn operation_select(

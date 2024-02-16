@@ -21,11 +21,12 @@ pub const HELP: Help = Help {
     usage: r#"
 Usage
 
-    rad-tui inbox select
+    rad-tui inbox select [<option>...]
 
 Other options
 
-    --help               Print help
+    --mode <MODE>           Set selection mode; see MODE below (default: operation)
+    --help                  Print help
 "#,
 };
 
@@ -44,6 +45,7 @@ pub enum OperationName {
 
 #[derive(Debug, Default, Clone, PartialEq, Eq)]
 pub struct SelectOptions {
+    mode: select::Mode,
     filter: inbox::Filter,
 }
 
@@ -53,12 +55,24 @@ impl Args for Options {
 
         let mut parser = lexopt::Parser::from_args(args);
         let mut op: Option<OperationName> = None;
-        let select_opts = SelectOptions::default();
+        let mut select_opts = SelectOptions::default();
 
         while let Some(arg) = parser.next()? {
             match arg {
                 Long("help") | Short('h') => {
                     return Err(Error::Help.into());
+                }
+
+                // select options.
+                Long("mode") | Short('m') if op == Some(OperationName::Select) => {
+                    let val = parser.value()?;
+                    let val = val.to_str().unwrap_or_default();
+
+                    select_opts.mode = match val {
+                        "operation" => select::Mode::Operation,
+                        "id" => select::Mode::Id,
+                        unknown => anyhow::bail!("unknown mode '{}'", unknown),
+                    };
                 }
 
                 Value(val) if op.is_none() => match val.to_string_lossy().as_ref() {
@@ -83,11 +97,11 @@ pub fn run(options: Options, _ctx: impl terminal::Context) -> anyhow::Result<()>
     match options.op {
         Operation::Select { opts } => {
             let profile = terminal::profile()?;
-            let context = context::Context::new(profile, id)?.with_issues();
+            let context = context::Context::new(profile, id)?;
 
             log::enable(context.profile(), "inbox", "select")?;
 
-            let mut app = select::App::new(context, opts.filter.clone());
+            let mut app = select::App::new(context, opts.mode.clone(), opts.filter.clone());
             let output = Window::default().run(&mut app, 1000 / FPS)?;
 
             let output = output
