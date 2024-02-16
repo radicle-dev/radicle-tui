@@ -17,7 +17,7 @@ use tuirealm::{Application, Frame, NoUserEvent, Sub, SubClause};
 
 use radicle_tui as tui;
 
-use tui::cob::inbox::Filter;
+use tui::cob::inbox::{Filter, SortBy};
 use tui::context::Context;
 
 use tui::ui::subscription;
@@ -114,6 +114,7 @@ pub struct App {
     theme: Theme,
     mode: Mode,
     filter: Filter,
+    sort_by: SortBy,
     output: Option<SelectionExit>,
     quit: bool,
 }
@@ -121,13 +122,14 @@ pub struct App {
 /// Creates a new application using a tui-realm-application, mounts all
 /// components and sets focus to a default one.
 impl App {
-    pub fn new(context: Context, mode: Mode, filter: Filter) -> Self {
+    pub fn new(context: Context, mode: Mode, filter: Filter, sort_by: SortBy) -> Self {
         Self {
             context,
             pages: PageStack::default(),
             theme: Theme::default(),
             mode,
             filter,
+            sort_by,
             output: None,
             quit: false,
         }
@@ -138,7 +140,11 @@ impl App {
         app: &mut Application<Cid, Message, NoUserEvent>,
         theme: &Theme,
     ) -> Result<()> {
-        let home = Box::new(ListView::new(self.mode.clone(), self.filter.clone()));
+        let home = Box::new(ListView::new(
+            self.mode.clone(),
+            self.filter.clone(),
+            self.sort_by,
+        ));
         self.pages.push(home, app, &self.context, theme)?;
 
         Ok(())

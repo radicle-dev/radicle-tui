@@ -26,7 +26,13 @@ Usage
 Other options
 
     --mode <MODE>           Set selection mode; see MODE below (default: operation)
+    
+    --sort-by <field>       Sort by `id` or `timestamp` (default: timestamp)
+    --reverse, -r           Reverse the list
     --help                  Print help
+
+    The MODE argument can be 'operation' or 'id'. 'operation' selects a notification id and
+    an operation, whereas 'id' selects a notification id only.
 "#,
 };
 
@@ -47,6 +53,7 @@ pub enum OperationName {
 pub struct SelectOptions {
     mode: select::Mode,
     filter: inbox::Filter,
+    sort_by: inbox::SortBy,
 }
 
 impl Args for Options {
@@ -55,6 +62,8 @@ impl Args for Options {
 
         let mut parser = lexopt::Parser::from_args(args);
         let mut op: Option<OperationName> = None;
+        let mut reverse = None;
+        let mut field = None;
         let mut select_opts = SelectOptions::default();
 
         while let Some(arg) = parser.next()? {
@@ -75,6 +84,19 @@ impl Args for Options {
                     };
                 }
 
+                Long("reverse") | Short('r') => {
+                    reverse = Some(true);
+                }
+                Long("sort-by") => {
+                    let val = parser.value()?;
+
+                    match terminal::args::string(&val).as_str() {
+                        "timestamp" => field = Some("timestamp"),
+                        "rowid" => field = Some("id"),
+                        other => anyhow::bail!("unknown sorting field '{other}'"),
+                    }
+                }
+
                 Value(val) if op.is_none() => match val.to_string_lossy().as_ref() {
                     "select" => op = Some(OperationName::Select),
                     unknown => anyhow::bail!("unknown operation '{}'", unknown),
@@ -82,6 +104,15 @@ impl Args for Options {
                 _ => return Err(anyhow!(arg.unexpected())),
             }
         }
+
+        select_opts.sort_by = if let Some(field) = field {
+            inbox::SortBy {
+                field,
+                reverse: reverse.unwrap_or(false),
+            }
+        } else {
+            inbox::SortBy::default()
+        };
 
         let op = match op.ok_or_else(|| anyhow!("an operation must be provided"))? {
             OperationName::Select => Operation::Select { opts: select_opts },
@@ -101,7 +132,12 @@ pub fn run(options: Options, _ctx: impl terminal::Context) -> anyhow::Result<()>
 
             log::enable(context.profile(), "inbox", "select")?;
 
-            let mut app = select::App::new(context, opts.mode.clone(), opts.filter.clone());
+            let mut app = select::App::new(
+                context,
+                opts.mode.clone(),
+                opts.filter.clone(),
+                opts.sort_by,
+            );
             let output = Window::default().run(&mut app, 1000 / FPS)?;
 
             let output = output
