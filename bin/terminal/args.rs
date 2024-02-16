@@ -93,6 +93,10 @@ pub fn finish(unparsed: Vec<OsString>) -> anyhow::Result<()> {
     Ok(())
 }
 
+pub fn string(val: &OsString) -> String {
+    val.to_string_lossy().to_string()
+}
+
 #[allow(dead_code)]
 pub fn rev(val: &OsString) -> anyhow::Result<Rev> {
     let s = val.to_str().ok_or(anyhow!("invalid git rev {val:?}"))?;

@@ -1,11 +1,11 @@
 use std::fmt::Display;
 
-use radicle::node::notifications::Notification;
 use radicle::cob::issue::{Issue, IssueId};
 use radicle::cob::patch::{Patch, PatchId};
 use radicle::crypto::ssh::keystore::{Keystore, MemorySigner};
 use radicle::crypto::Signer;
 use radicle::identity::{Project, RepoId};
+use radicle::node::notifications::Notification;
 use radicle::profile::env::RAD_PASSPHRASE;
 use radicle::storage::git::Repository;
 use radicle::storage::{ReadRepository, ReadStorage};

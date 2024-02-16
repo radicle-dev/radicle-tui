@@ -6,7 +6,7 @@ use tuirealm::{AttrValue, Attribute, Frame, NoUserEvent};
 
 use radicle_tui as tui;
 
-use tui::cob::inbox::Filter;
+use tui::cob::inbox::{Filter, SortBy};
 use tui::context::Context;
 use tui::ui::layout;
 use tui::ui::state::ItemState;
@@ -24,15 +24,17 @@ pub struct ListView {
     active_component: ListCid,
     mode: Mode,
     filter: Filter,
+    sort_by: SortBy,
     shortcuts: HashMap<ListCid, Widget<Shortcuts>>,
 }
 
 impl ListView {
-    pub fn new(mode: Mode, filter: Filter) -> Self {
+    pub fn new(mode: Mode, filter: Filter, sort_by: SortBy) -> Self {
         Self {
             active_component: ListCid::NotificationBrowser,
             mode,
             filter,
+            sort_by,
             shortcuts: HashMap::default(),
         }
     }
@@ -86,20 +88,23 @@ impl ViewPage<Cid, Message> for ListView {
         context: &Context,
         theme: &Theme,
     ) -> Result<()> {
-        let browser = ui::operation_select(theme, context, self.filter.clone(), None).to_boxed();
+        let browser = ui::operation_select(theme, context, self.filter.clone(), self.sort_by, None)
+            .to_boxed();
         self.shortcuts = browser.as_ref().shortcuts();
 
         match self.mode {
             Mode::Id => {
                 let notif_browser =
-                    ui::id_select(theme, context, self.filter.clone(), None).to_boxed();
+                    ui::id_select(theme, context, self.filter.clone(), self.sort_by, None)
+                        .to_boxed();
                 self.shortcuts = notif_browser.as_ref().shortcuts();
 
                 app.remount(Cid::List(ListCid::NotificationBrowser), browser, vec![])?;
             }
             Mode::Operation => {
                 let notif_browser =
-                    ui::operation_select(theme, context, self.filter.clone(), None).to_boxed();
+                    ui::operation_select(theme, context, self.filter.clone(), self.sort_by, None)
+                        .to_boxed();
                 self.shortcuts = notif_browser.as_ref().shortcuts();
 
                 app.remount(Cid::List(ListCid::NotificationBrowser), browser, vec![])?;

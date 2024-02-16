@@ -10,7 +10,7 @@ use tuirealm::{AttrValue, Attribute, Frame, MockComponent, Props, State};
 
 use radicle_tui as tui;
 
-use tui::cob::inbox::Filter;
+use tui::cob::inbox::{Filter, SortBy};
 use tui::context::Context;
 use tui::ui::theme::{style, Theme};
 use tui::ui::widget::context::{ContextBar, Progress, Shortcuts};
@@ -25,7 +25,12 @@ pub struct NotificationBrowser {
 }
 
 impl NotificationBrowser {
-    pub fn new(theme: &Theme, context: &Context, selected: Option<Notification>) -> Self {
+    pub fn new(
+        theme: &Theme,
+        context: &Context,
+        sort_by: SortBy,
+        selected: Option<Notification>,
+    ) -> Self {
         let header = [
             label::header(""),
             label::header(" ● "),
@@ -42,7 +47,7 @@ impl NotificationBrowser {
             ColumnWidth::Grow,
             ColumnWidth::Fixed(15),
             ColumnWidth::Fixed(10),
-            ColumnWidth::Fixed(15),
+            ColumnWidth::Fixed(18),
         ];
 
         let mut items = vec![];
@@ -52,6 +57,15 @@ impl NotificationBrowser {
             {
                 items.push(item);
             }
+        }
+
+        match sort_by.field {
+            "timestamp" => items.sort_by(|a, b| b.timestamp().cmp(a.timestamp())),
+            "id" => items.sort_by(|a, b| b.id().cmp(a.id())),
+            _ => {}
+        }
+        if sort_by.reverse {
+            items.reverse();
         }
 
         let selected = match selected {
@@ -195,9 +209,10 @@ pub fn id_select(
     theme: &Theme,
     context: &Context,
     _filter: Filter,
+    sort_by: SortBy,
     selected: Option<Notification>,
 ) -> Widget<IdSelect> {
-    let browser = Widget::new(NotificationBrowser::new(theme, context, selected));
+    let browser = Widget::new(NotificationBrowser::new(theme, context, sort_by, selected));
 
     Widget::new(IdSelect::new(theme.clone(), browser))
 }
@@ -206,9 +221,10 @@ pub fn operation_select(
     theme: &Theme,
     context: &Context,
     _filter: Filter,
+    sort_by: SortBy,
     selected: Option<Notification>,
 ) -> Widget<OperationSelect> {
-    let browser = Widget::new(NotificationBrowser::new(theme, context, selected));
+    let browser = Widget::new(NotificationBrowser::new(theme, context, sort_by, selected));
 
     Widget::new(OperationSelect::new(theme.clone(), browser))
 }
