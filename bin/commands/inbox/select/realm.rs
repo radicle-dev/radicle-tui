@@ -17,7 +17,7 @@ use tuirealm::{Application, Frame, NoUserEvent, Sub, SubClause};
 
 use radicle_tui as tui;
 
-use tui::cob::inbox::Filter;
+use tui::cob::inbox::{Filter, SortBy};
 use tui::context::Context;
 use tui::ui::subscription;
 use tui::ui::theme::Theme;
@@ -111,8 +111,10 @@ pub struct App {
     context: Context,
     pages: PageStack<Cid, Message>,
     theme: Theme,
-    quit: bool,
+    mode: Mode,
     filter: Filter,
+    sort_by: SortBy,
+    quit: bool,
     output: Option<SelectionExit>,
 }
 
@@ -120,13 +122,15 @@ pub struct App {
 /// components and sets focus to a default one.
 #[allow(dead_code)]
 impl App {
-    pub fn new(context: Context, filter: Filter) -> Self {
+    pub fn new(context: Context, mode: Mode, filter: Filter, sort_by: SortBy) -> Self {
         Self {
             context,
             pages: PageStack::default(),
             theme: Theme::default(),
-            quit: false,
+            mode,
             filter,
+            sort_by,
+            quit: false,
             output: None,
         }
     }
@@ -136,7 +140,11 @@ impl App {
         app: &mut Application<Cid, Message, NoUserEvent>,
         theme: &Theme,
     ) -> Result<()> {
-        let home = Box::new(ListView::new(self.filter.clone()));
+        let home = Box::new(ListView::new(
+            self.mode.clone(),
+            self.filter.clone(),
+            self.sort_by,
+        ));
         self.pages.push(home, app, &self.context, theme)?;
 
         Ok(())
