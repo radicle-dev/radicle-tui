@@ -4,29 +4,21 @@ use termion::event::Key;
 
 use ratatui::backend::Backend;
 use ratatui::layout::{Constraint, Rect};
+use ratatui::widgets::Cell;
 
 use radicle_tui as tui;
 
 use tui::flux::ui::cob::NotificationItem;
+use tui::flux::ui::span;
 use tui::flux::ui::widget::{
-    Render, Shortcut, Shortcuts, ShortcutsProps, Table, TableProps, Widget,
+    FooterProps, Render, Shortcut, Shortcuts, ShortcutsProps, Table, TableProps, Widget,
 };
 
 use crate::tui_inbox::select::flux::{Action, InboxState};
 
-pub struct ListPageProps {}
-
-impl From<&InboxState> for ListPageProps {
-    fn from(_state: &InboxState) -> Self {
-        Self {}
-    }
-}
-
 pub struct ListPage {
     /// Action sender
     pub action_tx: UnboundedSender<Action>,
-    // Mapped Props from State
-    _props: ListPageProps,
     /// notification widget
     notifications: Notifications,
     /// Shortcut widget
@@ -40,7 +32,6 @@ impl Widget<InboxState, Action> for ListPage {
     {
         Self {
             action_tx: action_tx.clone(),
-            _props: ListPageProps::from(state),
             notifications: Notifications::new(state, action_tx.clone()),
             shortcuts: Shortcuts::new(state, action_tx.clone()),
         }
@@ -52,7 +43,6 @@ impl Widget<InboxState, Action> for ListPage {
         Self: Sized,
     {
         ListPage {
-            _props: ListPageProps::from(state),
             notifications: self.notifications.move_with_state(state),
             shortcuts: self.shortcuts.move_with_state(state),
             ..self
@@ -81,7 +71,7 @@ impl Widget<InboxState, Action> for ListPage {
 impl Render<()> for ListPage {
     fn render<B: Backend>(&mut self, frame: &mut ratatui::Frame, _area: Rect, _props: ()) {
         let area = frame.size();
-        let layout = tui::flux::ui::layout::default_page(area, 1u16, 1u16);
+        let layout = tui::flux::ui::layout::default_page(area, 0u16, 1u16);
 
         self.notifications.render::<B>(frame, layout.component, ());
         self.shortcuts.render::<B>(
@@ -113,7 +103,7 @@ struct Notifications {
     /// State Mapped RoomList Props
     props: NotificationsProps,
     /// Notification table
-    table: Table<Action, NotificationItem, 7>,
+    table: Table<Action>,
 }
 
 impl Widget<InboxState, Action> for Notifications {
@@ -175,14 +165,14 @@ impl Widget<InboxState, Action> for Notifications {
 
 impl Render<()> for Notifications {
     fn render<B: Backend>(&mut self, frame: &mut ratatui::Frame, area: Rect, _props: ()) {
-        let header = [
-            String::from(""),
-            String::from(" ● "),
-            String::from("Type"),
-            String::from("Summary"),
-            String::from("ID"),
-            String::from("Status"),
-            String::from("Updated"),
+        let header: [Cell; 7] = [
+            String::from("").into(),
+            String::from(" ● ").into(),
+            String::from("Type").into(),
+            String::from("Summary").into(),
+            String::from("ID").into(),
+            String::from("Status").into(),
+            String::from("Updated").into(),
         ];
 
         let widths = [
@@ -195,14 +185,43 @@ impl Render<()> for Notifications {
             Constraint::Length(18),
         ];
 
+        let progress = {
+            let step = self
+                .table
+                .selected()
+                .map(|selected| selected.saturating_add(1).to_string())
+                .unwrap_or("-".to_string());
+            let length = self.props.notifications.len().to_string();
+
+            span::badge(format!("{}/{}", step, length))
+        };
+
+        let footer = FooterProps {
+            cells: [
+                span::badge("/".to_string()),
+                String::from("").into(),
+                String::from("").into(),
+                progress.clone(),
+            ]
+            .to_vec(),
+            widths: [
+                Constraint::Length(3),
+                Constraint::Fill(1),
+                Constraint::Fill(1),
+                Constraint::Length(progress.width() as u16),
+            ]
+            .to_vec(),
+        };
+
         self.table.render::<B>(
             frame,
             area,
             TableProps {
                 items: self.props.notifications.to_vec(),
-                header,
-                widths: widths.to_vec(),
                 focus: false,
+                widths,
+                header,
+                footer: Some(footer),
             },
         );
     }
