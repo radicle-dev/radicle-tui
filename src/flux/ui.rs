@@ -1,6 +1,10 @@
+pub mod cob;
+pub mod ext;
+pub mod format;
 pub mod layout;
-pub mod widget;
+pub mod span;
 pub mod theme;
+pub mod widget;
 
 use std::io::{self};
 use std::thread;
@@ -49,15 +53,13 @@ impl<A> Frontend<A> {
             W::new(&state, self.action_tx.clone())
         };
 
+        // let mut last_frame: Option<CompletedFrame> = None;
         let result: anyhow::Result<Interrupted> = loop {
             tokio::select! {
                 // Tick to terminate the select every N milliseconds
                 _ = ticker.tick() => (),
-                Some(event) = events_rx.recv() => match event {
-                    Event::Key(key) => {
-                        root.handle_key_event(key)
-                    }
-                    _ => (),
+                Some(event) = events_rx.recv() => if let Event::Key(key) = event {
+                    root.handle_key_event(key)
                 },
                 // Handle state updates
                 Some(state) = state_rx.recv() => {
@@ -65,10 +67,13 @@ impl<A> Frontend<A> {
                 },
                 // Catch and handle interrupt signal to gracefully shutdown
                 Ok(interrupted) = interrupt_rx.recv() => {
+                    let size = terminal.get_frame().size();
+                    // terminal.set_cursor(size.width, size.height + size.y)?;
+                    terminal.set_cursor(size.x, size.y)?;
+
                     break Ok(interrupted);
                 }
             }
-
             terminal.draw(|frame| root.render::<Backend>(frame, frame.size(), ()))?;
         };
 
@@ -81,7 +86,7 @@ impl<A> Frontend<A> {
 fn setup_terminal() -> anyhow::Result<Terminal<Backend>> {
     let stdout = io::stdout().into_raw_mode()?;
     let options = TerminalOptions {
-        viewport: Viewport::Inline(10),
+        viewport: Viewport::Inline(20),
     };
 
     Ok(Terminal::with_options(
@@ -90,8 +95,8 @@ fn setup_terminal() -> anyhow::Result<Terminal<Backend>> {
     )?)
 }
 
-fn restore_terminal(terminal: &mut Terminal<Backend>) -> anyhow::Result<()> {
-    Ok(terminal.show_cursor()?)
+fn restore_terminal(_terminal: &mut Terminal<Backend>) -> anyhow::Result<()> {
+    Ok(())
 }
 
 fn events() -> mpsc::UnboundedReceiver<Event> {
@@ -100,8 +105,7 @@ fn events() -> mpsc::UnboundedReceiver<Event> {
     thread::spawn(move || {
         let stdin = io::stdin();
         for key in stdin.keys().flatten() {
-            if let Err(err) = keys_tx.send(Event::Key(key)) {
-                eprintln!("{err}");
+            if keys_tx.send(Event::Key(key)).is_err() {
                 return;
             }
         }
