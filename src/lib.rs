@@ -3,15 +3,16 @@ use std::hash::Hash;
 use std::time::Duration;
 
 use anyhow::Result;
-use radicle::node::notifications::NotificationId;
-use serde::ser::{Serialize, SerializeStruct, Serializer};
 
-use radicle::cob::ObjectId;
+use serde::ser::{Serialize, SerializeStruct, Serializer};
 
 use tuirealm::terminal::TerminalBridge;
 use tuirealm::tui::layout::Rect;
 use tuirealm::Frame;
 use tuirealm::{Application, EventListenerCfg, NoUserEvent};
+
+use radicle::cob::ObjectId;
+use radicle::node::notifications::NotificationId;
 
 pub mod cob;
 pub mod context;
@@ -175,8 +176,8 @@ impl Window {
             }
             update = tui.update(&mut app)?;
 
-            resize = size != self.terminal.raw().size()?;
-            size = self.terminal.raw().size()?;
+            resize = size != self.terminal.raw_mut().size()?;
+            size = self.terminal.raw_mut().size()?;
         }
 
         Ok(tui.exit().unwrap().value)
