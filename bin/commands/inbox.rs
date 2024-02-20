@@ -1,5 +1,12 @@
-#[path = "inbox/select.rs"]
-mod select;
+#[cfg(feature = "flux")]
+#[path = "inbox/flux.rs"]
+mod flux;
+#[cfg(feature = "realm")]
+#[path = "inbox/realm.rs"]
+mod realm;
+
+#[path = "inbox/common.rs"]
+mod common;
 
 use std::ffi::OsString;
 
@@ -7,13 +14,13 @@ use anyhow::anyhow;
 
 use radicle_tui as tui;
 
-use tui::cob::inbox::{self};
-use tui::{context, log, Window};
+use tui::common::cob::inbox::{self};
+use tui::common::context;
+use tui::common::log;
 
 use crate::terminal;
 use crate::terminal::args::{Args, Error, Help};
 
-pub const FPS: u64 = 60;
 pub const HELP: Help = Help {
     name: "inbox",
     description: "Terminal interfaces for notifications",
@@ -51,7 +58,7 @@ pub enum OperationName {
 
 #[derive(Debug, Default, Clone, PartialEq, Eq)]
 pub struct SelectOptions {
-    mode: select::Mode,
+    mode: common::Mode,
     filter: inbox::Filter,
     sort_by: inbox::SortBy,
 }
@@ -78,8 +85,8 @@ impl Args for Options {
                     let val = val.to_str().unwrap_or_default();
 
                     select_opts.mode = match val {
-                        "operation" => select::Mode::Operation,
-                        "id" => select::Mode::Id,
+                        "operation" => common::Mode::Operation,
+                        "id" => common::Mode::Id,
                         unknown => anyhow::bail!("unknown mode '{}'", unknown),
                     };
                 }
@@ -121,7 +128,11 @@ impl Args for Options {
     }
 }
 
+#[cfg(feature = "realm")]
 pub fn run(options: Options, _ctx: impl terminal::Context) -> anyhow::Result<()> {
+    use tui::realm::Window;
+
+    pub const FPS: u64 = 60;
     let (_, id) = radicle::rad::cwd()
         .map_err(|_| anyhow!("this command must be run in the context of a project"))?;
 
@@ -132,7 +143,7 @@ pub fn run(options: Options, _ctx: impl terminal::Context) -> anyhow::Result<()>
 
             log::enable(context.profile(), "inbox", "select")?;
 
-            let mut app = select::App::new(
+            let mut app = realm::select::App::new(
                 context,
                 opts.mode.clone(),
                 opts.filter.clone(),
@@ -145,6 +156,28 @@ pub fn run(options: Options, _ctx: impl terminal::Context) -> anyhow::Result<()>
                 .unwrap_or_default();
 
             eprint!("{output}");
+        }
+    }
+
+    Ok(())
+}
+
+#[cfg(feature = "flux")]
+#[tokio::main]
+pub async fn run(options: Options, _ctx: impl terminal::Context) -> anyhow::Result<()> {
+    let (_, id) = radicle::rad::cwd()
+        .map_err(|_| anyhow!("this command must be run in the context of a project"))?;
+
+    match options.op {
+        Operation::Select { opts } => {
+            let profile = terminal::profile()?;
+            let context = context::Context::new(profile, id)?;
+
+            log::enable(context.profile(), "inbox", "select")?;
+
+            let _ = flux::select::App::new(context, opts.filter.clone())
+                .run()
+                .await;
         }
     }
 

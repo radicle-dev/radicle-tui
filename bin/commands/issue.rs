@@ -1,9 +1,9 @@
+#[cfg(feature = "realm")]
+#[path = "issue/realm.rs"]
+mod realm;
+
 #[path = "issue/common.rs"]
 mod common;
-#[path = "issue/select.rs"]
-mod select;
-#[path = "issue/suite.rs"]
-mod suite;
 
 use std::ffi::OsString;
 
@@ -11,13 +11,11 @@ use anyhow::anyhow;
 
 use radicle_tui as tui;
 
-use tui::cob::issue::{self, State};
-use tui::{context, log, Window};
+use tui::common::cob::issue::{self, State};
 
 use crate::terminal;
 use crate::terminal::args::{Args, Error, Help};
 
-pub const FPS: u64 = 60;
 pub const HELP: Help = Help {
     name: "issue",
     description: "Terminal interfaces for issues",
@@ -55,7 +53,7 @@ pub enum OperationName {
 
 #[derive(Debug, Default, Clone, PartialEq, Eq)]
 pub struct SelectOptions {
-    mode: select::Mode,
+    mode: common::Mode,
     filter: issue::Filter,
 }
 
@@ -79,8 +77,8 @@ impl Args for Options {
                     let val = val.to_str().unwrap_or_default();
 
                     select_opts.mode = match val {
-                        "operation" => select::Mode::Operation,
-                        "id" => select::Mode::Id,
+                        "operation" => common::Mode::Operation,
+                        "id" => common::Mode::Id,
                         unknown => anyhow::bail!("unknown mode '{}'", unknown),
                     };
                 }
@@ -120,7 +118,13 @@ impl Args for Options {
     }
 }
 
+#[cfg(feature = "realm")]
 pub fn run(options: Options, _ctx: impl terminal::Context) -> anyhow::Result<()> {
+    use tui::common::context;
+    use tui::common::log;
+    use tui::realm::Window;
+
+    pub const FPS: u64 = 60;
     let (_, id) = radicle::rad::cwd()
         .map_err(|_| anyhow!("this command must be run in the context of a project"))?;
 
@@ -131,7 +135,7 @@ pub fn run(options: Options, _ctx: impl terminal::Context) -> anyhow::Result<()>
 
             log::enable(context.profile(), "issue", "select")?;
 
-            let mut app = select::App::new(context, opts.mode.clone(), opts.filter.clone());
+            let mut app = realm::select::App::new(context, opts.mode.clone(), opts.filter.clone());
             let output = Window::default().run(&mut app, 1000 / FPS)?;
 
             let output = output
@@ -143,4 +147,13 @@ pub fn run(options: Options, _ctx: impl terminal::Context) -> anyhow::Result<()>
     }
 
     Ok(())
+}
+
+#[cfg(feature = "flux")]
+pub fn run(options: Options, _ctx: impl terminal::Context) -> anyhow::Result<()> {
+    match options.op {
+        Operation::Select { opts: _ } => {
+            anyhow::bail!("operation not yet implemented with flux")
+        }
+    }
 }

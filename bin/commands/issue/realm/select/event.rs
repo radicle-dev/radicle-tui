@@ -1,5 +1,3 @@
-use radicle::node::notifications::NotificationId;
-
 use tuirealm::command::{Cmd, CmdResult, Direction as MoveDirection};
 use tuirealm::event::{Event, Key, KeyEvent};
 use tuirealm::{MockComponent, NoUserEvent};
@@ -14,7 +12,7 @@ use tui::realm::ui::widget::Widget;
 use tui::{Id, SelectionExit};
 
 use super::ui::{IdSelect, OperationSelect};
-use super::{InboxOperation, Message};
+use super::{IssueOperation, Message};
 
 /// Since the framework does not know the type of messages that are being
 /// passed around in the app, the following handlers need to be implemented for
@@ -35,7 +33,7 @@ impl tuirealm::Component<Message, NoUserEvent> for Widget<GlobalListener> {
 
 impl tuirealm::Component<Message, NoUserEvent> for Widget<IdSelect> {
     fn on(&mut self, event: Event<NoUserEvent>) -> Option<Message> {
-        let mut submit = || -> Option<NotificationId> {
+        let mut submit = || -> Option<radicle::cob::patch::PatchId> {
             match self.perform(Cmd::Submit) {
                 CmdResult::Submit(state) => {
                     let selected = ItemState::try_from(state).ok()?.selected()?;
@@ -68,7 +66,7 @@ impl tuirealm::Component<Message, NoUserEvent> for Widget<IdSelect> {
             Event::Keyboard(KeyEvent {
                 code: Key::Enter, ..
             }) => submit().map(|id| {
-                let output = SelectionExit::default().with_id(Id::Notification(id));
+                let output = SelectionExit::default().with_id(Id::Object(id));
                 Message::Quit(Some(output))
             }),
             _ => None,
@@ -78,7 +76,7 @@ impl tuirealm::Component<Message, NoUserEvent> for Widget<IdSelect> {
 
 impl tuirealm::Component<Message, NoUserEvent> for Widget<OperationSelect> {
     fn on(&mut self, event: Event<NoUserEvent>) -> Option<Message> {
-        let mut submit = || -> Option<NotificationId> {
+        let mut submit = || -> Option<radicle::cob::patch::PatchId> {
             match self.perform(Cmd::Submit) {
                 CmdResult::Submit(state) => {
                     let selected = ItemState::try_from(state).ok()?.selected()?;
@@ -112,17 +110,35 @@ impl tuirealm::Component<Message, NoUserEvent> for Widget<OperationSelect> {
                 code: Key::Enter, ..
             }) => submit().map(|id| {
                 let exit = SelectionExit::default()
-                    .with_operation(InboxOperation::Show.to_string())
-                    .with_id(Id::Notification(id));
+                    .with_operation(IssueOperation::Show.to_string())
+                    .with_id(Id::Object(id));
                 Message::Quit(Some(exit))
             }),
             Event::Keyboard(KeyEvent {
-                code: Key::Char('c'),
+                code: Key::Char('d'),
                 ..
             }) => submit().map(|id| {
                 let exit = SelectionExit::default()
-                    .with_operation(InboxOperation::Clear.to_string())
-                    .with_id(Id::Notification(id));
+                    .with_operation(IssueOperation::Delete.to_string())
+                    .with_id(Id::Object(id));
+                Message::Quit(Some(exit))
+            }),
+            Event::Keyboard(KeyEvent {
+                code: Key::Char('e'),
+                ..
+            }) => submit().map(|id| {
+                let exit = SelectionExit::default()
+                    .with_operation(IssueOperation::Edit.to_string())
+                    .with_id(Id::Object(id));
+                Message::Quit(Some(exit))
+            }),
+            Event::Keyboard(KeyEvent {
+                code: Key::Char('m'),
+                ..
+            }) => submit().map(|id| {
+                let exit = SelectionExit::default()
+                    .with_operation(IssueOperation::Comment.to_string())
+                    .with_id(Id::Object(id));
                 Message::Quit(Some(exit))
             }),
             _ => None,
