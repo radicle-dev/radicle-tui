@@ -2,19 +2,20 @@ use std::collections::HashMap;
 
 use anyhow::Result;
 
-use tuirealm::{AttrValue, Attribute, Frame, NoUserEvent};
+use tuirealm::{AttrValue, Attribute, Frame, NoUserEvent, Sub, SubClause};
 
 use radicle_tui as tui;
 
-use tui::common::cob::inbox::{Filter, SortBy};
+use tui::common::cob::patch::Filter;
 use tui::common::context::Context;
-use tui::realm::ui::layout;
 use tui::realm::ui::state::ItemState;
 use tui::realm::ui::theme::Theme;
 use tui::realm::ui::widget::context::{Progress, Shortcuts};
 use tui::realm::ui::widget::Widget;
+use tui::realm::ui::{layout, subscription};
 use tui::realm::ViewPage;
 
+use super::super::common;
 use super::{ui, Application, Cid, ListCid, Message, Mode};
 
 ///
@@ -22,19 +23,17 @@ use super::{ui, Application, Cid, ListCid, Message, Mode};
 ///
 pub struct ListView {
     active_component: ListCid,
-    mode: Mode,
+    subject: Mode,
     filter: Filter,
-    sort_by: SortBy,
     shortcuts: HashMap<ListCid, Widget<Shortcuts>>,
 }
 
 impl ListView {
-    pub fn new(mode: Mode, filter: Filter, sort_by: SortBy) -> Self {
+    pub fn new(subject: Mode, filter: Filter) -> Self {
         Self {
-            active_component: ListCid::NotificationBrowser,
-            mode,
+            active_component: ListCid::PatchBrowser,
+            subject,
             filter,
-            sort_by,
             shortcuts: HashMap::default(),
         }
     }
@@ -45,7 +44,7 @@ impl ListView {
         context: &Context,
         theme: &Theme,
     ) -> Result<()> {
-        let state = app.state(&Cid::List(ListCid::NotificationBrowser))?;
+        let state = app.state(&Cid::List(ListCid::PatchBrowser))?;
         let progress = match ItemState::try_from(state) {
             Ok(state) => Progress::Step(
                 state
@@ -57,7 +56,7 @@ impl ListView {
             Err(_) => Progress::None,
         };
 
-        let context = ui::browse_context(context, theme, self.filter.clone(), progress);
+        let context = common::ui::browse_context(context, theme, self.filter.clone(), progress);
 
         app.remount(Cid::List(ListCid::Context), context.to_boxed(), vec![])?;
 
@@ -88,26 +87,25 @@ impl ViewPage<Cid, Message> for ListView {
         context: &Context,
         theme: &Theme,
     ) -> Result<()> {
-        let browser = ui::operation_select(theme, context, self.filter.clone(), self.sort_by, None)
-            .to_boxed();
-        self.shortcuts = browser.as_ref().shortcuts();
+        let navigation = ui::list_navigation(theme);
+        let header = tui::realm::ui::app_header(context, theme, Some(navigation)).to_boxed();
 
-        match self.mode {
+        app.remount(Cid::List(ListCid::Header), header, vec![])?;
+
+        match self.subject {
             Mode::Id => {
-                let notif_browser =
-                    ui::id_select(theme, context, self.filter.clone(), self.sort_by, None)
-                        .to_boxed();
-                self.shortcuts = notif_browser.as_ref().shortcuts();
+                let patch_browser =
+                    ui::id_select(theme, context, self.filter.clone(), None).to_boxed();
+                self.shortcuts = patch_browser.as_ref().shortcuts();
 
-                app.remount(Cid::List(ListCid::NotificationBrowser), browser, vec![])?;
+                app.remount(Cid::List(ListCid::PatchBrowser), patch_browser, vec![])?;
             }
             Mode::Operation => {
-                let notif_browser =
-                    ui::operation_select(theme, context, self.filter.clone(), self.sort_by, None)
-                        .to_boxed();
-                self.shortcuts = notif_browser.as_ref().shortcuts();
+                let patch_browser =
+                    ui::operation_select(theme, context, self.filter.clone(), None).to_boxed();
+                self.shortcuts = patch_browser.as_ref().shortcuts();
 
-                app.remount(Cid::List(ListCid::NotificationBrowser), browser, vec![])?;
+                app.remount(Cid::List(ListCid::PatchBrowser), patch_browser, vec![])?;
             }
         };
 
@@ -119,7 +117,8 @@ impl ViewPage<Cid, Message> for ListView {
     }
 
     fn unmount(&self, app: &mut Application<Cid, Message, NoUserEvent>) -> Result<()> {
-        app.umount(&Cid::List(ListCid::NotificationBrowser))?;
+        app.umount(&Cid::List(ListCid::Header))?;
+        app.umount(&Cid::List(ListCid::PatchBrowser))?;
         app.umount(&Cid::List(ListCid::Context))?;
         app.umount(&Cid::List(ListCid::Shortcuts))?;
         Ok(())
@@ -158,11 +157,21 @@ impl ViewPage<Cid, Message> for ListView {
         app.view(&Cid::List(ListCid::Shortcuts), frame, layout.shortcuts);
     }
 
-    fn subscribe(&self, _app: &mut Application<Cid, Message, NoUserEvent>) -> Result<()> {
+    fn subscribe(&self, app: &mut Application<Cid, Message, NoUserEvent>) -> Result<()> {
+        app.subscribe(
+            &Cid::List(ListCid::Header),
+            Sub::new(subscription::navigation_clause(), SubClause::Always),
+        )?;
+
         Ok(())
     }
 
-    fn unsubscribe(&self, _app: &mut Application<Cid, Message, NoUserEvent>) -> Result<()> {
+    fn unsubscribe(&self, app: &mut Application<Cid, Message, NoUserEvent>) -> Result<()> {
+        app.unsubscribe(
+            &Cid::List(ListCid::Header),
+            subscription::navigation_clause(),
+        )?;
+
         Ok(())
     }
 }
