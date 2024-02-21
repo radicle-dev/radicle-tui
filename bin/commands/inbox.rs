@@ -1,3 +1,5 @@
+#[path = "inbox/common.rs"]
+mod common;
 #[cfg(feature = "flux")]
 #[path = "inbox/flux.rs"]
 mod flux;
@@ -5,17 +7,15 @@ mod flux;
 #[path = "inbox/realm.rs"]
 mod realm;
 
-#[path = "inbox/common.rs"]
-mod common;
-
 use std::ffi::OsString;
 
 use anyhow::anyhow;
 
+use radicle::storage::ReadStorage;
+
 use radicle_tui as tui;
 
 use tui::common::cob::inbox::{self};
-use tui::common::context;
 use tui::common::log;
 
 use crate::terminal;
@@ -99,7 +99,7 @@ impl Args for Options {
 
                     match terminal::args::string(&val).as_str() {
                         "timestamp" => field = Some("timestamp"),
-                        "rowid" => field = Some("id"),
+                        "id" => field = Some("id"),
                         other => anyhow::bail!("unknown sorting field '{other}'"),
                     }
                 }
@@ -130,6 +130,7 @@ impl Args for Options {
 
 #[cfg(feature = "realm")]
 pub fn run(options: Options, _ctx: impl terminal::Context) -> anyhow::Result<()> {
+    use tui::common::context;
     use tui::realm::Window;
 
     pub const FPS: u64 = 60;
@@ -161,19 +162,30 @@ pub fn run(options: Options, _ctx: impl terminal::Context) -> anyhow::Result<()>
 #[cfg(feature = "flux")]
 #[tokio::main]
 pub async fn run(options: Options, _ctx: impl terminal::Context) -> anyhow::Result<()> {
-    let (_, id) = radicle::rad::cwd()
+    let (_, rid) = radicle::rad::cwd()
         .map_err(|_| anyhow!("this command must be run in the context of a project"))?;
 
     match options.op {
         Operation::Select { opts } => {
             let profile = terminal::profile()?;
-            let context = context::Context::new(profile, id)?;
+            let repository = profile.storage.repository(rid).unwrap();
 
-            log::enable(context.profile(), "inbox", "select")?;
+            log::enable(&profile, "inbox", "select")?;
 
-            let _ = flux::select::App::new(context, opts.filter.clone())
-                .run()
-                .await;
+            let context = flux::select::Context {
+                profile,
+                repository,
+                mode: opts.mode,
+                filter: opts.filter.clone(),
+                sort_by: opts.sort_by,
+            };
+            let output = flux::select::App::new(context).run().await?;
+
+            let output = output
+                .map(|o| serde_json::to_string(&o).unwrap_or_default())
+                .unwrap_or_default();
+
+            eprint!("{output}");
         }
     }
 
