@@ -272,6 +272,8 @@ impl Render<()> for Issues {
                 widths,
                 header,
                 footer: Some(footer),
+                cutoff: 200,
+                cutoff_after: 5,
             },
         );
     }
