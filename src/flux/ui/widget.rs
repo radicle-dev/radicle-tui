@@ -223,7 +223,7 @@ where
             .horizontal_margin(1)
             .split(layout[0]);
 
-        let header = Row::new(props.header).style(style::reset().bold().dim());
+        let header = Row::new(props.header).style(style::reset().bold());
         let header = ratatui::widgets::Table::default()
             .column_spacing(1)
             .header(header)
