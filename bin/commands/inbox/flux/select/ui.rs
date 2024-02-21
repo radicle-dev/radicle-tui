@@ -283,6 +283,8 @@ impl Render<()> for Notifications {
                 widths,
                 header,
                 footer: Some(footer),
+                cutoff: 200,
+                cutoff_after: 6,
             },
         );
     }
