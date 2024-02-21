@@ -11,7 +11,7 @@ use tui::realm::ui::widget::container::{AppHeader, GlobalListener, LabeledContai
 use tui::realm::ui::widget::context::{ContextBar, Shortcuts};
 use tui::realm::ui::widget::list::PropertyList;
 use tui::realm::ui::widget::Widget;
-use tui::{Id, SelectionExit};
+use tui::Selection;
 
 use super::ui::{IdSelect, OperationSelect};
 use super::{InboxOperation, Message};
@@ -68,7 +68,7 @@ impl tuirealm::Component<Message, NoUserEvent> for Widget<IdSelect> {
             Event::Keyboard(KeyEvent {
                 code: Key::Enter, ..
             }) => submit().map(|id| {
-                let output = SelectionExit::default().with_id(Id::Notification(id));
+                let output = Selection::default().with_id(id);
                 Message::Quit(Some(output))
             }),
             _ => None,
@@ -111,18 +111,18 @@ impl tuirealm::Component<Message, NoUserEvent> for Widget<OperationSelect> {
             Event::Keyboard(KeyEvent {
                 code: Key::Enter, ..
             }) => submit().map(|id| {
-                let exit = SelectionExit::default()
+                let exit = Selection::default()
                     .with_operation(InboxOperation::Show.to_string())
-                    .with_id(Id::Notification(id));
+                    .with_id(id);
                 Message::Quit(Some(exit))
             }),
             Event::Keyboard(KeyEvent {
                 code: Key::Char('c'),
                 ..
             }) => submit().map(|id| {
-                let exit = SelectionExit::default()
+                let exit = Selection::default()
                     .with_operation(InboxOperation::Clear.to_string())
-                    .with_id(Id::Notification(id));
+                    .with_id(id);
                 Message::Quit(Some(exit))
             }),
             _ => None,
