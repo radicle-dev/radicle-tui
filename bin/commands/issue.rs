@@ -1,17 +1,22 @@
+#[path = "issue/common.rs"]
+mod common;
+#[cfg(feature = "flux")]
+#[path = "issue/flux.rs"]
+mod flux;
 #[cfg(feature = "realm")]
 #[path = "issue/realm.rs"]
 mod realm;
-
-#[path = "issue/common.rs"]
-mod common;
 
 use std::ffi::OsString;
 
 use anyhow::anyhow;
 
+use radicle::storage::ReadStorage;
+
 use radicle_tui as tui;
 
 use tui::common::cob::issue::{self, State};
+use tui::common::log;
 
 use crate::terminal;
 use crate::terminal::args::{Args, Error, Help};
@@ -150,10 +155,33 @@ pub fn run(options: Options, _ctx: impl terminal::Context) -> anyhow::Result<()>
 }
 
 #[cfg(feature = "flux")]
-pub fn run(options: Options, _ctx: impl terminal::Context) -> anyhow::Result<()> {
+#[tokio::main]
+pub async fn run(options: Options, _ctx: impl terminal::Context) -> anyhow::Result<()> {
+    let (_, rid) = radicle::rad::cwd()
+        .map_err(|_| anyhow!("this command must be run in the context of a project"))?;
+
     match options.op {
-        Operation::Select { opts: _ } => {
-            anyhow::bail!("operation not yet implemented with flux")
+        Operation::Select { opts } => {
+            let profile = terminal::profile()?;
+            let repository = profile.storage.repository(rid).unwrap();
+
+            log::enable(&profile, "inbox", "select")?;
+
+            let context = flux::select::Context {
+                profile,
+                repository,
+                mode: opts.mode,
+                filter: opts.filter.clone(),
+            };
+            let output = flux::select::App::new(context).run().await?;
+
+            let output = output
+                .map(|o| serde_json::to_string(&o).unwrap_or_default())
+                .unwrap_or_default();
+
+            eprint!("{output}");
         }
     }
+
+    Ok(())
 }
