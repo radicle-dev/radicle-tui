@@ -5,29 +5,34 @@ use std::time::Duration;
 use tokio::sync::broadcast;
 use tokio::sync::mpsc::{self, UnboundedReceiver, UnboundedSender};
 
+use crate::Exit;
+
 use super::termination::{Interrupted, Terminator};
 
 const STORE_TICK_RATE: Duration = Duration::from_millis(1000);
 
-pub trait State<A> {
-    type Exit;
-
+pub trait State<A, P>
+where
+    P: Clone + Debug + Send + Sync,
+{
     fn tick(&self);
 
-    fn handle_action(&mut self, action: A) -> Option<Self::Exit>;
+    fn handle_action(&mut self, action: A) -> Option<Exit<P>>;
 }
 
-pub struct Store<A, S>
+pub struct Store<A, S, P>
 where
-    S: State<A> + Clone + Send + Sync,
+    S: State<A, P> + Clone + Send + Sync,
+    P: Clone + Debug + Send + Sync,
 {
     state_tx: UnboundedSender<S>,
-    _phantom: PhantomData<A>,
+    _phantom: PhantomData<(A, P)>,
 }
 
-impl<A, S> Store<A, S>
+impl<A, S, P> Store<A, S, P>
 where
-    S: State<A> + Clone + Send + Sync,
+    S: State<A, P> + Clone + Send + Sync,
+    P: Clone + Debug + Send + Sync,
 {
     pub fn new() -> (Self, UnboundedReceiver<S>) {
         let (state_tx, state_rx) = mpsc::unbounded_channel::<S>();
@@ -42,17 +47,18 @@ where
     }
 }
 
-impl<A, S> Store<A, S>
+impl<A, S, P> Store<A, S, P>
 where
-    S: State<A> + Clone + Send + Sync + 'static + Debug,
+    S: State<A, P> + Clone + Debug + Send + Sync + 'static,
+    P: Clone + Debug + Send + Sync + 'static,
 {
     pub async fn main_loop(
         self,
         mut state: S,
-        mut terminator: Terminator,
+        mut terminator: Terminator<P>,
         mut action_rx: UnboundedReceiver<A>,
-        mut interrupt_rx: broadcast::Receiver<Interrupted>,
-    ) -> anyhow::Result<Interrupted> {
+        mut interrupt_rx: broadcast::Receiver<Interrupted<P>>,
+    ) -> anyhow::Result<Interrupted<P>> {
         // the initial state once
         self.state_tx.send(state.clone())?;
 
@@ -63,10 +69,11 @@ where
                 // Handle the actions coming from the UI
                 // and process them to do async operations
                 Some(action) = action_rx.recv() => {
-                    if let Some(_exit) = state.handle_action(action) {
-                        let _ = terminator.terminate(Interrupted::UserInt);
+                    if let Some(exit) = state.handle_action(action) {
+                        let interrupted = Interrupted::User { payload: exit.value };
+                        let _ = terminator.terminate(interrupted.clone());
 
-                        break Interrupted::UserInt;
+                        break interrupted;
                     }
                 },
                 // Tick to terminate the select every N milliseconds

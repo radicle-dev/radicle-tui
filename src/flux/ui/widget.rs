@@ -25,12 +25,9 @@ pub trait Widget<S, A> {
 }
 
 pub trait Render<P> {
-    fn render<B: ratatui::backend::Backend>(&mut self, frame: &mut Frame, area: Rect, props: P);
+    fn render<B: ratatui::backend::Backend>(&self, frame: &mut Frame, area: Rect, props: P);
 }
 
-///
-///
-///
 pub struct Shortcut {
     pub short: String,
     pub long: String,
@@ -80,12 +77,7 @@ impl<S, A> Widget<S, A> for Shortcuts<A> {
 }
 
 impl<A> Render<ShortcutsProps> for Shortcuts<A> {
-    fn render<B: Backend>(
-        &mut self,
-        frame: &mut ratatui::Frame,
-        area: Rect,
-        props: ShortcutsProps,
-    ) {
+    fn render<B: Backend>(&self, frame: &mut ratatui::Frame, area: Rect, props: ShortcutsProps) {
         use ratatui::widgets::Table;
 
         let mut shortcuts = props.shortcuts.iter().peekable();
@@ -123,9 +115,6 @@ impl<A> Render<ShortcutsProps> for Shortcuts<A> {
     }
 }
 
-///
-///
-///
 pub trait ToRow<const W: usize> {
     fn to_row(&self) -> [Cell; W];
 }
@@ -204,12 +193,7 @@ impl<'a, A, R, const W: usize> Render<TableProps<'a, R, W>> for Table<A>
 where
     R: ToRow<W> + Debug,
 {
-    fn render<B: Backend>(
-        &mut self,
-        frame: &mut ratatui::Frame,
-        area: Rect,
-        props: TableProps<R, W>,
-    ) {
+    fn render<B: Backend>(&self, frame: &mut ratatui::Frame, area: Rect, props: TableProps<R, W>) {
         let layout = if props.footer.is_some() {
             Layout::default()
                 .direction(Direction::Vertical)
