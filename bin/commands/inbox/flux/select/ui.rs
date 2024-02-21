@@ -1,3 +1,5 @@
+use std::vec;
+
 use tokio::sync::mpsc::UnboundedSender;
 
 use termion::event::Key;
@@ -13,13 +15,31 @@ use tui::flux::ui::span;
 use tui::flux::ui::widget::{
     FooterProps, Render, Shortcut, Shortcuts, ShortcutsProps, Table, TableProps, Widget,
 };
+use tui::Selection;
 
-use crate::tui_inbox::select::flux::{Action, InboxState};
+use super::common::Mode;
+use super::{Action, InboxState};
+
+pub struct ListPageProps {
+    selected: Option<NotificationItem>,
+    mode: Mode,
+}
+
+impl From<&InboxState> for ListPageProps {
+    fn from(state: &InboxState) -> Self {
+        Self {
+            selected: state.selected.clone(),
+            mode: state.mode.clone(),
+        }
+    }
+}
 
 pub struct ListPage {
     /// Action sender
     pub action_tx: UnboundedSender<Action>,
-    /// notification widget
+    /// State mapped props
+    props: ListPageProps,
+    /// Notification widget
     notifications: Notifications,
     /// Shortcut widget
     shortcuts: Shortcuts<Action>,
@@ -32,6 +52,7 @@ impl Widget<InboxState, Action> for ListPage {
     {
         Self {
             action_tx: action_tx.clone(),
+            props: ListPageProps::from(state),
             notifications: Notifications::new(state, action_tx.clone()),
             shortcuts: Shortcuts::new(state, action_tx.clone()),
         }
@@ -45,6 +66,7 @@ impl Widget<InboxState, Action> for ListPage {
         ListPage {
             notifications: self.notifications.move_with_state(state),
             shortcuts: self.shortcuts.move_with_state(state),
+            props: ListPageProps::from(state),
             ..self
         }
     }
@@ -56,7 +78,31 @@ impl Widget<InboxState, Action> for ListPage {
     fn handle_key_event(&mut self, key: termion::event::Key) {
         match key {
             Key::Char('q') => {
-                let _ = self.action_tx.send(Action::Exit);
+                let _ = self.action_tx.send(Action::Exit { selection: None });
+            }
+            Key::Char('\n') => {
+                if let Some(selected) = &self.props.selected {
+                    let selection = match self.props.mode {
+                        Mode::Operation => Selection::default()
+                            .with_operation("show".to_string())
+                            .with_id(selected.id),
+                        Mode::Id => Selection::default().with_id(selected.id),
+                    };
+                    let _ = self.action_tx.send(Action::Exit {
+                        selection: Some(selection),
+                    });
+                }
+            }
+            Key::Char('c') => {
+                if let Some(selected) = &self.props.selected {
+                    let _ = self.action_tx.send(Action::Exit {
+                        selection: Some(
+                            Selection::default()
+                                .with_operation("clear".to_string())
+                                .with_id(selected.id),
+                        ),
+                    });
+                }
             }
             _ => {
                 <Notifications as Widget<InboxState, Action>>::handle_key_event(
@@ -69,16 +115,25 @@ impl Widget<InboxState, Action> for ListPage {
 }
 
 impl Render<()> for ListPage {
-    fn render<B: Backend>(&mut self, frame: &mut ratatui::Frame, _area: Rect, _props: ()) {
+    fn render<B: Backend>(&self, frame: &mut ratatui::Frame, _area: Rect, _props: ()) {
         let area = frame.size();
         let layout = tui::flux::ui::layout::default_page(area, 0u16, 1u16);
+
+        let shortcuts = match self.props.mode {
+            Mode::Id => vec![Shortcut::new("enter", "select"), Shortcut::new("q", "quit")],
+            Mode::Operation => vec![
+                Shortcut::new("enter", "show"),
+                Shortcut::new("c", "clear"),
+                Shortcut::new("q", "quit"),
+            ],
+        };
 
         self.notifications.render::<B>(frame, layout.component, ());
         self.shortcuts.render::<B>(
             frame,
             layout.shortcuts,
             ShortcutsProps {
-                shortcuts: vec![Shortcut::new("enter", "select"), Shortcut::new("q", "quit")],
+                shortcuts,
                 divider: '∙',
             },
         );
@@ -98,9 +153,9 @@ impl From<&InboxState> for NotificationsProps {
 }
 
 struct Notifications {
-    /// Sending actions to the state store
+    /// Action sender
     action_tx: UnboundedSender<Action>,
-    /// State Mapped RoomList Props
+    /// State mapped props
     props: NotificationsProps,
     /// Notification table
     table: Table<Action>,
@@ -142,7 +197,9 @@ impl Widget<InboxState, Action> for Notifications {
 
                 // TODO: propagate error
                 if let Some(notif) = selected {
-                    let _ = self.action_tx.send(Action::Select(notif.id));
+                    let _ = self.action_tx.send(Action::Select {
+                        item: notif.clone(),
+                    });
                 }
             }
             Key::Down => {
@@ -155,7 +212,9 @@ impl Widget<InboxState, Action> for Notifications {
 
                 // TODO: propagate error
                 if let Some(notif) = selected {
-                    let _ = self.action_tx.send(Action::Select(notif.id));
+                    let _ = self.action_tx.send(Action::Select {
+                        item: notif.clone(),
+                    });
                 }
             }
             _ => {}
@@ -164,24 +223,26 @@ impl Widget<InboxState, Action> for Notifications {
 }
 
 impl Render<()> for Notifications {
-    fn render<B: Backend>(&mut self, frame: &mut ratatui::Frame, area: Rect, _props: ()) {
-        let header: [Cell; 7] = [
+    fn render<B: Backend>(&self, frame: &mut ratatui::Frame, area: Rect, _props: ()) {
+        let header: [Cell; 8] = [
             String::from("").into(),
             String::from(" ● ").into(),
-            String::from("Type").into(),
+            String::from("ID / Name").into(),
             String::from("Summary").into(),
-            String::from("ID").into(),
+            String::from("Type").into(),
             String::from("Status").into(),
+            String::from("Author").into(),
             String::from("Updated").into(),
         ];
 
         let widths = [
             Constraint::Length(5),
             Constraint::Length(3),
-            Constraint::Length(6),
+            Constraint::Length(20),
             Constraint::Fill(1),
-            Constraint::Length(15),
+            Constraint::Length(8),
             Constraint::Length(10),
+            Constraint::Length(15),
             Constraint::Length(18),
         ];
 
