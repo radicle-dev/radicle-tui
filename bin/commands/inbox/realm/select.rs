@@ -28,6 +28,7 @@ use tui::Exit;
 use page::ListView;
 
 use super::super::common::Mode;
+use page::ListView;
 
 type Selection = tui::Selection<NotificationId>;
 
