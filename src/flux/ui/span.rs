@@ -19,6 +19,10 @@ pub fn secondary(content: String) -> Text<'static> {
     default(content).style(style::magenta())
 }
 
+pub fn ternary(content: String) -> Text<'static> {
+    default(content).style(style::blue())
+}
+
 pub fn positive(content: String) -> Text<'static> {
     default(content).style(style::green())
 }
@@ -28,6 +32,18 @@ pub fn badge(content: String) -> Text<'static> {
     default(content.to_string()).magenta().reversed()
 }
 
+pub fn alias(content: String) -> Text<'static> {
+    secondary(content)
+}
+
 pub fn timestamp(content: String) -> Text<'static> {
+    default(content).style(style::gray().dim())
+}
+
+pub fn notification_id(content: String) -> Text<'static> {
+    default(content).style(style::gray().dim())
+}
+
+pub fn notification_type(content: String) -> Text<'static> {
     default(content).style(style::gray().dim())
 }

@@ -52,14 +52,13 @@ impl<A> Frontend<A> {
         let mut terminal = setup_terminal()?;
         let mut ticker = tokio::time::interval(RENDERING_TICK_RATE);
         let mut events_rx = events();
-
+        
         let mut root = {
             let state = state_rx.recv().await.unwrap();
 
             W::new(&state, self.action_tx.clone())
         };
 
-        // let mut last_frame: Option<CompletedFrame> = None;
         let result: anyhow::Result<Interrupted<P>> = loop {
             tokio::select! {
                 // Tick to terminate the select every N milliseconds
@@ -74,7 +73,6 @@ impl<A> Frontend<A> {
                 // Catch and handle interrupt signal to gracefully shutdown
                 Ok(interrupted) = interrupt_rx.recv() => {
                     let size = terminal.get_frame().size();
-                    // terminal.set_cursor(size.width, size.height + size.y)?;
                     terminal.set_cursor(size.x, size.y)?;
 
                     break Ok(interrupted);
@@ -102,7 +100,6 @@ fn setup_terminal() -> anyhow::Result<Terminal<Backend>> {
 }
 
 fn restore_terminal(terminal: &mut Terminal<Backend>) -> anyhow::Result<()> {
-    // let size = terminal.get_frame().size();
     terminal.clear()?;
     Ok(())
 }
