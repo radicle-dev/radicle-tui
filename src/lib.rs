@@ -1,11 +1,6 @@
-use std::fmt::Display;
-
 use anyhow::Result;
 
 use serde::ser::{Serialize, SerializeStruct, Serializer};
-
-use radicle::cob::ObjectId;
-use radicle::node::notifications::NotificationId;
 
 pub mod common;
 
@@ -16,45 +11,32 @@ pub mod realm;
 pub mod flux;
 
 /// An optional return value.
+#[derive(Clone, Debug)]
 pub struct Exit<T> {
     pub value: Option<T>,
 }
 
-/// Returned ids can be of type `ObjectId` or `NotificationId`.
-#[derive(Clone, Debug, Eq, PartialEq)]
-pub enum Id {
-    Object(ObjectId),
-    Notification(NotificationId),
-}
-
-impl Display for Id {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            Id::Object(id) => {
-                write!(f, "{id}")
-            }
-            Id::Notification(id) => {
-                write!(f, "{id}")
-            }
-        }
-    }
-}
-
 /// The output that is returned by all selection interfaces.
 #[derive(Clone, Default, Debug, Eq, PartialEq)]
-pub struct SelectionExit {
-    operation: Option<String>,
-    ids: Vec<Id>,
-    args: Vec<String>,
+pub struct Selection<I>
+where
+    I: ToString,
+{
+    pub operation: Option<String>,
+    pub ids: Vec<I>,
+    pub args: Vec<String>,
 }
 
-impl SelectionExit {
+impl<I> Selection<I>
+where
+    I: ToString,
+{
     pub fn with_operation(mut self, operation: String) -> Self {
         self.operation = Some(operation);
         self
     }
 
-    pub fn with_id(mut self, id: Id) -> Self {
+    pub fn with_id(mut self, id: I) -> Self {
         self.ids.push(id);
         self
     }
@@ -65,7 +47,10 @@ impl SelectionExit {
     }
 }
 
-impl Serialize for SelectionExit {
+impl<I> Serialize for Selection<I>
+where
+    I: ToString,
+{
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
     where
         S: Serializer,
@@ -74,11 +59,7 @@ impl Serialize for SelectionExit {
         state.serialize_field("operation", &self.operation)?;
         state.serialize_field(
             "ids",
-            &self
-                .ids
-                .iter()
-                .map(|id| format!("{}", id))
-                .collect::<Vec<_>>(),
+            &self.ids.iter().map(|id| id.to_string()).collect::<Vec<_>>(),
         )?;
         state.serialize_field("args", &self.args)?;
         state.end()

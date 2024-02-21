@@ -6,6 +6,7 @@ pub mod span;
 pub mod theme;
 pub mod widget;
 
+use std::fmt::Debug;
 use std::io::{self};
 use std::thread;
 use std::time::Duration;
@@ -38,11 +39,16 @@ impl<A> Frontend<A> {
         (Self { action_tx }, action_rx)
     }
 
-    pub async fn main_loop<S: State<A>, W: Widget<S, A> + Render<()>>(
+    pub async fn main_loop<S, W, P>(
         self,
         mut state_rx: UnboundedReceiver<S>,
-        mut interrupt_rx: broadcast::Receiver<Interrupted>,
-    ) -> anyhow::Result<Interrupted> {
+        mut interrupt_rx: broadcast::Receiver<Interrupted<P>>,
+    ) -> anyhow::Result<Interrupted<P>>
+    where
+        S: State<A, P>,
+        W: Widget<S, A> + Render<()>,
+        P: Clone + Send + Sync + Debug,
+    {
         let mut terminal = setup_terminal()?;
         let mut ticker = tokio::time::interval(RENDERING_TICK_RATE);
         let mut events_rx = events();
@@ -54,7 +60,7 @@ impl<A> Frontend<A> {
         };
 
         // let mut last_frame: Option<CompletedFrame> = None;
-        let result: anyhow::Result<Interrupted> = loop {
+        let result: anyhow::Result<Interrupted<P>> = loop {
             tokio::select! {
                 // Tick to terminate the select every N milliseconds
                 _ = ticker.tick() => (),
@@ -95,7 +101,9 @@ fn setup_terminal() -> anyhow::Result<Terminal<Backend>> {
     )?)
 }
 
-fn restore_terminal(_terminal: &mut Terminal<Backend>) -> anyhow::Result<()> {
+fn restore_terminal(terminal: &mut Terminal<Backend>) -> anyhow::Result<()> {
+    // let size = terminal.get_frame().size();
+    terminal.clear()?;
     Ok(())
 }
 
