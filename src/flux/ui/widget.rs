@@ -132,6 +132,8 @@ pub struct TableProps<'a, R: ToRow<W>, const W: usize> {
     pub widths: [Constraint; W],
     pub header: [Cell<'a>; W],
     pub footer: Option<FooterProps<'a>>,
+    pub cutoff: usize,
+    pub cutoff_after: usize,
 }
 
 pub struct Table<A> {
@@ -194,6 +196,13 @@ where
     R: ToRow<W> + Debug,
 {
     fn render<B: Backend>(&self, frame: &mut ratatui::Frame, area: Rect, props: TableProps<R, W>) {
+        let widths = props.widths.to_vec();
+        let widths = if area.width < props.cutoff as u16 {
+            widths.iter().take(props.cutoff_after).collect::<Vec<_>>()
+        } else {
+            widths.iter().collect::<Vec<_>>()
+        };
+
         let layout = if props.footer.is_some() {
             Layout::default()
                 .direction(Direction::Vertical)
@@ -227,7 +236,7 @@ where
         let header = ratatui::widgets::Table::default()
             .column_spacing(1)
             .header(header)
-            .widths(props.widths);
+            .widths(widths.clone());
 
         frame.render_widget(block, layout[0]);
         frame.render_widget(header, header_layout[0]);
@@ -246,7 +255,7 @@ where
             .collect::<Vec<_>>();
         let rows = ratatui::widgets::Table::default()
             .rows(rows)
-            .widths(props.widths)
+            .widths(widths)
             .column_spacing(1)
             .block(
                 Block::default()
