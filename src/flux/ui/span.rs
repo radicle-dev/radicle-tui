@@ -36,6 +36,10 @@ pub fn alias(content: String) -> Text<'static> {
     secondary(content)
 }
 
+pub fn labels(content: String) -> Text<'static> {
+    ternary(content)
+}
+
 pub fn timestamp(content: String) -> Text<'static> {
     default(content).style(style::gray().dim())
 }
