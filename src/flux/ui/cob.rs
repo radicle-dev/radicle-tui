@@ -1,11 +1,12 @@
+use radicle::crypto::PublicKey;
 use radicle::identity::Did;
 use radicle::node::{Alias, NodeId};
-use radicle::Profile;
-use ratatui::style::Stylize;
+use radicle::{issue, Profile};
+use ratatui::style::{Color, Style, Stylize};
 use ratatui::widgets::Cell;
 
-use radicle::cob::{self, ObjectId, Timestamp};
-use radicle::issue::Issues;
+use radicle::cob::{self, Label, ObjectId, Timestamp};
+use radicle::issue::{Issue, IssueId, Issues};
 use radicle::node::notifications::{Notification, NotificationId, NotificationKind};
 use radicle::node::AliasStore;
 use radicle::patch::Patches;
@@ -223,4 +224,146 @@ impl ToRow<8> for NotificationItem {
             timestamp.into(),
         ]
     }
+}
+
+#[derive(Clone, Debug)]
+pub struct IssueItem {
+    /// Issue OID.
+    pub id: IssueId,
+    /// Issue state.
+    pub state: issue::State,
+    /// Issue title.
+    pub title: String,
+    /// Issue author.
+    pub author: AuthorItem,
+    /// Issue labels.
+    pub labels: Vec<Label>,
+    /// Issue assignees.
+    pub assignees: Vec<AuthorItem>,
+    /// Time when issue was opened.
+    pub timestamp: Timestamp,
+}
+
+impl IssueItem {
+    pub fn new(profile: &Profile, issue: (IssueId, Issue)) -> Result<Self, anyhow::Error> {
+        let (id, issue) = issue;
+
+        Ok(Self {
+            id,
+            state: *issue.state(),
+            title: issue.title().into(),
+            author: AuthorItem {
+                nid: Some(*issue.author().id),
+                alias: profile.aliases().alias(&issue.author().id),
+                you: *issue.author().id == *profile.did(),
+            },
+            labels: issue.labels().cloned().collect(),
+            assignees: issue
+                .assignees()
+                .map(|did| AuthorItem {
+                    nid: Some(**did),
+                    alias: profile.aliases().alias(did),
+                    you: *did == profile.did(),
+                })
+                .collect::<Vec<_>>(),
+            timestamp: issue.timestamp(),
+        })
+    }
+}
+
+impl ToRow<8> for IssueItem {
+    fn to_row(&self) -> [Cell; 8] {
+        let (state, state_color) = format_issue_state(&self.state);
+
+        let state = span::default(state).style(Style::default().fg(state_color));
+        let id = span::primary(format::cob(&self.id));
+        let title = span::default(self.title.clone());
+
+        let author = match &self.author.alias {
+            Some(alias) => {
+                if self.author.you {
+                    span::alias(format!("{} (you)", alias))
+                } else {
+                    span::alias(alias.to_string())
+                }
+            }
+            None => match self.author.nid {
+                Some(nid) => span::alias(format::did(&Did::from(nid))).dim(),
+                None => span::alias("".to_string()),
+            },
+        };
+        let did = match self.author.nid {
+            Some(nid) => span::alias(format::did(&Did::from(nid))).dim(),
+            None => span::alias("".to_string()),
+        };
+        let labels = span::labels(format_labels(&self.labels));
+        let assignees = self
+            .assignees
+            .iter()
+            .map(|author| (author.nid, author.alias.clone(), author.you))
+            .collect::<Vec<_>>();
+        let assignees = span::alias(format_assignees(&assignees));
+        let opened = span::timestamp(format::timestamp(&self.timestamp));
+
+        [
+            state.into(),
+            id.into(),
+            title.into(),
+            author.into(),
+            did.into(),
+            labels.into(),
+            assignees.into(),
+            opened.into(),
+        ]
+    }
+}
+
+pub fn format_issue_state(state: &issue::State) -> (String, Color) {
+    match state {
+        issue::State::Open => (" ● ".into(), Color::Green),
+        issue::State::Closed { reason: _ } => (" ● ".into(), Color::Red),
+    }
+}
+
+pub fn format_labels(labels: &[Label]) -> String {
+    let mut output = String::new();
+    let mut labels = labels.iter().peekable();
+
+    while let Some(label) = labels.next() {
+        output.push_str(&label.to_string());
+
+        if labels.peek().is_some() {
+            output.push(',');
+        }
+    }
+    output
+}
+
+pub fn format_author(did: &Did, alias: &Option<Alias>, is_you: bool) -> String {
+    let author = match alias {
+        Some(alias) => format!("{alias}"),
+        None => format::did(did),
+    };
+
+    if is_you {
+        format!("{} (you)", author)
+    } else {
+        author
+    }
+}
+
+pub fn format_assignees(assignees: &[(Option<PublicKey>, Option<Alias>, bool)]) -> String {
+    let mut output = String::new();
+    let mut assignees = assignees.iter().peekable();
+
+    while let Some((assignee, alias, is_you)) = assignees.next() {
+        if let Some(assignee) = assignee {
+            output.push_str(&format_author(&Did::from(assignee), alias, *is_you));
+        }
+
+        if assignees.peek().is_some() {
+            output.push(',');
+        }
+    }
+    output
 }
