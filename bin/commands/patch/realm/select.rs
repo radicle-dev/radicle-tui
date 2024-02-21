@@ -9,6 +9,7 @@ use std::fmt::Display;
 use std::hash::Hash;
 
 use anyhow::Result;
+use radicle::patch::PatchId;
 use serde::Serialize;
 
 use tuirealm::application::PollStrategy;
@@ -23,11 +24,13 @@ use tui::common::context::Context;
 use tui::realm::ui::subscription;
 use tui::realm::ui::theme::Theme;
 use tui::realm::{PageStack, Tui};
-use tui::{Exit, SelectionExit};
+use tui::Exit;
 
 use page::ListView;
 
 use super::super::common::Mode;
+
+type Selection = tui::Selection<PatchId>;
 
 /// The selected patch operation returned by the operation
 /// selection widget.
@@ -82,7 +85,7 @@ pub enum Cid {
 pub enum Message {
     #[default]
     Tick,
-    Quit(Option<SelectionExit>),
+    Quit(Option<Selection>),
     Batch(Vec<Message>),
 }
 
@@ -93,7 +96,7 @@ pub struct App {
     quit: bool,
     mode: Mode,
     filter: Filter,
-    output: Option<SelectionExit>,
+    output: Option<Selection>,
 }
 
 /// Creates a new application using a tui-realm-application, mounts all
@@ -155,7 +158,7 @@ impl App {
     }
 }
 
-impl Tui<Cid, Message, SelectionExit> for App {
+impl Tui<Cid, Message, Selection> for App {
     fn init(&mut self, app: &mut Application<Cid, Message, NoUserEvent>) -> Result<()> {
         self.view_list(app, &self.theme.clone())?;
 
@@ -194,7 +197,7 @@ impl Tui<Cid, Message, SelectionExit> for App {
         }
     }
 
-    fn exit(&self) -> Option<Exit<SelectionExit>> {
+    fn exit(&self) -> Option<Exit<Selection>> {
         if self.quit {
             return Some(Exit {
                 value: self.output.clone(),
