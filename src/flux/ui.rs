@@ -11,7 +11,7 @@ use std::io::{self};
 use std::thread;
 use std::time::Duration;
 
-use termion::event::Event;
+// use termion::event::Event;
 use termion::input::TermRead;
 use termion::raw::{IntoRawMode, RawTerminal};
 
@@ -20,6 +20,7 @@ use ratatui::prelude::*;
 use tokio::sync::broadcast;
 use tokio::sync::mpsc::{self, UnboundedReceiver};
 
+use super::event::Event;
 use super::store::State;
 use super::termination::Interrupted;
 use super::ui::widget::{Render, Widget};
@@ -52,7 +53,7 @@ impl<A> Frontend<A> {
         let mut terminal = setup_terminal()?;
         let mut ticker = tokio::time::interval(RENDERING_TICK_RATE);
         let mut events_rx = events();
-        
+
         let mut root = {
             let state = state_rx.recv().await.unwrap();
 
@@ -63,8 +64,9 @@ impl<A> Frontend<A> {
             tokio::select! {
                 // Tick to terminate the select every N milliseconds
                 _ = ticker.tick() => (),
-                Some(event) = events_rx.recv() => if let Event::Key(key) = event {
-                    root.handle_key_event(key)
+                Some(event) = events_rx.recv() => match event {
+                    Event::Key(key) => root.handle_key_event(key),
+                    Event::Resize => println!("here"),
                 },
                 // Handle state updates
                 Some(state) = state_rx.recv() => {
@@ -73,12 +75,12 @@ impl<A> Frontend<A> {
                 // Catch and handle interrupt signal to gracefully shutdown
                 Ok(interrupted) = interrupt_rx.recv() => {
                     let size = terminal.get_frame().size();
-                    terminal.set_cursor(size.x, size.y)?;
+                    let _ = terminal.set_cursor(size.x, size.y);
 
                     break Ok(interrupted);
                 }
             }
-            terminal.draw(|frame| root.render::<Backend>(frame, frame.size(), ()))?;
+            let _ = terminal.draw(|frame| root.render::<Backend>(frame, frame.size(), ()));
         };
 
         restore_terminal(&mut terminal)?;
@@ -106,14 +108,25 @@ fn restore_terminal(terminal: &mut Terminal<Backend>) -> anyhow::Result<()> {
 
 fn events() -> mpsc::UnboundedReceiver<Event> {
     let (tx, rx) = mpsc::unbounded_channel();
-    let keys_tx = tx.clone();
+    let events_tx = tx.clone();
     thread::spawn(move || {
         let stdin = io::stdin();
         for key in stdin.keys().flatten() {
-            if keys_tx.send(Event::Key(key)).is_err() {
+            if events_tx.send(Event::Key(key)).is_err() {
                 return;
             }
         }
     });
+
+    let events_tx = tx.clone();
+    if let Ok(mut signals) = signal_hook::iterator::Signals::new(&[libc::SIGWINCH]) {
+        thread::spawn(move || {
+            for signal in signals.forever() {
+                if events_tx.send(Event::Resize).is_err() {
+                    return;
+                }
+            }
+        });
+    }
     rx
 }
