@@ -1643,6 +1643,7 @@ dependencies = [
  "anyhow",
  "inquire",
  "lexopt",
+ "libc",
  "log",
  "radicle",
  "radicle-surf",
@@ -1650,6 +1651,7 @@ dependencies = [
  "ratatui 0.26.1",
  "serde",
  "serde_json",
+ "signal-hook",
  "simple-logging",
  "termion 3.0.0",
  "textwrap",
@@ -1710,8 +1712,7 @@ dependencies = [
 [[package]]
 name = "ratatui"
 version = "0.26.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "bcb12f8fbf6c62614b0d56eb352af54f6a22410c3b079eb53ee93c7b97dd31d8"
+source = "git+https://github.com/erak/ratatui?branch=termion-cursor#e0fa5a0b27e2ef04ae84a5ba2b4e2050cc2037bb"
 dependencies = [
  "bitflags 2.4.1",
  "cassowary",

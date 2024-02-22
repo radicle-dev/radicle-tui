@@ -11,8 +11,6 @@ use std::ffi::OsString;
 
 use anyhow::anyhow;
 
-use radicle::storage::ReadStorage;
-
 use radicle_tui as tui;
 
 use tui::common::cob::issue::{self, State};
@@ -126,7 +124,6 @@ impl Args for Options {
 #[cfg(feature = "realm")]
 pub fn run(options: Options, _ctx: impl terminal::Context) -> anyhow::Result<()> {
     use tui::common::context;
-    use tui::common::log;
     use tui::realm::Window;
 
     pub const FPS: u64 = 60;
@@ -157,6 +154,8 @@ pub fn run(options: Options, _ctx: impl terminal::Context) -> anyhow::Result<()>
 #[cfg(feature = "flux")]
 #[tokio::main]
 pub async fn run(options: Options, _ctx: impl terminal::Context) -> anyhow::Result<()> {
+    use radicle::storage::ReadStorage;
+
     let (_, rid) = radicle::rad::cwd()
         .map_err(|_| anyhow!("this command must be run in the context of a project"))?;
 
