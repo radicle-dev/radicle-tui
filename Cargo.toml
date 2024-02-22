@@ -19,14 +19,16 @@ flux = ["dep:tokio", "dep:tokio-stream"]
 anyhow = { version = "1" }
 inquire = { version = "0.6.2", default-features = false, features = ["termion", "editor"] }
 lexopt = { version = "0.3.0" }
+libc = { version = "^0.2" }
 log = { version = "0.4.19" }
 radicle = { git = "https://github.com/radicle-dev/heartwood" }
 radicle-term = { git = "https://github.com/radicle-dev/heartwood", package = "radicle-term" }
 radicle-surf = { version = "0.18.0" }
-ratatui = { version = "0.26.0", features = ["all-widgets", "termion"] }
+ratatui = { git = "https://github.com/erak/ratatui", branch = "termion-cursor", features = ["all-widgets", "termion"] }
 simple-logging = { version = "2.0.2" }
 serde = { version = "1.0", features = ["derive"] }
 serde_json = { version = "1.0" }
+signal-hook = { version = "0.3.17" }
 timeago = { version = "0.4.1" }
 termion = { version = "3" }
 textwrap = { version = "0.16.0" }
