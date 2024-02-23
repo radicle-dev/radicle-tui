@@ -5,12 +5,10 @@ mod page;
 #[path = "select/ui.rs"]
 mod ui;
 
-use std::fmt::Display;
 use std::hash::Hash;
 
 use anyhow::Result;
 use radicle::issue::IssueId;
-use serde::Serialize;
 
 use tuirealm::application::PollStrategy;
 use tuirealm::event::Key;
@@ -31,35 +29,6 @@ use page::ListView;
 use super::super::common::Mode;
 
 type Selection = tui::Selection<IssueId>;
-
-/// The selected issue operation returned by the operation
-/// selection widget.
-#[derive(Clone, Debug, Eq, PartialEq, Serialize)]
-pub enum IssueOperation {
-    Show,
-    Delete,
-    Edit,
-    Comment,
-}
-
-impl Display for IssueOperation {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            IssueOperation::Show => {
-                write!(f, "show")
-            }
-            IssueOperation::Delete => {
-                write!(f, "delete")
-            }
-            IssueOperation::Edit => {
-                write!(f, "edit")
-            }
-            IssueOperation::Comment => {
-                write!(f, "comment")
-            }
-        }
-    }
-}
 
 #[derive(Debug, Eq, PartialEq, Clone, Hash)]
 pub enum ListCid {

@@ -128,9 +128,8 @@ impl Args for Options {
 #[cfg(feature = "realm")]
 pub fn run(options: Options, _ctx: impl terminal::Context) -> anyhow::Result<()> {
     use tui::common::context;
-    use tui::realm::Window;
-    use tui::common::context;
     use tui::common::log;
+    use tui::realm::Window;
 
     pub const FPS: u64 = 60;
     let (_, id) = radicle::rad::cwd()
@@ -162,6 +161,7 @@ pub fn run(options: Options, _ctx: impl terminal::Context) -> anyhow::Result<()>
 #[tokio::main]
 pub async fn run(options: Options, _ctx: impl terminal::Context) -> anyhow::Result<()> {
     use radicle::storage::ReadStorage;
+    use tui::common::log;
 
     let (_, rid) = radicle::rad::cwd()
         .map_err(|_| anyhow!("this command must be run in the context of a project"))?;
@@ -189,4 +189,6 @@ pub async fn run(options: Options, _ctx: impl terminal::Context) -> anyhow::Resu
             eprint!("{output}");
         }
     }
+
+    Ok(())
 }

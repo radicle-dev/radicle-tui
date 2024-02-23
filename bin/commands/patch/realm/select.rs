@@ -5,12 +5,10 @@ mod page;
 #[path = "select/ui.rs"]
 mod ui;
 
-use std::fmt::Display;
 use std::hash::Hash;
 
 use anyhow::Result;
 use radicle::patch::PatchId;
-use serde::Serialize;
 
 use tuirealm::application::PollStrategy;
 use tuirealm::event::Key;
@@ -31,39 +29,6 @@ use page::ListView;
 use super::super::common::Mode;
 
 type Selection = tui::Selection<PatchId>;
-
-/// The selected patch operation returned by the operation
-/// selection widget.
-#[derive(Clone, Debug, Eq, PartialEq, Serialize)]
-pub enum PatchOperation {
-    Show,
-    Checkout,
-    Delete,
-    Edit,
-    Comment,
-}
-
-impl Display for PatchOperation {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            PatchOperation::Show => {
-                write!(f, "show")
-            }
-            PatchOperation::Checkout => {
-                write!(f, "checkout")
-            }
-            PatchOperation::Delete => {
-                write!(f, "delete")
-            }
-            PatchOperation::Edit => {
-                write!(f, "edit")
-            }
-            PatchOperation::Comment => {
-                write!(f, "comment")
-            }
-        }
-    }
-}
 
 #[derive(Debug, Eq, PartialEq, Clone, Hash)]
 pub enum ListCid {

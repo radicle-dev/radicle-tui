@@ -12,8 +12,10 @@ use tui::realm::ui::widget::context::{ContextBar, Shortcuts};
 use tui::realm::ui::widget::list::PropertyList;
 use tui::realm::ui::widget::Widget;
 
+use crate::tui_issue::common::IssueOperation;
+
 use super::ui::{IdSelect, OperationSelect};
-use super::{IssueOperation, Message};
+use super::Message;
 
 type Selection = tui::Selection<IssueId>;
 
