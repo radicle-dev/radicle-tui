@@ -164,7 +164,7 @@ pub async fn run(options: Options, _ctx: impl terminal::Context) -> anyhow::Resu
             let profile = terminal::profile()?;
             let repository = profile.storage.repository(rid).unwrap();
 
-            log::enable(&profile, "inbox", "select")?;
+            log::enable(&profile, "issue", "select")?;
 
             let context = flux::select::Context {
                 profile,
