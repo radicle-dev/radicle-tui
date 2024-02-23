@@ -11,7 +11,7 @@ name = "rad-tui"
 path = "bin/main.rs"
 
 [features]
-default = ["flux"]
+default = ["realm"]
 realm = ["dep:tuirealm", "dep:tui-realm-stdlib"]
 flux = ["dep:tokio", "dep:tokio-stream"]
 

@@ -11,10 +11,11 @@ use tui::realm::ui::widget::container::{AppHeader, GlobalListener, LabeledContai
 use tui::realm::ui::widget::context::{ContextBar, Shortcuts};
 use tui::realm::ui::widget::list::PropertyList;
 use tui::realm::ui::widget::Widget;
-use tui::{Id, SelectionExit};
 
 use super::ui::{IdSelect, OperationSelect};
 use super::{InboxOperation, Message};
+
+type Selection = tui::Selection<NotificationId>;
 
 /// Since the framework does not know the type of messages that are being
 /// passed around in the app, the following handlers need to be implemented for
@@ -68,8 +69,12 @@ impl tuirealm::Component<Message, NoUserEvent> for Widget<IdSelect> {
             Event::Keyboard(KeyEvent {
                 code: Key::Enter, ..
             }) => submit().map(|id| {
-                let output = SelectionExit::default().with_id(Id::Notification(id));
-                Message::Quit(Some(output))
+                let selection = Selection {
+                    operation: None,
+                    ids: vec![id],
+                    args: vec![],
+                };
+                Message::Quit(Some(selection))
             }),
             _ => None,
         }
@@ -111,19 +116,23 @@ impl tuirealm::Component<Message, NoUserEvent> for Widget<OperationSelect> {
             Event::Keyboard(KeyEvent {
                 code: Key::Enter, ..
             }) => submit().map(|id| {
-                let exit = SelectionExit::default()
-                    .with_operation(InboxOperation::Show.to_string())
-                    .with_id(Id::Notification(id));
-                Message::Quit(Some(exit))
+                let selection = Selection {
+                    operation: Some(InboxOperation::Show.to_string()),
+                    ids: vec![id],
+                    args: vec![],
+                };
+                Message::Quit(Some(selection))
             }),
             Event::Keyboard(KeyEvent {
                 code: Key::Char('c'),
                 ..
             }) => submit().map(|id| {
-                let exit = SelectionExit::default()
-                    .with_operation(InboxOperation::Clear.to_string())
-                    .with_id(Id::Notification(id));
-                Message::Quit(Some(exit))
+                let selection = Selection {
+                    operation: Some(InboxOperation::Clear.to_string()),
+                    ids: vec![id],
+                    args: vec![],
+                };
+                Message::Quit(Some(selection))
             }),
             _ => None,
         }

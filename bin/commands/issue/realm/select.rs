@@ -9,7 +9,8 @@ use std::fmt::Display;
 use std::hash::Hash;
 
 use anyhow::Result;
-use serde::{Serialize, Serializer};
+use radicle::issue::IssueId;
+use serde::Serialize;
 
 use tuirealm::application::PollStrategy;
 use tuirealm::event::Key;
@@ -23,37 +24,13 @@ use tui::common::context::Context;
 use tui::realm::ui::subscription;
 use tui::realm::ui::theme::Theme;
 use tui::realm::{PageStack, Tui};
-use tui::{Exit, SelectionExit};
+use tui::Exit;
 
 use page::ListView;
 
 use super::super::common::Mode;
 
-/// Wrapper around radicle's `PatchId` that serializes
-/// to a human-readable string.
-#[derive(Clone, Debug, Eq, PartialEq)]
-pub struct PatchId(radicle::cob::patch::PatchId);
-
-impl From<radicle::cob::patch::PatchId> for PatchId {
-    fn from(value: radicle::cob::patch::PatchId) -> Self {
-        PatchId(value)
-    }
-}
-
-impl Display for PatchId {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}", self.0)
-    }
-}
-
-impl Serialize for PatchId {
-    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
-    where
-        S: Serializer,
-    {
-        serializer.serialize_str(&format!("{}", *self.0))
-    }
-}
+type Selection = tui::Selection<IssueId>;
 
 /// The selected issue operation returned by the operation
 /// selection widget.
@@ -104,7 +81,7 @@ pub enum Cid {
 pub enum Message {
     #[default]
     Tick,
-    Quit(Option<SelectionExit>),
+    Quit(Option<Selection>),
     Batch(Vec<Message>),
 }
 
@@ -115,7 +92,7 @@ pub struct App {
     quit: bool,
     mode: Mode,
     filter: Filter,
-    output: Option<SelectionExit>,
+    output: Option<Selection>,
 }
 
 /// Creates a new application using a tui-realm-application, mounts all
@@ -177,7 +154,7 @@ impl App {
     }
 }
 
-impl Tui<Cid, Message, SelectionExit> for App {
+impl Tui<Cid, Message, Selection> for App {
     fn init(&mut self, app: &mut Application<Cid, Message, NoUserEvent>) -> Result<()> {
         self.view_list(app, &self.theme.clone())?;
 
@@ -216,7 +193,7 @@ impl Tui<Cid, Message, SelectionExit> for App {
         }
     }
 
-    fn exit(&self) -> Option<Exit<SelectionExit>> {
+    fn exit(&self) -> Option<Exit<Selection>> {
         if self.quit {
             return Some(Exit {
                 value: self.output.clone(),
