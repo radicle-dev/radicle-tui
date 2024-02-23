@@ -1,6 +1,3 @@
-#[cfg(feature = "flux")]
-#[path = "inbox/flux.rs"]
-mod flux;
 #[cfg(feature = "realm")]
 #[path = "inbox/realm.rs"]
 mod realm;
@@ -15,8 +12,6 @@ use anyhow::anyhow;
 use radicle_tui as tui;
 
 use tui::common::cob::inbox::{self};
-use tui::common::context;
-use tui::common::log;
 
 use crate::terminal;
 use crate::terminal::args::{Args, Error, Help};
@@ -131,6 +126,8 @@ impl Args for Options {
 #[cfg(feature = "realm")]
 pub fn run(options: Options, _ctx: impl terminal::Context) -> anyhow::Result<()> {
     use tui::realm::Window;
+    use tui::common::context;
+    use tui::common::log;
 
     pub const FPS: u64 = 60;
     let (_, id) = radicle::rad::cwd()
@@ -163,23 +160,10 @@ pub fn run(options: Options, _ctx: impl terminal::Context) -> anyhow::Result<()>
 }
 
 #[cfg(feature = "flux")]
-#[tokio::main]
-pub async fn run(options: Options, _ctx: impl terminal::Context) -> anyhow::Result<()> {
-    let (_, id) = radicle::rad::cwd()
-        .map_err(|_| anyhow!("this command must be run in the context of a project"))?;
-
+pub fn run(options: Options, _ctx: impl terminal::Context) -> anyhow::Result<()> {
     match options.op {
-        Operation::Select { opts } => {
-            let profile = terminal::profile()?;
-            let context = context::Context::new(profile, id)?;
-
-            log::enable(context.profile(), "inbox", "select")?;
-
-            let _ = flux::select::App::new(context, opts.filter.clone())
-                .run()
-                .await;
+        Operation::Select { opts: _ } => {
+            anyhow::bail!("operation not yet implemented with flux")
         }
     }
-
-    Ok(())
 }

@@ -1,3 +1,4 @@
+use radicle::issue::IssueId;
 use tuirealm::command::{Cmd, CmdResult, Direction as MoveDirection};
 use tuirealm::event::{Event, Key, KeyEvent};
 use tuirealm::{MockComponent, NoUserEvent};
@@ -9,10 +10,11 @@ use tui::realm::ui::widget::container::{AppHeader, GlobalListener, LabeledContai
 use tui::realm::ui::widget::context::{ContextBar, Shortcuts};
 use tui::realm::ui::widget::list::PropertyList;
 use tui::realm::ui::widget::Widget;
-use tui::{Id, SelectionExit};
 
 use super::ui::{IdSelect, OperationSelect};
 use super::{IssueOperation, Message};
+
+type Selection = tui::Selection<IssueId>;
 
 /// Since the framework does not know the type of messages that are being
 /// passed around in the app, the following handlers need to be implemented for
@@ -66,8 +68,12 @@ impl tuirealm::Component<Message, NoUserEvent> for Widget<IdSelect> {
             Event::Keyboard(KeyEvent {
                 code: Key::Enter, ..
             }) => submit().map(|id| {
-                let output = SelectionExit::default().with_id(Id::Object(id));
-                Message::Quit(Some(output))
+                let selection = Selection {
+                    operation: None,
+                    ids: vec![id],
+                    args: vec![],
+                };
+                Message::Quit(Some(selection))
             }),
             _ => None,
         }
@@ -109,37 +115,45 @@ impl tuirealm::Component<Message, NoUserEvent> for Widget<OperationSelect> {
             Event::Keyboard(KeyEvent {
                 code: Key::Enter, ..
             }) => submit().map(|id| {
-                let exit = SelectionExit::default()
-                    .with_operation(IssueOperation::Show.to_string())
-                    .with_id(Id::Object(id));
-                Message::Quit(Some(exit))
+                let selection = Selection {
+                    operation: Some(IssueOperation::Show.to_string()),
+                    ids: vec![id],
+                    args: vec![],
+                };
+                Message::Quit(Some(selection))
             }),
             Event::Keyboard(KeyEvent {
                 code: Key::Char('d'),
                 ..
             }) => submit().map(|id| {
-                let exit = SelectionExit::default()
-                    .with_operation(IssueOperation::Delete.to_string())
-                    .with_id(Id::Object(id));
-                Message::Quit(Some(exit))
+                let selection = Selection {
+                    operation: Some(IssueOperation::Delete.to_string()),
+                    ids: vec![id],
+                    args: vec![],
+                };
+                Message::Quit(Some(selection))
             }),
             Event::Keyboard(KeyEvent {
                 code: Key::Char('e'),
                 ..
             }) => submit().map(|id| {
-                let exit = SelectionExit::default()
-                    .with_operation(IssueOperation::Edit.to_string())
-                    .with_id(Id::Object(id));
-                Message::Quit(Some(exit))
+                let selection = Selection {
+                    operation: Some(IssueOperation::Edit.to_string()),
+                    ids: vec![id],
+                    args: vec![],
+                };
+                Message::Quit(Some(selection))
             }),
             Event::Keyboard(KeyEvent {
                 code: Key::Char('m'),
                 ..
             }) => submit().map(|id| {
-                let exit = SelectionExit::default()
-                    .with_operation(IssueOperation::Comment.to_string())
-                    .with_id(Id::Object(id));
-                Message::Quit(Some(exit))
+                let selection = Selection {
+                    operation: Some(IssueOperation::Comment.to_string()),
+                    ids: vec![id],
+                    args: vec![],
+                };
+                Message::Quit(Some(selection))
             }),
             _ => None,
         }

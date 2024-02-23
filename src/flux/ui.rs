@@ -52,7 +52,7 @@ impl<A> Frontend<A> {
         let mut terminal = setup_terminal()?;
         let mut ticker = tokio::time::interval(RENDERING_TICK_RATE);
         let mut events_rx = events();
-        
+
         let mut root = {
             let state = state_rx.recv().await.unwrap();
 
