@@ -337,10 +337,13 @@ impl Render<()> for Issues {
             layout[2],
             FooterProps {
                 cells: [
-                    span::badge("/".to_string()),
-                    span::default(self.props.filter.to_string()).magenta().dim(),
+                    span::badge("/".to_string()).into(),
+                    span::default(self.props.filter.to_string())
+                        .magenta()
+                        .dim()
+                        .into(),
                     String::from("").into(),
-                    progress.clone(),
+                    progress.clone().into(),
                 ],
                 widths: [
                     Constraint::Length(3),
