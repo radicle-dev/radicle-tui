@@ -6,15 +6,16 @@ use tokio::sync::mpsc::UnboundedSender;
 use termion::event::Key;
 
 use ratatui::backend::Backend;
-use ratatui::layout::{Constraint, Rect};
+use ratatui::layout::{Constraint, Direction, Layout, Rect};
 
 use radicle_tui as tui;
 
 use tui::common::cob::patch::Filter;
 use tui::flux::ui::cob::PatchItem;
 use tui::flux::ui::span;
+use tui::flux::ui::widget::container::{Footer, FooterProps, Header, HeaderProps};
 use tui::flux::ui::widget::{
-    FooterProps, Render, Shortcut, Shortcuts, ShortcutsProps, Table, TableProps, Widget,
+    Render, Shortcut, Shortcuts, ShortcutsProps, Table, TableProps, Widget,
 };
 use tui::Selection;
 
@@ -197,8 +198,12 @@ struct Patches {
     action_tx: UnboundedSender<Action>,
     /// State mapped props
     props: PatchesProps,
+    /// Table header
+    header: Header<Action>,
     /// Notification table
     table: Table<Action>,
+    /// Table footer
+    footer: Footer<Action>,
 }
 
 impl Widget<PatchesState, Action> for Patches {
@@ -206,7 +211,9 @@ impl Widget<PatchesState, Action> for Patches {
         Self {
             action_tx: action_tx.clone(),
             props: PatchesProps::from(state),
+            header: Header::new(state, action_tx.clone()),
             table: Table::new(state, action_tx.clone()),
+            footer: Footer::new(state, action_tx),
         }
     }
 
@@ -216,13 +223,15 @@ impl Widget<PatchesState, Action> for Patches {
     {
         Self {
             props: PatchesProps::from(state),
+            header: self.header.move_with_state(state),
             table: self.table.move_with_state(state),
+            footer: self.footer.move_with_state(state),
             ..self
         }
     }
 
     fn name(&self) -> &str {
-        "notification-list"
+        "patches"
     }
 
     fn handle_key_event(&mut self, key: Key) {
@@ -264,17 +273,18 @@ impl Widget<PatchesState, Action> for Patches {
 
 impl Render<()> for Patches {
     fn render<B: Backend>(&self, frame: &mut ratatui::Frame, area: Rect, _props: ()) {
-        let header = [
-            String::from(" ● ").into(),
-            String::from("ID").into(),
-            String::from("Title").into(),
-            String::from("Author").into(),
-            String::from("").into(),
-            String::from("Head").into(),
-            String::from("+").into(),
-            String::from("- ").into(),
-            String::from("Updated").into(),
-        ];
+        let cutoff = 200;
+        let cutoff_after = 5;
+        let focus = false;
+
+        let layout = Layout::default()
+            .direction(Direction::Vertical)
+            .constraints(vec![
+                Constraint::Length(3),
+                Constraint::Min(1),
+                Constraint::Length(3),
+            ])
+            .split(area);
 
         let widths = [
             Constraint::Length(3),
@@ -299,34 +309,61 @@ impl Render<()> for Patches {
             span::badge(format!("{}/{}", step, length))
         };
 
-        let footer = FooterProps {
-            cells: [
-                span::badge("/".to_string()),
-                span::default(self.props.filter.to_string()).magenta().dim(),
-                String::from("").into(),
-                progress.clone(),
-            ]
-            .to_vec(),
-            widths: [
-                Constraint::Length(3),
-                Constraint::Fill(1),
-                Constraint::Fill(1),
-                Constraint::Length(progress.width() as u16),
-            ]
-            .to_vec(),
-        };
+        self.header.render::<B>(
+            frame,
+            layout[0],
+            HeaderProps {
+                cells: [
+                    String::from(" ● ").into(),
+                    String::from("ID").into(),
+                    String::from("Title").into(),
+                    String::from("Author").into(),
+                    String::from("").into(),
+                    String::from("Head").into(),
+                    String::from("+").into(),
+                    String::from("- ").into(),
+                    String::from("Updated").into(),
+                ],
+                widths,
+                focus,
+                cutoff,
+                cutoff_after,
+            },
+        );
 
         self.table.render::<B>(
             frame,
-            area,
+            layout[1],
             TableProps {
                 items: self.props.patches.to_vec(),
-                focus: false,
+                has_header: true,
+                has_footer: true,
+                focus,
                 widths,
-                header,
-                footer: Some(footer),
-                cutoff: 200,
-                cutoff_after: 5,
+                cutoff,
+                cutoff_after,
+            },
+        );
+
+        self.footer.render::<B>(
+            frame,
+            layout[2],
+            FooterProps {
+                cells: [
+                    span::badge("/".to_string()),
+                    span::default(self.props.filter.to_string()).magenta().dim(),
+                    String::from("").into(),
+                    progress.clone(),
+                ],
+                widths: [
+                    Constraint::Length(3),
+                    Constraint::Fill(1),
+                    Constraint::Fill(1),
+                    Constraint::Length(progress.width() as u16),
+                ],
+                focus,
+                cutoff,
+                cutoff_after,
             },
         );
     }

@@ -1,3 +1,5 @@
+pub mod container;
+
 use std::fmt::Debug;
 
 use tokio::sync::mpsc::UnboundedSender;
@@ -7,7 +9,6 @@ use termion::event::Key;
 use ratatui::prelude::*;
 use ratatui::widgets::{Block, BorderType, Borders, Cell, Row, TableState};
 
-use super::ext::{FooterBlock, HeaderBlock};
 use super::theme::style;
 
 pub trait Widget<S, A> {
@@ -120,18 +121,12 @@ pub trait ToRow<const W: usize> {
 }
 
 #[derive(Debug)]
-pub struct FooterProps<'a> {
-    pub cells: Vec<Text<'a>>,
-    pub widths: Vec<Constraint>,
-}
-
-#[derive(Debug)]
-pub struct TableProps<'a, R: ToRow<W>, const W: usize> {
+pub struct TableProps<R: ToRow<W>, const W: usize> {
     pub items: Vec<R>,
     pub focus: bool,
     pub widths: [Constraint; W],
-    pub header: [Cell<'a>; W],
-    pub footer: Option<FooterProps<'a>>,
+    pub has_header: bool,
+    pub has_footer: bool,
     pub cutoff: usize,
     pub cutoff_after: usize,
 }
@@ -191,7 +186,7 @@ impl<S, A> Widget<S, A> for Table<A> {
     fn handle_key_event(&mut self, _key: Key) {}
 }
 
-impl<'a, A, R, const W: usize> Render<TableProps<'a, R, W>> for Table<A>
+impl<A, R, const W: usize> Render<TableProps<R, W>> for Table<A>
 where
     R: ToRow<W> + Debug,
 {
@@ -203,49 +198,11 @@ where
             widths.iter().collect::<Vec<_>>()
         };
 
-        let layout = if props.footer.is_some() {
-            Layout::default()
-                .direction(Direction::Vertical)
-                .constraints(vec![
-                    Constraint::Length(3),
-                    Constraint::Min(1),
-                    Constraint::Length(3),
-                ])
-                .split(area)
-        } else {
-            Layout::default()
-                .direction(Direction::Vertical)
-                .constraints(vec![Constraint::Length(3), Constraint::Min(1)])
-                .split(area)
-        };
-
-        // Render header
-        let block = HeaderBlock::default()
-            .borders(Borders::ALL)
-            .border_style(style::border(props.focus))
-            .border_type(BorderType::Rounded);
-
-        let header_layout = Layout::default()
-            .direction(Direction::Vertical)
-            .constraints(vec![Constraint::Min(1)])
-            .vertical_margin(1)
-            .horizontal_margin(1)
-            .split(layout[0]);
-
-        let header = Row::new(props.header).style(style::reset().bold());
-        let header = ratatui::widgets::Table::default()
-            .column_spacing(1)
-            .header(header)
-            .widths(widths.clone());
-
-        frame.render_widget(block, layout[0]);
-        frame.render_widget(header, header_layout[0]);
-
-        // Render content
-        let table_borders = if props.footer.is_some() {
-            Borders::LEFT | Borders::RIGHT
-        } else {
-            Borders::BOTTOM | Borders::LEFT | Borders::RIGHT
+        let borders = match (props.has_header, props.has_footer) {
+            (false, false) => Borders::ALL,
+            (true, false) => Borders::BOTTOM | Borders::LEFT | Borders::RIGHT,
+            (false, true) => Borders::TOP | Borders::LEFT | Borders::RIGHT,
+            (true, true) => Borders::LEFT | Borders::RIGHT,
         };
 
         let rows = props
@@ -261,33 +218,10 @@ where
                 Block::default()
                     .border_style(style::border(props.focus))
                     .border_type(BorderType::Rounded)
-                    .borders(table_borders),
+                    .borders(borders),
             )
             .highlight_style(style::highlight());
 
-        frame.render_stateful_widget(rows, layout[1], &mut self.state.clone());
-
-        if let Some(footer) = props.footer {
-            // Render footer
-            let footer_block = FooterBlock::default()
-                .borders(Borders::ALL)
-                .border_style(style::border(props.focus))
-                .border_type(BorderType::Rounded);
-
-            let footer_layout = Layout::default()
-                .direction(Direction::Vertical)
-                .constraints(vec![Constraint::Min(1)])
-                .vertical_margin(1)
-                .horizontal_margin(1)
-                .split(layout[2]);
-
-            let footer = ratatui::widgets::Table::default()
-                .column_spacing(1)
-                .header(Row::new(footer.cells))
-                .widths(footer.widths);
-
-            frame.render_widget(footer_block, layout[2]);
-            frame.render_widget(footer, footer_layout[0]);
-        }
+        frame.render_stateful_widget(rows, area, &mut self.state.clone());
     }
 }

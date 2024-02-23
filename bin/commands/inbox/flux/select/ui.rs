@@ -5,15 +5,15 @@ use tokio::sync::mpsc::UnboundedSender;
 use termion::event::Key;
 
 use ratatui::backend::Backend;
-use ratatui::layout::{Constraint, Rect};
-use ratatui::widgets::Cell;
+use ratatui::layout::{Constraint, Direction, Layout, Rect};
 
 use radicle_tui as tui;
 
 use tui::flux::ui::cob::NotificationItem;
 use tui::flux::ui::span;
+use tui::flux::ui::widget::container::{Footer, FooterProps, Header, HeaderProps};
 use tui::flux::ui::widget::{
-    FooterProps, Render, Shortcut, Shortcuts, ShortcutsProps, Table, TableProps, Widget,
+    Render, Shortcut, Shortcuts, ShortcutsProps, Table, TableProps, Widget,
 };
 use tui::Selection;
 
@@ -157,8 +157,12 @@ struct Notifications {
     action_tx: UnboundedSender<Action>,
     /// State mapped props
     props: NotificationsProps,
+    /// Table header
+    header: Header<Action>,
     /// Notification table
     table: Table<Action>,
+    /// Table footer
+    footer: Footer<Action>,
 }
 
 impl Widget<InboxState, Action> for Notifications {
@@ -166,7 +170,9 @@ impl Widget<InboxState, Action> for Notifications {
         Self {
             action_tx: action_tx.clone(),
             props: NotificationsProps::from(state),
+            header: Header::new(state, action_tx.clone()),
             table: Table::new(state, action_tx.clone()),
+            footer: Footer::new(state, action_tx),
         }
     }
 
@@ -176,13 +182,15 @@ impl Widget<InboxState, Action> for Notifications {
     {
         Self {
             props: NotificationsProps::from(state),
+            header: self.header.move_with_state(state),
             table: self.table.move_with_state(state),
+            footer: self.footer.move_with_state(state),
             ..self
         }
     }
 
     fn name(&self) -> &str {
-        "notification-list"
+        "notifications"
     }
 
     fn handle_key_event(&mut self, key: Key) {
@@ -224,16 +232,18 @@ impl Widget<InboxState, Action> for Notifications {
 
 impl Render<()> for Notifications {
     fn render<B: Backend>(&self, frame: &mut ratatui::Frame, area: Rect, _props: ()) {
-        let header: [Cell; 8] = [
-            String::from("").into(),
-            String::from(" ● ").into(),
-            String::from("ID / Name").into(),
-            String::from("Summary").into(),
-            String::from("Type").into(),
-            String::from("Status").into(),
-            String::from("Author").into(),
-            String::from("Updated").into(),
-        ];
+        let cutoff = 200;
+        let cutoff_after = 8;
+        let focus = false;
+
+        let layout = Layout::default()
+            .direction(Direction::Vertical)
+            .constraints(vec![
+                Constraint::Length(3),
+                Constraint::Min(1),
+                Constraint::Length(3),
+            ])
+            .split(area);
 
         let widths = [
             Constraint::Length(5),
@@ -257,34 +267,60 @@ impl Render<()> for Notifications {
             span::badge(format!("{}/{}", step, length))
         };
 
-        let footer = FooterProps {
-            cells: [
-                span::badge("/".to_string()),
-                String::from("").into(),
-                String::from("").into(),
-                progress.clone(),
-            ]
-            .to_vec(),
-            widths: [
-                Constraint::Length(3),
-                Constraint::Fill(1),
-                Constraint::Fill(1),
-                Constraint::Length(progress.width() as u16),
-            ]
-            .to_vec(),
-        };
+        self.header.render::<B>(
+            frame,
+            layout[0],
+            HeaderProps {
+                cells: [
+                    String::from("").into(),
+                    String::from(" ● ").into(),
+                    String::from("ID / Name").into(),
+                    String::from("Summary").into(),
+                    String::from("Type").into(),
+                    String::from("Status").into(),
+                    String::from("Author").into(),
+                    String::from("Updated").into(),
+                ],
+                widths,
+                focus,
+                cutoff,
+                cutoff_after,
+            },
+        );
 
         self.table.render::<B>(
             frame,
-            area,
+            layout[1],
             TableProps {
                 items: self.props.notifications.to_vec(),
-                focus: false,
+                has_header: true,
+                has_footer: true,
+                focus,
                 widths,
-                header,
-                footer: Some(footer),
-                cutoff: 200,
-                cutoff_after: 6,
+                cutoff,
+                cutoff_after,
+            },
+        );
+
+        self.footer.render::<B>(
+            frame,
+            layout[2],
+            FooterProps {
+                cells: [
+                    span::badge("/".to_string()),
+                    String::from("").into(),
+                    String::from("").into(),
+                    progress.clone(),
+                ],
+                widths: [
+                    Constraint::Length(3),
+                    Constraint::Fill(1),
+                    Constraint::Fill(1),
+                    Constraint::Length(progress.width() as u16),
+                ],
+                focus,
+                cutoff,
+                cutoff_after,
             },
         );
     }
