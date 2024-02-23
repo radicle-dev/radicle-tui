@@ -308,10 +308,10 @@ impl Render<()> for Notifications {
             layout[2],
             FooterProps {
                 cells: [
-                    span::badge("/".to_string()),
+                    span::badge("/".to_string()).into(),
                     String::from("").into(),
                     String::from("").into(),
-                    progress.clone(),
+                    progress.clone().into(),
                 ],
                 widths: [
                     Constraint::Length(3),
