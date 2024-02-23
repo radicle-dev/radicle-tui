@@ -1,3 +1,4 @@
+use std::cmp;
 use std::vec;
 
 use ratatui::style::Stylize;
@@ -306,7 +307,7 @@ impl Render<()> for Patches {
                 .unwrap_or("-".to_string());
             let length = self.props.patches.len().to_string();
 
-            span::badge(format!("{}/{}", step, length))
+            span::badge(format!("{}/{}", cmp::min(&step, &length), length))
         };
 
         self.header.render::<B>(

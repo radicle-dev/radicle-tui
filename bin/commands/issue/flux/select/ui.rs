@@ -1,3 +1,4 @@
+use std::cmp;
 use std::vec;
 
 use ratatui::style::Stylize;
@@ -293,7 +294,7 @@ impl Render<()> for Issues {
                 .unwrap_or("-".to_string());
             let length = self.props.issues.len().to_string();
 
-            span::badge(format!("{}/{}", step, length))
+            span::badge(format!("{}/{}", cmp::min(&step, &length), length))
         };
 
         self.header.render::<B>(

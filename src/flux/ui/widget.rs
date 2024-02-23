@@ -10,6 +10,7 @@ use ratatui::prelude::*;
 use ratatui::widgets::{Block, BorderType, Borders, Cell, Row, TableState};
 
 use super::theme::style;
+use super::{layout, span};
 
 pub trait Widget<S, A> {
     fn new(state: &S, action_tx: UnboundedSender<A>) -> Self
@@ -205,23 +206,40 @@ where
             (true, true) => Borders::LEFT | Borders::RIGHT,
         };
 
-        let rows = props
-            .items
-            .iter()
-            .map(|item| Row::new(item.to_row()))
-            .collect::<Vec<_>>();
-        let rows = ratatui::widgets::Table::default()
-            .rows(rows)
-            .widths(widths)
-            .column_spacing(1)
-            .block(
-                Block::default()
-                    .border_style(style::border(props.focus))
-                    .border_type(BorderType::Rounded)
-                    .borders(borders),
-            )
-            .highlight_style(style::highlight());
+        if !props.items.is_empty() {
+            let rows = props
+                .items
+                .iter()
+                .map(|item| Row::new(item.to_row()))
+                .collect::<Vec<_>>();
+            let rows = ratatui::widgets::Table::default()
+                .rows(rows)
+                .widths(widths)
+                .column_spacing(1)
+                .block(
+                    Block::default()
+                        .border_style(style::border(props.focus))
+                        .border_type(BorderType::Rounded)
+                        .borders(borders),
+                )
+                .highlight_style(style::highlight());
 
-        frame.render_stateful_widget(rows, area, &mut self.state.clone());
+            frame.render_stateful_widget(rows, area, &mut self.state.clone());
+        } else {
+            let block = Block::default()
+                .border_style(style::border(props.focus))
+                .border_type(BorderType::Rounded)
+                .borders(borders);
+
+            frame.render_widget(block, area);
+
+            let center = layout::centered_rect(area, 50, 10);
+            let hint = span::default("Nothing to show".to_string())
+                .centered()
+                .light_magenta()
+                .dim();
+
+            frame.render_widget(hint, center);
+        }
     }
 }

@@ -1,3 +1,4 @@
+use std::cmp;
 use std::vec;
 
 use tokio::sync::mpsc::UnboundedSender;
@@ -264,7 +265,7 @@ impl Render<()> for Notifications {
                 .unwrap_or("-".to_string());
             let length = self.props.notifications.len().to_string();
 
-            span::badge(format!("{}/{}", step, length))
+            span::badge(format!("{}/{}", cmp::min(&step, &length), length))
         };
 
         self.header.render::<B>(
