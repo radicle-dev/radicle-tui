@@ -78,7 +78,7 @@ impl Widget<InboxState, Action> for ListPage {
 
     fn handle_key_event(&mut self, key: termion::event::Key) {
         match key {
-            Key::Char('q') => {
+            Key::Char('q') | Key::Ctrl('c') => {
                 let _ = self.action_tx.send(Action::Exit { selection: None });
             }
             Key::Char('\n') => {
