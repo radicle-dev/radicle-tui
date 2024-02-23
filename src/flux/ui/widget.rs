@@ -1,5 +1,6 @@
 pub mod container;
 
+use std::cmp;
 use std::fmt::Debug;
 
 use tokio::sync::mpsc::UnboundedSender;
@@ -159,6 +160,15 @@ impl<A> Table<A> {
         });
         self.state.select(selected);
     }
+
+    pub fn progress(&self, len: usize) -> (usize, usize) {
+        let step = self
+            .selected()
+            .map(|selected| selected.saturating_add(1))
+            .unwrap_or_default();
+
+        (cmp::min(step, len), len)
+    }
 }
 
 impl<S, A> Widget<S, A> for Table<A> {
@@ -234,7 +244,7 @@ where
             frame.render_widget(block, area);
 
             let center = layout::centered_rect(area, 50, 10);
-            let hint = span::default("Nothing to show".to_string())
+            let hint = Text::from(span::default("Nothing to show".to_string()))
                 .centered()
                 .light_magenta()
                 .dim();
