@@ -21,8 +21,8 @@ inquire = { version = "0.6.2", default-features = false, features = ["termion", 
 lexopt = { version = "0.3.0" }
 libc = { version = "^0.2" }
 log = { version = "0.4.19" }
-radicle = { git = "https://github.com/radicle-dev/heartwood" }
-radicle-term = { git = "https://github.com/radicle-dev/heartwood", package = "radicle-term" }
+radicle = { git = "https://github.com/radicle-dev/heartwood", rev = "eff4016" }
+radicle-term = { git = "https://github.com/radicle-dev/heartwood", package = "radicle-term", rev = "eff4016" }
 radicle-surf = { version = "0.18.0" }
 ratatui = { git = "https://github.com/erak/ratatui", branch = "termion-cursor", default-features = false, features = ["all-widgets", "termion"] }
 simple-logging = { version = "2.0.2" }
