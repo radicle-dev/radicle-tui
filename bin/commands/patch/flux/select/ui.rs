@@ -1,13 +1,17 @@
-use std::cmp;
+use std::collections::HashMap;
 use std::vec;
 
-use ratatui::style::Stylize;
+use radicle::patch;
+
 use tokio::sync::mpsc::UnboundedSender;
 
 use termion::event::Key;
 
 use ratatui::backend::Backend;
+use ratatui::layout::Alignment;
 use ratatui::layout::{Constraint, Direction, Layout, Rect};
+use ratatui::style::Stylize;
+use ratatui::text::Line;
 
 use radicle_tui as tui;
 
@@ -102,45 +106,49 @@ impl Widget<PatchesState, Action> for ListPage {
             }
             Key::Char('c') => {
                 if let Some(selected) = &self.props.selected {
+                    let selection = Selection {
+                        operation: Some(PatchOperation::Checkout.to_string()),
+                        ids: vec![selected.id],
+                        args: vec![],
+                    };
                     let _ = self.action_tx.send(Action::Exit {
-                        selection: Some(Selection {
-                            operation: Some(PatchOperation::Checkout.to_string()),
-                            ids: vec![selected.id],
-                            args: vec![],
-                        }),
+                        selection: Some(selection),
                     });
                 }
             }
             Key::Char('m') => {
                 if let Some(selected) = &self.props.selected {
+                    let selection = Selection {
+                        operation: Some(PatchOperation::Comment.to_string()),
+                        ids: vec![selected.id],
+                        args: vec![],
+                    };
                     let _ = self.action_tx.send(Action::Exit {
-                        selection: Some(Selection {
-                            operation: Some(PatchOperation::Comment.to_string()),
-                            ids: vec![selected.id],
-                            args: vec![],
-                        }),
+                        selection: Some(selection),
                     });
                 }
             }
             Key::Char('e') => {
                 if let Some(selected) = &self.props.selected {
+                    let selection = Selection {
+                        operation: Some(PatchOperation::Edit.to_string()),
+                        ids: vec![selected.id],
+                        args: vec![],
+                    };
                     let _ = self.action_tx.send(Action::Exit {
-                        selection: Some(Selection {
-                            operation: Some(PatchOperation::Edit.to_string()),
-                            ids: vec![selected.id],
-                            args: vec![],
-                        }),
+                        selection: Some(selection),
                     });
                 }
             }
             Key::Char('d') => {
                 if let Some(selected) = &self.props.selected {
+                    let selection = Selection {
+                        operation: Some(PatchOperation::Delete.to_string()),
+                        ids: vec![selected.id],
+                        args: vec![],
+                    };
                     let _ = self.action_tx.send(Action::Exit {
-                        selection: Some(Selection {
-                            operation: Some(PatchOperation::Delete.to_string()),
-                            ids: vec![selected.id],
-                            args: vec![],
-                        }),
+                        selection: Some(selection),
                     });
                 }
             }
@@ -183,13 +191,39 @@ impl Render<()> for ListPage {
 struct PatchesProps {
     patches: Vec<PatchItem>,
     filter: Filter,
+    stats: HashMap<String, usize>,
 }
 
 impl From<&PatchesState> for PatchesProps {
     fn from(state: &PatchesState) -> Self {
+        let mut draft = 0;
+        let mut open = 0;
+        let mut archived = 0;
+        let mut merged = 0;
+
+        for patch in &state.patches {
+            match patch.state {
+                patch::State::Draft => draft += 1,
+                patch::State::Open { conflicts: _ } => open += 1,
+                patch::State::Archived => archived += 1,
+                patch::State::Merged {
+                    commit: _,
+                    revision: _,
+                } => merged += 1,
+            }
+        }
+
+        let stats = HashMap::from([
+            ("Draft".to_string(), draft),
+            ("Open".to_string(), open),
+            ("Archived".to_string(), archived),
+            ("Merged".to_string(), merged),
+        ]);
+
         Self {
             patches: state.patches.clone(),
             filter: state.filter.clone(),
+            stats,
         }
     }
 }
@@ -299,17 +333,6 @@ impl Render<()> for Patches {
             Constraint::Length(16),
         ];
 
-        let progress = {
-            let step = self
-                .table
-                .selected()
-                .map(|selected| selected.saturating_add(1).to_string())
-                .unwrap_or("-".to_string());
-            let length = self.props.patches.len().to_string();
-
-            span::badge(format!("{}/{}", cmp::min(&step, &length), length))
-        };
-
         self.header.render::<B>(
             frame,
             layout[0],
@@ -346,15 +369,41 @@ impl Render<()> for Patches {
             },
         );
 
+        let (step, len) = self.table.progress(self.props.patches.len());
+
+        let progress = span::badge(format!("{}/{}", step, len));
+        let filter = span::default(self.props.filter.to_string()).magenta().dim();
+        let stats = Line::from(
+            [
+                span::default(self.props.stats.get("Draft").unwrap_or(&0).to_string()).dim(),
+                span::default(" Draft".to_string()).dim(),
+                span::default(" | ".to_string()).dim(),
+                span::positive(self.props.stats.get("Open").unwrap_or(&0).to_string()).dim(),
+                span::default(" Open".to_string()).dim(),
+                span::default(" | ".to_string()).dim(),
+                span::default(self.props.stats.get("Merged").unwrap_or(&0).to_string())
+                    .magenta()
+                    .dim(),
+                span::default(" Merged".to_string()).dim(),
+                span::default(" | ".to_string()).dim(),
+                span::default(self.props.stats.get("Archived").unwrap_or(&0).to_string())
+                    .yellow()
+                    .dim(),
+                span::default(" Archived".to_string()).dim(),
+            ]
+            .to_vec(),
+        )
+        .alignment(Alignment::Right);
+
         self.footer.render::<B>(
             frame,
             layout[2],
             FooterProps {
                 cells: [
-                    span::badge("/".to_string()),
-                    span::default(self.props.filter.to_string()).magenta().dim(),
-                    String::from("").into(),
-                    progress.clone(),
+                    span::badge("/".to_string()).into(),
+                    filter.into(),
+                    stats.into(),
+                    progress.clone().into(),
                 ],
                 widths: [
                     Constraint::Length(3),
