@@ -11,8 +11,10 @@ use tui::realm::ui::widget::context::{ContextBar, Shortcuts};
 use tui::realm::ui::widget::list::PropertyList;
 use tui::realm::ui::widget::Widget;
 
+use crate::tui_patch::common::PatchOperation;
+
 use super::ui::{IdSelect, OperationSelect};
-use super::{Message, PatchOperation};
+use super::Message;
 
 type Selection = tui::Selection<PatchId>;
 
