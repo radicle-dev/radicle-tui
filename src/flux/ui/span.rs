@@ -27,6 +27,10 @@ pub fn positive(content: String) -> Text<'static> {
     default(content).style(style::green())
 }
 
+pub fn negative(content: String) -> Text<'static> {
+    default(content).style(style::red())
+}
+
 pub fn badge(content: String) -> Text<'static> {
     let content = &format!(" {content} ");
     default(content.to_string()).magenta().reversed()
