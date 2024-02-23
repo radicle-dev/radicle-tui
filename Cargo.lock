@@ -1473,7 +1473,7 @@ dependencies = [
 [[package]]
 name = "radicle"
 version = "0.2.0"
-source = "git+https://github.com/radicle-dev/heartwood#fe55de181d4320a0cd7a6ebd2820764280ae9adc"
+source = "git+https://github.com/radicle-dev/heartwood?rev=eff4016#eff40166c9ac8ad9776ecb6160d245220bfb1f87"
 dependencies = [
  "amplify",
  "base64 0.21.7",
@@ -1503,7 +1503,7 @@ dependencies = [
 [[package]]
 name = "radicle-cob"
 version = "0.2.0"
-source = "git+https://github.com/radicle-dev/heartwood#fe55de181d4320a0cd7a6ebd2820764280ae9adc"
+source = "git+https://github.com/radicle-dev/heartwood?rev=eff4016#eff40166c9ac8ad9776ecb6160d245220bfb1f87"
 dependencies = [
  "fastrand",
  "git2",
@@ -1521,7 +1521,7 @@ dependencies = [
 [[package]]
 name = "radicle-crypto"
 version = "0.2.0"
-source = "git+https://github.com/radicle-dev/heartwood#fe55de181d4320a0cd7a6ebd2820764280ae9adc"
+source = "git+https://github.com/radicle-dev/heartwood?rev=eff4016#eff40166c9ac8ad9776ecb6160d245220bfb1f87"
 dependencies = [
  "amplify",
  "cyphernet",
@@ -1539,7 +1539,7 @@ dependencies = [
 [[package]]
 name = "radicle-dag"
 version = "0.2.0"
-source = "git+https://github.com/radicle-dev/heartwood#fe55de181d4320a0cd7a6ebd2820764280ae9adc"
+source = "git+https://github.com/radicle-dev/heartwood?rev=eff4016#eff40166c9ac8ad9776ecb6160d245220bfb1f87"
 dependencies = [
  "fastrand",
 ]
@@ -1561,7 +1561,7 @@ dependencies = [
 [[package]]
 name = "radicle-ssh"
 version = "0.2.0"
-source = "git+https://github.com/radicle-dev/heartwood#fe55de181d4320a0cd7a6ebd2820764280ae9adc"
+source = "git+https://github.com/radicle-dev/heartwood?rev=eff4016#eff40166c9ac8ad9776ecb6160d245220bfb1f87"
 dependencies = [
  "byteorder",
  "log",
@@ -1596,7 +1596,7 @@ dependencies = [
 [[package]]
 name = "radicle-term"
 version = "0.1.0"
-source = "git+https://github.com/radicle-dev/heartwood#fe55de181d4320a0cd7a6ebd2820764280ae9adc"
+source = "git+https://github.com/radicle-dev/heartwood?rev=eff4016#eff40166c9ac8ad9776ecb6160d245220bfb1f87"
 dependencies = [
  "anstyle-query",
  "anyhow",
