@@ -98,6 +98,39 @@ impl Widget<IssuesState, Action> for ListPage {
                     });
                 }
             }
+            Key::Char('c') => {
+                if let Some(selected) = &self.props.selected {
+                    let _ = self.action_tx.send(Action::Exit {
+                        selection: Some(Selection {
+                            operation: Some(IssueOperation::Comment.to_string()),
+                            ids: vec![selected.id],
+                            args: vec![],
+                        }),
+                    });
+                }
+            }
+            Key::Char('e') => {
+                if let Some(selected) = &self.props.selected {
+                    let _ = self.action_tx.send(Action::Exit {
+                        selection: Some(Selection {
+                            operation: Some(IssueOperation::Edit.to_string()),
+                            ids: vec![selected.id],
+                            args: vec![],
+                        }),
+                    });
+                }
+            }
+            Key::Char('d') => {
+                if let Some(selected) = &self.props.selected {
+                    let _ = self.action_tx.send(Action::Exit {
+                        selection: Some(Selection {
+                            operation: Some(IssueOperation::Delete.to_string()),
+                            ids: vec![selected.id],
+                            args: vec![],
+                        }),
+                    });
+                }
+            }
             _ => {
                 <Issues as Widget<IssuesState, Action>>::handle_key_event(&mut self.issues, key);
             }
@@ -112,7 +145,13 @@ impl Render<()> for ListPage {
 
         let shortcuts = match self.props.mode {
             Mode::Id => vec![Shortcut::new("enter", "select"), Shortcut::new("q", "quit")],
-            Mode::Operation => vec![Shortcut::new("enter", "show"), Shortcut::new("q", "quit")],
+            Mode::Operation => vec![
+                Shortcut::new("enter", "show"),
+                Shortcut::new("c", "comment"),
+                Shortcut::new("e", "edit"),
+                Shortcut::new("d", "delete"),
+                Shortcut::new("q", "quit"),
+            ],
         };
 
         self.issues.render::<B>(frame, layout.component, ());
