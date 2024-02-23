@@ -1,7 +1,8 @@
 use radicle::crypto::PublicKey;
+use radicle::git::Oid;
 use radicle::identity::Did;
 use radicle::node::{Alias, NodeId};
-use radicle::{issue, Profile};
+use radicle::{issue, patch, Profile};
 use ratatui::style::{Color, Style, Stylize};
 use ratatui::widgets::Cell;
 
@@ -9,7 +10,7 @@ use radicle::cob::{self, Label, ObjectId, Timestamp};
 use radicle::issue::{Issue, IssueId, Issues};
 use radicle::node::notifications::{Notification, NotificationId, NotificationKind};
 use radicle::node::AliasStore;
-use radicle::patch::Patches;
+use radicle::patch::{Patch, PatchId, Patches};
 use radicle::storage::git::Repository;
 use radicle::storage::{ReadRepository, RefUpdate};
 
@@ -318,10 +319,117 @@ impl ToRow<8> for IssueItem {
     }
 }
 
+#[derive(Clone, Debug)]
+pub struct PatchItem {
+    /// Patch OID.
+    pub id: PatchId,
+    /// Patch state.
+    pub state: patch::State,
+    /// Patch title.
+    pub title: String,
+    /// Author of the latest revision.
+    pub author: AuthorItem,
+    /// Head of the latest revision.
+    pub head: Oid,
+    /// Lines added by the latest revision.
+    pub added: u16,
+    /// Lines removed by the latest revision.
+    pub removed: u16,
+    /// Time when patch was opened.
+    pub timestamp: Timestamp,
+}
+
+impl PatchItem {
+    pub fn new(
+        profile: &Profile,
+        repository: &Repository,
+        patch: (PatchId, Patch),
+    ) -> Result<Self, anyhow::Error> {
+        let (id, patch) = patch;
+        let (_, rev) = patch.latest();
+        let repo = radicle_surf::Repository::open(repository.path())?;
+        let base = repo.commit(rev.base())?;
+        let head = repo.commit(rev.head())?;
+        let diff = repo.diff(base.id, head.id)?;
+
+        Ok(Self {
+            id,
+            state: patch.state().clone(),
+            title: patch.title().into(),
+            author: AuthorItem {
+                nid: Some(*patch.author().id),
+                alias: profile.aliases().alias(&patch.author().id),
+                you: *patch.author().id == *profile.did(),
+            },
+            head: rev.head(),
+            added: diff.stats().insertions as u16,
+            removed: diff.stats().deletions as u16,
+            timestamp: rev.timestamp(),
+        })
+    }
+}
+
+impl ToRow<9> for PatchItem {
+    fn to_row(&self) -> [Cell; 9] {
+        let (state, color) = format_patch_state(&self.state);
+
+        let state = span::default(state).style(Style::default().fg(color));
+        let id = span::primary(format::cob(&self.id));
+        let title = span::default(self.title.clone());
+
+        let author = match &self.author.alias {
+            Some(alias) => {
+                if self.author.you {
+                    span::alias(format!("{} (you)", alias))
+                } else {
+                    span::alias(alias.to_string())
+                }
+            }
+            None => match self.author.nid {
+                Some(nid) => span::alias(format::did(&Did::from(nid))).dim(),
+                None => span::alias("".to_string()),
+            },
+        };
+        let did = match self.author.nid {
+            Some(nid) => span::alias(format::did(&Did::from(nid))).dim(),
+            None => span::alias("".to_string()),
+        };
+
+        let head = span::ternary(format::oid(self.head));
+        let added = span::positive(format!("+{}", self.added));
+        let removed = span::negative(format!("-{}", self.removed));
+        let updated = span::timestamp(format::timestamp(&self.timestamp));
+
+        [
+            state.into(),
+            id.into(),
+            title.into(),
+            author.into(),
+            did.into(),
+            head.into(),
+            added.into(),
+            removed.into(),
+            updated.into(),
+        ]
+    }
+}
+
 pub fn format_issue_state(state: &issue::State) -> (String, Color) {
     match state {
         issue::State::Open => (" ● ".into(), Color::Green),
         issue::State::Closed { reason: _ } => (" ● ".into(), Color::Red),
+    }
+}
+
+pub fn format_patch_state(state: &patch::State) -> (String, Color) {
+    match state {
+        patch::State::Open { conflicts: _ } => (" ● ".into(), Color::Green),
+        patch::State::Archived => (" ● ".into(), Color::Yellow),
+        patch::State::Draft => (" ● ".into(), Color::Gray),
+        patch::State::Merged {
+            revision: _,
+            commit: _,
+        } => (" ✔ ".into(), Color::Magenta),
     }
 }
 
