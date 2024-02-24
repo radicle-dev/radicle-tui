@@ -1,6 +1,7 @@
 use std::cmp;
 use std::vec;
 
+use radicle::identity::Project;
 use tokio::sync::mpsc::UnboundedSender;
 
 use termion::event::Key;
@@ -143,12 +144,14 @@ impl Render<()> for ListPage {
 
 struct NotificationsProps {
     notifications: Vec<NotificationItem>,
+    project: Project,
 }
 
 impl From<&InboxState> for NotificationsProps {
     fn from(state: &InboxState) -> Self {
         Self {
             notifications: state.notifications.clone(),
+            project: state.project.clone(),
         }
     }
 }
@@ -272,17 +275,8 @@ impl Render<()> for Notifications {
             frame,
             layout[0],
             HeaderProps {
-                cells: [
-                    String::from("").into(),
-                    String::from(" ● ").into(),
-                    String::from("ID / Name").into(),
-                    String::from("Summary").into(),
-                    String::from("Type").into(),
-                    String::from("Status").into(),
-                    String::from("Author").into(),
-                    String::from("Updated").into(),
-                ],
-                widths,
+                cells: [String::from("").into(), self.props.project.name().into()],
+                widths: [Constraint::Length(0), Constraint::Fill(1)],
                 focus,
                 cutoff,
                 cutoff_after,

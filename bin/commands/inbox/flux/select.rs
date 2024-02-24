@@ -3,7 +3,9 @@ mod ui;
 
 use anyhow::Result;
 
+use radicle::identity::Project;
 use radicle::node::notifications::NotificationId;
+use radicle::storage::ReadRepository;
 
 use radicle::storage::git::Repository;
 use radicle::Profile;
@@ -39,12 +41,16 @@ pub struct InboxState {
     notifications: Vec<NotificationItem>,
     selected: Option<NotificationItem>,
     mode: common::Mode,
+    project: Project,
 }
 
 impl TryFrom<&Context> for InboxState {
     type Error = anyhow::Error;
 
     fn try_from(context: &Context) -> Result<Self, Self::Error> {
+        let doc = context.repository.identity_doc()?;
+        let project = doc.project()?;
+
         let notifications = inbox::all(&context.repository, &context.profile)?;
         let mut items = vec![];
 
@@ -72,6 +78,7 @@ impl TryFrom<&Context> for InboxState {
             notifications: items,
             selected,
             mode: context.mode.clone(),
+            project,
         })
     }
 }
