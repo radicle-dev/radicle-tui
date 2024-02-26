@@ -301,7 +301,19 @@ impl Render<()> for Issues {
             Constraint::Length(16),
         ];
 
-        let filter = span::default(self.props.filter.to_string()).magenta().dim();
+        let filter = if !self.props.filter.to_string().is_empty() {
+            Line::from(
+                [
+                    span::badge("▼".to_string()),
+                    span::default(" ".to_string()),
+                    span::default(self.props.filter.to_string()).magenta().dim(),
+                ]
+                .to_vec(),
+            )
+        } else {
+            Line::from([span::blank()].to_vec())
+        };
+
         let stats = Line::from(
             [
                 span::positive(self.props.stats.get("Open").unwrap_or(&0).to_string()).dim(),
@@ -358,14 +370,8 @@ impl Render<()> for Issues {
             frame,
             layout[2],
             FooterProps {
-                cells: [
-                    span::badge("/".to_string()).into(),
-                    filter.into(),
-                    stats.into(),
-                    progress.clone().into(),
-                ],
+                cells: [filter.into(), stats.into(), progress.clone().into()],
                 widths: [
-                    Constraint::Length(3),
                     Constraint::Fill(1),
                     Constraint::Fill(1),
                     Constraint::Length(progress.width() as u16),
