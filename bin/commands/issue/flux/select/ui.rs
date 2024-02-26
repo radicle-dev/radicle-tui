@@ -1,13 +1,15 @@
-use std::cmp;
+use std::collections::HashMap;
 use std::vec;
 
+use radicle::issue;
 use ratatui::style::Stylize;
+use ratatui::text::Line;
 use tokio::sync::mpsc::UnboundedSender;
 
 use termion::event::Key;
 
 use ratatui::backend::Backend;
-use ratatui::layout::{Constraint, Direction, Layout, Rect};
+use ratatui::layout::{Alignment, Constraint, Direction, Layout, Rect};
 
 use radicle_tui as tui;
 
@@ -171,13 +173,26 @@ impl Render<()> for ListPage {
 struct IssuesProps {
     issues: Vec<IssueItem>,
     filter: Filter,
+    stats: HashMap<String, usize>,
 }
 
 impl From<&IssuesState> for IssuesProps {
     fn from(state: &IssuesState) -> Self {
+        let mut open = 0;
+        let mut closed = 0;
+
+        for issue in &state.issues {
+            match issue.state {
+                issue::State::Open => open += 1,
+                issue::State::Closed { reason: _ } => closed += 1,
+            }
+        }
+        let stats = HashMap::from([("Open".to_string(), open), ("Closed".to_string(), closed)]);
+
         Self {
             issues: state.issues.clone(),
             filter: state.filter.clone(),
+            stats,
         }
     }
 }
@@ -286,16 +301,23 @@ impl Render<()> for Issues {
             Constraint::Length(16),
         ];
 
-        let progress = {
-            let step = self
-                .table
-                .selected()
-                .map(|selected| selected.saturating_add(1).to_string())
-                .unwrap_or("-".to_string());
-            let length = self.props.issues.len().to_string();
+        let filter = span::default(self.props.filter.to_string()).magenta().dim();
+        let stats = Line::from(
+            [
+                span::positive(self.props.stats.get("Open").unwrap_or(&0).to_string()).dim(),
+                span::default(" Open".to_string()).dim(),
+                span::default(" | ".to_string()).dim(),
+                span::default(self.props.stats.get("Closed").unwrap_or(&0).to_string())
+                    .magenta()
+                    .dim(),
+                span::default(" Closed".to_string()).dim(),
+            ]
+            .to_vec(),
+        )
+        .alignment(Alignment::Right);
 
-            span::badge(format!("{}/{}", cmp::min(&step, &length), length))
-        };
+        let (step, len) = self.table.progress(self.props.issues.len());
+        let progress = span::progress(step, len, false);
 
         self.header.render::<B>(
             frame,
@@ -338,11 +360,8 @@ impl Render<()> for Issues {
             FooterProps {
                 cells: [
                     span::badge("/".to_string()).into(),
-                    span::default(self.props.filter.to_string())
-                        .magenta()
-                        .dim()
-                        .into(),
-                    String::from("").into(),
+                    filter.into(),
+                    stats.into(),
                     progress.clone().into(),
                 ],
                 widths: [
