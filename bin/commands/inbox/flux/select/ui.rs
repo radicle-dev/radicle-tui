@@ -277,6 +277,7 @@ impl Render<()> for Notifications {
             Constraint::Length(18),
         ];
 
+        let filter = Line::from([span::blank()].to_vec());
         let stats = Line::from(
             [
                 span::positive(self.props.stats.get("Seen").unwrap_or(&0).to_string()).dim(),
@@ -324,14 +325,8 @@ impl Render<()> for Notifications {
             frame,
             layout[2],
             FooterProps {
-                cells: [
-                    span::badge("/".to_string()).into(),
-                    String::from("").into(),
-                    stats.into(),
-                    progress.clone().into(),
-                ],
+                cells: [filter.into(), stats.into(), progress.clone().into()],
                 widths: [
-                    Constraint::Length(3),
                     Constraint::Fill(1),
                     Constraint::Fill(1),
                     Constraint::Length(progress.width() as u16),
