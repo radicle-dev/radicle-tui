@@ -45,7 +45,7 @@ impl TryFrom<&Context> for PatchesState {
     type Error = anyhow::Error;
 
     fn try_from(context: &Context) -> Result<Self, Self::Error> {
-        let patches = patch::all(&context.repository)?;
+        let patches = patch::all(&context.profile, &context.repository)?;
         let patches = patches
             .iter()
             .filter(|(_, patch)| context.filter.matches(&context.profile, patch));

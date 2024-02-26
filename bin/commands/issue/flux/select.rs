@@ -45,7 +45,7 @@ impl TryFrom<&Context> for IssuesState {
     type Error = anyhow::Error;
 
     fn try_from(context: &Context) -> Result<Self, Self::Error> {
-        let issues = issue::all(&context.repository)?;
+        let issues = issue::all(&context.profile, &context.repository)?;
         let issues = issues
             .iter()
             .filter(|(_, issue)| context.filter.matches(&context.profile, issue));

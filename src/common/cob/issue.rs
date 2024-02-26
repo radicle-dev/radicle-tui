@@ -1,8 +1,9 @@
 use std::fmt::Display;
 
 use anyhow::Result;
-use radicle::cob::issue::{Issue, IssueId, Issues};
+use radicle::cob::issue::{Issue, IssueId};
 use radicle::cob::Label;
+use radicle::issue::cache::Issues;
 use radicle::issue::CloseReason;
 use radicle::prelude::{Did, Signer};
 use radicle::storage::git::Repository;
@@ -118,23 +119,27 @@ impl ToString for Filter {
     }
 }
 
-pub fn all(repository: &Repository) -> Result<Vec<(IssueId, Issue)>> {
-    let patches = Issues::open(repository)?
-        .all()
-        .map(|iter| iter.flatten().collect::<Vec<_>>())?;
+pub fn all(profile: &Profile, repository: &Repository) -> Result<Vec<(IssueId, Issue)>> {
+    let cache = profile.issues(repository)?;
+    let issues = cache.list()?;
+    
+    let mut all = vec![];
+    for issue in issues {
+        if let Ok((id, issue)) = issue {
+            all.push((id, issue))
+        }
+    }
 
-    Ok(patches
-        .into_iter()
-        .map(|(id, issue)| (id, issue))
-        .collect::<Vec<_>>())
+    Ok(all)
 }
 
-pub fn find(repository: &Repository, id: &IssueId) -> Result<Option<Issue>> {
-    let issues = Issues::open(repository)?;
-    Ok(issues.get(id)?)
+pub fn find(profile: &Profile, repository: &Repository, id: &IssueId) -> Result<Option<Issue>> {
+    let cache = profile.issues(repository)?;
+    Ok(cache.get(id)?)
 }
 
 pub fn create<G: Signer>(
+    profile: &Profile,
     repository: &Repository,
     signer: &G,
     title: String,
@@ -142,7 +147,7 @@ pub fn create<G: Signer>(
     labels: &[Label],
     assignees: &[Did],
 ) -> Result<IssueId> {
-    let mut issues = Issues::open(repository)?;
+    let mut issues = profile.issues_mut(repository)?;
     let issue = issues.create(title, description.trim(), labels, assignees, [], signer)?;
 
     Ok(*issue.id())

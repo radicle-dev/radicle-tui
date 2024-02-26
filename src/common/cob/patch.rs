@@ -2,8 +2,9 @@ use std::fmt::Display;
 
 use anyhow::Result;
 
-use radicle::cob::patch::{Patch, PatchId, Patches};
+use radicle::cob::patch::{Patch, PatchId};
 use radicle::identity::Did;
+use radicle::patch::cache::Patches;
 use radicle::storage::git::Repository;
 use radicle::{patch, Profile};
 
@@ -110,18 +111,21 @@ impl ToString for Filter {
     }
 }
 
-pub fn all(repository: &Repository) -> Result<Vec<(PatchId, Patch)>> {
-    let patches = Patches::open(repository)?
-        .all()
-        .map(|iter| iter.flatten().collect::<Vec<_>>())?;
+pub fn all(profile: &Profile, repository: &Repository) -> Result<Vec<(PatchId, Patch)>> {
+    let cache = profile.patches(repository)?;
+    let patches = cache.list()?;
 
-    Ok(patches
-        .into_iter()
-        .map(|(id, patch)| (id, patch))
-        .collect::<Vec<_>>())
+    let mut all = vec![];
+    for patch in patches {
+        if let Ok((id, patch)) = patch {
+            all.push((id, patch))
+        }
+    }
+
+    Ok(all)
 }
 
-pub fn find(repository: &Repository, id: &PatchId) -> Result<Option<Patch>> {
-    let patches = Patches::open(repository)?;
-    Ok(patches.get(id)?)
+pub fn find(profile: &Profile, repository: &Repository, id: &PatchId) -> Result<Option<Patch>> {
+    let cache = profile.patches(repository)?;
+    Ok(cache.get(id)?)
 }
