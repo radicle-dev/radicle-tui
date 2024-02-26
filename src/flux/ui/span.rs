@@ -55,3 +55,21 @@ pub fn notification_id(content: String) -> Span<'static> {
 pub fn notification_type(content: String) -> Span<'static> {
     default(content).style(style::gray().dim())
 }
+
+pub fn progress(step: usize, len: usize, fill_zeros: bool) -> Span<'static> {
+    if fill_zeros {
+        if len > 10 {
+            badge(format!("{:-02}/{:-02}", step, len))
+        } else if len > 100 {
+            badge(format!("{:-03}/{:-03}", step, len))
+        } else if len > 1000 {
+            badge(format!("{:-04}/{:-04}", step, len))
+        } else if len > 10000 {
+            badge(format!("{:-05}/{:-05}", step, len))
+        } else {
+            badge(format!("{}/{}", step, len))
+        }
+    } else {
+        badge(format!("{}/{}", step, len))
+    }
+}
