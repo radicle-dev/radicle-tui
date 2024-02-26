@@ -369,9 +369,6 @@ impl Render<()> for Patches {
             },
         );
 
-        let (step, len) = self.table.progress(self.props.patches.len());
-
-        let progress = span::badge(format!("{}/{}", step, len));
         let filter = span::default(self.props.filter.to_string()).magenta().dim();
         let stats = Line::from(
             [
@@ -394,6 +391,9 @@ impl Render<()> for Patches {
             .to_vec(),
         )
         .alignment(Alignment::Right);
+
+        let (step, len) = self.table.progress(self.props.patches.len());
+        let progress = span::progress(step, len, false);
 
         self.footer.render::<B>(
             frame,
