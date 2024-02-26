@@ -1,13 +1,16 @@
-use std::cmp;
+use std::collections::HashMap;
 use std::vec;
 
-use radicle::identity::Project;
 use tokio::sync::mpsc::UnboundedSender;
 
 use termion::event::Key;
 
 use ratatui::backend::Backend;
-use ratatui::layout::{Constraint, Direction, Layout, Rect};
+use ratatui::layout::{Alignment, Constraint, Direction, Layout, Rect};
+use ratatui::style::Stylize;
+use ratatui::text::Line;
+
+use radicle::identity::Project;
 
 use radicle_tui as tui;
 
@@ -145,13 +148,27 @@ impl Render<()> for ListPage {
 struct NotificationsProps {
     notifications: Vec<NotificationItem>,
     project: Project,
+    stats: HashMap<String, usize>,
 }
 
 impl From<&InboxState> for NotificationsProps {
     fn from(state: &InboxState) -> Self {
+        let mut seen = 0;
+        let mut unseen = 0;
+
+        for notification in &state.notifications {
+            if notification.seen {
+                seen += 1;
+            } else {
+                unseen += 1;
+            }
+        }
+        let stats = HashMap::from([("Seen".to_string(), seen), ("Unseen".to_string(), unseen)]);
+
         Self {
             notifications: state.notifications.clone(),
             project: state.project.clone(),
+            stats,
         }
     }
 }
@@ -260,16 +277,22 @@ impl Render<()> for Notifications {
             Constraint::Length(18),
         ];
 
-        let progress = {
-            let step = self
-                .table
-                .selected()
-                .map(|selected| selected.saturating_add(1).to_string())
-                .unwrap_or("-".to_string());
-            let length = self.props.notifications.len().to_string();
+        let stats = Line::from(
+            [
+                span::positive(self.props.stats.get("Seen").unwrap_or(&0).to_string()).dim(),
+                span::default(" Seen".to_string()).dim(),
+                span::default(" | ".to_string()).dim(),
+                span::default(self.props.stats.get("Unseen").unwrap_or(&0).to_string())
+                    .magenta()
+                    .dim(),
+                span::default(" Unseen".to_string()).dim(),
+            ]
+            .to_vec(),
+        )
+        .alignment(Alignment::Right);
 
-            span::badge(format!("{}/{}", cmp::min(&step, &length), length))
-        };
+        let (step, len) = self.table.progress(self.props.notifications.len());
+        let progress = span::progress(step, len, false);
 
         self.header.render::<B>(
             frame,
@@ -304,7 +327,7 @@ impl Render<()> for Notifications {
                 cells: [
                     span::badge("/".to_string()).into(),
                     String::from("").into(),
-                    String::from("").into(),
+                    stats.into(),
                     progress.clone().into(),
                 ],
                 widths: [
