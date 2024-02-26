@@ -71,13 +71,13 @@ impl Context {
 
     pub fn with_issues(mut self) -> Self {
         use super::cob::issue;
-        self.issues = Some(issue::all(&self.repository).unwrap_or_default());
+        self.issues = Some(issue::all(&self.profile, &self.repository).unwrap_or_default());
         self
     }
 
     pub fn with_patches(mut self) -> Self {
         use super::cob::patch;
-        self.patches = Some(patch::all(&self.repository).unwrap_or_default());
+        self.patches = Some(patch::all(&self.profile, &self.repository).unwrap_or_default());
         self
     }
 
@@ -121,12 +121,12 @@ impl Context {
 
     pub fn reload_patches(&mut self) {
         use super::cob::patch;
-        self.patches = Some(patch::all(&self.repository).unwrap_or_default());
+        self.patches = Some(patch::all(&self.profile, &self.repository).unwrap_or_default());
     }
 
     pub fn reload_issues(&mut self) {
         use super::cob::issue;
-        self.issues = Some(issue::all(&self.repository).unwrap_or_default());
+        self.issues = Some(issue::all(&self.profile, &self.repository).unwrap_or_default());
     }
 }
 
