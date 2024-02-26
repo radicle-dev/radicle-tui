@@ -90,7 +90,6 @@ impl Filter {
 impl ToString for Filter {
     fn to_string(&self) -> String {
         let mut filter = String::new();
-        filter.push(' ');
 
         if let Some(state) = &self.state {
             filter.push_str(&format!("is:{}", state));
