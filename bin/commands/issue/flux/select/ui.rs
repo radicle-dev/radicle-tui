@@ -16,6 +16,7 @@ use radicle_tui as tui;
 use tui::common::cob::issue::Filter;
 use tui::flux::ui::cob::IssueItem;
 use tui::flux::ui::span;
+use tui::flux::ui::theme::style;
 use tui::flux::ui::widget::container::{Footer, FooterProps, Header, HeaderProps};
 use tui::flux::ui::widget::{
     Render, Shortcut, Shortcuts, ShortcutsProps, Table, TableProps, Widget,
@@ -301,24 +302,19 @@ impl Render<()> for Issues {
             Constraint::Length(16),
         ];
 
-        let filter = if !self.props.filter.to_string().is_empty() {
-            Line::from(
-                [
-                    span::badge("▼".to_string()),
-                    span::default(" ".to_string()),
-                    span::default(self.props.filter.to_string()).magenta().dim(),
-                ]
-                .to_vec(),
-            )
-        } else {
-            Line::from([span::blank()].to_vec())
-        };
+        let filter = Line::from(
+            [
+                span::default(" ".to_string()),
+                span::default(self.props.filter.to_string()).magenta().dim(),
+            ]
+            .to_vec(),
+        );
 
         let stats = Line::from(
             [
                 span::positive(self.props.stats.get("Open").unwrap_or(&0).to_string()).dim(),
                 span::default(" Open".to_string()).dim(),
-                span::default(" | ".to_string()).dim(),
+                span::default(" | ".to_string()).style(style::border(false)),
                 span::default(self.props.stats.get("Closed").unwrap_or(&0).to_string())
                     .magenta()
                     .dim(),
