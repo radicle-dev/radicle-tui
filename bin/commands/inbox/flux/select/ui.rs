@@ -215,7 +215,7 @@ impl Widget<InboxState, Action> for Notifications {
 
     fn handle_key_event(&mut self, key: Key) {
         match key {
-            Key::Up => {
+            Key::Up | Key::Char('k') => {
                 self.table.prev();
 
                 let selected = self
@@ -230,7 +230,7 @@ impl Widget<InboxState, Action> for Notifications {
                     });
                 }
             }
-            Key::Down => {
+            Key::Down | Key::Char('j') => {
                 self.table.next(self.props.notifications.len());
 
                 let selected = self
