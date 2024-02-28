@@ -85,7 +85,7 @@ impl Widget<IssuesState, Action> for ListPage {
 
     fn handle_key_event(&mut self, key: termion::event::Key) {
         match key {
-            Key::Char('q') | Key::Ctrl('c') => {
+            Key::Esc | Key::Ctrl('c') => {
                 let _ = self.action_tx.send(Action::Exit { selection: None });
             }
             Key::Char('\n') => {
@@ -149,13 +149,12 @@ impl Render<()> for ListPage {
         let layout = tui::flux::ui::layout::default_page(area, 0u16, 1u16);
 
         let shortcuts = match self.props.mode {
-            Mode::Id => vec![Shortcut::new("enter", "select"), Shortcut::new("q", "quit")],
+            Mode::Id => vec![Shortcut::new("enter", "select")],
             Mode::Operation => vec![
                 Shortcut::new("enter", "show"),
                 Shortcut::new("c", "comment"),
                 Shortcut::new("e", "edit"),
                 Shortcut::new("d", "delete"),
-                Shortcut::new("q", "quit"),
             ],
         };
 
