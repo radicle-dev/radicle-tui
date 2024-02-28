@@ -240,7 +240,7 @@ impl Widget<IssuesState, Action> for Issues {
 
     fn handle_key_event(&mut self, key: Key) {
         match key {
-            Key::Up => {
+            Key::Up | Key::Char('k') => {
                 self.table.prev();
 
                 let selected = self
@@ -255,7 +255,7 @@ impl Widget<IssuesState, Action> for Issues {
                     });
                 }
             }
-            Key::Down => {
+            Key::Down | Key::Char('j') => {
                 self.table.next(self.props.issues.len());
 
                 let selected = self
