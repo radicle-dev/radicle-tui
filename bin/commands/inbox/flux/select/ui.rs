@@ -126,10 +126,7 @@ impl Render<()> for ListPage {
 
         let shortcuts = match self.props.mode {
             Mode::Id => vec![Shortcut::new("enter", "select")],
-            Mode::Operation => vec![
-                Shortcut::new("enter", "show"),
-                Shortcut::new("c", "clear"),
-            ],
+            Mode::Operation => vec![Shortcut::new("enter", "show"), Shortcut::new("c", "clear")],
         };
 
         self.notifications.render::<B>(frame, layout.component, ());
@@ -217,36 +214,28 @@ impl Widget<InboxState, Action> for Notifications {
         match key {
             Key::Up | Key::Char('k') => {
                 self.table.prev();
-
-                let selected = self
-                    .table
-                    .selected()
-                    .and_then(|selected| self.props.notifications.get(selected));
-
-                // TODO: propagate error
-                if let Some(notif) = selected {
-                    let _ = self.action_tx.send(Action::Select {
-                        item: notif.clone(),
-                    });
-                }
             }
             Key::Down | Key::Char('j') => {
                 self.table.next(self.props.notifications.len());
-
-                let selected = self
-                    .table
-                    .selected()
-                    .and_then(|selected| self.props.notifications.get(selected));
-
-                // TODO: propagate error
-                if let Some(notif) = selected {
-                    let _ = self.action_tx.send(Action::Select {
-                        item: notif.clone(),
-                    });
-                }
+            }
+            Key::Home => {
+                self.table.begin();
+            }
+            Key::End => {
+                self.table.end(self.props.notifications.len());
             }
             _ => {}
         }
+        self.table
+            .selected()
+            .and_then(|selected| self.props.notifications.get(selected))
+            .and_then(|notif| {
+                self.action_tx
+                    .send(Action::Select {
+                        item: notif.clone(),
+                    })
+                    .ok()
+            });
     }
 }
 

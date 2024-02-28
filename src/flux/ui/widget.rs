@@ -145,12 +145,13 @@ impl<A> Table<A> {
         self.state.selected()
     }
 
-    pub fn prev(&mut self) {
+    pub fn prev(&mut self) -> Option<usize> {
         let selected = self.selected().map(|current| current.saturating_sub(1));
         self.state.select(selected);
+        selected
     }
 
-    pub fn next(&mut self, len: usize) {
+    pub fn next(&mut self, len: usize) -> Option<usize> {
         let selected = self.selected().map(|current| {
             if current < len.saturating_sub(1) {
                 current.saturating_add(1)
@@ -159,6 +160,17 @@ impl<A> Table<A> {
             }
         });
         self.state.select(selected);
+        selected
+    }
+
+    pub fn begin(&mut self) -> Option<usize> {
+        self.state.select(Some(0));
+        self.state.selected()
+    }
+
+    pub fn end(&mut self, len: usize) -> Option<usize> {
+        self.state.select(Some(len.saturating_sub(1)));
+        self.state.selected()
     }
 
     pub fn progress(&self, len: usize) -> (usize, usize) {
