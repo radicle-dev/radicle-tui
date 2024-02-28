@@ -271,7 +271,7 @@ impl Widget<PatchesState, Action> for Patches {
 
     fn handle_key_event(&mut self, key: Key) {
         match key {
-            Key::Up => {
+            Key::Up | Key::Char('k') => {
                 self.table.prev();
 
                 let selected = self
@@ -286,7 +286,7 @@ impl Widget<PatchesState, Action> for Patches {
                     });
                 }
             }
-            Key::Down => {
+            Key::Down | Key::Char('j') => {
                 self.table.next(self.props.patches.len());
 
                 let selected = self
