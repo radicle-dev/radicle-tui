@@ -30,11 +30,21 @@ impl Display for State {
     }
 }
 
-#[derive(Clone, Default, Debug, Eq, PartialEq)]
+#[derive(Clone, Debug, Eq, PartialEq)]
 pub struct Filter {
     state: Option<State>,
     assigned: bool,
     assignees: Vec<Did>,
+}
+
+impl Default for Filter {
+    fn default() -> Self {
+        Self {
+            state: Some(State::default()),
+            assigned: false,
+            assignees: vec![],
+        }
+    }
 }
 
 impl Filter {
