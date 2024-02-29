@@ -11,6 +11,7 @@ use std::ffi::OsString;
 
 use anyhow::anyhow;
 
+use radicle::identity::RepoId;
 use radicle_tui as tui;
 
 use tui::common::cob::patch::{self, State};
@@ -52,6 +53,7 @@ Other options
 
 pub struct Options {
     op: Operation,
+    repo: Option<RepoId>,
 }
 
 pub enum Operation {
@@ -75,6 +77,7 @@ impl Args for Options {
 
         let mut parser = lexopt::Parser::from_args(args);
         let mut op: Option<OperationName> = None;
+        let mut repo = None;
         let mut select_opts = SelectOptions::default();
 
         while let Some(arg) = parser.next()? {
@@ -118,6 +121,13 @@ impl Args for Options {
                         .with_author(terminal::args::did(&parser.value()?)?);
                 }
 
+                Long("repo") => {
+                    let val = parser.value()?;
+                    let rid = terminal::args::rid(&val)?;
+
+                    repo = Some(rid);
+                }
+
                 Value(val) if op.is_none() => match val.to_string_lossy().as_ref() {
                     "select" => op = Some(OperationName::Select),
                     unknown => anyhow::bail!("unknown operation '{}'", unknown),
@@ -129,7 +139,7 @@ impl Args for Options {
         let op = match op.ok_or_else(|| anyhow!("an operation must be provided"))? {
             OperationName::Select => Operation::Select { opts: select_opts },
         };
-        Ok((Options { op }, vec![]))
+        Ok((Options { op, repo }, vec![]))
     }
 }
 
@@ -174,6 +184,7 @@ pub async fn run(options: Options, _ctx: impl terminal::Context) -> anyhow::Resu
     match options.op {
         Operation::Select { opts } => {
             let profile = terminal::profile()?;
+            let rid = options.repo.unwrap_or(rid);
             let repository = profile.storage.repository(rid).unwrap();
 
             log::enable(&profile, "patch", "select")?;

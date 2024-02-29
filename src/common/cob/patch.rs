@@ -125,14 +125,7 @@ pub fn all(profile: &Profile, repository: &Repository) -> Result<Vec<(PatchId, P
     let cache = profile.patches(repository)?;
     let patches = cache.list()?;
 
-    let mut all = vec![];
-    for patch in patches {
-        if let Ok((id, patch)) = patch {
-            all.push((id, patch))
-        }
-    }
-
-    Ok(all)
+    Ok(patches.flatten().collect())
 }
 
 pub fn find(profile: &Profile, repository: &Repository, id: &PatchId) -> Result<Option<Patch>> {
