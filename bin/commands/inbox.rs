@@ -18,6 +18,8 @@ use tui::common::cob::inbox::{self};
 use crate::terminal;
 use crate::terminal::args::{Args, Error, Help};
 
+use self::common::{Mode, RepositoryMode, SelectionMode};
+
 pub const HELP: Help = Help {
     name: "inbox",
     description: "Terminal interfaces for notifications",
@@ -55,7 +57,7 @@ pub enum OperationName {
 
 #[derive(Debug, Default, Clone, PartialEq, Eq)]
 pub struct SelectOptions {
-    mode: common::Mode,
+    mode: Mode,
     filter: inbox::Filter,
     sort_by: inbox::SortBy,
 }
@@ -66,6 +68,7 @@ impl Args for Options {
 
         let mut parser = lexopt::Parser::from_args(args);
         let mut op: Option<OperationName> = None;
+        let mut repository_mode = None;
         let mut reverse = None;
         let mut field = None;
         let mut select_opts = SelectOptions::default();
@@ -81,11 +84,12 @@ impl Args for Options {
                     let val = parser.value()?;
                     let val = val.to_str().unwrap_or_default();
 
-                    select_opts.mode = match val {
-                        "operation" => common::Mode::Operation,
-                        "id" => common::Mode::Id,
+                    let selection_mode = match val {
+                        "operation" => SelectionMode::Operation,
+                        "id" => SelectionMode::Id,
                         unknown => anyhow::bail!("unknown mode '{}'", unknown),
                     };
+                    select_opts.mode = select_opts.mode.with_selection(selection_mode)
                 }
 
                 Long("reverse") | Short('r') => {
@@ -101,6 +105,16 @@ impl Args for Options {
                     }
                 }
 
+                Long("repo") if repository_mode.is_none() && op.is_some() => {
+                    let val = parser.value()?;
+                    let repo = terminal::args::rid(&val)?;
+
+                    repository_mode = Some(RepositoryMode::ByRepo((repo, None)));
+                }
+                Long("all") | Short('a') if repository_mode.is_none() => {
+                    repository_mode = Some(RepositoryMode::All);
+                }
+
                 Value(val) if op.is_none() => match val.to_string_lossy().as_ref() {
                     "select" => op = Some(OperationName::Select),
                     unknown => anyhow::bail!("unknown operation '{}'", unknown),
@@ -109,6 +123,9 @@ impl Args for Options {
             }
         }
 
+        select_opts.mode = select_opts
+            .mode
+            .with_repository(repository_mode.unwrap_or_default());
         select_opts.sort_by = if let Some(field) = field {
             inbox::SortBy {
                 field,
