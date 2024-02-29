@@ -5,7 +5,7 @@ use anyhow::anyhow;
 
 use radicle::cob::{issue, patch};
 use radicle::crypto;
-use radicle::identity::Did;
+use radicle::identity::{Did, RepoId};
 
 /// Git revision parameter. Supports     extended SHA-1 syntax.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -114,6 +114,11 @@ pub fn did(val: &OsString) -> anyhow::Result<Did> {
         }
     };
     Ok(peer)
+}
+
+pub fn rid(val: &OsString) -> anyhow::Result<RepoId> {
+    let val = val.to_string_lossy();
+    RepoId::from_str(&val).map_err(|_| anyhow!("invalid Repository ID '{}'", val))
 }
 
 #[allow(dead_code)]

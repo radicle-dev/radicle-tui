@@ -132,15 +132,8 @@ impl ToString for Filter {
 pub fn all(profile: &Profile, repository: &Repository) -> Result<Vec<(IssueId, Issue)>> {
     let cache = profile.issues(repository)?;
     let issues = cache.list()?;
-    
-    let mut all = vec![];
-    for issue in issues {
-        if let Ok((id, issue)) = issue {
-            all.push((id, issue))
-        }
-    }
 
-    Ok(all)
+    Ok(issues.flatten().collect())
 }
 
 pub fn find(profile: &Profile, repository: &Repository, id: &IssueId) -> Result<Option<Issue>> {
