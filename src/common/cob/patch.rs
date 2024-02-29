@@ -31,11 +31,21 @@ impl Display for State {
     }
 }
 
-#[derive(Clone, Default, Debug, Eq, PartialEq)]
+#[derive(Clone, Debug, Eq, PartialEq)]
 pub struct Filter {
     state: Option<State>,
     authored: bool,
     authors: Vec<Did>,
+}
+
+impl Default for Filter {
+    fn default() -> Self {
+        Self {
+            state: Some(State::default()),
+            authored: false,
+            authors: vec![],
+        }
+    }
 }
 
 impl Filter {
