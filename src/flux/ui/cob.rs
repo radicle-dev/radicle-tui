@@ -12,8 +12,9 @@ use radicle::node::notifications::{Notification, NotificationId, NotificationKin
 use radicle::node::AliasStore;
 use radicle::patch::{Patch, PatchId, Patches};
 use radicle::storage::git::Repository;
-use radicle::storage::{ReadRepository, RefUpdate};
+use radicle::storage::{ReadRepository, ReadStorage, RefUpdate};
 
+use super::theme::style;
 use super::widget::ToRow;
 use super::{format, span};
 
@@ -133,6 +134,8 @@ impl TryFrom<(&Repository, &Notification)> for NotificationKindItem {
 pub struct NotificationItem {
     /// Unique notification ID.
     pub id: NotificationId,
+    /// The project this belongs to.
+    pub project: String,
     /// Mark this notification as seen.
     pub seen: bool,
     /// Wrapped notification kind.
@@ -148,10 +151,17 @@ impl TryFrom<(&Profile, &Repository, &Notification)> for NotificationItem {
 
     fn try_from(value: (&Profile, &Repository, &Notification)) -> Result<Self, Self::Error> {
         let (profile, repo, notification) = value;
+        let project = profile
+            .storage
+            .repository(repo.id)?
+            .identity_doc()?
+            .project()?;
+        let name = project.name().to_string();
         let kind = NotificationKindItem::try_from((repo, notification))?;
 
         Ok(NotificationItem {
             id: notification.id,
+            project: name,
             seen: notification.status.is_read(),
             kind,
             author: AuthorItem::new(notification.remote, profile),
@@ -223,6 +233,25 @@ impl ToRow<8> for NotificationItem {
             status.into(),
             author.into(),
             timestamp.into(),
+        ]
+    }
+}
+
+impl ToRow<9> for NotificationItem {
+    fn to_row(&self) -> [Cell; 9] {
+        let row: [Cell; 8] = self.to_row();
+        let name = span::default(self.project.clone()).style(style::gray().dim());
+
+        [
+            row[0].clone(),
+            row[1].clone(),
+            name.into(),
+            row[2].clone(),
+            row[3].clone(),
+            row[4].clone(),
+            row[5].clone(),
+            row[6].clone(),
+            row[7].clone(),
         ]
     }
 }

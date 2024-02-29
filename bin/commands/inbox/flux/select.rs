@@ -6,6 +6,7 @@ use anyhow::Result;
 use radicle::identity::Project;
 use radicle::node::notifications::NotificationId;
 use radicle::storage::ReadRepository;
+use radicle::storage::ReadStorage;
 
 use radicle::storage::git::Repository;
 use radicle::Profile;
@@ -20,14 +21,14 @@ use tui::Exit;
 
 use ui::ListPage;
 
-use super::super::common;
+use super::super::common::{Mode, RepositoryMode};
 
 type Selection = tui::Selection<NotificationId>;
 
 pub struct Context {
     pub profile: Profile,
     pub repository: Repository,
-    pub mode: common::Mode,
+    pub mode: Mode,
     pub filter: inbox::Filter,
     pub sort_by: inbox::SortBy,
 }
@@ -40,7 +41,7 @@ pub struct App {
 pub struct InboxState {
     notifications: Vec<NotificationItem>,
     selected: Option<NotificationItem>,
-    mode: common::Mode,
+    mode: Mode,
     project: Project,
 }
 
@@ -51,33 +52,89 @@ impl TryFrom<&Context> for InboxState {
         let doc = context.repository.identity_doc()?;
         let project = doc.project()?;
 
-        let notifications = inbox::all(&context.repository, &context.profile)?;
-        let mut items = vec![];
+        let mut notifications = match &context.mode.repository() {
+            RepositoryMode::All => {
+                let mut repos = context.profile.storage.repositories()?;
+                repos.sort_by_key(|r| r.rid);
 
-        // Convert into UI items
-        for notif in &notifications {
-            if let Ok(notif) =
-                NotificationItem::try_from((&context.profile, &context.repository, notif))
-            {
-                items.push(notif);
+                let mut notifs = vec![];
+                for repo in repos {
+                    let repo = context.profile.storage.repository(repo.rid)?;
+
+                    let items = inbox::all(&repo, &context.profile)?
+                        .iter()
+                        .map(|notif| NotificationItem::try_from((&context.profile, &repo, notif)))
+                        .filter_map(|item| item.ok())
+                        .collect::<Vec<_>>();
+
+                    notifs.extend(items);
+                }
+
+                notifs
             }
-        }
+            RepositoryMode::Contextual => {
+                let notifs = inbox::all(&context.repository, &context.profile)?;
+
+                notifs
+                    .iter()
+                    .map(|notif| {
+                        NotificationItem::try_from((&context.profile, &context.repository, notif))
+                    })
+                    .filter_map(|item| item.ok())
+                    .collect::<Vec<_>>()
+            }
+            RepositoryMode::ByRepo((rid, _)) => {
+                let repo = context.profile.storage.repository(*rid)?;
+                let notifs = inbox::all(&repo, &context.profile)?;
+
+                notifs
+                    .iter()
+                    .map(|notif| NotificationItem::try_from((&context.profile, &repo, notif)))
+                    .filter_map(|item| item.ok())
+                    .collect::<Vec<_>>()
+            }
+        };
+
+        // Set project name
+        let mode = match &context.mode.repository() {
+            RepositoryMode::ByRepo((rid, _)) => {
+                let project = context
+                    .profile
+                    .storage
+                    .repository(*rid)?
+                    .identity_doc()?
+                    .project()?;
+                let name = project.name().to_string();
+
+                context
+                    .mode
+                    .clone()
+                    .with_repository(RepositoryMode::ByRepo((*rid, Some(name))))
+            }
+            _ => context.mode.clone(),
+        };
 
         // Apply sorting
         match context.sort_by.field {
-            "timestamp" => items.sort_by(|a, b| a.timestamp.cmp(&b.timestamp)),
-            "id" => items.sort_by(|a, b| a.id.cmp(&b.id)),
+            "timestamp" => notifications.sort_by(|a, b| a.timestamp.cmp(&b.timestamp)),
+            "id" => notifications.sort_by(|a, b| a.id.cmp(&b.id)),
             _ => {}
         }
         if context.sort_by.reverse {
-            items.reverse();
+            notifications.reverse();
         }
-        let selected = items.first().cloned();
+
+        // Sort by project if all notifications are shown
+        if let RepositoryMode::All = mode.repository() {
+            notifications.sort_by(|a, b| a.project.cmp(&b.project));
+        }
+
+        let selected = notifications.first().cloned();
 
         Ok(Self {
-            notifications: items,
+            notifications,
             selected,
-            mode: context.mode.clone(),
+            mode: mode.clone(),
             project,
         })
     }

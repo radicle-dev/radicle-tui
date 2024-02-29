@@ -22,7 +22,8 @@ use tui::flux::ui::widget::{
 };
 use tui::Selection;
 
-use super::common::Mode;
+use crate::tui_inbox::common::{Mode, RepositoryMode, SelectionMode};
+
 use super::{Action, InboxState};
 
 pub struct ListPageProps {
@@ -87,11 +88,11 @@ impl Widget<InboxState, Action> for ListPage {
             }
             Key::Char('\n') => {
                 if let Some(selected) = &self.props.selected {
-                    let selection = match self.props.mode {
-                        Mode::Operation => Selection::default()
+                    let selection = match self.props.mode.selection() {
+                        SelectionMode::Operation => Selection::default()
                             .with_operation("show".to_string())
                             .with_id(selected.id),
-                        Mode::Id => Selection::default().with_id(selected.id),
+                        SelectionMode::Id => Selection::default().with_id(selected.id),
                     };
                     let _ = self.action_tx.send(Action::Exit {
                         selection: Some(selection),
@@ -124,12 +125,11 @@ impl Render<()> for ListPage {
         let area = frame.size();
         let layout = tui::flux::ui::layout::default_page(area, 0u16, 1u16);
 
-        let shortcuts = match self.props.mode {
-            Mode::Id => vec![Shortcut::new("enter", "select")],
-            Mode::Operation => vec![
-                Shortcut::new("enter", "show"),
-                Shortcut::new("c", "clear"),
-            ],
+        let shortcuts = match self.props.mode.selection() {
+            SelectionMode::Id => vec![Shortcut::new("enter", "select")],
+            SelectionMode::Operation => {
+                vec![Shortcut::new("enter", "show"), Shortcut::new("c", "clear")]
+            }
         };
 
         self.notifications.render::<B>(frame, layout.component, ());
@@ -146,8 +146,12 @@ impl Render<()> for ListPage {
 
 struct NotificationsProps {
     notifications: Vec<NotificationItem>,
+    mode: Mode,
     project: Project,
     stats: HashMap<String, usize>,
+    cutoff: usize,
+    cutoff_after: usize,
+    focus: bool,
 }
 
 impl From<&InboxState> for NotificationsProps {
@@ -166,8 +170,12 @@ impl From<&InboxState> for NotificationsProps {
 
         Self {
             notifications: state.notifications.clone(),
+            mode: state.mode.clone(),
             project: state.project.clone(),
             stats,
+            cutoff: 200,
+            cutoff_after: 5,
+            focus: false,
         }
     }
 }
@@ -250,32 +258,83 @@ impl Widget<InboxState, Action> for Notifications {
     }
 }
 
-impl Render<()> for Notifications {
-    fn render<B: Backend>(&self, frame: &mut ratatui::Frame, area: Rect, _props: ()) {
-        let cutoff = 200;
-        let cutoff_after = 8;
-        let focus = false;
+impl Notifications {
+    fn render_header<B: Backend>(&self, frame: &mut ratatui::Frame, area: Rect) {
+        let title = match self.props.mode.repository() {
+            RepositoryMode::Contextual => self.props.project.name().to_string(),
+            RepositoryMode::All => "All repositories".to_string(),
+            RepositoryMode::ByRepo((_, name)) => name.clone().unwrap_or_default(),
+        };
 
-        let layout = Layout::default()
-            .direction(Direction::Vertical)
-            .constraints(vec![
+        self.header.render::<B>(
+            frame,
+            area,
+            HeaderProps {
+                cells: [String::from("").into(), title.into()],
+                widths: [Constraint::Length(0), Constraint::Fill(1)],
+                focus: self.props.focus,
+                cutoff: self.props.cutoff,
+                cutoff_after: self.props.cutoff_after,
+            },
+        );
+    }
+
+    fn render_table<B: Backend>(&self, frame: &mut ratatui::Frame, area: Rect) {
+        if let RepositoryMode::All = self.props.mode.repository() {
+            let widths = [
+                Constraint::Length(5),
                 Constraint::Length(3),
-                Constraint::Min(1),
+                Constraint::Length(15),
+                Constraint::Length(25),
+                Constraint::Fill(1),
+                Constraint::Length(8),
+                Constraint::Length(10),
+                Constraint::Length(15),
+                Constraint::Length(18),
+            ];
+
+            self.table.render::<B>(
+                frame,
+                area,
+                TableProps {
+                    items: self.props.notifications.to_vec(),
+                    has_header: true,
+                    has_footer: true,
+                    widths,
+                    focus: self.props.focus,
+                    cutoff: self.props.cutoff,
+                    cutoff_after: self.props.cutoff_after.saturating_add(1),
+                },
+            );
+        } else {
+            let widths = [
+                Constraint::Length(5),
                 Constraint::Length(3),
-            ])
-            .split(area);
+                Constraint::Length(25),
+                Constraint::Fill(1),
+                Constraint::Length(8),
+                Constraint::Length(10),
+                Constraint::Length(15),
+                Constraint::Length(18),
+            ];
 
-        let widths = [
-            Constraint::Length(5),
-            Constraint::Length(3),
-            Constraint::Length(20),
-            Constraint::Fill(1),
-            Constraint::Length(8),
-            Constraint::Length(10),
-            Constraint::Length(15),
-            Constraint::Length(18),
-        ];
+            self.table.render::<B>(
+                frame,
+                area,
+                TableProps {
+                    items: self.props.notifications.to_vec(),
+                    has_header: true,
+                    has_footer: true,
+                    widths,
+                    focus: self.props.focus,
+                    cutoff: self.props.cutoff,
+                    cutoff_after: self.props.cutoff_after,
+                },
+            );
+        }
+    }
 
+    fn render_footer<B: Backend>(&self, frame: &mut ratatui::Frame, area: Rect) {
         let filter = Line::from([span::blank()].to_vec());
         let stats = Line::from(
             [
@@ -294,35 +353,9 @@ impl Render<()> for Notifications {
         let (step, len) = self.table.progress(self.props.notifications.len());
         let progress = span::progress(step, len, false);
 
-        self.header.render::<B>(
-            frame,
-            layout[0],
-            HeaderProps {
-                cells: [String::from("").into(), self.props.project.name().into()],
-                widths: [Constraint::Length(0), Constraint::Fill(1)],
-                focus,
-                cutoff,
-                cutoff_after,
-            },
-        );
-
-        self.table.render::<B>(
-            frame,
-            layout[1],
-            TableProps {
-                items: self.props.notifications.to_vec(),
-                has_header: true,
-                has_footer: true,
-                focus,
-                widths,
-                cutoff,
-                cutoff_after,
-            },
-        );
-
         self.footer.render::<B>(
             frame,
-            layout[2],
+            area,
             FooterProps {
                 cells: [filter.into(), stats.into(), progress.clone().into()],
                 widths: [
@@ -330,10 +363,27 @@ impl Render<()> for Notifications {
                     Constraint::Fill(1),
                     Constraint::Length(progress.width() as u16),
                 ],
-                focus,
-                cutoff,
-                cutoff_after,
+                focus: self.props.focus,
+                cutoff: self.props.cutoff,
+                cutoff_after: self.props.cutoff_after,
             },
         );
+    }
+}
+
+impl Render<()> for Notifications {
+    fn render<B: Backend>(&self, frame: &mut ratatui::Frame, area: Rect, _props: ()) {
+        let layout = Layout::default()
+            .direction(Direction::Vertical)
+            .constraints(vec![
+                Constraint::Length(3),
+                Constraint::Min(1),
+                Constraint::Length(3),
+            ])
+            .split(area);
+
+        self.render_header::<B>(frame, layout[0]);
+        self.render_table::<B>(frame, layout[1]);
+        self.render_footer::<B>(frame, layout[2]);
     }
 }
