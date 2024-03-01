@@ -192,6 +192,10 @@ struct PatchesProps {
     patches: Vec<PatchItem>,
     filter: Filter,
     stats: HashMap<String, usize>,
+    widths: [Constraint; 9],
+    cutoff: usize,
+    cutoff_after: usize,
+    focus: bool,
 }
 
 impl From<&PatchesState> for PatchesProps {
@@ -223,6 +227,20 @@ impl From<&PatchesState> for PatchesProps {
         Self {
             patches: state.patches.clone(),
             filter: state.filter.clone(),
+            widths: [
+                Constraint::Length(3),
+                Constraint::Length(8),
+                Constraint::Fill(1),
+                Constraint::Length(16),
+                Constraint::Length(16),
+                Constraint::Length(8),
+                Constraint::Length(6),
+                Constraint::Length(6),
+                Constraint::Length(16),
+            ],
+            cutoff: 150,
+            cutoff_after: 5,
+            focus: false,
             stats,
         }
     }
@@ -306,36 +324,11 @@ impl Widget<PatchesState, Action> for Patches {
     }
 }
 
-impl Render<()> for Patches {
-    fn render<B: Backend>(&self, frame: &mut ratatui::Frame, area: Rect, _props: ()) {
-        let cutoff = 200;
-        let cutoff_after = 5;
-        let focus = false;
-
-        let layout = Layout::default()
-            .direction(Direction::Vertical)
-            .constraints(vec![
-                Constraint::Length(3),
-                Constraint::Min(1),
-                Constraint::Length(3),
-            ])
-            .split(area);
-
-        let widths = [
-            Constraint::Length(3),
-            Constraint::Length(8),
-            Constraint::Fill(1),
-            Constraint::Length(16),
-            Constraint::Length(16),
-            Constraint::Length(8),
-            Constraint::Length(6),
-            Constraint::Length(6),
-            Constraint::Length(16),
-        ];
-
+impl Patches {
+    fn render_header<B: Backend>(&self, frame: &mut ratatui::Frame, area: Rect) {
         self.header.render::<B>(
             frame,
-            layout[0],
+            area,
             HeaderProps {
                 cells: [
                     String::from(" ● ").into(),
@@ -348,27 +341,31 @@ impl Render<()> for Patches {
                     String::from("- ").into(),
                     String::from("Updated").into(),
                 ],
-                widths,
-                focus,
-                cutoff,
-                cutoff_after,
+                widths: self.props.widths,
+                focus: self.props.focus,
+                cutoff: self.props.cutoff,
+                cutoff_after: self.props.cutoff_after,
             },
         );
+    }
 
+    fn render_list<B: Backend>(&self, frame: &mut ratatui::Frame, area: Rect) {
         self.table.render::<B>(
             frame,
-            layout[1],
+            area,
             TableProps {
                 items: self.props.patches.to_vec(),
                 has_header: true,
                 has_footer: true,
-                focus,
-                widths,
-                cutoff,
-                cutoff_after,
+                widths: self.props.widths,
+                focus: self.props.focus,
+                cutoff: self.props.cutoff,
+                cutoff_after: self.props.cutoff_after,
             },
         );
+    }
 
+    fn render_footer<B: Backend>(&self, frame: &mut ratatui::Frame, area: Rect) {
         let filter = Line::from(
             [
                 span::default(" ".to_string()),
@@ -404,7 +401,7 @@ impl Render<()> for Patches {
 
         self.footer.render::<B>(
             frame,
-            layout[2],
+            area,
             FooterProps {
                 cells: [filter.into(), stats.into(), progress.clone().into()],
                 widths: [
@@ -412,10 +409,27 @@ impl Render<()> for Patches {
                     Constraint::Fill(1),
                     Constraint::Length(progress.width() as u16),
                 ],
-                focus,
-                cutoff,
-                cutoff_after,
+                focus: self.props.focus,
+                cutoff: self.props.cutoff,
+                cutoff_after: self.props.cutoff_after,
             },
         );
+    }
+}
+
+impl Render<()> for Patches {
+    fn render<B: Backend>(&self, frame: &mut ratatui::Frame, area: Rect, _props: ()) {
+        let layout = Layout::default()
+            .direction(Direction::Vertical)
+            .constraints(vec![
+                Constraint::Length(3),
+                Constraint::Min(1),
+                Constraint::Length(3),
+            ])
+            .split(area);
+
+        self.render_header::<B>(frame, layout[0]);
+        self.render_list::<B>(frame, layout[1]);
+        self.render_footer::<B>(frame, layout[2]);
     }
 }
