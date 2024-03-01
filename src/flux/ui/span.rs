@@ -56,7 +56,7 @@ pub fn notification_type(content: String) -> Span<'static> {
     default(content).style(style::gray().dim())
 }
 
-pub fn progress(step: usize, len: usize, fill_zeros: bool) -> Span<'static> {
+pub fn step(step: usize, len: usize, fill_zeros: bool) -> Span<'static> {
     if fill_zeros {
         if len > 10 {
             badge(format!("{:-02}/{:-02}", step, len))
@@ -72,4 +72,10 @@ pub fn progress(step: usize, len: usize, fill_zeros: bool) -> Span<'static> {
     } else {
         badge(format!("{}/{}", step, len))
     }
+}
+
+pub fn progress(step: usize, len: usize) -> Span<'static> {
+    let progress = step as f32 / len as f32 * 100_f32;
+    let progress = progress as usize;
+    default(format!("{}%", progress)).dim()
 }
