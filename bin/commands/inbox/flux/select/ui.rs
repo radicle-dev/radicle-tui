@@ -346,13 +346,23 @@ impl Notifications {
                     .magenta()
                     .dim(),
                 span::default(" Unseen".to_string()).dim(),
+                span::default(" | ".to_string()).style(style::border(self.props.focus)),
+                span::default("Σ ".to_string()).dim(),
+                span::default(self.props.notifications.len().to_string()).dim(),
             ]
             .to_vec(),
         )
         .alignment(Alignment::Right);
 
         let (step, len) = self.table.progress(self.props.notifications.len());
-        let progress = span::progress(step, len, false);
+        let progress = Line::from(
+            [
+                span::default("| ".to_string()).style(style::border(self.props.focus)),
+                span::progress(step, len),
+            ]
+            .to_vec(),
+        )
+        .alignment(Alignment::Left);
 
         self.footer.render::<B>(
             frame,
@@ -362,7 +372,7 @@ impl Notifications {
                 widths: [
                     Constraint::Fill(1),
                     Constraint::Fill(1),
-                    Constraint::Length(progress.width() as u16),
+                    Constraint::Length(7),
                 ],
                 focus: self.props.focus,
                 cutoff: self.props.cutoff,
