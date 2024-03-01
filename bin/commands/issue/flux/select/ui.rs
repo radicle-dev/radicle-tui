@@ -174,6 +174,10 @@ struct IssuesProps {
     issues: Vec<IssueItem>,
     filter: Filter,
     stats: HashMap<String, usize>,
+    widths: [Constraint; 8],
+    cutoff: usize,
+    cutoff_after: usize,
+    focus: bool,
 }
 
 impl From<&IssuesState> for IssuesProps {
@@ -192,6 +196,19 @@ impl From<&IssuesState> for IssuesProps {
         Self {
             issues: state.issues.clone(),
             filter: state.filter.clone(),
+            widths: [
+                Constraint::Length(3),
+                Constraint::Length(8),
+                Constraint::Fill(5),
+                Constraint::Length(16),
+                Constraint::Length(16),
+                Constraint::Fill(1),
+                Constraint::Fill(1),
+                Constraint::Length(16),
+            ],
+            cutoff: 200,
+            cutoff_after: 5,
+            focus: false,
             stats,
         }
     }
@@ -275,32 +292,47 @@ impl Widget<IssuesState, Action> for Issues {
     }
 }
 
-impl Render<()> for Issues {
-    fn render<B: Backend>(&self, frame: &mut ratatui::Frame, area: Rect, _props: ()) {
-        let cutoff = 200;
-        let cutoff_after = 5;
-        let focus = false;
+impl Issues {
+    fn render_header<B: Backend>(&self, frame: &mut ratatui::Frame, area: Rect) {
+        self.header.render::<B>(
+            frame,
+            area,
+            HeaderProps {
+                cells: [
+                    String::from(" ● ").into(),
+                    String::from("ID").into(),
+                    String::from("Title").into(),
+                    String::from("Author").into(),
+                    String::from("").into(),
+                    String::from("Labels").into(),
+                    String::from("Assignees ").into(),
+                    String::from("Opened").into(),
+                ],
+                widths: self.props.widths,
+                focus: self.props.focus,
+                cutoff: self.props.cutoff,
+                cutoff_after: self.props.cutoff_after,
+            },
+        );
+    }
 
-        let layout = Layout::default()
-            .direction(Direction::Vertical)
-            .constraints(vec![
-                Constraint::Length(3),
-                Constraint::Min(1),
-                Constraint::Length(3),
-            ])
-            .split(area);
+    fn render_list<B: Backend>(&self, frame: &mut ratatui::Frame, area: Rect) {
+        self.table.render::<B>(
+            frame,
+            area,
+            TableProps {
+                items: self.props.issues.to_vec(),
+                has_footer: true,
+                has_header: true,
+                widths: self.props.widths,
+                focus: self.props.focus,
+                cutoff: self.props.cutoff,
+                cutoff_after: self.props.cutoff_after,
+            },
+        );
+    }
 
-        let widths = [
-            Constraint::Length(3),
-            Constraint::Length(8),
-            Constraint::Fill(5),
-            Constraint::Length(16),
-            Constraint::Length(16),
-            Constraint::Fill(1),
-            Constraint::Fill(1),
-            Constraint::Length(16),
-        ];
-
+    fn render_footer<B: Backend>(&self, frame: &mut ratatui::Frame, area: Rect) {
         let filter = Line::from(
             [
                 span::default(" ".to_string()),
@@ -326,44 +358,9 @@ impl Render<()> for Issues {
         let (step, len) = self.table.progress(self.props.issues.len());
         let progress = span::progress(step, len, false);
 
-        self.header.render::<B>(
-            frame,
-            layout[0],
-            HeaderProps {
-                cells: [
-                    String::from(" ● ").into(),
-                    String::from("ID").into(),
-                    String::from("Title").into(),
-                    String::from("Author").into(),
-                    String::from("").into(),
-                    String::from("Labels").into(),
-                    String::from("Assignees ").into(),
-                    String::from("Opened").into(),
-                ],
-                widths,
-                focus,
-                cutoff,
-                cutoff_after,
-            },
-        );
-
-        self.table.render::<B>(
-            frame,
-            layout[1],
-            TableProps {
-                items: self.props.issues.to_vec(),
-                has_footer: true,
-                has_header: true,
-                focus,
-                widths,
-                cutoff,
-                cutoff_after,
-            },
-        );
-
         self.footer.render::<B>(
             frame,
-            layout[2],
+            area,
             FooterProps {
                 cells: [filter.into(), stats.into(), progress.clone().into()],
                 widths: [
@@ -371,10 +368,27 @@ impl Render<()> for Issues {
                     Constraint::Fill(1),
                     Constraint::Length(progress.width() as u16),
                 ],
-                focus,
-                cutoff,
-                cutoff_after,
+                focus: self.props.focus,
+                cutoff: self.props.cutoff,
+                cutoff_after: self.props.cutoff_after,
             },
         );
+    }
+}
+
+impl Render<()> for Issues {
+    fn render<B: Backend>(&self, frame: &mut ratatui::Frame, area: Rect, _props: ()) {
+        let layout = Layout::default()
+            .direction(Direction::Vertical)
+            .constraints(vec![
+                Constraint::Length(3),
+                Constraint::Min(1),
+                Constraint::Length(3),
+            ])
+            .split(area);
+
+        self.render_header::<B>(frame, layout[0]);
+        self.render_list::<B>(frame, layout[1]);
+        self.render_footer::<B>(frame, layout[2]);
     }
 }
