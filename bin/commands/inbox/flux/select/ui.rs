@@ -280,7 +280,7 @@ impl Notifications {
         );
     }
 
-    fn render_table<B: Backend>(&self, frame: &mut ratatui::Frame, area: Rect) {
+    fn render_list<B: Backend>(&self, frame: &mut ratatui::Frame, area: Rect) {
         if let RepositoryMode::All = self.props.mode.repository() {
             let widths = [
                 Constraint::Length(5),
@@ -384,7 +384,7 @@ impl Render<()> for Notifications {
             .split(area);
 
         self.render_header::<B>(frame, layout[0]);
-        self.render_table::<B>(frame, layout[1]);
+        self.render_list::<B>(frame, layout[1]);
         self.render_footer::<B>(frame, layout[2]);
     }
 }
