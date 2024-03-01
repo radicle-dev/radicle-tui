@@ -16,6 +16,7 @@ use radicle_tui as tui;
 
 use tui::flux::ui::cob::NotificationItem;
 use tui::flux::ui::span;
+use tui::flux::ui::theme::style;
 use tui::flux::ui::widget::container::{Footer, FooterProps, Header, HeaderProps};
 use tui::flux::ui::widget::{
     Render, Shortcut, Shortcuts, ShortcutsProps, Table, TableProps, Widget,
@@ -340,7 +341,7 @@ impl Notifications {
             [
                 span::positive(self.props.stats.get("Seen").unwrap_or(&0).to_string()).dim(),
                 span::default(" Seen".to_string()).dim(),
-                span::default(" | ".to_string()).dim(),
+                span::default(" | ".to_string()).style(style::border(self.props.focus)),
                 span::default(self.props.stats.get("Unseen").unwrap_or(&0).to_string())
                     .magenta()
                     .dim(),
