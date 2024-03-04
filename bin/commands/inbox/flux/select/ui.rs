@@ -352,13 +352,6 @@ impl Notifications {
             ]
             .to_vec(),
         );
-        let sum = Line::from(
-            [
-                span::default("Σ ".to_string()).dim(),
-                span::default(self.props.notifications.len().to_string()).dim(),
-            ]
-            .to_vec(),
-        );
 
         let progress = self
             .table
@@ -373,14 +366,12 @@ impl Notifications {
                     filter.into(),
                     seen.clone().into(),
                     unseen.clone().into(),
-                    sum.clone().into(),
                     progress.clone().into(),
                 ],
                 widths: [
                     Constraint::Fill(1),
                     Constraint::Min(seen.width() as u16),
                     Constraint::Min(unseen.width() as u16),
-                    Constraint::Min(sum.width() as u16),
                     Constraint::Min(4),
                 ],
                 focus: self.props.focus,
