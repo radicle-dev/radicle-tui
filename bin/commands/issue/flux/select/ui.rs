@@ -13,7 +13,7 @@ use ratatui::layout::{Constraint, Direction, Layout, Rect};
 
 use radicle_tui as tui;
 
-use tui::common::cob::issue::Filter;
+use tui::common::cob::issue::{Filter, State};
 use tui::flux::ui::cob::IssueItem;
 use tui::flux::ui::span;
 use tui::flux::ui::widget::container::{Footer, FooterProps, Header, HeaderProps};
@@ -369,29 +369,55 @@ impl Issues {
             .progress_percentage(self.props.issues.len(), self.props.page_size);
         let progress = span::default(format!("{}%", progress)).dim();
 
-        self.footer.render::<B>(
-            frame,
-            area,
-            FooterProps {
-                cells: [
-                    filter.into(),
-                    open.clone().into(),
-                    closed.clone().into(),
-                    sum.clone().into(),
-                    progress.clone().into(),
-                ],
-                widths: [
-                    Constraint::Fill(1),
-                    Constraint::Min(open.width() as u16),
-                    Constraint::Min(closed.width() as u16),
-                    Constraint::Min(sum.width() as u16),
-                    Constraint::Min(4),
-                ],
-                focus: self.props.focus,
-                cutoff: self.props.cutoff,
-                cutoff_after: self.props.cutoff_after,
-            },
-        );
+        match self.props.filter.state() {
+            Some(state) => {
+                let block = match state {
+                    State::Open => open,
+                    State::Closed | State::Solved => closed,
+                };
+
+                self.footer.render::<B>(
+                    frame,
+                    area,
+                    FooterProps {
+                        cells: [filter.into(), block.clone().into(), progress.clone().into()],
+                        widths: [
+                            Constraint::Fill(1),
+                            Constraint::Min(block.width() as u16),
+                            Constraint::Min(4),
+                        ],
+                        focus: self.props.focus,
+                        cutoff: self.props.cutoff,
+                        cutoff_after: self.props.cutoff_after,
+                    },
+                );
+            }
+            None => {
+                self.footer.render::<B>(
+                    frame,
+                    area,
+                    FooterProps {
+                        cells: [
+                            filter.into(),
+                            open.clone().into(),
+                            closed.clone().into(),
+                            sum.clone().into(),
+                            progress.clone().into(),
+                        ],
+                        widths: [
+                            Constraint::Fill(1),
+                            Constraint::Min(open.width() as u16),
+                            Constraint::Min(closed.width() as u16),
+                            Constraint::Min(sum.width() as u16),
+                            Constraint::Min(4),
+                        ],
+                        focus: self.props.focus,
+                        cutoff: self.props.cutoff,
+                        cutoff_after: self.props.cutoff_after,
+                    },
+                );
+            }
+        }
     }
 }
 
