@@ -260,36 +260,35 @@ impl Widget<IssuesState, Action> for Issues {
         match key {
             Key::Up | Key::Char('k') => {
                 self.table.prev();
-
-                let selected = self
-                    .table
-                    .selected()
-                    .and_then(|selected| self.props.issues.get(selected));
-
-                // TODO: propagate error
-                if let Some(notif) = selected {
-                    let _ = self.action_tx.send(Action::Select {
-                        item: notif.clone(),
-                    });
-                }
             }
             Key::Down | Key::Char('j') => {
                 self.table.next(self.props.issues.len());
-
-                let selected = self
-                    .table
-                    .selected()
-                    .and_then(|selected| self.props.issues.get(selected));
-
-                // TODO: propagate error
-                if let Some(notif) = selected {
-                    let _ = self.action_tx.send(Action::Select {
-                        item: notif.clone(),
-                    });
-                }
+            }
+            Key::PageUp => {
+                self.table.prev_page(self.props.page_size);
+            }
+            Key::PageDown => {
+                self.table
+                    .next_page(self.props.issues.len(), self.props.page_size);
+            }
+            Key::Home => {
+                self.table.begin();
+            }
+            Key::End => {
+                self.table.end(self.props.issues.len());
             }
             _ => {}
         }
+        self.table
+            .selected()
+            .and_then(|selected| self.props.issues.get(selected))
+            .and_then(|issue| {
+                self.action_tx
+                    .send(Action::Select {
+                        item: issue.clone(),
+                    })
+                    .ok()
+            });
     }
 }
 
