@@ -169,6 +169,25 @@ impl<A> Table<A> {
 
         (cmp::min(step, len), len)
     }
+
+    pub fn progress_percentage(&self, len: usize, page_size: usize) -> usize {
+        let step = self.selected().unwrap_or_default();
+        let page_size = page_size as f64;
+        let len = len as f64;
+
+        let lines = page_size + step.saturating_sub(page_size as usize) as f64;
+        let progress = (lines / len * 100_f64).ceil() as usize;
+
+        if progress > 97 {
+            Self::map_range((0, progress), (0, 100), progress)
+        } else {
+            progress
+        }
+    }
+
+    fn map_range(from: (usize, usize), to: (usize, usize), value: usize) -> usize {
+        to.0 + (value - from.0) * (to.1 - to.0) / (from.1 - from.0)
+    }
 }
 
 impl<S, A> Widget<S, A> for Table<A> {
