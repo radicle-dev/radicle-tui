@@ -9,14 +9,13 @@ use tokio::sync::mpsc::UnboundedSender;
 use termion::event::Key;
 
 use ratatui::backend::Backend;
-use ratatui::layout::{Alignment, Constraint, Direction, Layout, Rect};
+use ratatui::layout::{Constraint, Direction, Layout, Rect};
 
 use radicle_tui as tui;
 
 use tui::common::cob::issue::Filter;
 use tui::flux::ui::cob::IssueItem;
 use tui::flux::ui::span;
-use tui::flux::ui::theme::style;
 use tui::flux::ui::widget::container::{Footer, FooterProps, Header, HeaderProps};
 use tui::flux::ui::widget::{
     Render, Shortcut, Shortcuts, ShortcutsProps, Table, TableProps, Widget,
@@ -178,6 +177,7 @@ struct IssuesProps {
     cutoff: usize,
     cutoff_after: usize,
     focus: bool,
+    page_size: usize,
 }
 
 impl From<&IssuesState> for IssuesProps {
@@ -210,6 +210,7 @@ impl From<&IssuesState> for IssuesProps {
             cutoff_after: 5,
             focus: false,
             stats,
+            page_size: state.ui.page_size,
         }
     }
 }
@@ -340,43 +341,52 @@ impl Issues {
             ]
             .to_vec(),
         );
-
-        let stats = Line::from(
+        let open = Line::from(
             [
                 span::positive(self.props.stats.get("Open").unwrap_or(&0).to_string()).dim(),
                 span::default(" Open".to_string()).dim(),
-                span::default(" | ".to_string()).style(style::border(false)),
+            ]
+            .to_vec(),
+        );
+        let closed = Line::from(
+            [
                 span::default(self.props.stats.get("Closed").unwrap_or(&0).to_string())
                     .magenta()
                     .dim(),
                 span::default(" Closed".to_string()).dim(),
-                span::default(" | ".to_string()).style(style::border(self.props.focus)),
+            ]
+            .to_vec(),
+        );
+        let sum = Line::from(
+            [
                 span::default("Σ ".to_string()).dim(),
                 span::default(self.props.issues.len().to_string()).dim(),
             ]
             .to_vec(),
-        )
-        .alignment(Alignment::Right);
+        );
 
-        let (step, len) = self.table.progress(self.props.issues.len());
-        let progress = Line::from(
-            [
-                span::default("| ".to_string()).style(style::border(self.props.focus)),
-                span::progress(step, len),
-            ]
-            .to_vec(),
-        )
-        .alignment(Alignment::Left);
+        let progress = self
+            .table
+            .progress_percentage(self.props.issues.len(), self.props.page_size);
+        let progress = span::default(format!("{}%", progress)).dim();
 
         self.footer.render::<B>(
             frame,
             area,
             FooterProps {
-                cells: [filter.into(), stats.into(), progress.clone().into()],
+                cells: [
+                    filter.into(),
+                    open.clone().into(),
+                    closed.clone().into(),
+                    sum.clone().into(),
+                    progress.clone().into(),
+                ],
                 widths: [
                     Constraint::Fill(1),
-                    Constraint::Fill(1),
-                    Constraint::Length(7),
+                    Constraint::Min(open.width() as u16),
+                    Constraint::Min(closed.width() as u16),
+                    Constraint::Min(sum.width() as u16),
+                    Constraint::Min(4),
                 ],
                 focus: self.props.focus,
                 cutoff: self.props.cutoff,
@@ -400,5 +410,12 @@ impl Render<()> for Issues {
         self.render_header::<B>(frame, layout[0]);
         self.render_list::<B>(frame, layout[1]);
         self.render_footer::<B>(frame, layout[2]);
+
+        let page_size = layout[1].height as usize;
+        if page_size != self.props.page_size {
+            let _ = self
+                .action_tx
+                .send(Action::PageSize(layout[1].height as usize));
+        }
     }
 }
