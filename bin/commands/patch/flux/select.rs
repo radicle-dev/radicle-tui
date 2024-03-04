@@ -34,11 +34,23 @@ pub struct App {
 }
 
 #[derive(Clone, Debug)]
+pub struct UIState {
+    page_size: usize,
+}
+
+impl Default for UIState {
+    fn default() -> Self {
+        Self { page_size: 1 }
+    }
+}
+
+#[derive(Clone, Debug)]
 pub struct PatchesState {
     patches: Vec<PatchItem>,
     selected: Option<PatchItem>,
     mode: Mode,
     filter: Filter,
+    ui: UIState,
 }
 
 impl TryFrom<&Context> for PatchesState {
@@ -68,6 +80,7 @@ impl TryFrom<&Context> for PatchesState {
             selected,
             mode: context.mode.clone(),
             filter: context.filter.clone(),
+            ui: UIState::default(),
         })
     }
 }
@@ -75,6 +88,7 @@ impl TryFrom<&Context> for PatchesState {
 pub enum Action {
     Exit { selection: Option<Selection> },
     Select { item: PatchItem },
+    PageSize(usize),
 }
 
 impl State<Action, Selection> for PatchesState {
@@ -82,11 +96,15 @@ impl State<Action, Selection> for PatchesState {
 
     fn handle_action(&mut self, action: Action) -> Option<Exit<Selection>> {
         match action {
+            Action::Exit { selection } => Some(Exit { value: selection }),
             Action::Select { item } => {
                 self.selected = Some(item);
                 None
             }
-            Action::Exit { selection } => Some(Exit { value: selection }),
+            Action::PageSize(size) => {
+                self.ui.page_size = size;
+                None
+            }
         }
     }
 }
