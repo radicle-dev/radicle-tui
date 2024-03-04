@@ -64,6 +64,10 @@ impl Filter {
         self
     }
 
+    pub fn state(&self) -> Option<State> {
+        self.state.clone()
+    }
+
     pub fn matches(&self, profile: &Profile, patch: &Patch) -> bool {
         let matches_state = match self.state {
             Some(State::Draft) => matches!(patch.state(), patch::State::Draft),
