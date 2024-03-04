@@ -1,0 +1,53 @@
+name: Release
+
+on:
+  push:
+    branches: [ "master" ]
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  release-linux-binaries:
+    permissions:
+      contents: 'read'
+      id-token: 'write'
+    runs-on: ubuntu-20.04
+    strategy:
+      matrix:
+        target: [x86_64-unknown-linux-musl, aarch64-unknown-linux-musl]
+        include:
+          - target: x86_64-unknown-linux-musl
+            docker_image: registry.gitlab.com/rust_musl_docker/image:stable-latest
+            docker_options: -v /home/runner/work/radicle-tui/radicle-tui:/workdir -v /home/runner/.cargo/git:/root/.cargo/git -v /home/runner/.cargo/registry:/root/.cargo/registry
+          - target: aarch64-unknown-linux-musl
+            docker_image: messense/rust-musl-cross:aarch64-musl
+            docker_options: -v /home/runner/work/radicle-tui/radicle-tui:/home/rust/src -v /home/runner/.cargo/git:/root/.cargo/git -v /home/runner/.cargo/registry:/root/.cargo/registry
+    steps:
+      - name: Checkout source code
+        uses: actions/checkout@v3
+      - name: Configure build cache
+        uses: actions/cache@v3
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: cargo-${{ matrix.target }}-${{ hashFiles('**/Cargo.lock') }}
+      - name: Build the binaries
+        uses: addnab/docker-run-action@v3
+        with:
+          image: ${{ matrix.docker_image }}
+          options: ${{ matrix.docker_options }}
+          run: cargo build --release --target "${{ matrix.target }}"
+      - name: Build the debug binaries
+        uses: addnab/docker-run-action@v3
+        with:
+          image: ${{ matrix.docker_image }}
+          options: ${{ matrix.docker_options }}
+          run: cargo build --target "${{ matrix.target }}"
+      - name: Upload binaries
+        uses: actions/upload-artifact@v4
+        with:
+          name: rad-tui
+          path: target/release/rad-tui
