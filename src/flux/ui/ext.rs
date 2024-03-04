@@ -113,6 +113,14 @@ impl Widget for HeaderBlock {
     }
 }
 
+#[derive(Clone)]
+pub enum FooterBlockType {
+    Single,
+    Begin,
+    End,
+    Repeat,
+}
+
 pub struct FooterBlock {
     /// Visible borders
     borders: Borders,
@@ -121,6 +129,8 @@ pub struct FooterBlock {
     /// Type of the border. The default is plain lines but one can choose to have rounded corners
     /// or doubled lines instead.
     border_type: BorderType,
+    ///
+    block_type: FooterBlockType,
     /// Widget style
     style: Style,
 }
@@ -128,7 +138,8 @@ pub struct FooterBlock {
 impl Default for FooterBlock {
     fn default() -> Self {
         Self {
-            borders: Borders::NONE,
+            block_type: FooterBlockType::Single,
+            borders: Self::borders(FooterBlockType::Single),
             border_style: Default::default(),
             border_type: BorderType::Rounded,
             style: Default::default(),
@@ -137,24 +148,34 @@ impl Default for FooterBlock {
 }
 
 impl FooterBlock {
-    pub fn border_style(mut self, style: Style) -> FooterBlock {
+    pub fn border_style(mut self, style: Style) -> Self {
         self.border_style = style;
         self
     }
 
-    pub fn style(mut self, style: Style) -> FooterBlock {
+    pub fn style(mut self, style: Style) -> Self {
         self.style = style;
         self
     }
 
-    pub fn borders(mut self, flag: Borders) -> FooterBlock {
-        self.borders = flag;
+    pub fn block_type(mut self, block_type: FooterBlockType) -> Self {
+        self.block_type = block_type.clone();
+        self.borders = Self::borders(block_type);
         self
     }
 
-    pub fn border_type(mut self, border_type: BorderType) -> FooterBlock {
+    pub fn border_type(mut self, border_type: BorderType) -> Self {
         self.border_type = border_type;
         self
+    }
+
+    fn borders(block_type: FooterBlockType) -> Borders {
+        match block_type {
+            FooterBlockType::Single | FooterBlockType::Begin => Borders::ALL,
+            FooterBlockType::End | FooterBlockType::Repeat => {
+                Borders::TOP | Borders::RIGHT | Borders::BOTTOM
+            }
+        }
     }
 }
 
@@ -200,13 +221,21 @@ impl Widget for FooterBlock {
 
         // Corners
         if self.borders.contains(Borders::RIGHT | Borders::BOTTOM) {
+            let symbol = match self.block_type {
+                FooterBlockType::Begin | FooterBlockType::Repeat => symbols::line::HORIZONTAL_UP,
+                _ => symbols.bottom_right,
+            };
             buf.get_mut(area.right() - 1, area.bottom() - 1)
-                .set_symbol(symbols.bottom_right)
+                .set_symbol(symbol)
                 .set_style(self.border_style);
         }
         if self.borders.contains(Borders::RIGHT | Borders::TOP) {
+            let symbol = match self.block_type {
+                FooterBlockType::Begin | FooterBlockType::Repeat => symbols::line::HORIZONTAL_DOWN,
+                _ => symbols::line::VERTICAL_LEFT,
+            };
             buf.get_mut(area.right() - 1, area.top())
-                .set_symbol(symbols::line::VERTICAL_LEFT)
+                .set_symbol(symbol)
                 .set_style(self.border_style);
         }
         if self.borders.contains(Borders::LEFT | Borders::BOTTOM) {
