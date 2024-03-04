@@ -34,20 +34,45 @@ jobs:
             ~/.cargo/git
             target
           key: cargo-${{ matrix.target }}-${{ hashFiles('**/Cargo.lock') }}
-      - name: Build the binaries
+      - name: Build release binaries
         uses: addnab/docker-run-action@v3
         with:
           image: ${{ matrix.docker_image }}
           options: ${{ matrix.docker_options }}
           run: cargo build --release --target "${{ matrix.target }}"
-      - name: Build the debug binaries
-        uses: addnab/docker-run-action@v3
-        with:
-          image: ${{ matrix.docker_image }}
-          options: ${{ matrix.docker_options }}
-          run: cargo build --target "${{ matrix.target }}"
-      - name: Upload binaries
+      - name: Upload release binaries
         uses: actions/upload-artifact@v4
         with:
-          name: rad-tui
-          path: target/release/rad-tui
+          name: radicle-tui_${{ matrix.target }}
+          path: target/${{ matrix.target }}/release/rad-tui
+
+  release-macos-binaries:
+    permissions:
+      contents: 'read'
+      id-token: 'write'
+    runs-on: macos-11
+    strategy:
+      matrix:
+        target:
+          - aarch64-apple-darwin
+          - x86_64-apple-darwin
+    steps:
+      - uses: actions/checkout@v3
+      - name: Configure build cache
+        uses: actions/cache@v3
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: cargo-${{ matrix.target }}-${{ hashFiles('**/Cargo.lock') }}
+      - uses: dtolnay/rust-toolchain@1.74
+      - name: Build release binaries
+        run: |
+          rustup target add "${{ matrix.target }}"
+          cargo build --release --target "${{ matrix.target }}"
+      - name: Upload release binaries
+        uses: actions/upload-artifact@v4
+        with:
+          name: radicle-tui_${{ matrix.target }}
+          path: target/${{ matrix.target }}/release/rad-tui
