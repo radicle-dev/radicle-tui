@@ -38,11 +38,23 @@ pub struct App {
 }
 
 #[derive(Clone, Debug)]
+pub struct UIState {
+    page_size: usize,
+}
+
+impl Default for UIState {
+    fn default() -> Self {
+        Self { page_size: 1 }
+    }
+}
+
+#[derive(Clone, Debug)]
 pub struct InboxState {
     notifications: Vec<NotificationItem>,
     selected: Option<NotificationItem>,
     mode: Mode,
     project: Project,
+    ui: UIState,
 }
 
 impl TryFrom<&Context> for InboxState {
@@ -136,6 +148,7 @@ impl TryFrom<&Context> for InboxState {
             selected,
             mode: mode.clone(),
             project,
+            ui: UIState::default(),
         })
     }
 }
@@ -143,6 +156,7 @@ impl TryFrom<&Context> for InboxState {
 pub enum Action {
     Exit { selection: Option<Selection> },
     Select { item: NotificationItem },
+    PageSize(usize),
 }
 
 impl State<Action, Selection> for InboxState {
@@ -150,11 +164,15 @@ impl State<Action, Selection> for InboxState {
 
     fn handle_action(&mut self, action: Action) -> Option<Exit<Selection>> {
         match action {
+            Action::Exit { selection } => Some(Exit { value: selection }),
             Action::Select { item } => {
                 self.selected = Some(item);
                 None
             }
-            Action::Exit { selection } => Some(Exit { value: selection }),
+            Action::PageSize(size) => {
+                self.ui.page_size = size;
+                None
+            }
         }
     }
 }
