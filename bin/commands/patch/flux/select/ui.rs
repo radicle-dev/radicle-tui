@@ -8,7 +8,6 @@ use tokio::sync::mpsc::UnboundedSender;
 use termion::event::Key;
 
 use ratatui::backend::Backend;
-use ratatui::layout::Alignment;
 use ratatui::layout::{Constraint, Direction, Layout, Rect};
 use ratatui::style::Stylize;
 use ratatui::text::Line;
@@ -18,7 +17,6 @@ use radicle_tui as tui;
 use tui::common::cob::patch::Filter;
 use tui::flux::ui::cob::PatchItem;
 use tui::flux::ui::span;
-use tui::flux::ui::theme::style;
 use tui::flux::ui::widget::container::{Footer, FooterProps, Header, HeaderProps};
 use tui::flux::ui::widget::{
     Render, Shortcut, Shortcuts, ShortcutsProps, Table, TableProps, Widget,
@@ -196,6 +194,7 @@ struct PatchesProps {
     cutoff: usize,
     cutoff_after: usize,
     focus: bool,
+    page_size: usize,
 }
 
 impl From<&PatchesState> for PatchesProps {
@@ -242,6 +241,7 @@ impl From<&PatchesState> for PatchesProps {
             cutoff_after: 5,
             focus: false,
             stats,
+            page_size: state.ui.page_size,
         }
     }
 }
@@ -298,9 +298,9 @@ impl Widget<PatchesState, Action> for Patches {
                     .and_then(|selected| self.props.patches.get(selected));
 
                 // TODO: propagate error
-                if let Some(notif) = selected {
+                if let Some(patch) = selected {
                     let _ = self.action_tx.send(Action::Select {
-                        item: notif.clone(),
+                        item: patch.clone(),
                     });
                 }
             }
@@ -313,9 +313,9 @@ impl Widget<PatchesState, Action> for Patches {
                     .and_then(|selected| self.props.patches.get(selected));
 
                 // TODO: propagate error
-                if let Some(notif) = selected {
+                if let Some(patch) = selected {
                     let _ = self.action_tx.send(Action::Select {
-                        item: notif.clone(),
+                        item: patch.clone(),
                     });
                 }
             }
@@ -373,51 +373,72 @@ impl Patches {
             ]
             .to_vec(),
         );
-
-        let stats = Line::from(
+        let draft = Line::from(
             [
                 span::default(self.props.stats.get("Draft").unwrap_or(&0).to_string()).dim(),
                 span::default(" Draft".to_string()).dim(),
-                span::default(" | ".to_string()).style(style::border(false)),
+            ]
+            .to_vec(),
+        );
+        let open = Line::from(
+            [
                 span::positive(self.props.stats.get("Open").unwrap_or(&0).to_string()).dim(),
                 span::default(" Open".to_string()).dim(),
-                span::default(" | ".to_string()).style(style::border(false)),
+            ]
+            .to_vec(),
+        );
+        let merged = Line::from(
+            [
                 span::default(self.props.stats.get("Merged").unwrap_or(&0).to_string())
                     .magenta()
                     .dim(),
                 span::default(" Merged".to_string()).dim(),
-                span::default(" | ".to_string()).style(style::border(false)),
+            ]
+            .to_vec(),
+        );
+        let archived = Line::from(
+            [
                 span::default(self.props.stats.get("Archived").unwrap_or(&0).to_string())
                     .yellow()
                     .dim(),
                 span::default(" Archived".to_string()).dim(),
-                span::default(" | ".to_string()).style(style::border(self.props.focus)),
+            ]
+            .to_vec(),
+        );
+        let sum = Line::from(
+            [
                 span::default("Σ ".to_string()).dim(),
                 span::default(self.props.patches.len().to_string()).dim(),
             ]
             .to_vec(),
-        )
-        .alignment(Alignment::Right);
+        );
 
-        let (step, len) = self.table.progress(self.props.patches.len());
-        let progress = Line::from(
-            [
-                span::default("| ".to_string()).style(style::border(self.props.focus)),
-                span::progress(step, len),
-            ]
-            .to_vec(),
-        )
-        .alignment(Alignment::Left);
+        let progress = self
+            .table
+            .progress_percentage(self.props.patches.len(), self.props.page_size);
+        let progress = span::default(format!("{}%", progress)).dim();
 
         self.footer.render::<B>(
             frame,
             area,
             FooterProps {
-                cells: [filter.into(), stats.into(), progress.clone().into()],
+                cells: [
+                    filter.into(),
+                    draft.clone().into(),
+                    open.clone().into(),
+                    merged.clone().into(),
+                    archived.clone().into(),
+                    sum.clone().into(),
+                    progress.clone().into(),
+                ],
                 widths: [
                     Constraint::Fill(1),
-                    Constraint::Fill(1),
-                    Constraint::Length(7),
+                    Constraint::Min(draft.width() as u16),
+                    Constraint::Min(open.width() as u16),
+                    Constraint::Min(merged.width() as u16),
+                    Constraint::Min(archived.width() as u16),
+                    Constraint::Min(sum.width() as u16),
+                    Constraint::Min(4),
                 ],
                 focus: self.props.focus,
                 cutoff: self.props.cutoff,
@@ -441,5 +462,12 @@ impl Render<()> for Patches {
         self.render_header::<B>(frame, layout[0]);
         self.render_list::<B>(frame, layout[1]);
         self.render_footer::<B>(frame, layout[2]);
+
+        let page_size = layout[1].height as usize;
+        if page_size != self.props.page_size {
+            let _ = self
+                .action_tx
+                .send(Action::PageSize(layout[1].height as usize));
+        }
     }
 }
