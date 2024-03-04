@@ -1,12 +1,11 @@
 use std::collections::HashMap;
-use std::vec;
 
 use tokio::sync::mpsc::UnboundedSender;
 
 use termion::event::Key;
 
 use ratatui::backend::Backend;
-use ratatui::layout::{Alignment, Constraint, Direction, Layout, Rect};
+use ratatui::layout::{Constraint, Direction, Layout, Rect};
 use ratatui::style::Stylize;
 use ratatui::text::Line;
 
@@ -16,7 +15,6 @@ use radicle_tui as tui;
 
 use tui::flux::ui::cob::NotificationItem;
 use tui::flux::ui::span;
-use tui::flux::ui::theme::style;
 use tui::flux::ui::widget::container::{Footer, FooterProps, Header, HeaderProps};
 use tui::flux::ui::widget::{
     Render, Shortcut, Shortcuts, ShortcutsProps, Table, TableProps, Widget,
@@ -153,6 +151,7 @@ struct NotificationsProps {
     cutoff: usize,
     cutoff_after: usize,
     focus: bool,
+    page_size: usize,
 }
 
 impl From<&InboxState> for NotificationsProps {
@@ -177,6 +176,7 @@ impl From<&InboxState> for NotificationsProps {
             cutoff: 200,
             cutoff_after: 5,
             focus: false,
+            page_size: state.ui.page_size,
         }
     }
 }
@@ -337,42 +337,52 @@ impl Notifications {
 
     fn render_footer<B: Backend>(&self, frame: &mut ratatui::Frame, area: Rect) {
         let filter = Line::from([span::blank()].to_vec());
-        let stats = Line::from(
+        let seen = Line::from(
             [
                 span::positive(self.props.stats.get("Seen").unwrap_or(&0).to_string()).dim(),
                 span::default(" Seen".to_string()).dim(),
-                span::default(" | ".to_string()).style(style::border(self.props.focus)),
-                span::default(self.props.stats.get("Unseen").unwrap_or(&0).to_string())
+            ]
+            .to_vec(),
+        );
+        let unseen = Line::from(
+            [
+                span::positive(self.props.stats.get("Unseen").unwrap_or(&0).to_string())
                     .magenta()
                     .dim(),
                 span::default(" Unseen".to_string()).dim(),
-                span::default(" | ".to_string()).style(style::border(self.props.focus)),
+            ]
+            .to_vec(),
+        );
+        let sum = Line::from(
+            [
                 span::default("Σ ".to_string()).dim(),
                 span::default(self.props.notifications.len().to_string()).dim(),
             ]
             .to_vec(),
-        )
-        .alignment(Alignment::Right);
+        );
 
-        let (step, len) = self.table.progress(self.props.notifications.len());
-        let progress = Line::from(
-            [
-                span::default("| ".to_string()).style(style::border(self.props.focus)),
-                span::progress(step, len),
-            ]
-            .to_vec(),
-        )
-        .alignment(Alignment::Left);
+        let progress = self
+            .table
+            .progress_percentage(self.props.notifications.len(), self.props.page_size);
+        let progress = span::default(format!("{}%", progress)).dim();
 
         self.footer.render::<B>(
             frame,
             area,
             FooterProps {
-                cells: [filter.into(), stats.into(), progress.clone().into()],
+                cells: [
+                    filter.into(),
+                    seen.clone().into(),
+                    unseen.clone().into(),
+                    sum.clone().into(),
+                    progress.clone().into(),
+                ],
                 widths: [
                     Constraint::Fill(1),
-                    Constraint::Fill(1),
-                    Constraint::Length(7),
+                    Constraint::Min(seen.width() as u16),
+                    Constraint::Min(unseen.width() as u16),
+                    Constraint::Min(sum.width() as u16),
+                    Constraint::Min(4),
                 ],
                 focus: self.props.focus,
                 cutoff: self.props.cutoff,
@@ -396,5 +406,12 @@ impl Render<()> for Notifications {
         self.render_header::<B>(frame, layout[0]);
         self.render_list::<B>(frame, layout[1]);
         self.render_footer::<B>(frame, layout[2]);
+
+        let page_size = layout[1].height as usize;
+        if page_size != self.props.page_size {
+            let _ = self
+                .action_tx
+                .send(Action::PageSize(layout[1].height as usize));
+        }
     }
 }
