@@ -77,16 +77,8 @@ impl<A> Footer<A> {
 
 impl<'a, A, const W: usize> Render<FooterProps<'a, W>> for Footer<A> {
     fn render<B: Backend>(&self, frame: &mut ratatui::Frame, area: Rect, props: FooterProps<W>) {
-        let widths = props.widths.to_vec();
-        let widths = if area.width < props.cutoff as u16 {
-            widths
-                .into_iter()
-                .take(props.cutoff_after)
-                .collect::<Vec<_>>()
-        } else {
-            widths.into_iter().collect::<Vec<_>>()
-        };
-        let widths = widths
+        let widths = props
+            .widths
             .into_iter()
             .map(|c| match c {
                 Constraint::Min(min) => Constraint::Length(min.saturating_add(3)),
@@ -101,7 +93,6 @@ impl<'a, A, const W: usize> Render<FooterProps<'a, W>> for Footer<A> {
         let len = cells.len();
 
         for (i, (cell, area)) in cells.into_iter().enumerate() {
-            // let last = cells.len().saturating_sub(1);
             let block_type = match i {
                 0 if len == 1 => FooterBlockType::Single,
                 0 => FooterBlockType::Begin,
