@@ -226,36 +226,35 @@ impl Widget<InboxState, Action> for Notifications {
         match key {
             Key::Up | Key::Char('k') => {
                 self.table.prev();
-
-                let selected = self
-                    .table
-                    .selected()
-                    .and_then(|selected| self.props.notifications.get(selected));
-
-                // TODO: propagate error
-                if let Some(notif) = selected {
-                    let _ = self.action_tx.send(Action::Select {
-                        item: notif.clone(),
-                    });
-                }
             }
             Key::Down | Key::Char('j') => {
                 self.table.next(self.props.notifications.len());
-
-                let selected = self
-                    .table
-                    .selected()
-                    .and_then(|selected| self.props.notifications.get(selected));
-
-                // TODO: propagate error
-                if let Some(notif) = selected {
-                    let _ = self.action_tx.send(Action::Select {
-                        item: notif.clone(),
-                    });
-                }
+            }
+            Key::PageUp => {
+                self.table.prev_page(self.props.page_size);
+            }
+            Key::PageDown => {
+                self.table
+                    .next_page(self.props.notifications.len(), self.props.page_size);
+            }
+            Key::Home => {
+                self.table.begin();
+            }
+            Key::End => {
+                self.table.end(self.props.notifications.len());
             }
             _ => {}
         }
+        self.table
+            .selected()
+            .and_then(|selected| self.props.notifications.get(selected))
+            .and_then(|notif| {
+                self.action_tx
+                    .send(Action::Select {
+                        item: notif.clone(),
+                    })
+                    .ok()
+            });
     }
 }
 
