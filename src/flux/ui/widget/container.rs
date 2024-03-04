@@ -7,7 +7,7 @@ use termion::event::Key;
 use ratatui::prelude::*;
 use ratatui::widgets::{BorderType, Borders, Row};
 
-use crate::flux::ui::ext::{FooterBlock, HeaderBlock};
+use crate::flux::ui::ext::{FooterBlock, FooterBlockType, HeaderBlock};
 use crate::flux::ui::theme::style;
 
 use super::{Render, Widget};
@@ -51,20 +51,15 @@ impl<S, A> Widget<S, A> for Footer<A> {
     fn handle_key_event(&mut self, _key: Key) {}
 }
 
-impl<'a, A, const W: usize> Render<FooterProps<'a, W>> for Footer<A> {
-    fn render<B: Backend>(&self, frame: &mut ratatui::Frame, area: Rect, props: FooterProps<W>) {
-        let widths = props.widths.to_vec();
-        let widths = if area.width < props.cutoff as u16 {
-            widths.iter().take(props.cutoff_after).collect::<Vec<_>>()
-        } else {
-            widths.iter().collect::<Vec<_>>()
-        };
-
-        let footer_block = FooterBlock::default()
-            .borders(Borders::ALL)
-            .border_style(style::border(props.focus))
-            .border_type(BorderType::Rounded);
-
+impl<A> Footer<A> {
+    fn render_cell<'a>(
+        &self,
+        frame: &mut ratatui::Frame,
+        area: Rect,
+        block_type: FooterBlockType,
+        text: impl Into<Text<'a>>,
+        focus: bool,
+    ) {
         let footer_layout = Layout::default()
             .direction(Direction::Vertical)
             .constraints(vec![Constraint::Min(1)])
@@ -72,13 +67,49 @@ impl<'a, A, const W: usize> Render<FooterProps<'a, W>> for Footer<A> {
             .horizontal_margin(1)
             .split(area);
 
-        let footer = ratatui::widgets::Table::default()
-            .column_spacing(1)
-            .header(Row::new(props.cells))
-            .widths(widths);
-
+        let footer_block = FooterBlock::default()
+            .border_style(style::border(focus))
+            .block_type(block_type);
         frame.render_widget(footer_block, area);
-        frame.render_widget(footer, footer_layout[0]);
+        frame.render_widget(text.into(), footer_layout[0]);
+    }
+}
+
+impl<'a, A, const W: usize> Render<FooterProps<'a, W>> for Footer<A> {
+    fn render<B: Backend>(&self, frame: &mut ratatui::Frame, area: Rect, props: FooterProps<W>) {
+        let widths = props.widths.to_vec();
+        let widths = if area.width < props.cutoff as u16 {
+            widths
+                .into_iter()
+                .take(props.cutoff_after)
+                .collect::<Vec<_>>()
+        } else {
+            widths.into_iter().collect::<Vec<_>>()
+        };
+        let widths = widths
+            .into_iter()
+            .map(|c| match c {
+                Constraint::Min(min) => Constraint::Length(min.saturating_add(3)),
+                _ => c,
+            })
+            .collect::<Vec<_>>();
+
+        let layout = Layout::horizontal(widths).split(area);
+        let cells = props.cells.iter().zip(layout.iter()).collect::<Vec<_>>();
+
+        let last = cells.len().saturating_sub(1);
+        let len = cells.len();
+
+        for (i, (cell, area)) in cells.into_iter().enumerate() {
+            // let last = cells.len().saturating_sub(1);
+            let block_type = match i {
+                0 if len == 1 => FooterBlockType::Single,
+                0 => FooterBlockType::Begin,
+                _ if i == last => FooterBlockType::End,
+                _ => FooterBlockType::Repeat,
+            };
+            self.render_cell(frame, *area, block_type, cell.clone(), props.focus);
+        }
     }
 }
 
