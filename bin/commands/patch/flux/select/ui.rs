@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 use std::vec;
 
-use radicle::patch;
+use radicle::patch::{self};
 
 use tokio::sync::mpsc::UnboundedSender;
 
@@ -14,7 +14,7 @@ use ratatui::text::Line;
 
 use radicle_tui as tui;
 
-use tui::common::cob::patch::Filter;
+use tui::common::cob::patch::{Filter, State};
 use tui::flux::ui::cob::PatchItem;
 use tui::flux::ui::span;
 use tui::flux::ui::widget::container::{Footer, FooterProps, Header, HeaderProps};
@@ -372,6 +372,7 @@ impl Patches {
             ]
             .to_vec(),
         );
+
         let draft = Line::from(
             [
                 span::default(self.props.stats.get("Draft").unwrap_or(&0).to_string()).dim(),
@@ -379,6 +380,7 @@ impl Patches {
             ]
             .to_vec(),
         );
+
         let open = Line::from(
             [
                 span::positive(self.props.stats.get("Open").unwrap_or(&0).to_string()).dim(),
@@ -386,6 +388,7 @@ impl Patches {
             ]
             .to_vec(),
         );
+
         let merged = Line::from(
             [
                 span::default(self.props.stats.get("Merged").unwrap_or(&0).to_string())
@@ -395,6 +398,7 @@ impl Patches {
             ]
             .to_vec(),
         );
+
         let archived = Line::from(
             [
                 span::default(self.props.stats.get("Archived").unwrap_or(&0).to_string())
@@ -404,6 +408,7 @@ impl Patches {
             ]
             .to_vec(),
         );
+
         let sum = Line::from(
             [
                 span::default("Σ ".to_string()).dim(),
@@ -417,33 +422,61 @@ impl Patches {
             .progress_percentage(self.props.patches.len(), self.props.page_size);
         let progress = span::default(format!("{}%", progress)).dim();
 
-        self.footer.render::<B>(
-            frame,
-            area,
-            FooterProps {
-                cells: [
-                    filter.into(),
-                    draft.clone().into(),
-                    open.clone().into(),
-                    merged.clone().into(),
-                    archived.clone().into(),
-                    sum.clone().into(),
-                    progress.clone().into(),
-                ],
-                widths: [
-                    Constraint::Fill(1),
-                    Constraint::Min(draft.width() as u16),
-                    Constraint::Min(open.width() as u16),
-                    Constraint::Min(merged.width() as u16),
-                    Constraint::Min(archived.width() as u16),
-                    Constraint::Min(sum.width() as u16),
-                    Constraint::Min(4),
-                ],
-                focus: self.props.focus,
-                cutoff: self.props.cutoff,
-                cutoff_after: self.props.cutoff_after,
-            },
-        );
+        match self.props.filter.state() {
+            Some(state) => {
+                let block = match state {
+                    State::Draft => draft,
+                    State::Open => open,
+                    State::Merged => merged,
+                    State::Archived => archived,
+                };
+
+                self.footer.render::<B>(
+                    frame,
+                    area,
+                    FooterProps {
+                        cells: [filter.into(), block.clone().into(), progress.clone().into()],
+                        widths: [
+                            Constraint::Fill(1),
+                            Constraint::Min(block.width() as u16),
+                            Constraint::Min(4),
+                        ],
+                        focus: self.props.focus,
+                        cutoff: self.props.cutoff,
+                        cutoff_after: self.props.cutoff_after,
+                    },
+                );
+            }
+            None => {
+                self.footer.render::<B>(
+                    frame,
+                    area,
+                    FooterProps {
+                        cells: [
+                            filter.into(),
+                            draft.clone().into(),
+                            open.clone().into(),
+                            merged.clone().into(),
+                            archived.clone().into(),
+                            sum.clone().into(),
+                            progress.clone().into(),
+                        ],
+                        widths: [
+                            Constraint::Fill(1),
+                            Constraint::Min(draft.width() as u16),
+                            Constraint::Min(open.width() as u16),
+                            Constraint::Min(merged.width() as u16),
+                            Constraint::Min(archived.width() as u16),
+                            Constraint::Min(sum.width() as u16),
+                            Constraint::Min(4),
+                        ],
+                        focus: self.props.focus,
+                        cutoff: self.props.cutoff,
+                        cutoff_after: self.props.cutoff_after,
+                    },
+                );
+            }
+        };
     }
 }
 
