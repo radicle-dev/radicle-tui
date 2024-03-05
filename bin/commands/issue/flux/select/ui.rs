@@ -102,33 +102,11 @@ impl Widget<IssuesState, Action> for ListPage {
                     });
                 }
             }
-            Key::Char('c') => {
-                if let Some(selected) = &self.props.selected {
-                    let _ = self.action_tx.send(Action::Exit {
-                        selection: Some(Selection {
-                            operation: Some(IssueOperation::Comment.to_string()),
-                            ids: vec![selected.id],
-                            args: vec![],
-                        }),
-                    });
-                }
-            }
             Key::Char('e') => {
                 if let Some(selected) = &self.props.selected {
                     let _ = self.action_tx.send(Action::Exit {
                         selection: Some(Selection {
                             operation: Some(IssueOperation::Edit.to_string()),
-                            ids: vec![selected.id],
-                            args: vec![],
-                        }),
-                    });
-                }
-            }
-            Key::Char('d') => {
-                if let Some(selected) = &self.props.selected {
-                    let _ = self.action_tx.send(Action::Exit {
-                        selection: Some(Selection {
-                            operation: Some(IssueOperation::Delete.to_string()),
                             ids: vec![selected.id],
                             args: vec![],
                         }),

@@ -16,26 +16,18 @@ pub enum Mode {
 /// selection widget.
 #[derive(Clone, Debug, Eq, PartialEq, Serialize)]
 pub enum IssueOperation {
-    Show,
-    Delete,
     Edit,
-    Comment,
+    Show,
 }
 
 impl Display for IssueOperation {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            IssueOperation::Show => {
-                write!(f, "show")
-            }
-            IssueOperation::Delete => {
-                write!(f, "delete")
-            }
             IssueOperation::Edit => {
                 write!(f, "edit")
             }
-            IssueOperation::Comment => {
-                write!(f, "comment")
+            IssueOperation::Show => {
+                write!(f, "show")
             }
         }
     }
