@@ -1686,7 +1686,7 @@ dependencies = [
 [[package]]
 name = "ratatui"
 version = "0.26.1"
-source = "git+https://github.com/erak/ratatui#c4ce7e8ff6f00875e1ead5b68052f0db737bd44d"
+source = "git+https://github.com/erak/ratatui#2d097acf380ac583bf014ac28f75750b497b7454"
 dependencies = [
  "bitflags 2.4.1",
  "cassowary",
