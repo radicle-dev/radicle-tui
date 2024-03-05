@@ -25,9 +25,9 @@ jobs:
             docker_options: -v /home/runner/work/radicle-tui/radicle-tui:/home/rust/src -v /home/runner/.cargo/git:/root/.cargo/git -v /home/runner/.cargo/registry:/root/.cargo/registry
     steps:
       - name: Checkout source code
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
       - name: Configure build cache
-        uses: actions/cache@v3
+        uses: actions/cache@v4
         with:
           path: |
             ~/.cargo/registry
@@ -43,7 +43,7 @@ jobs:
       - name: Upload release binaries
         uses: actions/upload-artifact@v4
         with:
-          name: radicle-tui_${{ matrix.target }}
+          name: radicle-tui_0.3.0_${{ matrix.target }}
           path: target/${{ matrix.target }}/release/rad-tui
 
   release-macos-binaries:
@@ -57,9 +57,9 @@ jobs:
           - aarch64-apple-darwin
           - x86_64-apple-darwin
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
       - name: Configure build cache
-        uses: actions/cache@v3
+        uses: actions/cache@v4
         with:
           path: |
             ~/.cargo/registry
@@ -74,5 +74,5 @@ jobs:
       - name: Upload release binaries
         uses: actions/upload-artifact@v4
         with:
-          name: radicle-tui_${{ matrix.target }}
+          name: radicle-tui_0.3.0_${{ matrix.target }}
           path: target/${{ matrix.target }}/release/rad-tui
