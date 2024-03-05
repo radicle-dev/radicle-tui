@@ -17,30 +17,22 @@ pub enum Mode {
 /// selection widget.
 #[derive(Clone, Debug, Eq, PartialEq, Serialize)]
 pub enum PatchOperation {
-    Show,
     Checkout,
-    Delete,
-    Edit,
-    Comment,
+    Diff,
+    Show,
 }
 
 impl Display for PatchOperation {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            PatchOperation::Show => {
-                write!(f, "show")
-            }
             PatchOperation::Checkout => {
                 write!(f, "checkout")
             }
-            PatchOperation::Delete => {
-                write!(f, "delete")
+            PatchOperation::Diff => {
+                write!(f, "diff")
             }
-            PatchOperation::Edit => {
-                write!(f, "edit")
-            }
-            PatchOperation::Comment => {
-                write!(f, "comment")
+            PatchOperation::Show => {
+                write!(f, "show")
             }
         }
     }

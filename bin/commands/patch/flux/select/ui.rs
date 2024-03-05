@@ -115,34 +115,10 @@ impl Widget<PatchesState, Action> for ListPage {
                     });
                 }
             }
-            Key::Char('m') => {
-                if let Some(selected) = &self.props.selected {
-                    let selection = Selection {
-                        operation: Some(PatchOperation::Comment.to_string()),
-                        ids: vec![selected.id],
-                        args: vec![],
-                    };
-                    let _ = self.action_tx.send(Action::Exit {
-                        selection: Some(selection),
-                    });
-                }
-            }
-            Key::Char('e') => {
-                if let Some(selected) = &self.props.selected {
-                    let selection = Selection {
-                        operation: Some(PatchOperation::Edit.to_string()),
-                        ids: vec![selected.id],
-                        args: vec![],
-                    };
-                    let _ = self.action_tx.send(Action::Exit {
-                        selection: Some(selection),
-                    });
-                }
-            }
             Key::Char('d') => {
                 if let Some(selected) = &self.props.selected {
                     let selection = Selection {
-                        operation: Some(PatchOperation::Delete.to_string()),
+                        operation: Some(PatchOperation::Diff.to_string()),
                         ids: vec![selected.id],
                         args: vec![],
                     };
@@ -168,9 +144,7 @@ impl Render<()> for ListPage {
             Mode::Operation => vec![
                 Shortcut::new("enter", "show"),
                 Shortcut::new("c", "checkout"),
-                Shortcut::new("m", "comment"),
-                Shortcut::new("e", "edit"),
-                Shortcut::new("d", "delete"),
+                Shortcut::new("d", "diff"),
             ],
         };
 
