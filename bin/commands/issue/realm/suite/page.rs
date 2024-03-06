@@ -152,7 +152,8 @@ impl ViewPage<Cid, Message> for ListPage {
     ) -> Result<Option<Message>> {
         if let Message::Issue(IssueMessage::Reload(id)) = message {
             let selected = match id {
-                Some(id) => cob::issue::find(context.repository(), &id)?.map(|issue| (id, issue)),
+                Some(id) => cob::issue::find(context.profile(), context.repository(), &id)?
+                    .map(|issue| (id, issue)),
                 _ => None,
             };
 
@@ -402,9 +403,10 @@ impl ViewPage<Cid, Message> for IssuePage {
     ) -> Result<Option<Message>> {
         match message {
             Message::Issue(IssueMessage::Created(id)) => {
+                let profile = context.profile();
                 let repo = context.repository();
 
-                if let Some(issue) = cob::issue::find(repo, &id)? {
+                if let Some(issue) = cob::issue::find(profile, repo, &id)? {
                     self.issue = Some((id, issue.clone()));
                     let list = ui::list(context, theme, self.issue.clone()).to_boxed();
                     let comments = issue.comments().collect::<Vec<_>>();
@@ -422,8 +424,10 @@ impl ViewPage<Cid, Message> for IssuePage {
                 }
             }
             Message::Issue(IssueMessage::Changed(id)) => {
+                let profile = context.profile();
                 let repo = context.repository();
-                if let Some(issue) = cob::issue::find(repo, &id)? {
+
+                if let Some(issue) = cob::issue::find(profile, repo, &id)? {
                     self.issue = Some((id, issue.clone()));
                     let comments = issue.comments().collect::<Vec<_>>();
                     let details = ui::details(

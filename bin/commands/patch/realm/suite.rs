@@ -120,9 +120,10 @@ impl App {
         id: PatchId,
         theme: &Theme,
     ) -> Result<()> {
+        let profile = self.context.profile();
         let repo = self.context.repository();
 
-        if let Some(patch) = cob::patch::find(repo, &id)? {
+        if let Some(patch) = cob::patch::find(profile, repo, &id)? {
             let view = Box::new(PatchView::new(theme.clone(), (id, patch)));
             self.pages.push(view, app, &self.context, theme)?;
 

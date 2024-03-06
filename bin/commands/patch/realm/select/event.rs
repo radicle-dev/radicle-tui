@@ -140,29 +140,7 @@ impl tuirealm::Component<Message, NoUserEvent> for Widget<OperationSelect> {
                 ..
             }) => submit().map(|id| {
                 let selection = Selection {
-                    operation: Some(PatchOperation::Delete.to_string()),
-                    ids: vec![id],
-                    args: vec![],
-                };
-                Message::Quit(Some(selection))
-            }),
-            Event::Keyboard(KeyEvent {
-                code: Key::Char('e'),
-                ..
-            }) => submit().map(|id| {
-                let selection = Selection {
-                    operation: Some(PatchOperation::Edit.to_string()),
-                    ids: vec![id],
-                    args: vec![],
-                };
-                Message::Quit(Some(selection))
-            }),
-            Event::Keyboard(KeyEvent {
-                code: Key::Char('m'),
-                ..
-            }) => submit().map(|id| {
-                let selection = Selection {
-                    operation: Some(PatchOperation::Comment.to_string()),
+                    operation: Some(PatchOperation::Diff.to_string()),
                     ids: vec![id],
                     args: vec![],
                 };

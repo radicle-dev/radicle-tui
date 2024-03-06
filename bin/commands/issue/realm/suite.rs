@@ -136,7 +136,8 @@ impl App {
         let repo = self.context.repository();
         match id {
             Some(id) => {
-                if let Some(issue) = cob::issue::find(repo, &id)? {
+                let profile = self.context.profile();
+                if let Some(issue) = cob::issue::find(profile, repo, &id)? {
                     let view = Box::new(IssuePage::new(&self.context, theme, Some((id, issue))));
                     self.pages.push(view, app, &self.context, theme)?;
 
@@ -285,6 +286,7 @@ impl App {
         labels: String,
         assignees: String,
     ) -> Result<IssueId> {
+        let profile = self.context.profile();
         let repository = self.context.repository();
         let signer = self.context.signer().as_ref().unwrap();
 
@@ -292,6 +294,7 @@ impl App {
         let assignees = cob::parse_assignees(assignees)?;
 
         cob::issue::create(
+            profile,
             repository,
             signer,
             title,

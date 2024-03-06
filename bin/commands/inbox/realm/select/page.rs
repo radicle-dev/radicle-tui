@@ -15,6 +15,8 @@ use tui::realm::ui::widget::context::{Progress, Shortcuts};
 use tui::realm::ui::widget::Widget;
 use tui::realm::ViewPage;
 
+use crate::tui_inbox::common::SelectionMode;
+
 use super::{ui, Application, Cid, ListCid, Message, Mode};
 
 ///
@@ -92,8 +94,8 @@ impl ViewPage<Cid, Message> for ListView {
             .to_boxed();
         self.shortcuts = browser.as_ref().shortcuts();
 
-        match self.mode {
-            Mode::Id => {
+        match self.mode.selection() {
+            SelectionMode::Id => {
                 let notif_browser =
                     ui::id_select(theme, context, self.filter.clone(), self.sort_by, None)
                         .to_boxed();
@@ -101,7 +103,7 @@ impl ViewPage<Cid, Message> for ListView {
 
                 app.remount(Cid::List(ListCid::NotificationBrowser), browser, vec![])?;
             }
-            Mode::Operation => {
+            SelectionMode::Operation => {
                 let notif_browser =
                     ui::operation_select(theme, context, self.filter.clone(), self.sort_by, None)
                         .to_boxed();

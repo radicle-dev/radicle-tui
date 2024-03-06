@@ -91,9 +91,7 @@ impl OperationSelect {
                 &self.theme,
                 vec![
                     tui::realm::ui::shortcut(&self.theme, "enter", "show"),
-                    tui::realm::ui::shortcut(&self.theme, "m", "comment"),
                     tui::realm::ui::shortcut(&self.theme, "e", "edit"),
-                    tui::realm::ui::shortcut(&self.theme, "d", "delete"),
                     tui::realm::ui::shortcut(&self.theme, "q", "quit"),
                 ],
             ),
