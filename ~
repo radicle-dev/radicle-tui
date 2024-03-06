@@ -1,0 +1,7 @@
+# Font configuration (changes require restart)
+font:
+  # The normal (roman) font face to use.
+  # Style can be specified to pick a specific face.
+  normal:
+    family: Iosevka
+    style: Light

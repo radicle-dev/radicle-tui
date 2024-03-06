@@ -10,7 +10,7 @@ use radicle::Profile;
 use radicle_tui as tui;
 
 use tui::common::cob::patch::{self, Filter};
-use tui::flux::store::{State, Store};
+use tui::flux::store::{State, StateValue, Store};
 use tui::flux::task::{self, Interrupted};
 use tui::flux::ui::cob::PatchItem;
 use tui::flux::ui::Frontend;
@@ -36,11 +36,15 @@ pub struct App {
 #[derive(Clone, Debug)]
 pub struct UIState {
     page_size: usize,
+    show_search: bool,
 }
 
 impl Default for UIState {
     fn default() -> Self {
-        Self { page_size: 1 }
+        Self {
+            page_size: 1,
+            show_search: false,
+        }
     }
 }
 
@@ -49,7 +53,7 @@ pub struct PatchesState {
     patches: Vec<PatchItem>,
     selected: Option<PatchItem>,
     mode: Mode,
-    filter: Filter,
+    search: StateValue<String>,
     ui: UIState,
 }
 
@@ -58,10 +62,6 @@ impl TryFrom<&Context> for PatchesState {
 
     fn try_from(context: &Context) -> Result<Self, Self::Error> {
         let patches = patch::all(&context.profile, &context.repository)?;
-        let patches = patches
-            .into_iter()
-            .filter(|(_, patch)| context.filter.matches(&context.profile, patch))
-            .collect::<Vec<_>>();
 
         // Convert into UI items
         let mut items = vec![];
@@ -71,16 +71,13 @@ impl TryFrom<&Context> for PatchesState {
             }
         }
 
-        // Apply sorting
-        items.sort_by(|a, b| b.timestamp.cmp(&a.timestamp));
-
         let selected = items.first().cloned();
 
         Ok(Self {
             patches: items,
             selected,
             mode: context.mode.clone(),
-            filter: context.filter.clone(),
+            search: StateValue::new(context.filter.to_string()),
             ui: UIState::default(),
         })
     }
@@ -90,6 +87,10 @@ pub enum Action {
     Exit { selection: Option<Selection> },
     Select { item: PatchItem },
     PageSize(usize),
+    OpenSearch,
+    UpdateSearch { value: String },
+    ApplySearch,
+    CloseSearch,
 }
 
 impl State<Action, Selection> for PatchesState {
@@ -104,6 +105,24 @@ impl State<Action, Selection> for PatchesState {
             }
             Action::PageSize(size) => {
                 self.ui.page_size = size;
+                None
+            }
+            Action::OpenSearch => {
+                self.ui.show_search = true;
+                None
+            }
+            Action::UpdateSearch { value } => {
+                self.search.write(value);
+                None
+            }
+            Action::ApplySearch => {
+                self.search.apply();
+                self.ui.show_search = false;
+                None
+            }
+            Action::CloseSearch => {
+                self.search.reset();
+                self.ui.show_search = false;
                 None
             }
         }

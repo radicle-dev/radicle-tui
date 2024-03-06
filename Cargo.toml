@@ -19,8 +19,10 @@ flux = ["dep:tokio", "dep:tokio-stream"]
 anyhow = { version = "1" }
 inquire = { version = "0.6.2", default-features = false, features = ["termion", "editor"] }
 lexopt = { version = "0.3.0" }
+fuzzy-matcher = "*"
 libc = { version = "^0.2" }
 log = { version = "0.4.19" }
+nom = { version = "^7.1.0" }
 radicle = { git = "https://seed.radicle.xyz/z3gqcJUoA1n9HaHKufZs5FCSGazv5" }
 radicle-term = { git = "https://seed.radicle.xyz/z3gqcJUoA1n9HaHKufZs5FCSGazv5", package = "radicle-term" }
 radicle-surf = { version = "0.18.0" }

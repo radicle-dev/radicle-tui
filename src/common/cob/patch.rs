@@ -1,39 +1,15 @@
-use std::fmt::Display;
-
 use anyhow::Result;
 
 use radicle::cob::patch::{Patch, PatchId};
 use radicle::identity::Did;
 use radicle::patch::cache::Patches;
+use radicle::patch::Status;
 use radicle::storage::git::Repository;
-use radicle::{patch, Profile};
-
-use super::format;
-
-#[derive(Clone, Default, Debug, Eq, PartialEq)]
-pub enum State {
-    Draft,
-    #[default]
-    Open,
-    Merged,
-    Archived,
-}
-
-impl Display for State {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        let state = match self {
-            State::Draft => "draft",
-            State::Open => "open",
-            State::Merged => "merged",
-            State::Archived => "archived",
-        };
-        f.write_str(state)
-    }
-}
+use radicle::Profile;
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct Filter {
-    state: Option<State>,
+    status: Option<Status>,
     authored: bool,
     authors: Vec<Did>,
 }
@@ -41,7 +17,7 @@ pub struct Filter {
 impl Default for Filter {
     fn default() -> Self {
         Self {
-            state: Some(State::default()),
+            status: Some(Status::default()),
             authored: false,
             authors: vec![],
         }
@@ -49,8 +25,8 @@ impl Default for Filter {
 }
 
 impl Filter {
-    pub fn with_state(mut self, state: Option<State>) -> Self {
-        self.state = state;
+    pub fn with_status(mut self, status: Option<Status>) -> Self {
+        self.status = status;
         self
     }
 
@@ -63,42 +39,13 @@ impl Filter {
         self.authors.push(author);
         self
     }
-
-    pub fn state(&self) -> Option<State> {
-        self.state.clone()
-    }
-
-    pub fn matches(&self, profile: &Profile, patch: &Patch) -> bool {
-        let matches_state = match self.state {
-            Some(State::Draft) => matches!(patch.state(), patch::State::Draft),
-            Some(State::Open) => matches!(patch.state(), patch::State::Open { .. }),
-            Some(State::Merged) => matches!(patch.state(), patch::State::Merged { .. }),
-            Some(State::Archived) => matches!(patch.state(), patch::State::Archived),
-            None => true,
-        };
-
-        let matches_authored = self
-            .authored
-            .then(|| *patch.author().id() == profile.did())
-            .unwrap_or(true);
-
-        let matches_authors = (!self.authors.is_empty())
-            .then(|| {
-                self.authors
-                    .iter()
-                    .any(|other| *patch.author().id() == *other)
-            })
-            .unwrap_or(true);
-
-        matches_state && matches_authored && matches_authors
-    }
 }
 
 impl ToString for Filter {
     fn to_string(&self) -> String {
         let mut filter = String::new();
 
-        if let Some(state) = &self.state {
+        if let Some(state) = &self.status {
             filter.push_str(&format!("is:{}", state));
             filter.push(' ');
         }
@@ -112,7 +59,7 @@ impl ToString for Filter {
 
             let mut authors = self.authors.iter().peekable();
             while let Some(author) = authors.next() {
-                filter.push_str(&format::did(author));
+                filter.push_str(&author.to_string());
 
                 if authors.peek().is_some() {
                     filter.push(',');
@@ -135,4 +82,50 @@ pub fn all(profile: &Profile, repository: &Repository) -> Result<Vec<(PatchId, P
 pub fn find(profile: &Profile, repository: &Repository, id: &PatchId) -> Result<Option<Patch>> {
     let cache = profile.patches(repository)?;
     Ok(cache.get(id)?)
+}
+
+#[cfg(test)]
+mod tests {
+    use std::str::FromStr;
+
+    use anyhow::Result;
+    use radicle::patch;
+
+    use super::*;
+
+    #[test]
+    fn patch_filter_display_with_status_should_succeed() -> Result<()> {
+        let actual = Filter::default().with_status(Some(patch::Status::Open));
+
+        assert_eq!(String::from("is:open "), actual.to_string());
+
+        Ok(())
+    }
+
+    #[test]
+    fn patch_filter_display_with_status_and_authored_should_succeed() -> Result<()> {
+        let actual = Filter::default()
+            .with_status(Some(patch::Status::Open))
+            .with_authored(true);
+
+        assert_eq!(String::from("is:open is:authored "), actual.to_string());
+
+        Ok(())
+    }
+
+    #[test]
+    fn patch_filter_display_with_status_and_author_should_succeed() -> Result<()> {
+        let actual = Filter::default()
+            .with_status(Some(patch::Status::Open))
+            .with_author(Did::from_str(
+                "did:key:z6MkswQE8gwZw924amKatxnNCXA55BMupMmRg7LvJuim2C1V",
+            )?);
+
+        assert_eq!(
+            String::from("is:open authors:[z6MkswQE8gwZw924amKatxnNCXA55BMupMmRg7LvJuim2C1V]"),
+            actual.to_string()
+        );
+
+        Ok(())
+    }
 }

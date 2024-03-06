@@ -12,9 +12,10 @@ use std::ffi::OsString;
 use anyhow::anyhow;
 
 use radicle::identity::RepoId;
+use radicle::patch::Status;
 use radicle_tui as tui;
 
-use tui::common::cob::patch::{self, Filter, State};
+use tui::common::cob::patch::{self, Filter};
 use tui::common::log;
 
 use crate::terminal;
@@ -98,19 +99,19 @@ impl Args for Options {
                     };
                 }
                 Long("all") if op == Some(OperationName::Select) => {
-                    select_opts.filter = select_opts.filter.with_state(None);
+                    select_opts.filter = select_opts.filter.with_status(None);
                 }
                 Long("draft") if op == Some(OperationName::Select) => {
-                    select_opts.filter = select_opts.filter.with_state(Some(State::Draft));
+                    select_opts.filter = select_opts.filter.with_status(Some(Status::Draft));
                 }
                 Long("archived") if op == Some(OperationName::Select) => {
-                    select_opts.filter = select_opts.filter.with_state(Some(State::Archived));
+                    select_opts.filter = select_opts.filter.with_status(Some(Status::Archived));
                 }
                 Long("merged") if op == Some(OperationName::Select) => {
-                    select_opts.filter = select_opts.filter.with_state(Some(State::Merged));
+                    select_opts.filter = select_opts.filter.with_status(Some(Status::Merged));
                 }
                 Long("open") if op == Some(OperationName::Select) => {
-                    select_opts.filter = select_opts.filter.with_state(Some(State::Open));
+                    select_opts.filter = select_opts.filter.with_status(Some(Status::Open));
                 }
                 Long("authored") if op == Some(OperationName::Select) => {
                     select_opts.filter = select_opts.filter.with_authored(true);
@@ -137,7 +138,7 @@ impl Args for Options {
         }
 
         if select_opts.mode == common::Mode::Id {
-            select_opts.filter = Filter::default().with_state(None)
+            select_opts.filter = Filter::default().with_status(None)
         }
 
         let op = match op.ok_or_else(|| anyhow!("an operation must be provided"))? {
