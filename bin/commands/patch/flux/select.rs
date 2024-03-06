@@ -59,12 +59,12 @@ impl TryFrom<&Context> for PatchesState {
     fn try_from(context: &Context) -> Result<Self, Self::Error> {
         let patches = patch::all(&context.profile, &context.repository)?;
         let patches = patches
-            .iter()
-            .filter(|(_, patch)| context.filter.matches(&context.profile, patch));
-
-        let mut items = vec![];
+            .into_iter()
+            .filter(|(_, patch)| context.filter.matches(&context.profile, patch))
+            .collect::<Vec<_>>();
 
         // Convert into UI items
+        let mut items = vec![];
         for patch in patches {
             if let Ok(item) = PatchItem::new(&context.profile, &context.repository, patch.clone()) {
                 items.push(item);
@@ -73,6 +73,7 @@ impl TryFrom<&Context> for PatchesState {
 
         // Apply sorting
         items.sort_by(|a, b| b.timestamp.cmp(&a.timestamp));
+
         let selected = items.first().cloned();
 
         Ok(Self {

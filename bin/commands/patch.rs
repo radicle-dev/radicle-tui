@@ -14,7 +14,7 @@ use anyhow::anyhow;
 use radicle::identity::RepoId;
 use radicle_tui as tui;
 
-use tui::common::cob::patch::{self, State};
+use tui::common::cob::patch::{self, Filter, State};
 use tui::common::log;
 
 use crate::terminal;
@@ -134,6 +134,10 @@ impl Args for Options {
                 },
                 _ => return Err(anyhow!(arg.unexpected())),
             }
+        }
+
+        if select_opts.mode == common::Mode::Id {
+            select_opts.filter = Filter::default().with_state(None)
         }
 
         let op = match op.ok_or_else(|| anyhow!("an operation must be provided"))? {
