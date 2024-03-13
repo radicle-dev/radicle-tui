@@ -75,8 +75,9 @@ impl TryFrom<&Context> for InboxState {
 
                     let items = inbox::all(&repo, &context.profile)?
                         .iter()
-                        .map(|notif| NotificationItem::try_from((&context.profile, &repo, notif)))
+                        .map(|notif| NotificationItem::new(&context.profile, &repo, notif))
                         .filter_map(|item| item.ok())
+                        .flatten()
                         .collect::<Vec<_>>();
 
                     notifs.extend(items);
@@ -90,9 +91,10 @@ impl TryFrom<&Context> for InboxState {
                 notifs
                     .iter()
                     .map(|notif| {
-                        NotificationItem::try_from((&context.profile, &context.repository, notif))
+                        NotificationItem::new(&context.profile, &context.repository, notif)
                     })
                     .filter_map(|item| item.ok())
+                    .flatten()
                     .collect::<Vec<_>>()
             }
             RepositoryMode::ByRepo((rid, _)) => {
@@ -101,8 +103,9 @@ impl TryFrom<&Context> for InboxState {
 
                 notifs
                     .iter()
-                    .map(|notif| NotificationItem::try_from((&context.profile, &repo, notif)))
+                    .map(|notif| NotificationItem::new(&context.profile, &repo, notif))
                     .filter_map(|item| item.ok())
+                    .flatten()
                     .collect::<Vec<_>>()
             }
         };

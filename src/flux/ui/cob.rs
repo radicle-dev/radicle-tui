@@ -1,12 +1,12 @@
 use radicle::crypto::PublicKey;
 use radicle::git::Oid;
-use radicle::identity::Did;
+use radicle::identity::{Did, Identity};
 use radicle::node::{Alias, NodeId};
 use radicle::{issue, patch, Profile};
 use ratatui::style::{Color, Style, Stylize};
 use ratatui::widgets::Cell;
 
-use radicle::cob::{self, Label, ObjectId, Timestamp};
+use radicle::cob::{Label, ObjectId, Timestamp, TypedId};
 use radicle::issue::{Issue, IssueId, Issues};
 use radicle::node::notifications::{Notification, NotificationId, NotificationKind};
 use radicle::node::AliasStore;
@@ -51,13 +51,16 @@ pub enum NotificationKindItem {
         status: String,
         id: Option<ObjectId>,
     },
+    Unknown {
+        refname: String,
+    },
 }
 
-impl TryFrom<(&Repository, &Notification)> for NotificationKindItem {
-    type Error = anyhow::Error;
-
-    fn try_from(value: (&Repository, &Notification)) -> Result<Self, Self::Error> {
-        let (repo, notification) = value;
+impl NotificationKindItem {
+    pub fn new(
+        repo: &Repository,
+        notification: &Notification,
+    ) -> Result<Option<Self>, anyhow::Error> {
         // TODO: move out of here
         let issues = Issues::open(repo)?;
         let patches = Patches::open(repo)?;
@@ -87,45 +90,69 @@ impl TryFrom<(&Repository, &Notification)> for NotificationKindItem {
                 }
                 .to_owned();
 
-                Ok(NotificationKindItem::Branch {
+                Ok(Some(NotificationKindItem::Branch {
                     name: name.to_string(),
                     summary: message,
                     status: status.to_string(),
                     id: head.map(ObjectId::from),
-                })
+                }))
             }
-            NotificationKind::Cob { type_name, id } => {
-                let (category, summary, status) = if *type_name == *cob::issue::TYPENAME {
+            NotificationKind::Cob { typed_id } => {
+                let TypedId { id, .. } = typed_id;
+                let (category, summary, state) = if typed_id.is_issue() {
                     let Some(issue) = issues.get(id)? else {
                         // Issue could have been deleted after notification was created.
-                        anyhow::bail!("Issue deleted after notification was created");
+                        return Ok(None);
                     };
                     (
                         String::from("issue"),
                         issue.title().to_owned(),
                         issue.state().to_string(),
                     )
-                } else if *type_name == *cob::patch::TYPENAME {
+                } else if typed_id.is_patch() {
                     let Some(patch) = patches.get(id)? else {
                         // Patch could have been deleted after notification was created.
-                        anyhow::bail!("patch deleted after notification was created");
+                        return Ok(None);
                     };
                     (
                         String::from("patch"),
                         patch.title().to_owned(),
                         patch.state().to_string(),
                     )
+                } else if typed_id.is_identity() {
+                    let Ok(identity) = Identity::get(id, repo) else {
+                        log::error!(
+                            target: "cli",
+                            "Error retrieving identity {id} for notification {}", notification.id
+                        );
+                        return Ok(None);
+                    };
+                    let Some(rev) = notification
+                        .update
+                        .new()
+                        .and_then(|id| identity.revision(&id))
+                    else {
+                        log::error!(
+                            target: "cli",
+                            "Error retrieving identity revision for notification {}", notification.id
+                        );
+                        return Ok(None);
+                    };
+                    (String::from("id"), rev.title.clone(), rev.state.to_string())
                 } else {
-                    (type_name.to_string(), "".to_owned(), String::new())
+                    (typed_id.type_name.to_string(), "".to_owned(), String::new())
                 };
 
-                Ok(NotificationKindItem::Cob {
+                Ok(Some(NotificationKindItem::Cob {
                     type_name: category.to_string(),
                     summary: summary.to_string(),
-                    status: status.to_string(),
+                    status: state.to_string(),
                     id: Some(*id),
-                })
+                }))
             }
+            NotificationKind::Unknown { refname } => Ok(Some(NotificationKindItem::Unknown {
+                refname: refname.to_string(),
+            })),
         }
     }
 }
@@ -146,27 +173,32 @@ pub struct NotificationItem {
     pub timestamp: Timestamp,
 }
 
-impl TryFrom<(&Profile, &Repository, &Notification)> for NotificationItem {
-    type Error = anyhow::Error;
-
-    fn try_from(value: (&Profile, &Repository, &Notification)) -> Result<Self, Self::Error> {
-        let (profile, repo, notification) = value;
+impl NotificationItem {
+    pub fn new(
+        profile: &Profile,
+        repo: &Repository,
+        notification: &Notification,
+    ) -> Result<Option<Self>, anyhow::Error> {
         let project = profile
             .storage
             .repository(repo.id)?
             .identity_doc()?
             .project()?;
         let name = project.name().to_string();
-        let kind = NotificationKindItem::try_from((repo, notification))?;
+        let kind = NotificationKindItem::new(repo, notification)?;
 
-        Ok(NotificationItem {
+        if kind.is_none() {
+            return Ok(None);
+        }
+
+        Ok(Some(NotificationItem {
             id: notification.id,
             project: name,
             seen: notification.status.is_read(),
-            kind,
+            kind: kind.unwrap(),
             author: AuthorItem::new(notification.remote, profile),
             timestamp: notification.timestamp.into(),
-        })
+        }))
     }
 }
 
@@ -178,7 +210,12 @@ impl ToRow<8> for NotificationItem {
                 summary,
                 status,
                 id: _,
-            } => ("branch".to_string(), summary, status, name.to_string()),
+            } => (
+                "branch".to_string(),
+                summary.clone(),
+                status.clone(),
+                name.to_string(),
+            ),
             NotificationKindItem::Cob {
                 type_name,
                 summary,
@@ -186,8 +223,19 @@ impl ToRow<8> for NotificationItem {
                 id,
             } => {
                 let id = id.map(|id| format::cob(&id)).unwrap_or_default();
-                (type_name.to_string(), summary, status, id.to_string())
+                (
+                    type_name.to_string(),
+                    summary.clone(),
+                    status.clone(),
+                    id.to_string(),
+                )
             }
+            NotificationKindItem::Unknown { refname } => (
+                refname.to_string(),
+                String::new(),
+                String::new(),
+                String::new(),
+            ),
         };
 
         let id = span::notification_id(format!(" {:-03}", &self.id));
