@@ -8,26 +8,44 @@ pub use args::{Args, Error, Help};
 
 use radicle_term as term;
 
-use radicle::profile::Profile;
+use radicle::profile::{Home, Profile};
 
 /// Context passed to all commands.
 pub trait Context {
     /// Return the currently active profile, or an error if no profile is active.
     fn profile(&self) -> Result<Profile, anyhow::Error>;
+    /// Return the Radicle home.
+    fn home(&self) -> Result<Home, std::io::Error>;
 }
 
 impl Context for Profile {
     fn profile(&self) -> Result<Profile, anyhow::Error> {
         Ok(self.clone())
     }
+
+    fn home(&self) -> Result<Home, std::io::Error> {
+        Ok(self.home.clone())
+    }
 }
 
-impl<F> Context for F
-where
-    F: Fn() -> Result<Profile, anyhow::Error>,
-{
+pub struct DefaultContext;
+
+impl Context for DefaultContext {
+    fn home(&self) -> Result<Home, std::io::Error> {
+        radicle::profile::home()
+    }
+
     fn profile(&self) -> Result<Profile, anyhow::Error> {
-        self()
+        match Profile::load() {
+            Ok(profile) => Ok(profile),
+            Err(radicle::profile::Error::NotFound(path)) => Err(args::Error::WithHint {
+                err: anyhow::anyhow!("Radicle profile not found in '{}'.", path.display()),
+                hint: "To setup your radicle profile, run `rad auth`.",
+            }
+            .into()),
+            Err(radicle::profile::Error::Config(e)) => Err(e.into()),
+            Err(e) => Err(anyhow::anyhow!("Could not load radicle profile: {e}")),
+        }
     }
 }
 
@@ -49,7 +67,7 @@ where
 pub fn run_command_args<A, C>(help: Help, cmd: C, args: Vec<OsString>) -> !
 where
     A: Args,
-    C: Command<A, fn() -> anyhow::Result<Profile>>,
+    C: Command<A, DefaultContext>,
 {
     let options = match A::from_args(args) {
         Ok((opts, unparsed)) => {
@@ -88,7 +106,7 @@ where
         }
     };
 
-    match cmd.run(options, self::profile) {
+    match cmd.run(options, DefaultContext) {
         Ok(()) => process::exit(0),
         Err(err) => {
             fail(help.name, &err);

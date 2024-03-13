@@ -3,19 +3,27 @@ mod terminal;
 
 use std::ffi::OsString;
 use std::io;
+use std::io::Write;
 use std::{iter, process};
 
 use anyhow::anyhow;
 
-use radicle::version;
+use radicle::version::Version;
 use radicle_term as term;
 
 use commands::*;
 
 pub const NAME: &str = "rad-tui";
-pub const VERSION: &str = env!("CARGO_PKG_VERSION");
 pub const DESCRIPTION: &str = "Radicle terminal interfaces";
+pub const PKG_VERSION: &str = env!("CARGO_PKG_VERSION");
 pub const GIT_HEAD: &str = env!("GIT_HEAD");
+pub const TIMESTAMP: &str = env!("GIT_COMMIT_TIME");
+pub const VERSION: Version = Version {
+    name: NAME,
+    version: PKG_VERSION,
+    commit: GIT_HEAD,
+    timestamp: TIMESTAMP,
+};
 
 #[derive(Debug)]
 enum Command {
@@ -65,18 +73,21 @@ fn parse_args() -> anyhow::Result<Command> {
 }
 
 fn print_help() -> anyhow::Result<()> {
-    version::print(&mut io::stdout(), NAME, VERSION, GIT_HEAD)?;
+    VERSION.write(&mut io::stdout())?;
     println!("{DESCRIPTION}");
     println!();
 
-    tui_help::run(Default::default(), terminal::profile)
+    tui_help::run(Default::default(), terminal::DefaultContext)
 }
 
 fn run(command: Command) -> Result<(), Option<anyhow::Error>> {
     match command {
         Command::Version => {
-            version::print(&mut io::stdout(), NAME, VERSION, GIT_HEAD)
+            let mut stdout = io::stdout();
+            VERSION
+                .write_json(&mut stdout)
                 .map_err(|e| Some(e.into()))?;
+            writeln!(&mut stdout).ok();
         }
         Command::Help => {
             print_help()?;
