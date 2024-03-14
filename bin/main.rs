@@ -130,7 +130,7 @@ fn run_other(exe: &str, args: &[OsString]) -> Result<(), Option<anyhow::Error>> 
             );
         }
         other => Err(Some(anyhow!(
-            "`{other}` is not a command. See `rad-tui --help` for a list of commands.",
+            "`rad-tui {other}` is not a command. See `rad-tui --help` for a list of commands.",
         ))),
     }
 }
