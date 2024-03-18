@@ -12,8 +12,9 @@ use radicle::node::notifications::{Notification, NotificationId, NotificationKin
 use radicle::node::AliasStore;
 use radicle::patch::{Patch, PatchId, Patches};
 use radicle::storage::git::Repository;
-use radicle::storage::{ReadRepository, ReadStorage, RefUpdate};
+use radicle::storage::{ReadRepository, ReadStorage, RefUpdate, WriteRepository};
 
+use super::super::git;
 use super::theme::style;
 use super::widget::ToRow;
 use super::{format, span};
@@ -423,11 +424,9 @@ impl PatchItem {
         patch: (PatchId, Patch),
     ) -> Result<Self, anyhow::Error> {
         let (id, patch) = patch;
-        let (_, rev) = patch.latest();
-        let repo = radicle_surf::Repository::open(repository.path())?;
-        let base = repo.commit(rev.base())?;
-        let head = repo.commit(rev.head())?;
-        let diff = repo.diff(base.id, head.id)?;
+        let (_, revision) = patch.latest();
+        let (from, to) = revision.range();
+        let stats = git::diff_stats(repository.raw(), &from, &to)?;
 
         Ok(Self {
             id,
@@ -438,10 +437,10 @@ impl PatchItem {
                 alias: profile.aliases().alias(&patch.author().id),
                 you: *patch.author().id == *profile.did(),
             },
-            head: rev.head(),
-            added: diff.stats().insertions as u16,
-            removed: diff.stats().deletions as u16,
-            timestamp: rev.timestamp(),
+            head: revision.head(),
+            added: stats.insertions() as u16,
+            removed: stats.deletions() as u16,
+            timestamp: patch.updated_at(),
         })
     }
 }
