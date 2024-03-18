@@ -19,9 +19,10 @@ use super::event::Event;
 use super::store::State;
 use super::task::Interrupted;
 use super::terminal;
+use super::terminal::TermionBackendExt;
 use super::ui::widget::{Render, Widget};
 
-type Backend = TermionBackend<RawTerminal<io::Stdout>>;
+type Backend = TermionBackendExt<RawTerminal<io::Stdout>>;
 
 const RENDERING_TICK_RATE: Duration = Duration::from_millis(250);
 const INLINE_HEIGHT: usize = 20;
