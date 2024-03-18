@@ -24,7 +24,7 @@ log = { version = "0.4.19" }
 radicle = { git = "https://seed.radicle.xyz/z3gqcJUoA1n9HaHKufZs5FCSGazv5" }
 radicle-term = { git = "https://seed.radicle.xyz/z3gqcJUoA1n9HaHKufZs5FCSGazv5", package = "radicle-term" }
 radicle-surf = { version = "0.18.0" }
-ratatui = { git = "https://github.com/erak/ratatui", default-features = false, features = ["all-widgets", "termion"] }
+ratatui = { version = "0.26.1", default-features = false, features = ["all-widgets", "termion"] }
 simple-logging = { version = "2.0.2" }
 serde = { version = "1.0", features = ["derive"] }
 serde_json = { version = "1.0" }
