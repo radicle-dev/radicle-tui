@@ -11,7 +11,7 @@ use radicle_tui as tui;
 
 use tui::common::cob::issue::{self, Filter};
 use tui::flux::store::{State, Store};
-use tui::flux::termination::{self, Interrupted};
+use tui::flux::task::{self, Interrupted};
 use tui::flux::ui::cob::IssueItem;
 use tui::flux::ui::Frontend;
 use tui::Exit;
@@ -115,7 +115,7 @@ impl App {
     }
 
     pub async fn run(&self) -> Result<Option<Selection>> {
-        let (terminator, mut interrupt_rx) = termination::create_termination();
+        let (terminator, mut interrupt_rx) = task::create_termination();
         let (store, state_rx) = Store::<Action, IssuesState, Selection>::new();
         let (frontend, action_rx) = Frontend::<Action>::new();
         let state = IssuesState::try_from(&self.context)?;

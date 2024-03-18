@@ -7,7 +7,7 @@ use tokio::sync::mpsc::{self, UnboundedReceiver, UnboundedSender};
 
 use crate::Exit;
 
-use super::termination::{Interrupted, Terminator};
+use super::task::{Interrupted, Terminator};
 
 const STORE_TICK_RATE: Duration = Duration::from_millis(1000);
 
