@@ -311,6 +311,126 @@ impl ToRow<9> for NotificationItem {
     }
 }
 
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub enum NotificationType {
+    Patch,
+    Issue,
+    Branch,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub enum NotificationState {
+    Seen,
+    Unseen,
+}
+
+#[derive(Clone, Default, Debug, Eq, PartialEq)]
+pub struct NotificationItemFilter {
+    state: Option<NotificationState>,
+    type_name: Option<NotificationType>,
+    authors: Vec<Did>,
+    search: Option<String>,
+}
+
+impl NotificationItemFilter {
+    pub fn matches(&self, notif: &NotificationItem) -> bool {
+        use fuzzy_matcher::skim::SkimMatcherV2;
+        use fuzzy_matcher::FuzzyMatcher;
+
+        let matcher = SkimMatcherV2::default();
+
+        let matches_state = match self.state {
+            Some(NotificationState::Seen) => notif.seen,
+            Some(NotificationState::Unseen) => !notif.seen,
+            None => true,
+        };
+
+        let matches_authors = (!self.authors.is_empty())
+            .then(|| {
+                self.authors
+                    .iter()
+                    .any(|other| notif.author.nid == Some(**other))
+            })
+            .unwrap_or(true);
+
+        let matches_search = match &self.search {
+            Some(search) => {
+                let summary = match &notif.kind {
+                    NotificationKindItem::Cob {
+                        type_name: _,
+                        summary,
+                        status: _,
+                        id: _,
+                    } => summary,
+                    NotificationKindItem::Branch {
+                        name: _,
+                        summary,
+                        status: _,
+                        id: _,
+                    } => summary,
+                    NotificationKindItem::Unknown { refname: _ } => "",
+                };
+                match matcher.fuzzy_match(summary, search) {
+                    Some(score) => score == 0 || score > 60,
+                    _ => false,
+                }
+            }
+            None => true,
+        };
+
+        matches_state && matches_authors && matches_search
+    }
+}
+
+impl FromStr for NotificationItemFilter {
+    type Err = anyhow::Error;
+
+    fn from_str(value: &str) -> Result<Self, Self::Err> {
+        let mut state = None;
+        let mut type_name = None;
+        let mut search = String::new();
+        let mut authors = vec![];
+
+        let mut authors_parser = |input| -> IResult<&str, Vec<&str>> {
+            preceded(
+                tag("authors:"),
+                delimited(
+                    tag("["),
+                    separated_list0(tag(","), take(56_usize)),
+                    tag("]"),
+                ),
+            )(input)
+        };
+
+        let parts = value.split(' ');
+        for part in parts {
+            match part {
+                "is:seen" => state = Some(NotificationState::Seen),
+                "is:unseen" => state = Some(NotificationState::Unseen),
+                "is:patch" => type_name = Some(NotificationType::Patch),
+                "is:issue" => type_name = Some(NotificationType::Issue),
+                "is:branch" => type_name = Some(NotificationType::Branch),
+                other => {
+                    if let Ok((_, dids)) = authors_parser.parse(other) {
+                        for did in dids {
+                            authors.push(Did::from_str(did)?);
+                        }
+                    } else {
+                        search.push_str(other);
+                    }
+                }
+            }
+        }
+
+        Ok(Self {
+            state,
+            type_name,
+            authors,
+            search: Some(search),
+        })
+    }
+}
+
 #[derive(Clone, Debug)]
 pub struct IssueItem {
     /// Issue OID.
@@ -784,13 +904,32 @@ mod tests {
 
         let expected = IssueItemFilter {
             state: Some(issue::State::Open),
-            authors: vec![
+            authors: vec![Did::from_str(
+                "did:key:z6Mku8hpprWTmCv3BqkssCYDfr2feUdyLSUnycVajFo9XVAx",
+            )?],
+            authored: true,
+            assigned: true,
+            assignees: vec![
                 Did::from_str("did:key:z6MkkpTPzcq1ybmjQyQpyre15JUeMvZY6toxoZVpLZ8YarsB")?,
                 Did::from_str("did:key:z6Mku8hpprWTmCv3BqkssCYDfr2feUdyLSUnycVajFo9XVAx")?,
             ],
-            authored: false,
-            assigned: true,
-            assignees: vec![
+            search: Some("cli".to_string()),
+        };
+
+        assert_eq!(expected, actual);
+
+        Ok(())
+    }
+
+    #[test]
+    fn notification_item_filter_from_str_should_succeed() -> Result<()> {
+        let search = r#"is:seen is:patch authors:[did:key:z6MkkpTPzcq1ybmjQyQpyre15JUeMvZY6toxoZVpLZ8YarsB,did:key:z6Mku8hpprWTmCv3BqkssCYDfr2feUdyLSUnycVajFo9XVAx] cli"#;
+        let actual = NotificationItemFilter::from_str(search)?;
+
+        let expected = NotificationItemFilter {
+            state: Some(NotificationState::Seen),
+            type_name: Some(NotificationType::Patch),
+            authors: vec![
                 Did::from_str("did:key:z6MkkpTPzcq1ybmjQyQpyre15JUeMvZY6toxoZVpLZ8YarsB")?,
                 Did::from_str("did:key:z6Mku8hpprWTmCv3BqkssCYDfr2feUdyLSUnycVajFo9XVAx")?,
             ],
