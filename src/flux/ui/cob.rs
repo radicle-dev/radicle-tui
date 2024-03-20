@@ -407,6 +407,8 @@ impl ToRow<8> for IssueItem {
 #[derive(Clone, Default, Debug, Eq, PartialEq)]
 pub struct IssueItemFilter {
     state: Option<issue::State>,
+    authored: bool,
+    authors: Vec<Did>,
     assigned: bool,
     assignees: Vec<Did>,
     search: Option<String>,
@@ -430,6 +432,20 @@ impl IssueItemFilter {
             Some(state) => issue.state == state,
             None => true,
         };
+
+        let matches_authored = if self.authored {
+            issue.author.you
+        } else {
+            true
+        };
+
+        let matches_authors = (!self.authors.is_empty())
+            .then(|| {
+                self.authors
+                    .iter()
+                    .any(|other| issue.author.nid == Some(**other))
+            })
+            .unwrap_or(true);
 
         let matches_assigned = self
             .assigned
@@ -457,7 +473,12 @@ impl IssueItemFilter {
             None => true,
         };
 
-        matches_state && matches_assigned && matches_assignees && matches_search
+        matches_state
+            && matches_authored
+            && matches_authors
+            && matches_assigned
+            && matches_assignees
+            && matches_search
     }
 }
 
@@ -467,8 +488,21 @@ impl FromStr for IssueItemFilter {
     fn from_str(value: &str) -> Result<Self, Self::Err> {
         let mut state = None;
         let mut search = String::new();
+        let mut authored = false;
+        let mut authors = vec![];
         let mut assigned = false;
         let mut assignees = vec![];
+
+        let mut authors_parser = |input| -> IResult<&str, Vec<&str>> {
+            preceded(
+                tag("authors:"),
+                delimited(
+                    tag("["),
+                    separated_list0(tag(","), take(56_usize)),
+                    tag("]"),
+                ),
+            )(input)
+        };
 
         let mut assignees_parser = |input| -> IResult<&str, Vec<&str>> {
             preceded(
@@ -495,20 +529,28 @@ impl FromStr for IssueItemFilter {
                         reason: issue::CloseReason::Solved,
                     })
                 }
+                "is:authored" => authored = true,
                 "is:assigned" => assigned = true,
-                other => match assignees_parser.parse(other) {
-                    Ok((_, dids)) => {
+                other => {
+                    if let Ok((_, dids)) = assignees_parser.parse(other) {
                         for did in dids {
                             assignees.push(Did::from_str(did)?);
                         }
+                    } else if let Ok((_, dids)) = authors_parser.parse(other) {
+                        for did in dids {
+                            authors.push(Did::from_str(did)?);
+                        }
+                    } else {
+                        search.push_str(other);
                     }
-                    _ => search.push_str(other),
-                },
+                }
             }
         }
 
         Ok(Self {
             state,
+            authored,
+            authors,
             assigned,
             assignees,
             search: Some(search),
@@ -800,11 +842,16 @@ mod tests {
 
     #[test]
     fn issue_item_filter_from_str_should_succeed() -> Result<()> {
-        let search = r#"is:open is:assigned assignees:[did:key:z6MkkpTPzcq1ybmjQyQpyre15JUeMvZY6toxoZVpLZ8YarsB,did:key:z6Mku8hpprWTmCv3BqkssCYDfr2feUdyLSUnycVajFo9XVAx] cli"#;
+        let search = r#"is:open is:assigned assignees:[did:key:z6MkkpTPzcq1ybmjQyQpyre15JUeMvZY6toxoZVpLZ8YarsB,did:key:z6Mku8hpprWTmCv3BqkssCYDfr2feUdyLSUnycVajFo9XVAx] is:authored authors:[did:key:z6Mku8hpprWTmCv3BqkssCYDfr2feUdyLSUnycVajFo9XVAx] cli"#;
         let actual = IssueItemFilter::from_str(search)?;
 
         let expected = IssueItemFilter {
             state: Some(issue::State::Open),
+            authors: vec![
+                Did::from_str("did:key:z6MkkpTPzcq1ybmjQyQpyre15JUeMvZY6toxoZVpLZ8YarsB")?,
+                Did::from_str("did:key:z6Mku8hpprWTmCv3BqkssCYDfr2feUdyLSUnycVajFo9XVAx")?,
+            ],
+            authored: false,
             assigned: true,
             assignees: vec![
                 Did::from_str("did:key:z6MkkpTPzcq1ybmjQyQpyre15JUeMvZY6toxoZVpLZ8YarsB")?,
