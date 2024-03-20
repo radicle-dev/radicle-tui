@@ -1,18 +1,26 @@
+use std::str::FromStr;
+
+use nom::bytes::complete::{tag, take};
+use nom::multi::separated_list0;
+use nom::sequence::{delimited, preceded};
+use nom::{IResult, Parser};
+
+use radicle::cob::{Label, ObjectId, Timestamp, TypedId};
 use radicle::crypto::PublicKey;
 use radicle::git::Oid;
 use radicle::identity::{Did, Identity};
-use radicle::node::{Alias, NodeId};
-use radicle::{issue, patch, Profile};
-use ratatui::style::{Color, Style, Stylize};
-use ratatui::widgets::Cell;
-
-use radicle::cob::{Label, ObjectId, Timestamp, TypedId};
+use radicle::issue;
 use radicle::issue::{Issue, IssueId, Issues};
 use radicle::node::notifications::{Notification, NotificationId, NotificationKind};
-use radicle::node::AliasStore;
+use radicle::node::{Alias, AliasStore, NodeId};
+use radicle::patch;
 use radicle::patch::{Patch, PatchId, Patches};
 use radicle::storage::git::Repository;
 use radicle::storage::{ReadRepository, ReadStorage, RefUpdate, WriteRepository};
+use radicle::Profile;
+
+use ratatui::style::{Color, Style, Stylize};
+use ratatui::widgets::Cell;
 
 use super::super::git;
 use super::theme::style;
@@ -490,6 +498,107 @@ impl ToRow<9> for PatchItem {
     }
 }
 
+#[derive(Clone, Default, Debug, Eq, PartialEq)]
+pub struct PatchItemFilter {
+    status: Option<patch::Status>,
+    authored: bool,
+    authors: Vec<Did>,
+    search: Option<String>,
+}
+
+impl PatchItemFilter {
+    pub fn status(&self) -> Option<patch::Status> {
+        self.status
+    }
+
+    pub fn matches(&self, patch: &PatchItem) -> bool {
+        use fuzzy_matcher::skim::SkimMatcherV2;
+        use fuzzy_matcher::FuzzyMatcher;
+
+        let matcher = SkimMatcherV2::default();
+
+        let matches_state = match self.status {
+            Some(patch::Status::Draft) => matches!(patch.state, patch::State::Draft),
+            Some(patch::Status::Open) => matches!(patch.state, patch::State::Open { .. }),
+            Some(patch::Status::Merged) => matches!(patch.state, patch::State::Merged { .. }),
+            Some(patch::Status::Archived) => matches!(patch.state, patch::State::Archived),
+            None => true,
+        };
+
+        let matches_authored = if self.authored {
+            patch.author.you
+        } else {
+            true
+        };
+
+        let matches_authors = (!self.authors.is_empty())
+            .then(|| {
+                self.authors
+                    .iter()
+                    .any(|other| patch.author.nid.unwrap() == **other)
+            })
+            .unwrap_or(true);
+
+        let matches_search = match &self.search {
+            Some(search) => match matcher.fuzzy_match(&patch.title, search) {
+                Some(score) => score == 0 || score > 60,
+                _ => false,
+            },
+            None => true,
+        };
+
+        matches_state && matches_authored && matches_authors && matches_search
+    }
+}
+
+impl FromStr for PatchItemFilter {
+    type Err = anyhow::Error;
+
+    fn from_str(value: &str) -> Result<Self, Self::Err> {
+        let mut status = None;
+        let mut search = String::new();
+        let mut authored = false;
+        let mut authors = vec![];
+
+        let mut authors_parser = |input| -> IResult<&str, Vec<&str>> {
+            preceded(
+                tag("authors:"),
+                delimited(
+                    tag("["),
+                    separated_list0(tag(","), take(56_usize)),
+                    tag("]"),
+                ),
+            )(input)
+        };
+
+        let parts = value.split(' ');
+        for part in parts {
+            match part {
+                "is:open" => status = Some(patch::Status::Open),
+                "is:merged" => status = Some(patch::Status::Merged),
+                "is:archived" => status = Some(patch::Status::Archived),
+                "is:draft" => status = Some(patch::Status::Draft),
+                "is:authored" => authored = true,
+                other => match authors_parser.parse(other) {
+                    Ok((_, dids)) => {
+                        for did in dids {
+                            authors.push(Did::from_str(did)?);
+                        }
+                    }
+                    _ => search.push_str(other),
+                },
+            }
+        }
+
+        Ok(Self {
+            status,
+            authored,
+            authors,
+            search: Some(search),
+        })
+    }
+}
+
 pub fn format_issue_state(state: &issue::State) -> (String, Color) {
     match state {
         issue::State::Open => (" ● ".into(), Color::Green),
@@ -550,4 +659,31 @@ pub fn format_assignees(assignees: &[(Option<PublicKey>, Option<Alias>, bool)]) 
         }
     }
     output
+}
+
+#[cfg(test)]
+mod tests {
+    use anyhow::Result;
+
+    use super::*;
+
+    #[test]
+    fn patch_item_filter_from_str_should_succeed() -> Result<()> {
+        let search = r#"is:open is:authored authors:[did:key:z6MkkpTPzcq1ybmjQyQpyre15JUeMvZY6toxoZVpLZ8YarsB,did:key:z6Mku8hpprWTmCv3BqkssCYDfr2feUdyLSUnycVajFo9XVAx] cli"#;
+        let actual = PatchItemFilter::from_str(search)?;
+
+        let expected = PatchItemFilter {
+            status: Some(patch::Status::Open),
+            authored: true,
+            authors: vec![
+                Did::from_str("did:key:z6MkkpTPzcq1ybmjQyQpyre15JUeMvZY6toxoZVpLZ8YarsB")?,
+                Did::from_str("did:key:z6Mku8hpprWTmCv3BqkssCYDfr2feUdyLSUnycVajFo9XVAx")?,
+            ],
+            search: Some("cli".to_string()),
+        };
+
+        assert_eq!(expected, actual);
+
+        Ok(())
+    }
 }
