@@ -1,19 +1,19 @@
 use std::collections::HashMap;
 use std::vec;
 
-use radicle::issue;
-use ratatui::style::Stylize;
-use ratatui::text::Line;
 use tokio::sync::mpsc::UnboundedSender;
 
 use termion::event::Key;
 
 use ratatui::backend::Backend;
 use ratatui::layout::{Constraint, Direction, Layout, Rect};
+use ratatui::style::Stylize;
+use ratatui::text::Line;
 
 use radicle_tui as tui;
 
-use tui::common::cob::issue::{Filter, State};
+use tui::common::cob;
+use tui::common::cob::issue::Filter;
 use tui::flux::ui::cob::IssueItem;
 use tui::flux::ui::span;
 use tui::flux::ui::widget::container::{Footer, FooterProps, Header, HeaderProps};
@@ -25,15 +25,15 @@ use tui::Selection;
 use crate::tui_issue::common::IssueOperation;
 use crate::tui_issue::common::Mode;
 
-use super::{Action, IssuesState};
+use super::{Action, State};
 
 pub struct ListPageProps {
     selected: Option<IssueItem>,
     mode: Mode,
 }
 
-impl From<&IssuesState> for ListPageProps {
-    fn from(state: &IssuesState) -> Self {
+impl From<&State> for ListPageProps {
+    fn from(state: &State) -> Self {
         Self {
             selected: state.selected.clone(),
             mode: state.mode.clone(),
@@ -52,8 +52,8 @@ pub struct ListPage {
     shortcuts: Shortcuts<Action>,
 }
 
-impl Widget<IssuesState, Action> for ListPage {
-    fn new(state: &IssuesState, action_tx: UnboundedSender<Action>) -> Self
+impl Widget<State, Action> for ListPage {
+    fn new(state: &State, action_tx: UnboundedSender<Action>) -> Self
     where
         Self: Sized,
     {
@@ -66,7 +66,7 @@ impl Widget<IssuesState, Action> for ListPage {
         .move_with_state(state)
     }
 
-    fn move_with_state(self, state: &IssuesState) -> Self
+    fn move_with_state(self, state: &State) -> Self
     where
         Self: Sized,
     {
@@ -114,7 +114,7 @@ impl Widget<IssuesState, Action> for ListPage {
                 }
             }
             _ => {
-                <Issues as Widget<IssuesState, Action>>::handle_key_event(&mut self.issues, key);
+                <Issues as Widget<State, Action>>::handle_key_event(&mut self.issues, key);
             }
         }
     }
@@ -158,15 +158,17 @@ struct IssuesProps {
     page_size: usize,
 }
 
-impl From<&IssuesState> for IssuesProps {
-    fn from(state: &IssuesState) -> Self {
+impl From<&State> for IssuesProps {
+    fn from(state: &State) -> Self {
+        use radicle::issue::State;
+
         let mut open = 0;
         let mut closed = 0;
 
         for issue in &state.issues {
             match issue.state {
-                issue::State::Open => open += 1,
-                issue::State::Closed { reason: _ } => closed += 1,
+                State::Open => open += 1,
+                State::Closed { reason: _ } => closed += 1,
             }
         }
         let stats = HashMap::from([("Open".to_string(), open), ("Closed".to_string(), closed)]);
@@ -206,8 +208,8 @@ struct Issues {
     footer: Footer<Action>,
 }
 
-impl Widget<IssuesState, Action> for Issues {
-    fn new(state: &IssuesState, action_tx: UnboundedSender<Action>) -> Self {
+impl Widget<State, Action> for Issues {
+    fn new(state: &State, action_tx: UnboundedSender<Action>) -> Self {
         Self {
             action_tx: action_tx.clone(),
             props: IssuesProps::from(state),
@@ -217,7 +219,7 @@ impl Widget<IssuesState, Action> for Issues {
         }
     }
 
-    fn move_with_state(self, state: &IssuesState) -> Self
+    fn move_with_state(self, state: &State) -> Self
     where
         Self: Sized,
     {
@@ -311,6 +313,8 @@ impl Issues {
     }
 
     fn render_footer<B: Backend>(&self, frame: &mut ratatui::Frame, area: Rect) {
+        use cob::issue::State;
+
         let filter = Line::from(
             [
                 span::default(" ".to_string()),

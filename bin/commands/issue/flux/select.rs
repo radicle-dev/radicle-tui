@@ -10,7 +10,7 @@ use radicle::Profile;
 use radicle_tui as tui;
 
 use tui::common::cob::issue::{self, Filter};
-use tui::flux::store::{State, Store};
+use tui::flux::store;
 use tui::flux::task::{self, Interrupted};
 use tui::flux::ui::cob::IssueItem;
 use tui::flux::ui::Frontend;
@@ -45,7 +45,7 @@ impl Default for UIState {
 }
 
 #[derive(Clone, Debug)]
-pub struct IssuesState {
+pub struct State {
     issues: Vec<IssueItem>,
     selected: Option<IssueItem>,
     mode: Mode,
@@ -53,7 +53,7 @@ pub struct IssuesState {
     ui: UIState,
 }
 
-impl TryFrom<&Context> for IssuesState {
+impl TryFrom<&Context> for State {
     type Error = anyhow::Error;
 
     fn try_from(context: &Context) -> Result<Self, Self::Error> {
@@ -91,7 +91,7 @@ pub enum Action {
     PageSize(usize),
 }
 
-impl State<Action, Selection> for IssuesState {
+impl store::State<Action, Selection> for State {
     fn tick(&self) {}
 
     fn handle_action(&mut self, action: Action) -> Option<Exit<Selection>> {
@@ -116,16 +116,13 @@ impl App {
 
     pub async fn run(&self) -> Result<Option<Selection>> {
         let (terminator, mut interrupt_rx) = task::create_termination();
-        let (store, state_rx) = Store::<Action, IssuesState, Selection>::new();
+        let (store, state_rx) = store::Store::<Action, State, Selection>::new();
         let (frontend, action_rx) = Frontend::<Action>::new();
-        let state = IssuesState::try_from(&self.context)?;
+        let state = State::try_from(&self.context)?;
 
         tokio::try_join!(
             store.main_loop(state, terminator, action_rx, interrupt_rx.resubscribe()),
-            frontend.main_loop::<IssuesState, ListPage, Selection>(
-                state_rx,
-                interrupt_rx.resubscribe()
-            ),
+            frontend.main_loop::<State, ListPage, Selection>(state_rx, interrupt_rx.resubscribe()),
         )?;
 
         if let Ok(reason) = interrupt_rx.recv().await {
