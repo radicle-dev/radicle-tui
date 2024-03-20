@@ -13,7 +13,7 @@ use radicle::identity::Project;
 
 use radicle_tui as tui;
 
-use tui::flux::ui::cob::NotificationItem;
+use tui::flux::ui::items::NotificationItem;
 use tui::flux::ui::span;
 use tui::flux::ui::widget::container::{Footer, FooterProps, Header, HeaderProps};
 use tui::flux::ui::widget::{

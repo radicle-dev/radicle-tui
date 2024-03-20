@@ -16,7 +16,7 @@ use ratatui::text::Line;
 use radicle_tui as tui;
 
 use tui::flux::store::StateValue;
-use tui::flux::ui::cob::{PatchItem, PatchItemFilter};
+use tui::flux::ui::items::{PatchItem, PatchItemFilter};
 use tui::flux::ui::span;
 use tui::flux::ui::widget::container::{Footer, FooterProps, Header, HeaderProps};
 use tui::flux::ui::widget::input::{TextField, TextFieldProps};

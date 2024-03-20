@@ -12,7 +12,7 @@ use radicle_tui as tui;
 use tui::common::cob::issue::{self, Filter};
 use tui::flux::store::{self, StateValue};
 use tui::flux::task::{self, Interrupted};
-use tui::flux::ui::cob::IssueItem;
+use tui::flux::ui::items::IssueItem;
 use tui::flux::ui::Frontend;
 use tui::Exit;
 

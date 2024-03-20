@@ -6,7 +6,6 @@ use nom::sequence::{delimited, preceded};
 use nom::{IResult, Parser};
 
 use radicle::cob::{Label, ObjectId, Timestamp, TypedId};
-use radicle::crypto::PublicKey;
 use radicle::git::Oid;
 use radicle::identity::{Did, Identity};
 use radicle::issue::{self, CloseReason, Issue, IssueId, Issues};
@@ -18,7 +17,7 @@ use radicle::storage::git::Repository;
 use radicle::storage::{ReadRepository, ReadStorage, RefUpdate, WriteRepository};
 use radicle::Profile;
 
-use ratatui::style::{Color, Style, Stylize};
+use ratatui::style::{Style, Stylize};
 use ratatui::widgets::Cell;
 
 use super::super::git;
@@ -359,7 +358,7 @@ impl IssueItem {
 
 impl ToRow<8> for IssueItem {
     fn to_row(&self) -> [Cell; 8] {
-        let (state, state_color) = format_issue_state(&self.state);
+        let (state, state_color) = format::issue_state(&self.state);
 
         let state = span::default(state).style(Style::default().fg(state_color));
         let id = span::primary(format::cob(&self.id));
@@ -382,13 +381,13 @@ impl ToRow<8> for IssueItem {
             Some(nid) => span::alias(format::did(&Did::from(nid))).dim(),
             None => span::alias("".to_string()),
         };
-        let labels = span::labels(format_labels(&self.labels));
+        let labels = span::labels(format::labels(&self.labels));
         let assignees = self
             .assignees
             .iter()
             .map(|author| (author.nid, author.alias.clone(), author.you))
             .collect::<Vec<_>>();
-        let assignees = span::alias(format_assignees(&assignees));
+        let assignees = span::alias(format::assignees(&assignees));
         let opened = span::timestamp(format::timestamp(&self.timestamp));
 
         [
@@ -608,7 +607,7 @@ impl PatchItem {
 
 impl ToRow<9> for PatchItem {
     fn to_row(&self) -> [Cell; 9] {
-        let (state, color) = format_patch_state(&self.state);
+        let (state, color) = format::patch_state(&self.state);
 
         let state = span::default(state).style(Style::default().fg(color));
         let id = span::primary(format::cob(&self.id));
@@ -750,68 +749,6 @@ impl FromStr for PatchItemFilter {
             search: Some(search),
         })
     }
-}
-
-pub fn format_issue_state(state: &issue::State) -> (String, Color) {
-    match state {
-        issue::State::Open => (" ● ".into(), Color::Green),
-        issue::State::Closed { reason: _ } => (" ● ".into(), Color::Red),
-    }
-}
-
-pub fn format_patch_state(state: &patch::State) -> (String, Color) {
-    match state {
-        patch::State::Open { conflicts: _ } => (" ● ".into(), Color::Green),
-        patch::State::Archived => (" ● ".into(), Color::Yellow),
-        patch::State::Draft => (" ● ".into(), Color::Gray),
-        patch::State::Merged {
-            revision: _,
-            commit: _,
-        } => (" ✔ ".into(), Color::Magenta),
-    }
-}
-
-pub fn format_labels(labels: &[Label]) -> String {
-    let mut output = String::new();
-    let mut labels = labels.iter().peekable();
-
-    while let Some(label) = labels.next() {
-        output.push_str(&label.to_string());
-
-        if labels.peek().is_some() {
-            output.push(',');
-        }
-    }
-    output
-}
-
-pub fn format_author(did: &Did, alias: &Option<Alias>, is_you: bool) -> String {
-    let author = match alias {
-        Some(alias) => format!("{alias}"),
-        None => format::did(did),
-    };
-
-    if is_you {
-        format!("{} (you)", author)
-    } else {
-        author
-    }
-}
-
-pub fn format_assignees(assignees: &[(Option<PublicKey>, Option<Alias>, bool)]) -> String {
-    let mut output = String::new();
-    let mut assignees = assignees.iter().peekable();
-
-    while let Some((assignee, alias, is_you)) = assignees.next() {
-        if let Some(assignee) = assignee {
-            output.push_str(&format_author(&Did::from(assignee), alias, *is_you));
-        }
-
-        if assignees.peek().is_some() {
-            output.push(',');
-        }
-    }
-    output
 }
 
 #[cfg(test)]

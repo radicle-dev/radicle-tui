@@ -15,7 +15,7 @@ use radicle_tui as tui;
 use tui::common::cob::inbox::{self};
 use tui::flux::store::{State, Store};
 use tui::flux::task::{self, Interrupted};
-use tui::flux::ui::cob::NotificationItem;
+use tui::flux::ui::items::NotificationItem;
 use tui::flux::ui::Frontend;
 use tui::Exit;
 

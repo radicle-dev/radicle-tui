@@ -12,7 +12,7 @@ use radicle_tui as tui;
 use tui::common::cob::patch::{self, Filter};
 use tui::flux::store::{State, StateValue, Store};
 use tui::flux::task::{self, Interrupted};
-use tui::flux::ui::cob::PatchItem;
+use tui::flux::ui::items::PatchItem;
 use tui::flux::ui::Frontend;
 use tui::Exit;
 

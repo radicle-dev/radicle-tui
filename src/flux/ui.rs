@@ -1,6 +1,6 @@
-pub mod cob;
 pub mod ext;
 pub mod format;
+pub mod items;
 pub mod layout;
 pub mod span;
 pub mod theme;
