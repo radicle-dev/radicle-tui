@@ -333,6 +333,10 @@ pub struct NotificationItemFilter {
 }
 
 impl NotificationItemFilter {
+    pub fn state(&self) -> Option<NotificationState> {
+        self.state.clone()
+    }
+
     pub fn matches(&self, notif: &NotificationItem) -> bool {
         use fuzzy_matcher::skim::SkimMatcherV2;
         use fuzzy_matcher::FuzzyMatcher;
@@ -342,6 +346,25 @@ impl NotificationItemFilter {
         let matches_state = match self.state {
             Some(NotificationState::Seen) => notif.seen,
             Some(NotificationState::Unseen) => !notif.seen,
+            None => true,
+        };
+
+        let matches_type = match self.type_name {
+            Some(NotificationType::Patch) => matches!(&notif.kind, NotificationKindItem::Cob {
+                type_name,
+                summary: _,
+                status: _,
+                id: _,
+            } if type_name == "patch"),
+            Some(NotificationType::Issue) => matches!(&notif.kind, NotificationKindItem::Cob {
+                    type_name,
+                    summary: _,
+                    status: _,
+                    id: _,
+                } if type_name == "issue"),
+            Some(NotificationType::Branch) => {
+                matches!(notif.kind, NotificationKindItem::Branch { .. })
+            }
             None => true,
         };
 
@@ -378,7 +401,7 @@ impl NotificationItemFilter {
             None => true,
         };
 
-        matches_state && matches_authors && matches_search
+        matches_state && matches_type && matches_authors && matches_search
     }
 }
 
