@@ -13,7 +13,8 @@ use radicle::Profile;
 use radicle_tui as tui;
 
 use tui::common::cob::inbox::{self};
-use tui::flux::store::{State, Store};
+use tui::flux::store;
+use tui::flux::store::StateValue;
 use tui::flux::task::{self, Interrupted};
 use tui::flux::ui::items::NotificationItem;
 use tui::flux::ui::Frontend;
@@ -40,24 +41,29 @@ pub struct App {
 #[derive(Clone, Debug)]
 pub struct UIState {
     page_size: usize,
+    show_search: bool,
 }
 
 impl Default for UIState {
     fn default() -> Self {
-        Self { page_size: 1 }
+        Self {
+            page_size: 1,
+            show_search: false,
+        }
     }
 }
 
 #[derive(Clone, Debug)]
-pub struct InboxState {
+pub struct State {
     notifications: Vec<NotificationItem>,
     selected: Option<NotificationItem>,
     mode: Mode,
     project: Project,
+    search: StateValue<String>,
     ui: UIState,
 }
 
-impl TryFrom<&Context> for InboxState {
+impl TryFrom<&Context> for State {
     type Error = anyhow::Error;
 
     fn try_from(context: &Context) -> Result<Self, Self::Error> {
@@ -151,6 +157,7 @@ impl TryFrom<&Context> for InboxState {
             selected,
             mode: mode.clone(),
             project,
+            search: StateValue::new(String::new()),
             ui: UIState::default(),
         })
     }
@@ -160,9 +167,13 @@ pub enum Action {
     Exit { selection: Option<Selection> },
     Select { item: NotificationItem },
     PageSize(usize),
+    OpenSearch,
+    UpdateSearch { value: String },
+    ApplySearch,
+    CloseSearch,
 }
 
-impl State<Action, Selection> for InboxState {
+impl store::State<Action, Selection> for State {
     fn tick(&self) {}
 
     fn handle_action(&mut self, action: Action) -> Option<Exit<Selection>> {
@@ -176,6 +187,24 @@ impl State<Action, Selection> for InboxState {
                 self.ui.page_size = size;
                 None
             }
+            Action::OpenSearch => {
+                self.ui.show_search = true;
+                None
+            }
+            Action::UpdateSearch { value } => {
+                self.search.write(value);
+                None
+            }
+            Action::ApplySearch => {
+                self.search.apply();
+                self.ui.show_search = false;
+                None
+            }
+            Action::CloseSearch => {
+                self.search.reset();
+                self.ui.show_search = false;
+                None
+            }
         }
     }
 }
@@ -187,14 +216,13 @@ impl App {
 
     pub async fn run(&self) -> Result<Option<Selection>> {
         let (terminator, mut interrupt_rx) = task::create_termination();
-        let (store, state_rx) = Store::<Action, InboxState, Selection>::new();
+        let (store, state_rx) = store::Store::<Action, State, Selection>::new();
         let (frontend, action_rx) = Frontend::<Action>::new();
-        let state = InboxState::try_from(&self.context)?;
+        let state = State::try_from(&self.context)?;
 
         tokio::try_join!(
             store.main_loop(state, terminator, action_rx, interrupt_rx.resubscribe()),
-            frontend
-                .main_loop::<InboxState, ListPage, Selection>(state_rx, interrupt_rx.resubscribe()),
+            frontend.main_loop::<State, ListPage, Selection>(state_rx, interrupt_rx.resubscribe()),
         )?;
 
         if let Ok(reason) = interrupt_rx.recv().await {
