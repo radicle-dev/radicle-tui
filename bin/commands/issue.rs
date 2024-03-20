@@ -11,10 +11,12 @@ use std::ffi::OsString;
 
 use anyhow::anyhow;
 
+use radicle::issue;
+
 use radicle::identity::RepoId;
 use radicle_tui as tui;
 
-use tui::common::cob::issue::{self, State};
+use tui::common::cob;
 use tui::common::log;
 
 use crate::terminal;
@@ -59,7 +61,7 @@ pub enum OperationName {
 #[derive(Debug, Default, Clone, PartialEq, Eq)]
 pub struct SelectOptions {
     mode: common::Mode,
-    filter: issue::Filter,
+    filter: cob::issue::Filter,
 }
 
 impl Args for Options {
@@ -92,13 +94,19 @@ impl Args for Options {
                     select_opts.filter = select_opts.filter.with_state(None);
                 }
                 Long("open") if op == Some(OperationName::Select) => {
-                    select_opts.filter = select_opts.filter.with_state(Some(State::Open));
+                    select_opts.filter = select_opts.filter.with_state(Some(issue::State::Open));
                 }
                 Long("solved") if op == Some(OperationName::Select) => {
-                    select_opts.filter = select_opts.filter.with_state(Some(State::Solved));
+                    select_opts.filter =
+                        select_opts.filter.with_state(Some(issue::State::Closed {
+                            reason: issue::CloseReason::Solved,
+                        }));
                 }
                 Long("closed") if op == Some(OperationName::Select) => {
-                    select_opts.filter = select_opts.filter.with_state(Some(State::Closed));
+                    select_opts.filter =
+                        select_opts.filter.with_state(Some(issue::State::Closed {
+                            reason: issue::CloseReason::Other,
+                        }));
                 }
                 Long("assigned") if op == Some(OperationName::Select) => {
                     if let Ok(val) = parser.value() {
