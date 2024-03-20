@@ -59,7 +59,7 @@ impl ToString for Filter {
 
             let mut authors = self.authors.iter().peekable();
             while let Some(author) = authors.next() {
-                filter.push_str(&author.to_string());
+                filter.push_str(&author.encode());
 
                 if authors.peek().is_some() {
                     filter.push(',');
@@ -122,7 +122,9 @@ mod tests {
             )?);
 
         assert_eq!(
-            String::from("is:open authors:[z6MkswQE8gwZw924amKatxnNCXA55BMupMmRg7LvJuim2C1V]"),
+            String::from(
+                "is:open authors:[did:key:z6MkswQE8gwZw924amKatxnNCXA55BMupMmRg7LvJuim2C1V]"
+            ),
             actual.to_string()
         );
 

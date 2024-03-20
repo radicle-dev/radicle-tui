@@ -1,34 +1,12 @@
-use std::fmt::Display;
-
 use anyhow::Result;
+
 use radicle::cob::issue::{Issue, IssueId};
 use radicle::cob::Label;
 use radicle::issue::cache::Issues;
-use radicle::issue::CloseReason;
+use radicle::issue::State;
 use radicle::prelude::{Did, Signer};
 use radicle::storage::git::Repository;
-use radicle::{issue, Profile};
-
-use super::format;
-
-#[derive(Clone, Default, Debug, Eq, PartialEq)]
-pub enum State {
-    #[default]
-    Open,
-    Solved,
-    Closed,
-}
-
-impl Display for State {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        let state = match self {
-            State::Open => "open",
-            State::Solved => "solved",
-            State::Closed => "closed",
-        };
-        f.write_str(state)
-    }
-}
+use radicle::Profile;
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct Filter {
@@ -62,44 +40,6 @@ impl Filter {
         self.assignees.push(assignee);
         self
     }
-
-    pub fn state(&self) -> Option<State> {
-        self.state.clone()
-    }
-
-    pub fn matches(&self, profile: &Profile, issue: &Issue) -> bool {
-        let matches_state = match self.state {
-            Some(State::Open) => matches!(issue.state(), issue::State::Open),
-            Some(State::Solved) => matches!(
-                issue.state(),
-                issue::State::Closed {
-                    reason: CloseReason::Solved
-                }
-            ),
-            Some(State::Closed) => matches!(issue.state(), issue::State::Closed { .. }),
-            None => true,
-        };
-
-        let matches_assgined = self
-            .assigned
-            .then(|| {
-                issue
-                    .assignees()
-                    .collect::<Vec<_>>()
-                    .contains(&&profile.did())
-            })
-            .unwrap_or(true);
-
-        let matches_assignees = (!self.assignees.is_empty())
-            .then(|| {
-                self.assignees
-                    .iter()
-                    .any(|other| issue.assignees().collect::<Vec<_>>().contains(&other))
-            })
-            .unwrap_or(true);
-
-        matches_state && matches_assgined && matches_assignees
-    }
 }
 
 impl ToString for Filter {
@@ -120,7 +60,7 @@ impl ToString for Filter {
 
             let mut assignees = self.assignees.iter().peekable();
             while let Some(assignee) = assignees.next() {
-                filter.push_str(&format::did(assignee));
+                filter.push_str(&assignee.encode());
 
                 if assignees.peek().is_some() {
                     filter.push(',');
@@ -158,4 +98,52 @@ pub fn create<G: Signer>(
     let issue = issues.create(title, description.trim(), labels, assignees, [], signer)?;
 
     Ok(*issue.id())
+}
+
+#[cfg(test)]
+mod tests {
+    use std::str::FromStr;
+
+    use anyhow::Result;
+    use radicle::issue;
+
+    use super::*;
+
+    #[test]
+    fn issue_filter_display_with_state_should_succeed() -> Result<()> {
+        let actual = Filter::default().with_state(Some(issue::State::Open));
+
+        assert_eq!(String::from("is:open "), actual.to_string());
+
+        Ok(())
+    }
+
+    #[test]
+    fn issue_filter_display_with_state_and_assigned_should_succeed() -> Result<()> {
+        let actual = Filter::default()
+            .with_state(Some(issue::State::Open))
+            .with_assgined(true);
+
+        assert_eq!(String::from("is:open is:assigned "), actual.to_string());
+
+        Ok(())
+    }
+
+    #[test]
+    fn issue_filter_display_with_status_and_author_should_succeed() -> Result<()> {
+        let actual = Filter::default()
+            .with_state(Some(issue::State::Open))
+            .with_assginee(Did::from_str(
+                "did:key:z6MkswQE8gwZw924amKatxnNCXA55BMupMmRg7LvJuim2C1V",
+            )?);
+
+        assert_eq!(
+            String::from(
+                "is:open assignees:[did:key:z6MkswQE8gwZw924amKatxnNCXA55BMupMmRg7LvJuim2C1V]"
+            ),
+            actual.to_string()
+        );
+
+        Ok(())
+    }
 }
