@@ -9,8 +9,7 @@ use radicle::cob::{Label, ObjectId, Timestamp, TypedId};
 use radicle::crypto::PublicKey;
 use radicle::git::Oid;
 use radicle::identity::{Did, Identity};
-use radicle::issue;
-use radicle::issue::{Issue, IssueId, Issues};
+use radicle::issue::{self, CloseReason, Issue, IssueId, Issues};
 use radicle::node::notifications::{Notification, NotificationId, NotificationKind};
 use radicle::node::{Alias, AliasStore, NodeId};
 use radicle::patch;
@@ -27,7 +26,7 @@ use super::theme::style;
 use super::widget::ToRow;
 use super::{format, span};
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub struct AuthorItem {
     pub nid: Option<NodeId>,
     pub alias: Option<Alias>,
@@ -405,6 +404,160 @@ impl ToRow<8> for IssueItem {
     }
 }
 
+#[derive(Clone, Default, Debug, Eq, PartialEq)]
+pub struct IssueItemFilter {
+    state: Option<issue::State>,
+    authored: bool,
+    authors: Vec<Did>,
+    assigned: bool,
+    assignees: Vec<Did>,
+    search: Option<String>,
+}
+
+impl IssueItemFilter {
+    pub fn state(&self) -> Option<issue::State> {
+        self.state
+    }
+
+    pub fn matches(&self, issue: &IssueItem) -> bool {
+        use fuzzy_matcher::skim::SkimMatcherV2;
+        use fuzzy_matcher::FuzzyMatcher;
+
+        let matcher = SkimMatcherV2::default();
+
+        let matches_state = match self.state {
+            Some(issue::State::Closed {
+                reason: CloseReason::Other,
+            }) => matches!(issue.state, issue::State::Closed { .. }),
+            Some(state) => issue.state == state,
+            None => true,
+        };
+
+        let matches_authored = if self.authored {
+            issue.author.you
+        } else {
+            true
+        };
+
+        let matches_authors = (!self.authors.is_empty())
+            .then(|| {
+                self.authors
+                    .iter()
+                    .any(|other| issue.author.nid == Some(**other))
+            })
+            .unwrap_or(true);
+
+        let matches_assigned = self
+            .assigned
+            .then(|| issue.assignees.iter().any(|assignee| assignee.you))
+            .unwrap_or(true);
+
+        let matches_assignees = (!self.assignees.is_empty())
+            .then(|| {
+                self.assignees.iter().any(|other| {
+                    issue
+                        .assignees
+                        .iter()
+                        .filter_map(|author| author.nid)
+                        .collect::<Vec<_>>()
+                        .contains(other)
+                })
+            })
+            .unwrap_or(true);
+
+        let matches_search = match &self.search {
+            Some(search) => match matcher.fuzzy_match(&issue.title, search) {
+                Some(score) => score == 0 || score > 60,
+                _ => false,
+            },
+            None => true,
+        };
+
+        matches_state
+            && matches_authored
+            && matches_authors
+            && matches_assigned
+            && matches_assignees
+            && matches_search
+    }
+}
+
+impl FromStr for IssueItemFilter {
+    type Err = anyhow::Error;
+
+    fn from_str(value: &str) -> Result<Self, Self::Err> {
+        let mut state = None;
+        let mut search = String::new();
+        let mut authored = false;
+        let mut authors = vec![];
+        let mut assigned = false;
+        let mut assignees = vec![];
+
+        let mut authors_parser = |input| -> IResult<&str, Vec<&str>> {
+            preceded(
+                tag("authors:"),
+                delimited(
+                    tag("["),
+                    separated_list0(tag(","), take(56_usize)),
+                    tag("]"),
+                ),
+            )(input)
+        };
+
+        let mut assignees_parser = |input| -> IResult<&str, Vec<&str>> {
+            preceded(
+                tag("assignees:"),
+                delimited(
+                    tag("["),
+                    separated_list0(tag(","), take(56_usize)),
+                    tag("]"),
+                ),
+            )(input)
+        };
+
+        let parts = value.split(' ');
+        for part in parts {
+            match part {
+                "is:open" => state = Some(issue::State::Open),
+                "is:closed" => {
+                    state = Some(issue::State::Closed {
+                        reason: issue::CloseReason::Other,
+                    })
+                }
+                "is:solved" => {
+                    state = Some(issue::State::Closed {
+                        reason: issue::CloseReason::Solved,
+                    })
+                }
+                "is:authored" => authored = true,
+                "is:assigned" => assigned = true,
+                other => {
+                    if let Ok((_, dids)) = assignees_parser.parse(other) {
+                        for did in dids {
+                            assignees.push(Did::from_str(did)?);
+                        }
+                    } else if let Ok((_, dids)) = authors_parser.parse(other) {
+                        for did in dids {
+                            authors.push(Did::from_str(did)?);
+                        }
+                    } else {
+                        search.push_str(other);
+                    }
+                }
+            }
+        }
+
+        Ok(Self {
+            state,
+            authored,
+            authors,
+            assigned,
+            assignees,
+            search: Some(search),
+        })
+    }
+}
+
 #[derive(Clone, Debug)]
 pub struct PatchItem {
     /// Patch OID.
@@ -535,7 +688,7 @@ impl PatchItemFilter {
             .then(|| {
                 self.authors
                     .iter()
-                    .any(|other| patch.author.nid.unwrap() == **other)
+                    .any(|other| patch.author.nid == Some(**other))
             })
             .unwrap_or(true);
 
@@ -676,6 +829,31 @@ mod tests {
             status: Some(patch::Status::Open),
             authored: true,
             authors: vec![
+                Did::from_str("did:key:z6MkkpTPzcq1ybmjQyQpyre15JUeMvZY6toxoZVpLZ8YarsB")?,
+                Did::from_str("did:key:z6Mku8hpprWTmCv3BqkssCYDfr2feUdyLSUnycVajFo9XVAx")?,
+            ],
+            search: Some("cli".to_string()),
+        };
+
+        assert_eq!(expected, actual);
+
+        Ok(())
+    }
+
+    #[test]
+    fn issue_item_filter_from_str_should_succeed() -> Result<()> {
+        let search = r#"is:open is:assigned assignees:[did:key:z6MkkpTPzcq1ybmjQyQpyre15JUeMvZY6toxoZVpLZ8YarsB,did:key:z6Mku8hpprWTmCv3BqkssCYDfr2feUdyLSUnycVajFo9XVAx] is:authored authors:[did:key:z6Mku8hpprWTmCv3BqkssCYDfr2feUdyLSUnycVajFo9XVAx] cli"#;
+        let actual = IssueItemFilter::from_str(search)?;
+
+        let expected = IssueItemFilter {
+            state: Some(issue::State::Open),
+            authors: vec![
+                Did::from_str("did:key:z6MkkpTPzcq1ybmjQyQpyre15JUeMvZY6toxoZVpLZ8YarsB")?,
+                Did::from_str("did:key:z6Mku8hpprWTmCv3BqkssCYDfr2feUdyLSUnycVajFo9XVAx")?,
+            ],
+            authored: false,
+            assigned: true,
+            assignees: vec![
                 Did::from_str("did:key:z6MkkpTPzcq1ybmjQyQpyre15JUeMvZY6toxoZVpLZ8YarsB")?,
                 Did::from_str("did:key:z6Mku8hpprWTmCv3BqkssCYDfr2feUdyLSUnycVajFo9XVAx")?,
             ],
