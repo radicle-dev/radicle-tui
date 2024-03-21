@@ -10,7 +10,7 @@ use radicle::Profile;
 use radicle_tui as tui;
 
 use tui::common::cob::patch::{self, Filter};
-use tui::flux::store::{State, StateValue, Store};
+use tui::flux::store;
 use tui::flux::task::{self, Interrupted};
 use tui::flux::ui::items::PatchItem;
 use tui::flux::ui::Frontend;
@@ -49,15 +49,15 @@ impl Default for UIState {
 }
 
 #[derive(Clone, Debug)]
-pub struct PatchesState {
+pub struct State {
     patches: Vec<PatchItem>,
     selected: Option<PatchItem>,
     mode: Mode,
-    search: StateValue<String>,
+    search: store::StateValue<String>,
     ui: UIState,
 }
 
-impl TryFrom<&Context> for PatchesState {
+impl TryFrom<&Context> for State {
     type Error = anyhow::Error;
 
     fn try_from(context: &Context) -> Result<Self, Self::Error> {
@@ -77,7 +77,7 @@ impl TryFrom<&Context> for PatchesState {
             patches: items,
             selected,
             mode: context.mode.clone(),
-            search: StateValue::new(context.filter.to_string()),
+            search: store::StateValue::new(context.filter.to_string()),
             ui: UIState::default(),
         })
     }
@@ -93,7 +93,7 @@ pub enum Action {
     CloseSearch,
 }
 
-impl State<Action, Selection> for PatchesState {
+impl store::State<Action, Selection> for State {
     fn tick(&self) {}
 
     fn handle_action(&mut self, action: Action) -> Option<Exit<Selection>> {
@@ -136,13 +136,13 @@ impl App {
 
     pub async fn run(&self) -> Result<Option<Selection>> {
         let (terminator, mut interrupt_rx) = task::create_termination();
-        let (store, state_rx) = Store::<Action, PatchesState, Selection>::new();
+        let (store, state_rx) = store::Store::<Action, State, Selection>::new();
         let (frontend, action_rx) = Frontend::<Action>::new();
-        let state = PatchesState::try_from(&self.context)?;
+        let state = State::try_from(&self.context)?;
 
         tokio::try_join!(
             store.main_loop(state, terminator, action_rx, interrupt_rx.resubscribe()),
-            frontend.main_loop::<PatchesState, ListPage, Selection>(
+            frontend.main_loop::<State, ListPage, Selection>(
                 state_rx,
                 interrupt_rx.resubscribe()
             ),

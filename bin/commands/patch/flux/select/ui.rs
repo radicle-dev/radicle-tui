@@ -11,7 +11,7 @@ use termion::event::Key;
 use ratatui::backend::Backend;
 use ratatui::layout::{Constraint, Layout, Rect};
 use ratatui::style::Stylize;
-use ratatui::text::Line;
+use ratatui::text::{Line, Text};
 
 use radicle_tui as tui;
 
@@ -28,7 +28,7 @@ use tui::Selection;
 use crate::tui_patch::common::Mode;
 use crate::tui_patch::common::PatchOperation;
 
-use super::{Action, PatchesState};
+use super::{Action, State};
 
 pub struct ListPageProps {
     selected: Option<PatchItem>,
@@ -36,8 +36,8 @@ pub struct ListPageProps {
     show_search: bool,
 }
 
-impl From<&PatchesState> for ListPageProps {
-    fn from(state: &PatchesState) -> Self {
+impl From<&State> for ListPageProps {
+    fn from(state: &State) -> Self {
         Self {
             selected: state.selected.clone(),
             mode: state.mode.clone(),
@@ -59,8 +59,8 @@ pub struct ListPage {
     shortcuts: Shortcuts<Action>,
 }
 
-impl Widget<PatchesState, Action> for ListPage {
-    fn new(state: &PatchesState, action_tx: UnboundedSender<Action>) -> Self
+impl Widget<State, Action> for ListPage {
+    fn new(state: &State, action_tx: UnboundedSender<Action>) -> Self
     where
         Self: Sized,
     {
@@ -74,7 +74,7 @@ impl Widget<PatchesState, Action> for ListPage {
         .move_with_state(state)
     }
 
-    fn move_with_state(self, state: &PatchesState) -> Self
+    fn move_with_state(self, state: &State) -> Self
     where
         Self: Sized,
     {
@@ -93,7 +93,7 @@ impl Widget<PatchesState, Action> for ListPage {
 
     fn handle_key_event(&mut self, key: termion::event::Key) {
         if self.props.show_search {
-            <Search as Widget<PatchesState, Action>>::handle_key_event(&mut self.search, key)
+            <Search as Widget<State, Action>>::handle_key_event(&mut self.search, key)
         } else {
             match key {
                 Key::Esc | Key::Ctrl('c') => {
@@ -142,7 +142,7 @@ impl Widget<PatchesState, Action> for ListPage {
                     let _ = self.action_tx.send(Action::OpenSearch);
                 }
                 _ => {
-                    <Patches as Widget<PatchesState, Action>>::handle_key_event(
+                    <Patches as Widget<State, Action>>::handle_key_event(
                         &mut self.patches,
                         key,
                     );
@@ -211,8 +211,8 @@ struct PatchesProps {
     show_search: bool,
 }
 
-impl From<&PatchesState> for PatchesProps {
-    fn from(state: &PatchesState) -> Self {
+impl From<&State> for PatchesProps {
+    fn from(state: &State) -> Self {
         let mut draft = 0;
         let mut open = 0;
         let mut archived = 0;
@@ -285,8 +285,8 @@ struct Patches {
     footer: Footer<Action>,
 }
 
-impl Widget<PatchesState, Action> for Patches {
-    fn new(state: &PatchesState, action_tx: UnboundedSender<Action>) -> Self {
+impl Widget<State, Action> for Patches {
+    fn new(state: &State, action_tx: UnboundedSender<Action>) -> Self {
         Self {
             action_tx: action_tx.clone(),
             props: PatchesProps::from(state),
@@ -296,7 +296,7 @@ impl Widget<PatchesState, Action> for Patches {
         }
     }
 
-    fn move_with_state(self, state: &PatchesState) -> Self
+    fn move_with_state(self, state: &State) -> Self
     where
         Self: Sized,
     {
@@ -566,8 +566,8 @@ pub struct Search {
     pub input: TextField,
 }
 
-impl Widget<PatchesState, Action> for Search {
-    fn new(state: &PatchesState, action_tx: UnboundedSender<Action>) -> Self
+impl Widget<State, Action> for Search {
+    fn new(state: &State, action_tx: UnboundedSender<Action>) -> Self
     where
         Self: Sized,
     {
@@ -577,12 +577,12 @@ impl Widget<PatchesState, Action> for Search {
         Self { action_tx, input }.move_with_state(state)
     }
 
-    fn move_with_state(self, state: &PatchesState) -> Self
+    fn move_with_state(self, state: &State) -> Self
     where
         Self: Sized,
     {
         let mut input =
-            <TextField as Widget<PatchesState, Action>>::move_with_state(self.input, state);
+            <TextField as Widget<State, Action>>::move_with_state(self.input, state);
         input.set_text(&state.search.read().to_string());
 
         Self { input, ..self }
@@ -601,7 +601,7 @@ impl Widget<PatchesState, Action> for Search {
                 let _ = self.action_tx.send(Action::ApplySearch);
             }
             _ => {
-                <TextField as Widget<PatchesState, Action>>::handle_key_event(&mut self.input, key);
+                <TextField as Widget<State, Action>>::handle_key_event(&mut self.input, key);
                 let _ = self.action_tx.send(Action::UpdateSearch {
                     value: self.input.text().to_string(),
                 });
