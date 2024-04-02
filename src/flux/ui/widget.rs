@@ -1,5 +1,6 @@
 pub mod container;
 pub mod input;
+pub mod text;
 
 use std::cmp;
 use std::fmt::Debug;
