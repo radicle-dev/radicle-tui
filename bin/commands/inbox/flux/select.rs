@@ -42,6 +42,7 @@ pub struct App {
 pub struct UIState {
     page_size: usize,
     show_search: bool,
+    show_help: bool,
 }
 
 impl Default for UIState {
@@ -49,6 +50,7 @@ impl Default for UIState {
         Self {
             page_size: 1,
             show_search: false,
+            show_help: false,
         }
     }
 }
@@ -171,6 +173,8 @@ pub enum Action {
     UpdateSearch { value: String },
     ApplySearch,
     CloseSearch,
+    OpenHelp,
+    CloseHelp,
 }
 
 impl store::State<Action, Selection> for State {
@@ -203,6 +207,14 @@ impl store::State<Action, Selection> for State {
             Action::CloseSearch => {
                 self.search.reset();
                 self.ui.show_search = false;
+                None
+            }
+            Action::OpenHelp => {
+                self.ui.show_help = true;
+                None
+            }
+            Action::CloseHelp => {
+                self.ui.show_help = false;
                 None
             }
         }
