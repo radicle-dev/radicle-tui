@@ -57,7 +57,7 @@ impl<W: Write> ratatui::backend::Backend for TermionBackendExt<W> {
     fn get_cursor(&mut self) -> io::Result<(u16, u16)> {
         match self.inner.get_cursor() {
             Ok((x, y)) => {
-                let cursor = (x.saturating_sub(1), y.saturating_sub(1));
+                let cursor = (x.saturating_sub(0), y.saturating_sub(0));
                 self.cursor = Some(cursor);
                 Ok(cursor)
             }
