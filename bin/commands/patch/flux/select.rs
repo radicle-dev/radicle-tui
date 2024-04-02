@@ -37,6 +37,7 @@ pub struct App {
 pub struct UIState {
     page_size: usize,
     show_search: bool,
+    show_help: bool,
 }
 
 impl Default for UIState {
@@ -44,6 +45,7 @@ impl Default for UIState {
         Self {
             page_size: 1,
             show_search: false,
+            show_help: false,
         }
     }
 }
@@ -91,6 +93,8 @@ pub enum Action {
     UpdateSearch { value: String },
     ApplySearch,
     CloseSearch,
+    OpenHelp,
+    CloseHelp,
 }
 
 impl store::State<Action, Selection> for State {
@@ -125,6 +129,14 @@ impl store::State<Action, Selection> for State {
                 self.ui.show_search = false;
                 None
             }
+            Action::OpenHelp => {
+                self.ui.show_help = true;
+                None
+            }
+            Action::CloseHelp => {
+                self.ui.show_help = false;
+                None
+            }
         }
     }
 }
@@ -142,10 +154,7 @@ impl App {
 
         tokio::try_join!(
             store.main_loop(state, terminator, action_rx, interrupt_rx.resubscribe()),
-            frontend.main_loop::<State, ListPage, Selection>(
-                state_rx,
-                interrupt_rx.resubscribe()
-            ),
+            frontend.main_loop::<State, ListPage, Selection>(state_rx, interrupt_rx.resubscribe()),
         )?;
 
         if let Ok(reason) = interrupt_rx.recv().await {
