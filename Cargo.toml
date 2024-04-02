@@ -23,8 +23,8 @@ fuzzy-matcher = "*"
 libc = { version = "^0.2" }
 log = { version = "0.4.19" }
 nom = { version = "^7.1.0" }
-radicle = { git = "https://seed.radicle.xyz/z3gqcJUoA1n9HaHKufZs5FCSGazv5" }
-radicle-term = { git = "https://seed.radicle.xyz/z3gqcJUoA1n9HaHKufZs5FCSGazv5", package = "radicle-term" }
+radicle = { version = "0.9.0" }
+radicle-term = { version = "0.9.0", package = "radicle-term" }
 radicle-surf = { version = "0.18.0" }
 ratatui = { version = "0.26.1", default-features = false, features = ["all-widgets", "termion"] }
 simple-logging = { version = "2.0.2" }
