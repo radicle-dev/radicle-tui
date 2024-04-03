@@ -53,7 +53,6 @@ impl Default for UIState {
 #[derive(Clone, Debug)]
 pub struct State {
     patches: Vec<PatchItem>,
-    selected: Option<PatchItem>,
     mode: Mode,
     search: store::StateValue<String>,
     ui: UIState,
@@ -73,11 +72,8 @@ impl TryFrom<&Context> for State {
             }
         }
 
-        let selected = items.first().cloned();
-
         Ok(Self {
             patches: items,
-            selected,
             mode: context.mode.clone(),
             search: store::StateValue::new(context.filter.to_string()),
             ui: UIState::default(),
@@ -87,7 +83,6 @@ impl TryFrom<&Context> for State {
 
 pub enum Action {
     Exit { selection: Option<Selection> },
-    Select { item: PatchItem },
     PageSize(usize),
     OpenSearch,
     UpdateSearch { value: String },
@@ -103,10 +98,6 @@ impl store::State<Action, Selection> for State {
     fn handle_action(&mut self, action: Action) -> Option<Exit<Selection>> {
         match action {
             Action::Exit { selection } => Some(Exit { value: selection }),
-            Action::Select { item } => {
-                self.selected = Some(item);
-                None
-            }
             Action::PageSize(size) => {
                 self.ui.page_size = size;
                 None
