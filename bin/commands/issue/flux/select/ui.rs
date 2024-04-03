@@ -30,7 +30,6 @@ use crate::tui_issue::common::Mode;
 use super::{Action, State};
 
 pub struct ListPageProps {
-    selected: Option<IssueItem>,
     mode: Mode,
     show_search: bool,
     show_help: bool,
@@ -39,7 +38,6 @@ pub struct ListPageProps {
 impl From<&State> for ListPageProps {
     fn from(state: &State) -> Self {
         Self {
-            selected: state.selected.clone(),
             mode: state.mode.clone(),
             show_search: state.ui.show_search,
             show_help: state.ui.show_help,
@@ -104,32 +102,6 @@ impl<'a> Widget<State, Action> for ListPage<'a> {
             match key {
                 Key::Esc | Key::Ctrl('c') => {
                     let _ = self.action_tx.send(Action::Exit { selection: None });
-                }
-                Key::Char('\n') => {
-                    if let Some(selected) = &self.props.selected {
-                        let operation = match self.props.mode {
-                            Mode::Operation => Some(IssueOperation::Show.to_string()),
-                            Mode::Id => None,
-                        };
-                        let _ = self.action_tx.send(Action::Exit {
-                            selection: Some(Selection {
-                                operation,
-                                ids: vec![selected.id],
-                                args: vec![],
-                            }),
-                        });
-                    }
-                }
-                Key::Char('e') => {
-                    if let Some(selected) = &self.props.selected {
-                        let _ = self.action_tx.send(Action::Exit {
-                            selection: Some(Selection {
-                                operation: Some(IssueOperation::Edit.to_string()),
-                                ids: vec![selected.id],
-                                args: vec![],
-                            }),
-                        });
-                    }
                 }
                 Key::Char('/') => {
                     let _ = self.action_tx.send(Action::OpenSearch);
@@ -197,6 +169,7 @@ impl<'a> Render<()> for ListPage<'a> {
 }
 
 struct IssuesProps {
+    mode: Mode,
     issues: Vec<IssueItem>,
     search: String,
     stats: HashMap<String, usize>,
@@ -250,6 +223,7 @@ impl From<&State> for IssuesProps {
         ]);
 
         Self {
+            mode: state.mode.clone(),
             issues,
             search: state.search.read(),
             widths: [
@@ -343,18 +317,45 @@ impl Widget<State, Action> for Issues {
             Key::End => {
                 self.table.end(self.props.issues.len());
             }
+            Key::Char('\n') => {
+                let operation = match self.props.mode {
+                    Mode::Operation => Some(IssueOperation::Show.to_string()),
+                    Mode::Id => None,
+                };
+
+                self.table
+                    .selected()
+                    .and_then(|selected| self.props.issues.get(selected))
+                    .and_then(|issue| {
+                        self.action_tx
+                            .send(Action::Exit {
+                                selection: Some(Selection {
+                                    operation,
+                                    ids: vec![issue.id],
+                                    args: vec![],
+                                }),
+                            })
+                            .ok()
+                    });
+            }
+            Key::Char('e') => {
+                self.table
+                    .selected()
+                    .and_then(|selected| self.props.issues.get(selected))
+                    .and_then(|issue| {
+                        self.action_tx
+                            .send(Action::Exit {
+                                selection: Some(Selection {
+                                    operation: Some(IssueOperation::Edit.to_string()),
+                                    ids: vec![issue.id],
+                                    args: vec![],
+                                }),
+                            })
+                            .ok()
+                    });
+            }
             _ => {}
         }
-        self.table
-            .selected()
-            .and_then(|selected| self.props.issues.get(selected))
-            .and_then(|issue| {
-                self.action_tx
-                    .send(Action::Select {
-                        item: issue.clone(),
-                    })
-                    .ok()
-            });
     }
 }
 
