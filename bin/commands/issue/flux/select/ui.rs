@@ -400,17 +400,17 @@ impl Issues {
     }
 
     fn render_footer<B: Backend>(&self, frame: &mut ratatui::Frame, area: Rect) {
-        let search = if self.props.search.is_empty() {
-            Line::from([span::default(self.props.search.to_string()).magenta().dim()].to_vec())
-        } else {
-            Line::from(
-                [
-                    span::default(" / ".to_string()).magenta().dim(),
-                    span::default(self.props.search.to_string()).magenta().dim(),
-                ]
-                .to_vec(),
-            )
-        };
+        let search = Line::from(
+            [
+                span::default(" Search ".to_string())
+                    .cyan()
+                    .dim()
+                    .reversed(),
+                span::default(" ".into()),
+                span::default(self.props.search.to_string()).gray().dim(),
+            ]
+            .to_vec(),
+        );
 
         let open = Line::from(
             [
@@ -600,7 +600,7 @@ impl Render<SearchProps> for Search {
             frame,
             layout[0],
             TextFieldProps {
-                titles: ("/".into(), "Search".into()),
+                titles: ("Search".into(), "Search".into()),
                 show_cursor: true,
                 inline_label: true,
             },
