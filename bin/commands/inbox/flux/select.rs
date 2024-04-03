@@ -58,7 +58,6 @@ impl Default for UIState {
 #[derive(Clone, Debug)]
 pub struct State {
     notifications: Vec<NotificationItem>,
-    selected: Option<NotificationItem>,
     mode: Mode,
     project: Project,
     search: StateValue<String>,
@@ -152,11 +151,8 @@ impl TryFrom<&Context> for State {
             notifications.sort_by(|a, b| a.project.cmp(&b.project));
         }
 
-        let selected = notifications.first().cloned();
-
         Ok(Self {
             notifications,
-            selected,
             mode: mode.clone(),
             project,
             search: StateValue::new(String::new()),
@@ -167,7 +163,6 @@ impl TryFrom<&Context> for State {
 
 pub enum Action {
     Exit { selection: Option<Selection> },
-    Select { item: NotificationItem },
     PageSize(usize),
     OpenSearch,
     UpdateSearch { value: String },
@@ -183,10 +178,6 @@ impl store::State<Action, Selection> for State {
     fn handle_action(&mut self, action: Action) -> Option<Exit<Selection>> {
         match action {
             Action::Exit { selection } => Some(Exit { value: selection }),
-            Action::Select { item } => {
-                self.selected = Some(item);
-                None
-            }
             Action::PageSize(size) => {
                 self.ui.page_size = size;
                 None

@@ -24,12 +24,11 @@ use tui::flux::ui::widget::{
 };
 use tui::Selection;
 
-use crate::tui_inbox::common::{Mode, RepositoryMode, SelectionMode};
+use crate::tui_inbox::common::{InboxOperation, Mode, RepositoryMode, SelectionMode};
 
 use super::{Action, State};
 
 pub struct ListPageProps {
-    selected: Option<NotificationItem>,
     mode: Mode,
     show_search: bool,
     show_help: bool,
@@ -38,7 +37,6 @@ pub struct ListPageProps {
 impl From<&State> for ListPageProps {
     fn from(state: &State) -> Self {
         Self {
-            selected: state.selected.clone(),
             mode: state.mode.clone(),
             show_search: state.ui.show_search,
             show_help: state.ui.show_help,
@@ -103,30 +101,6 @@ impl<'a> Widget<State, Action> for ListPage<'a> {
             match key {
                 Key::Esc | Key::Ctrl('c') => {
                     let _ = self.action_tx.send(Action::Exit { selection: None });
-                }
-                Key::Char('\n') => {
-                    if let Some(selected) = &self.props.selected {
-                        let selection = match self.props.mode.selection() {
-                            SelectionMode::Operation => Selection::default()
-                                .with_operation("show".to_string())
-                                .with_id(selected.id),
-                            SelectionMode::Id => Selection::default().with_id(selected.id),
-                        };
-                        let _ = self.action_tx.send(Action::Exit {
-                            selection: Some(selection),
-                        });
-                    }
-                }
-                Key::Char('c') => {
-                    if let Some(selected) = &self.props.selected {
-                        let _ = self.action_tx.send(Action::Exit {
-                            selection: Some(
-                                Selection::default()
-                                    .with_operation("clear".to_string())
-                                    .with_id(selected.id),
-                            ),
-                        });
-                    }
                 }
                 Key::Char('/') => {
                     let _ = self.action_tx.send(Action::OpenSearch);
@@ -321,18 +295,43 @@ impl Widget<State, Action> for Notifications {
             Key::End => {
                 self.table.end(self.props.notifications.len());
             }
+            Key::Char('\n') => {
+                self.table
+                    .selected()
+                    .and_then(|selected| self.props.notifications.get(selected))
+                    .and_then(|notif| {
+                        let selection = match self.props.mode.selection() {
+                            SelectionMode::Operation => Selection::default()
+                                .with_operation(InboxOperation::Show.to_string())
+                                .with_id(notif.id),
+                            SelectionMode::Id => Selection::default().with_id(notif.id),
+                        };
+
+                        self.action_tx
+                            .send(Action::Exit {
+                                selection: Some(selection),
+                            })
+                            .ok()
+                    });
+            }
+            Key::Char('c') => {
+                self.table
+                    .selected()
+                    .and_then(|selected| self.props.notifications.get(selected))
+                    .and_then(|notif| {
+                        self.action_tx
+                            .send(Action::Exit {
+                                selection: Some(
+                                    Selection::default()
+                                        .with_operation(InboxOperation::Clear.to_string())
+                                        .with_id(notif.id),
+                                ),
+                            })
+                            .ok()
+                    });
+            }
             _ => {}
         }
-        self.table
-            .selected()
-            .and_then(|selected| self.props.notifications.get(selected))
-            .and_then(|notif| {
-                self.action_tx
-                    .send(Action::Select {
-                        item: notif.clone(),
-                    })
-                    .ok()
-            });
     }
 }
 

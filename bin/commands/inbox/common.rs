@@ -1,3 +1,7 @@
+use std::fmt::Display;
+
+use serde::Serialize;
+
 use radicle::identity::RepoId;
 
 /// The application's subject. It tells the application
@@ -42,5 +46,26 @@ impl Mode {
 
     pub fn repository(&self) -> &RepositoryMode {
         &self.repository
+    }
+}
+
+/// The selected issue operation returned by the operation
+/// selection widget.
+#[derive(Clone, Debug, Eq, PartialEq, Serialize)]
+pub enum InboxOperation {
+    Show,
+    Clear,
+}
+
+impl Display for InboxOperation {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            InboxOperation::Show => {
+                write!(f, "show")
+            }
+            InboxOperation::Clear => {
+                write!(f, "clear")
+            }
+        }
     }
 }
