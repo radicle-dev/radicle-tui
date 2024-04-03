@@ -15,7 +15,6 @@ use radicle::patch::{self, Status};
 
 use radicle_tui as tui;
 
-use tui::flux::store::StateValue;
 use tui::flux::ui::items::{PatchItem, PatchItemFilter};
 use tui::flux::ui::span;
 use tui::flux::ui::widget::container::{Footer, FooterProps, Header, HeaderProps};
@@ -175,7 +174,7 @@ impl<'a> Render<()> for ListPage<'a> {
 struct PatchesProps {
     mode: Mode,
     patches: Vec<PatchItem>,
-    search: StateValue<String>,
+    search: String,
     stats: HashMap<String, usize>,
     widths: [Constraint; 9],
     cutoff: usize,
@@ -225,7 +224,7 @@ impl From<&State> for PatchesProps {
         Self {
             mode: state.mode.clone(),
             patches,
-            search: state.search.clone(),
+            search: state.search.read(),
             widths: [
                 Constraint::Length(3),
                 Constraint::Length(8),
@@ -418,24 +417,19 @@ impl Patches {
     }
 
     fn render_footer<B: Backend>(&self, frame: &mut ratatui::Frame, area: Rect) {
-        let search = if self.props.search.read().is_empty() {
-            Line::from(
-                [span::default(self.props.search.read().to_string())
-                    .magenta()
-                    .dim()]
-                .to_vec(),
-            )
-        } else {
-            Line::from(
-                [
-                    span::default(" / ".to_string()).magenta().dim(),
-                    span::default(self.props.search.read().to_string())
-                        .magenta()
-                        .dim(),
-                ]
-                .to_vec(),
-            )
-        };
+        let filter = PatchItemFilter::from_str(&self.props.search).unwrap_or_default();
+
+        let search = Line::from(
+            [
+                span::default(" Search ".to_string())
+                    .cyan()
+                    .dim()
+                    .reversed(),
+                span::default(" ".into()),
+                span::default(self.props.search.to_string()).gray().dim(),
+            ]
+            .to_vec(),
+        );
 
         let draft = Line::from(
             [
@@ -486,10 +480,7 @@ impl Patches {
             .progress_percentage(self.props.patches.len(), self.props.page_size);
         let progress = span::default(format!("{}%", progress)).dim();
 
-        match PatchItemFilter::from_str(&self.props.search.read())
-            .unwrap_or_default()
-            .status()
-        {
+        match filter.status() {
             Some(state) => {
                 let block = match state {
                     Status::Draft => draft,
@@ -637,7 +628,7 @@ impl Render<SearchProps> for Search {
             frame,
             layout[0],
             TextFieldProps {
-                titles: ("/".into(), "Search".into()),
+                titles: ("Search".into(), "Search".into()),
                 show_cursor: true,
                 inline_label: true,
             },
