@@ -1,11 +1,7 @@
 #[path = "inbox/common.rs"]
 mod common;
-#[cfg(feature = "flux")]
-#[path = "inbox/flux.rs"]
-mod flux;
-#[cfg(feature = "realm")]
-#[path = "inbox/realm.rs"]
-mod realm;
+#[path = "inbox/select.rs"]
+mod select;
 
 use std::ffi::OsString;
 
@@ -142,39 +138,6 @@ impl Args for Options {
     }
 }
 
-#[cfg(feature = "realm")]
-pub fn run(options: Options, _ctx: impl terminal::Context) -> anyhow::Result<()> {
-    use tui::common::context;
-    use tui::common::log;
-    use tui::realm::Window;
-
-    pub const FPS: u64 = 60;
-    let (_, id) = radicle::rad::cwd()
-        .map_err(|_| anyhow!("this command must be run in the context of a project"))?;
-
-    match options.op {
-        Operation::Select { opts } => {
-            let profile = terminal::profile()?;
-            let context = context::Context::new(profile, id)?;
-
-            log::enable(context.profile(), "inbox", "select")?;
-
-            let mut app = realm::select::App::new(
-                context,
-                opts.mode.clone(),
-                opts.filter.clone(),
-                opts.sort_by,
-            );
-            let output = Window::default().run(&mut app, 1000 / FPS)?;
-
-            eprint!("{:?}", output);
-        }
-    }
-
-    Ok(())
-}
-
-#[cfg(feature = "flux")]
 #[tokio::main]
 pub async fn run(options: Options, _ctx: impl terminal::Context) -> anyhow::Result<()> {
     use radicle::storage::ReadStorage;
@@ -190,14 +153,14 @@ pub async fn run(options: Options, _ctx: impl terminal::Context) -> anyhow::Resu
 
             log::enable(&profile, "inbox", "select")?;
 
-            let context = flux::select::Context {
+            let context = select::Context {
                 profile,
                 repository,
                 mode: opts.mode,
                 filter: opts.filter.clone(),
                 sort_by: opts.sort_by,
             };
-            let output = flux::select::App::new(context).run().await?;
+            let output = select::App::new(context).run().await?;
 
             let output = output
                 .map(|o| serde_json::to_string(&o).unwrap_or_default())

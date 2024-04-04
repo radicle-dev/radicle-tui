@@ -22,7 +22,7 @@ use tui::Exit;
 
 use ui::ListPage;
 
-use super::super::common::{Mode, RepositoryMode};
+use super::common::{Mode, RepositoryMode};
 
 type Selection = tui::Selection<NotificationId>;
 
