@@ -144,7 +144,6 @@ impl Args for Options {
     }
 }
 
-#[cfg(feature = "flux")]
 #[tokio::main]
 pub async fn run(options: Options, _ctx: impl terminal::Context) -> anyhow::Result<()> {
     use radicle::storage::ReadStorage;
