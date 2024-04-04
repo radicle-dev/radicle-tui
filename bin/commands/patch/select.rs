@@ -18,7 +18,7 @@ use tui::Exit;
 
 use ui::ListPage;
 
-use super::super::common::Mode;
+use super::common::Mode;
 
 type Selection = tui::Selection<PatchId>;
 

@@ -1,11 +1,7 @@
 #[path = "patch/common.rs"]
 mod common;
-#[cfg(feature = "flux")]
-#[path = "patch/flux.rs"]
-mod flux;
-#[cfg(feature = "realm")]
-#[path = "patch/realm.rs"]
-mod realm;
+#[path = "patch/select.rs"]
+mod select;
 
 use std::ffi::OsString;
 
@@ -148,36 +144,6 @@ impl Args for Options {
     }
 }
 
-#[cfg(feature = "realm")]
-pub fn run(options: Options, _ctx: impl terminal::Context) -> anyhow::Result<()> {
-    use tui::common::context;
-    use tui::realm::Window;
-
-    pub const FPS: u64 = 60;
-    let (_, id) = radicle::rad::cwd()
-        .map_err(|_| anyhow!("this command must be run in the context of a project"))?;
-
-    match options.op {
-        Operation::Select { ref opts } => {
-            let profile = terminal::profile()?;
-            let context = context::Context::new(profile, id)?.with_patches();
-
-            log::enable(context.profile(), "patch", "select")?;
-
-            let mut app = realm::select::App::new(context, opts.mode.clone(), opts.filter.clone());
-            let output = Window::default().run(&mut app, 1000 / FPS)?;
-
-            let output = output
-                .map(|o| serde_json::to_string(&o).unwrap_or_default())
-                .unwrap_or_default();
-
-            eprint!("{output}");
-        }
-    }
-
-    Ok(())
-}
-
 #[cfg(feature = "flux")]
 #[tokio::main]
 pub async fn run(options: Options, _ctx: impl terminal::Context) -> anyhow::Result<()> {
@@ -194,13 +160,13 @@ pub async fn run(options: Options, _ctx: impl terminal::Context) -> anyhow::Resu
 
             log::enable(&profile, "patch", "select")?;
 
-            let context = flux::select::Context {
+            let context = select::Context {
                 profile,
                 repository,
                 mode: opts.mode,
                 filter: opts.filter.clone(),
             };
-            let output = flux::select::App::new(context).run().await?;
+            let output = select::App::new(context).run().await?;
 
             let output = output
                 .map(|o| serde_json::to_string(&o).unwrap_or_default())
