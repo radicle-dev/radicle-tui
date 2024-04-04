@@ -7,7 +7,7 @@ use ratatui::layout::{Constraint, Layout, Rect};
 use ratatui::text::Text;
 use ratatui::widgets::{Block, BorderType, Borders};
 
-use crate::flux::ui::theme::style;
+use crate::ui::theme::style;
 
 use super::{Render, Widget};
 

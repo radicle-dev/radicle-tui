@@ -1,7 +1,7 @@
 use ratatui::style::{Style, Stylize};
 use ratatui::text::Span;
 
-use crate::flux::ui::theme::style;
+use crate::ui::theme::style;
 
 pub fn blank() -> Span<'static> {
     Span::styled("", Style::default())

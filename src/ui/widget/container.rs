@@ -7,8 +7,8 @@ use termion::event::Key;
 use ratatui::prelude::*;
 use ratatui::widgets::{BorderType, Borders, Row};
 
-use crate::flux::ui::ext::{FooterBlock, FooterBlockType, HeaderBlock};
-use crate::flux::ui::theme::style;
+use crate::ui::ext::{FooterBlock, FooterBlockType, HeaderBlock};
+use crate::ui::theme::style;
 
 use super::{Render, Widget};
 
