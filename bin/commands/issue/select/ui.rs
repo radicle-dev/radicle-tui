@@ -14,14 +14,12 @@ use ratatui::text::{Line, Span, Text};
 
 use radicle_tui as tui;
 
-use tui::flux::ui::items::{IssueItem, IssueItemFilter};
-use tui::flux::ui::span;
-use tui::flux::ui::widget::container::{Footer, FooterProps, Header, HeaderProps};
-use tui::flux::ui::widget::input::{TextField, TextFieldProps};
-use tui::flux::ui::widget::text::{Paragraph, ParagraphProps};
-use tui::flux::ui::widget::{
-    Render, Shortcut, Shortcuts, ShortcutsProps, Table, TableProps, Widget,
-};
+use tui::ui::items::{IssueItem, IssueItemFilter};
+use tui::ui::span;
+use tui::ui::widget::container::{Footer, FooterProps, Header, HeaderProps};
+use tui::ui::widget::input::{TextField, TextFieldProps};
+use tui::ui::widget::text::{Paragraph, ParagraphProps};
+use tui::ui::widget::{Render, Shortcut, Shortcuts, ShortcutsProps, Table, TableProps, Widget};
 use tui::Selection;
 
 use crate::tui_issue::common::IssueOperation;
@@ -120,7 +118,7 @@ impl<'a> Widget<State, Action> for ListPage<'a> {
 impl<'a> Render<()> for ListPage<'a> {
     fn render<B: Backend>(&self, frame: &mut ratatui::Frame, _area: Rect, _props: ()) {
         let area = frame.size();
-        let layout = tui::flux::ui::layout::default_page(area, 0u16, 1u16);
+        let layout = tui::ui::layout::default_page(area, 0u16, 1u16);
 
         let shortcuts = if self.props.show_search {
             vec![

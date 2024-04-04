@@ -9,11 +9,11 @@ use radicle::Profile;
 
 use radicle_tui as tui;
 
-use tui::common::cob::patch::{self, Filter};
-use tui::flux::store;
-use tui::flux::task::{self, Interrupted};
-use tui::flux::ui::items::PatchItem;
-use tui::flux::ui::Frontend;
+use tui::cob::patch::{self, Filter};
+use tui::store;
+use tui::task::{self, Interrupted};
+use tui::ui::items::PatchItem;
+use tui::ui::Frontend;
 use tui::Exit;
 
 use ui::ListPage;

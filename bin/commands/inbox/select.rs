@@ -12,12 +12,12 @@ use radicle::storage::git::Repository;
 use radicle::Profile;
 use radicle_tui as tui;
 
-use tui::common::cob::inbox::{self};
-use tui::flux::store;
-use tui::flux::store::StateValue;
-use tui::flux::task::{self, Interrupted};
-use tui::flux::ui::items::NotificationItem;
-use tui::flux::ui::Frontend;
+use tui::cob::inbox::{self};
+use tui::store;
+use tui::store::StateValue;
+use tui::task::{self, Interrupted};
+use tui::ui::items::NotificationItem;
+use tui::ui::Frontend;
 use tui::Exit;
 
 use ui::ListPage;

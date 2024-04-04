@@ -12,8 +12,8 @@ use radicle::issue;
 use radicle::identity::RepoId;
 use radicle_tui as tui;
 
-use tui::common::cob;
-use tui::common::log;
+use tui::cob;
+use tui::log;
 
 use crate::terminal;
 use crate::terminal::args::{Args, Error, Help};

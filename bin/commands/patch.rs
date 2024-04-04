@@ -11,8 +11,8 @@ use radicle::identity::RepoId;
 use radicle::patch::Status;
 use radicle_tui as tui;
 
-use tui::common::cob::patch::{self, Filter};
-use tui::common::log;
+use tui::cob::patch::{self, Filter};
+use tui::log;
 
 use crate::terminal;
 use crate::terminal::args::{Args, Error, Help};

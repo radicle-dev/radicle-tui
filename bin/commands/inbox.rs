@@ -9,7 +9,7 @@ use anyhow::anyhow;
 
 use radicle_tui as tui;
 
-use tui::common::cob::inbox::{self};
+use tui::cob::inbox::{self};
 
 use crate::terminal;
 use crate::terminal::args::{Args, Error, Help};
@@ -141,7 +141,7 @@ impl Args for Options {
 #[tokio::main]
 pub async fn run(options: Options, _ctx: impl terminal::Context) -> anyhow::Result<()> {
     use radicle::storage::ReadStorage;
-    use tui::common::log;
+    use tui::log;
 
     let (_, rid) = radicle::rad::cwd()
         .map_err(|_| anyhow!("this command must be run in the context of a project"))?;
