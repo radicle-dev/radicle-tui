@@ -153,27 +153,43 @@ pub async fn run(options: Options, _ctx: impl terminal::Context) -> anyhow::Resu
 
     match options.op {
         Operation::Select { opts } => {
-            let profile = terminal::profile()?;
-            let rid = options.repo.unwrap_or(rid);
-            let repository = profile.storage.repository(rid).unwrap();
+            // let profile = terminal::profile()?;
+            // let rid = options.repo.unwrap_or(rid);
+            // let repository = profile.storage.repository(rid).unwrap();
 
-            log::enable(&profile, "patch", "select")?;
+            // log::enable(&profile, "patch", "select")?;
 
-            let context = select::Context {
-                profile,
-                repository,
-                mode: opts.mode,
-                filter: opts.filter.clone(),
-            };
-            let output = select::App::new(context).run().await?;
+            // let context = select::Context {
+            //     profile,
+            //     repository,
+            //     mode: opts.mode,
+            //     filter: opts.filter.clone(),
+            // };
+            // let output = select::App::new(context).run().await?;
 
-            let output = output
-                .map(|o| serde_json::to_string(&o).unwrap_or_default())
-                .unwrap_or_default();
+            // let output = output
+            //     .map(|o| serde_json::to_string(&o).unwrap_or_default())
+            //     .unwrap_or_default();
 
+            // eprint!("{output}");
+            use tui::decl::{App, ListView, PageView, StackView};
+
+            let app = App::default();
+
+            app.add_layer(
+                PageView::new()
+                    .with_name("patches")
+                    .content(StackView::vertical().child(ListView::new().with_rows())),
+            );
+
+            let output = app.run().await?;
             eprint!("{output}");
         }
     }
 
     Ok(())
 }
+
+fn show_help(app: &mut tui::decl::App) {
+
+} 
