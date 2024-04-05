@@ -59,7 +59,7 @@ pub fn labels(labels: &[Label]) -> String {
         output.push_str(&label.to_string());
 
         if labels.peek().is_some() {
-            output.push(',');
+            output.push_str(", ");
         }
     }
     output
