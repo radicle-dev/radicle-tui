@@ -1,6 +1,8 @@
 #[path = "select/ui.rs"]
 mod ui;
 
+use std::str::FromStr;
+
 use anyhow::Result;
 
 use radicle::issue::IssueId;
@@ -9,10 +11,12 @@ use radicle::Profile;
 
 use radicle_tui as tui;
 
-use tui::cob::issue::{self, Filter};
-use tui::store::{self, StateValue};
-use tui::task::{self, Interrupted};
-use tui::ui::items::IssueItem;
+use tui::cob::issue;
+use tui::store;
+use tui::store::StateValue;
+use tui::task;
+use tui::task::Interrupted;
+use tui::ui::items::{IssueItem, IssueItemFilter};
 use tui::ui::Frontend;
 use tui::Exit;
 
@@ -26,7 +30,7 @@ pub struct Context {
     pub profile: Profile,
     pub repository: Repository,
     pub mode: Mode,
-    pub filter: Filter,
+    pub filter: issue::Filter,
 }
 
 pub struct App {
@@ -54,6 +58,7 @@ impl Default for UIState {
 pub struct State {
     issues: Vec<IssueItem>,
     mode: Mode,
+    filter: IssueItemFilter,
     search: StateValue<String>,
     ui: UIState,
 }
@@ -63,6 +68,8 @@ impl TryFrom<&Context> for State {
 
     fn try_from(context: &Context) -> Result<Self, Self::Error> {
         let issues = issue::all(&context.profile, &context.repository)?;
+        let search = StateValue::new(context.filter.to_string());
+        let filter = IssueItemFilter::from_str(&search.read()).unwrap_or_default();
 
         // Convert into UI items
         let mut items = vec![];
@@ -71,11 +78,13 @@ impl TryFrom<&Context> for State {
                 items.push(item);
             }
         }
+        items.sort_by(|a, b| b.timestamp.cmp(&a.timestamp));
 
         Ok(Self {
             issues: items,
             mode: context.mode.clone(),
-            search: StateValue::new(context.filter.to_string()),
+            filter,
+            search,
             ui: UIState::default(),
         })
     }
@@ -108,6 +117,8 @@ impl store::State<Action, Selection> for State {
             }
             Action::UpdateSearch { value } => {
                 self.search.write(value);
+                self.filter = IssueItemFilter::from_str(&self.search.read()).unwrap_or_default();
+
                 None
             }
             Action::ApplySearch => {
@@ -118,6 +129,8 @@ impl store::State<Action, Selection> for State {
             Action::CloseSearch => {
                 self.search.reset();
                 self.ui.show_search = false;
+                self.filter = IssueItemFilter::from_str(&self.search.read()).unwrap_or_default();
+
                 None
             }
             Action::OpenHelp => {

@@ -14,12 +14,12 @@ use ratatui::text::{Line, Span, Text};
 
 use radicle_tui as tui;
 
-use tui::ui::items::{IssueItem, IssueItemFilter};
+use tui::ui::items::{Filter, IssueItem, IssueItemFilter};
 use tui::ui::span;
 use tui::ui::widget::container::{Footer, FooterProps, Header, HeaderProps};
 use tui::ui::widget::input::{TextField, TextFieldProps};
 use tui::ui::widget::text::{Paragraph, ParagraphProps};
-use tui::ui::widget::{Render, Shortcut, Shortcuts, ShortcutsProps, Table, TableProps, Widget};
+use tui::ui::widget::{Column, Render, Shortcut, Shortcuts, ShortcutsProps, Table, Widget};
 use tui::Selection;
 
 use crate::tui_issue::common::IssueOperation;
@@ -166,12 +166,13 @@ impl<'a> Render<()> for ListPage<'a> {
     }
 }
 
+#[derive(Clone)]
 struct IssuesProps {
     mode: Mode,
     issues: Vec<IssueItem>,
     search: String,
     stats: HashMap<String, usize>,
-    widths: [Constraint; 8],
+    columns: Vec<Column>,
     cutoff: usize,
     cutoff_after: usize,
     focus: bool,
@@ -183,23 +184,18 @@ impl From<&State> for IssuesProps {
     fn from(state: &State) -> Self {
         use radicle::issue::State;
 
+        let issues: Vec<IssueItem> = state
+            .issues
+            .iter()
+            .filter(|issue| state.filter.matches(issue))
+            .cloned()
+            .collect();
+
         let mut open = 0;
         let mut other = 0;
         let mut solved = 0;
 
-        // Filter by search string
-        let filter = IssueItemFilter::from_str(&state.search.read()).unwrap_or_default();
-        let mut issues = state
-            .issues
-            .clone()
-            .into_iter()
-            .filter(|issue| filter.matches(issue))
-            .collect::<Vec<_>>();
-
-        // Apply sorting
-        issues.sort_by(|a, b| b.timestamp.cmp(&a.timestamp));
-
-        for issue in &state.issues {
+        for issue in &issues {
             match issue.state {
                 State::Open => open += 1,
                 State::Closed {
@@ -224,16 +220,17 @@ impl From<&State> for IssuesProps {
             mode: state.mode.clone(),
             issues,
             search: state.search.read(),
-            widths: [
-                Constraint::Length(3),
-                Constraint::Length(8),
-                Constraint::Fill(5),
-                Constraint::Length(16),
-                Constraint::Length(16),
-                Constraint::Fill(1),
-                Constraint::Fill(1),
-                Constraint::Length(16),
-            ],
+            columns: [
+                Column::new(" ● ", Constraint::Length(3)),
+                Column::new("ID", Constraint::Length(8)),
+                Column::new("Title", Constraint::Fill(5)),
+                Column::new("Author", Constraint::Length(16)),
+                Column::new("", Constraint::Length(16)),
+                Column::new("Labels", Constraint::Fill(1)),
+                Column::new("Assignees", Constraint::Fill(1)),
+                Column::new("Opened", Constraint::Length(16)),
+            ]
+            .to_vec(),
             cutoff: 200,
             cutoff_after: 5,
             focus: false,
@@ -252,18 +249,25 @@ struct Issues {
     /// Header
     header: Header<Action>,
     /// Notification table
-    table: Table<Action>,
+    table: Table<Action, IssueItem>,
     /// Footer
     footer: Footer<Action>,
 }
 
 impl Widget<State, Action> for Issues {
     fn new(state: &State, action_tx: UnboundedSender<Action>) -> Self {
+        let props = IssuesProps::from(state);
+
         Self {
             action_tx: action_tx.clone(),
-            props: IssuesProps::from(state),
+            props: props.clone(),
             header: Header::new(state, action_tx.clone()),
-            table: Table::new(state, action_tx.clone()),
+            table: Table::new(state, action_tx.clone())
+                .items(props.issues.clone())
+                .columns(props.columns.to_vec())
+                .header(true)
+                .footer(!props.show_search)
+                .cutoff(props.cutoff, props.cutoff_after),
             footer: Footer::new(state, action_tx),
         }
     }
@@ -273,13 +277,18 @@ impl Widget<State, Action> for Issues {
         Self: Sized,
     {
         let props = IssuesProps::from(state);
-        let mut table = self.table.move_with_state(state);
+        let table = self.table.move_with_state(state);
+        let issues: Vec<IssueItem> = state
+            .issues
+            .iter()
+            .filter(|issue| state.filter.matches(issue))
+            .cloned()
+            .collect();
 
-        if let Some(selected) = table.selected() {
-            if selected > props.issues.len() {
-                table.begin();
-            }
-        }
+        let table = table
+            .items(issues)
+            .footer(!state.ui.show_search)
+            .page_size(state.ui.page_size);
 
         Self {
             props,
@@ -296,25 +305,6 @@ impl Widget<State, Action> for Issues {
 
     fn handle_key_event(&mut self, key: Key) {
         match key {
-            Key::Up | Key::Char('k') => {
-                self.table.prev();
-            }
-            Key::Down | Key::Char('j') => {
-                self.table.next(self.props.issues.len());
-            }
-            Key::PageUp => {
-                self.table.prev_page(self.props.page_size);
-            }
-            Key::PageDown => {
-                self.table
-                    .next_page(self.props.issues.len(), self.props.page_size);
-            }
-            Key::Home => {
-                self.table.begin();
-            }
-            Key::End => {
-                self.table.end(self.props.issues.len());
-            }
             Key::Char('\n') => {
                 let operation = match self.props.mode {
                     Mode::Operation => Some(IssueOperation::Show.to_string()),
@@ -352,7 +342,12 @@ impl Widget<State, Action> for Issues {
                             .ok()
                     });
             }
-            _ => {}
+            _ => {
+                <Table<Action, IssueItem> as Widget<State, Action>>::handle_key_event(
+                    &mut self.table,
+                    key,
+                );
+            }
         }
     }
 }
@@ -363,17 +358,7 @@ impl Issues {
             frame,
             area,
             HeaderProps {
-                cells: [
-                    String::from(" ● ").into(),
-                    String::from("ID").into(),
-                    String::from("Title").into(),
-                    String::from("Author").into(),
-                    String::from("").into(),
-                    String::from("Labels").into(),
-                    String::from("Assignees ").into(),
-                    String::from("Opened").into(),
-                ],
-                widths: self.props.widths,
+                columns: self.props.columns.clone(),
                 focus: self.props.focus,
                 cutoff: self.props.cutoff,
                 cutoff_after: self.props.cutoff_after,
@@ -382,19 +367,7 @@ impl Issues {
     }
 
     fn render_list<B: Backend>(&self, frame: &mut ratatui::Frame, area: Rect) {
-        self.table.render::<B>(
-            frame,
-            area,
-            TableProps {
-                items: self.props.issues.to_vec(),
-                has_footer: !self.props.show_search,
-                has_header: true,
-                widths: self.props.widths,
-                focus: self.props.focus,
-                cutoff: self.props.cutoff,
-                cutoff_after: self.props.cutoff_after,
-            },
-        );
+        self.table.render::<B>(frame, area, ());
     }
 
     fn render_footer<B: Backend>(&self, frame: &mut ratatui::Frame, area: Rect) {
@@ -841,8 +814,7 @@ impl<'a> Render<()> for Help<'a> {
             frame,
             header_area,
             HeaderProps {
-                cells: [String::from(" Help ").into()],
-                widths: [Constraint::Fill(1)],
+                columns: [Column::new(" Help ", Constraint::Fill(1))].to_vec(),
                 focus: self.props.focus,
                 cutoff: usize::MIN,
                 cutoff_after: usize::MAX,
