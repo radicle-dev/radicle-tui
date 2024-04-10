@@ -44,10 +44,6 @@ impl<S, A> Widget<S, A> for Footer<A> {
         Self { ..self }
     }
 
-    fn name(&self) -> &str {
-        "footer"
-    }
-
     fn handle_key_event(&mut self, _key: Key) {}
 }
 
@@ -133,10 +129,6 @@ impl<S, A> Widget<S, A> for Header<A> {
         Self: Sized,
     {
         Self { ..self }
-    }
-
-    fn name(&self) -> &str {
-        "footer"
     }
 
     fn handle_key_event(&mut self, _key: Key) {}

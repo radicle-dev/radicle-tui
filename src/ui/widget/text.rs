@@ -111,10 +111,6 @@ impl<S, A> Widget<S, A> for Paragraph<A> {
         Self { ..self }
     }
 
-    fn name(&self) -> &str {
-        "paragraph"
-    }
-
     fn handle_key_event(&mut self, _key: Key) {}
 }
 

@@ -89,10 +89,6 @@ impl<'a> Widget<State, Action> for ListPage<'a> {
         }
     }
 
-    fn name(&self) -> &str {
-        "list-page"
-    }
-
     fn handle_key_event(&mut self, key: termion::event::Key) {
         if self.props.show_search {
             <Search as Widget<State, Action>>::handle_key_event(&mut self.search, key)
@@ -299,10 +295,6 @@ impl Widget<State, Action> for Patches {
             footer: self.footer.move_with_state(state),
             ..self
         }
-    }
-
-    fn name(&self) -> &str {
-        "patches"
     }
 
     fn handle_key_event(&mut self, key: Key) {
@@ -568,10 +560,6 @@ impl Widget<State, Action> for Search {
         Self { input, ..self }
     }
 
-    fn name(&self) -> &str {
-        "filter-popup"
-    }
-
     fn handle_key_event(&mut self, key: termion::event::Key) {
         match key {
             Key::Esc => {
@@ -799,10 +787,6 @@ impl<'a> Widget<State, Action> for Help<'a> {
             footer: self.footer.move_with_state(state),
             ..self
         }
-    }
-
-    fn name(&self) -> &str {
-        "help"
     }
 
     fn handle_key_event(&mut self, key: termion::event::Key) {

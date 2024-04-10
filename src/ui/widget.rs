@@ -24,8 +24,6 @@ pub trait Widget<S, A> {
     where
         Self: Sized;
 
-    fn name(&self) -> &str;
-
     fn handle_key_event(&mut self, key: Key);
 }
 
@@ -76,10 +74,6 @@ impl<S, A> Widget<S, A> for Shortcuts<A> {
         Self: Sized,
     {
         Self { ..self }
-    }
-
-    fn name(&self) -> &str {
-        "shortcuts"
     }
 
     fn handle_key_event(&mut self, _key: termion::event::Key) {}
@@ -324,10 +318,6 @@ where
         }
 
         me
-    }
-
-    fn name(&self) -> &str {
-        "table"
     }
 
     fn handle_key_event(&mut self, key: Key) {

@@ -96,10 +96,6 @@ impl<S, A> Widget<S, A> for TextField {
         Self { ..self }
     }
 
-    fn name(&self) -> &str {
-        "Input Box"
-    }
-
     fn handle_key_event(&mut self, key: Key) {
         match key {
             Key::Char(to_insert)
