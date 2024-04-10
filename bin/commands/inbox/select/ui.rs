@@ -14,12 +14,12 @@ use radicle::identity::Project;
 
 use radicle_tui as tui;
 
-use tui::ui::items::{NotificationItem, NotificationItemFilter, NotificationState};
+use tui::ui::items::{Filter, NotificationItem, NotificationItemFilter, NotificationState};
 use tui::ui::span;
 use tui::ui::widget::container::{Footer, FooterProps, Header, HeaderProps};
 use tui::ui::widget::input::{TextField, TextFieldProps};
 use tui::ui::widget::text::{Paragraph, ParagraphProps};
-use tui::ui::widget::{Render, Shortcut, Shortcuts, ShortcutsProps, Table, TableProps, Widget};
+use tui::ui::widget::{Column, Render, Shortcut, Shortcuts, ShortcutsProps, Table, Widget};
 use tui::Selection;
 
 use crate::tui_inbox::common::{InboxOperation, Mode, RepositoryMode, SelectionMode};
@@ -174,6 +174,7 @@ struct NotificationsProps {
     mode: Mode,
     project: Project,
     stats: HashMap<String, usize>,
+    columns: Vec<Column>,
     cutoff: usize,
     cutoff_after: usize,
     focus: bool,
@@ -187,17 +188,15 @@ impl From<&State> for NotificationsProps {
         let mut seen = 0;
         let mut unseen = 0;
 
-        // Filter by search string
-        let filter = NotificationItemFilter::from_str(&state.search.read()).unwrap_or_default();
-        let notifications = state
+        let notifications: Vec<NotificationItem> = state
             .notifications
-            .clone()
-            .into_iter()
-            .filter(|issue| filter.matches(issue))
-            .collect::<Vec<_>>();
+            .iter()
+            .filter(|issue| state.filter.matches(issue))
+            .cloned()
+            .collect();
 
         // Compute statistics
-        for notification in &state.notifications {
+        for notification in &notifications {
             if notification.seen {
                 seen += 1;
             } else {
@@ -212,6 +211,19 @@ impl From<&State> for NotificationsProps {
             mode: state.mode.clone(),
             project: state.project.clone(),
             stats,
+            columns: [
+                Column::new("", Constraint::Length(5)),
+                Column::new("", Constraint::Length(3)),
+                Column::new("", Constraint::Length(15))
+                    .skip(*state.mode.repository() != RepositoryMode::All),
+                Column::new("", Constraint::Length(25)),
+                Column::new("", Constraint::Fill(1)),
+                Column::new("", Constraint::Length(8)),
+                Column::new("", Constraint::Length(10)),
+                Column::new("", Constraint::Length(15)),
+                Column::new("", Constraint::Length(18)),
+            ]
+            .to_vec(),
             cutoff: 200,
             cutoff_after: 5,
             focus: false,
@@ -230,18 +242,25 @@ struct Notifications {
     /// Table header
     header: Header<Action>,
     /// Notification table
-    table: Table<Action>,
+    table: Table<Action, NotificationItem>,
     /// Table footer
     footer: Footer<Action>,
 }
 
 impl Widget<State, Action> for Notifications {
     fn new(state: &State, action_tx: UnboundedSender<Action>) -> Self {
+        let props = NotificationsProps::from(state);
+
         Self {
             action_tx: action_tx.clone(),
             props: NotificationsProps::from(state),
             header: Header::new(state, action_tx.clone()),
-            table: Table::new(state, action_tx.clone()),
+            table: Table::new(state, action_tx.clone())
+                .items(props.notifications.clone())
+                .columns(props.columns.to_vec())
+                .header(true)
+                .footer(!props.show_search)
+                .cutoff(props.cutoff, props.cutoff_after),
             footer: Footer::new(state, action_tx),
         }
     }
@@ -251,13 +270,18 @@ impl Widget<State, Action> for Notifications {
         Self: Sized,
     {
         let props = NotificationsProps::from(state);
-        let mut table = self.table.move_with_state(state);
+        let table = self.table.move_with_state(state);
+        let notifications: Vec<NotificationItem> = state
+            .notifications
+            .iter()
+            .filter(|issue| state.filter.matches(issue))
+            .cloned()
+            .collect();
 
-        if let Some(selected) = table.selected() {
-            if selected > props.notifications.len() {
-                table.begin();
-            }
-        }
+        let table = table
+            .items(notifications)
+            .footer(!state.ui.show_search)
+            .page_size(state.ui.page_size);
 
         Self {
             props,
@@ -274,25 +298,6 @@ impl Widget<State, Action> for Notifications {
 
     fn handle_key_event(&mut self, key: Key) {
         match key {
-            Key::Up | Key::Char('k') => {
-                self.table.prev();
-            }
-            Key::Down | Key::Char('j') => {
-                self.table.next(self.props.notifications.len());
-            }
-            Key::PageUp => {
-                self.table.prev_page(self.props.page_size);
-            }
-            Key::PageDown => {
-                self.table
-                    .next_page(self.props.notifications.len(), self.props.page_size);
-            }
-            Key::Home => {
-                self.table.begin();
-            }
-            Key::End => {
-                self.table.end(self.props.notifications.len());
-            }
             Key::Char('\n') => {
                 self.table
                     .selected()
@@ -328,14 +333,19 @@ impl Widget<State, Action> for Notifications {
                             .ok()
                     });
             }
-            _ => {}
+            _ => {
+                <Table<Action, NotificationItem> as Widget<State, Action>>::handle_key_event(
+                    &mut self.table,
+                    key,
+                );
+            }
         }
     }
 }
 
 impl Notifications {
     fn render_header<B: Backend>(&self, frame: &mut ratatui::Frame, area: Rect) {
-        let title = match self.props.mode.repository() {
+        let name = match self.props.mode.repository() {
             RepositoryMode::Contextual => self.props.project.name().to_string(),
             RepositoryMode::All => "All repositories".to_string(),
             RepositoryMode::ByRepo((_, name)) => name.clone().unwrap_or_default(),
@@ -345,8 +355,11 @@ impl Notifications {
             frame,
             area,
             HeaderProps {
-                cells: [String::from("").into(), title.into()],
-                widths: [Constraint::Length(0), Constraint::Fill(1)],
+                columns: [
+                    Column::new("", Constraint::Length(0)),
+                    Column::new(&name, Constraint::Fill(1)),
+                ]
+                .to_vec(),
                 focus: self.props.focus,
                 cutoff: self.props.cutoff,
                 cutoff_after: self.props.cutoff_after,
@@ -355,58 +368,7 @@ impl Notifications {
     }
 
     fn render_list<B: Backend>(&self, frame: &mut ratatui::Frame, area: Rect) {
-        if let RepositoryMode::All = self.props.mode.repository() {
-            let widths = [
-                Constraint::Length(5),
-                Constraint::Length(3),
-                Constraint::Length(15),
-                Constraint::Length(25),
-                Constraint::Fill(1),
-                Constraint::Length(8),
-                Constraint::Length(10),
-                Constraint::Length(15),
-                Constraint::Length(18),
-            ];
-
-            self.table.render::<B>(
-                frame,
-                area,
-                TableProps {
-                    items: self.props.notifications.to_vec(),
-                    has_header: true,
-                    has_footer: !self.props.show_search,
-                    widths,
-                    focus: self.props.focus,
-                    cutoff: self.props.cutoff,
-                    cutoff_after: self.props.cutoff_after.saturating_add(1),
-                },
-            );
-        } else {
-            let widths = [
-                Constraint::Length(5),
-                Constraint::Length(3),
-                Constraint::Length(25),
-                Constraint::Fill(1),
-                Constraint::Length(8),
-                Constraint::Length(10),
-                Constraint::Length(15),
-                Constraint::Length(18),
-            ];
-
-            self.table.render::<B>(
-                frame,
-                area,
-                TableProps {
-                    items: self.props.notifications.to_vec(),
-                    has_header: true,
-                    has_footer: !self.props.show_search,
-                    widths,
-                    focus: self.props.focus,
-                    cutoff: self.props.cutoff,
-                    cutoff_after: self.props.cutoff_after,
-                },
-            );
-        }
+        self.table.render::<B>(frame, area, ());
     }
 
     fn render_footer<B: Backend>(&self, frame: &mut ratatui::Frame, area: Rect) {
@@ -830,8 +792,7 @@ impl<'a> Render<()> for Help<'a> {
             frame,
             header_area,
             HeaderProps {
-                cells: [String::from(" Help ").into()],
-                widths: [Constraint::Fill(1)],
+                columns: [Column::new(" Help ", Constraint::Fill(1))].to_vec(),
                 focus: self.props.focus,
                 cutoff: usize::MIN,
                 cutoff_after: usize::MAX,

@@ -1,6 +1,8 @@
 #[path = "select/ui.rs"]
 mod ui;
 
+use std::str::FromStr;
+
 use anyhow::Result;
 
 use radicle::identity::Project;
@@ -17,6 +19,7 @@ use tui::store;
 use tui::store::StateValue;
 use tui::task::{self, Interrupted};
 use tui::ui::items::NotificationItem;
+use tui::ui::items::NotificationItemFilter;
 use tui::ui::Frontend;
 use tui::Exit;
 
@@ -60,6 +63,7 @@ pub struct State {
     notifications: Vec<NotificationItem>,
     mode: Mode,
     project: Project,
+    filter: NotificationItemFilter,
     search: StateValue<String>,
     ui: UIState,
 }
@@ -70,6 +74,9 @@ impl TryFrom<&Context> for State {
     fn try_from(context: &Context) -> Result<Self, Self::Error> {
         let doc = context.repository.identity_doc()?;
         let project = doc.project()?;
+
+        let search = StateValue::new(String::new());
+        let filter = NotificationItemFilter::from_str(&search.read()).unwrap_or_default();
 
         let mut notifications = match &context.mode.repository() {
             RepositoryMode::All => {
@@ -155,7 +162,8 @@ impl TryFrom<&Context> for State {
             notifications,
             mode: mode.clone(),
             project,
-            search: StateValue::new(String::new()),
+            filter,
+            search,
             ui: UIState::default(),
         })
     }
@@ -188,6 +196,9 @@ impl store::State<Action, Selection> for State {
             }
             Action::UpdateSearch { value } => {
                 self.search.write(value);
+                self.filter =
+                    NotificationItemFilter::from_str(&self.search.read()).unwrap_or_default();
+
                 None
             }
             Action::ApplySearch => {
@@ -198,6 +209,9 @@ impl store::State<Action, Selection> for State {
             Action::CloseSearch => {
                 self.search.reset();
                 self.ui.show_search = false;
+                self.filter =
+                    NotificationItemFilter::from_str(&self.search.read()).unwrap_or_default();
+
                 None
             }
             Action::OpenHelp => {
