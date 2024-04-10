@@ -12,6 +12,8 @@ use termion::event::Key;
 use ratatui::prelude::*;
 use ratatui::widgets::{Block, BorderType, Borders, Cell, Row, TableState};
 
+use self::container::Header;
+
 use super::theme::style;
 use super::{layout, span};
 
@@ -145,7 +147,6 @@ pub struct TableProps<R: ToRow> {
     pub items: Vec<R>,
     pub focus: bool,
     pub columns: Vec<Column>,
-    pub has_header: bool,
     pub has_footer: bool,
     pub cutoff: usize,
     pub cutoff_after: usize,
@@ -158,7 +159,6 @@ impl<R: ToRow> Default for TableProps<R> {
             items: vec![],
             focus: false,
             columns: vec![],
-            has_header: false,
             has_footer: false,
             cutoff: usize::MAX,
             cutoff_after: usize::MAX,
@@ -174,6 +174,8 @@ pub struct Table<A, R: ToRow> {
     pub props: TableProps<R>,
     /// Internal selection state
     state: TableState,
+    /// Table header widget
+    header: Option<Header<A>>,
 }
 
 impl<A, R: ToRow> Table<A, R> {
@@ -184,11 +186,6 @@ impl<A, R: ToRow> Table<A, R> {
 
     pub fn columns(mut self, columns: Vec<Column>) -> Self {
         self.props.columns = columns;
-        self
-    }
-
-    pub fn header(mut self, has_header: bool) -> Self {
-        self.props.has_header = has_header;
         self
     }
 
@@ -205,6 +202,11 @@ impl<A, R: ToRow> Table<A, R> {
 
     pub fn page_size(mut self, page_size: usize) -> Self {
         self.props.page_size = page_size;
+        self
+    }
+
+    pub fn header(mut self, header: Header<A>) -> Self {
+        self.header = Some(header);
         self
     }
 
@@ -289,11 +291,11 @@ impl<A, R: ToRow> Table<A, R> {
     }
 }
 
-impl<S, A, R> Widget<S, A> for Table<A, R>
+impl<A, R> Widget<(), A> for Table<A, R>
 where
     R: ToRow,
 {
-    fn new(state: &S, action_tx: UnboundedSender<A>) -> Self
+    fn new(state: &(), action_tx: UnboundedSender<A>) -> Self
     where
         Self: Sized,
     {
@@ -301,11 +303,12 @@ where
             action_tx: action_tx.clone(),
             props: TableProps::default(),
             state: TableState::default().with_selected(Some(0)),
+            header: None,
         }
         .move_with_state(state)
     }
 
-    fn move_with_state(self, _state: &S) -> Self
+    fn move_with_state(self, _state: &()) -> Self
     where
         Self: Sized,
     {
@@ -350,6 +353,9 @@ where
     R: ToRow + Debug,
 {
     fn render<B: Backend>(&self, frame: &mut ratatui::Frame, area: Rect, _props: ()) {
+        let header_height = if self.header.is_some() { 3 } else { 0 };
+        let [header_area, table_area] =
+            Layout::vertical([Constraint::Length(header_height), Constraint::Min(1)]).areas(area);
         let widths: Vec<Constraint> = self
             .props
             .columns
@@ -366,7 +372,7 @@ where
             widths.iter().collect::<Vec<_>>()
         };
 
-        let borders = match (self.props.has_header, self.props.has_footer) {
+        let borders = match (self.header.is_some(), self.props.has_footer) {
             (false, false) => Borders::ALL,
             (true, false) => Borders::BOTTOM | Borders::LEFT | Borders::RIGHT,
             (false, true) => Borders::TOP | Borders::LEFT | Borders::RIGHT,
@@ -407,16 +413,22 @@ where
                 )
                 .highlight_style(style::highlight());
 
-            frame.render_stateful_widget(rows, area, &mut self.state.clone());
+            if let Some(header) = &self.header {
+                header.render::<B>(frame, header_area, ());
+            }
+            frame.render_stateful_widget(rows, table_area, &mut self.state.clone());
         } else {
             let block = Block::default()
                 .border_style(style::border(self.props.focus))
                 .border_type(BorderType::Rounded)
                 .borders(borders);
 
-            frame.render_widget(block, area);
+            if let Some(header) = &self.header {
+                header.render::<B>(frame, header_area, ());
+            }
+            frame.render_widget(block, table_area);
 
-            let center = layout::centered_rect(area, 50, 10);
+            let center = layout::centered_rect(table_area, 50, 10);
             let hint = Text::from(span::default("Nothing to show".to_string()))
                 .centered()
                 .light_magenta()

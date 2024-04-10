@@ -108,23 +108,55 @@ pub struct HeaderProps {
     pub focus: bool,
 }
 
+impl Default for HeaderProps {
+    fn default() -> Self {
+        Self {
+            columns: vec![],
+            cutoff: usize::MAX,
+            cutoff_after: usize::MAX,
+            focus: false,
+        }
+    }
+}
+
 pub struct Header<A> {
     /// Sending actions to the state store
     pub action_tx: UnboundedSender<A>,
+    /// Internal props
+    props: HeaderProps,
 }
 
-impl<S, A> Widget<S, A> for Header<A> {
-    fn new(state: &S, action_tx: UnboundedSender<A>) -> Self
+impl<A> Header<A> {
+    pub fn columns(mut self, columns: Vec<Column>) -> Self {
+        self.props.columns = columns;
+        self
+    }
+
+    pub fn focus(mut self, focus: bool) -> Self {
+        self.props.focus = focus;
+        self
+    }
+
+    pub fn cutoff(mut self, cutoff: usize, cutoff_after: usize) -> Self {
+        self.props.cutoff = cutoff;
+        self.props.cutoff_after = cutoff_after;
+        self
+    }
+}
+
+impl<A> Widget<(), A> for Header<A> {
+    fn new(state: &(), action_tx: UnboundedSender<A>) -> Self
     where
         Self: Sized,
     {
         Self {
             action_tx: action_tx.clone(),
+            props: HeaderProps::default(),
         }
         .move_with_state(state)
     }
 
-    fn move_with_state(self, _state: &S) -> Self
+    fn move_with_state(self, _state: &()) -> Self
     where
         Self: Sized,
     {
@@ -134,9 +166,10 @@ impl<S, A> Widget<S, A> for Header<A> {
     fn handle_key_event(&mut self, _key: Key) {}
 }
 
-impl<A> Render<HeaderProps> for Header<A> {
-    fn render<B: Backend>(&self, frame: &mut ratatui::Frame, area: Rect, props: HeaderProps) {
-        let widths: Vec<Constraint> = props
+impl<A> Render<()> for Header<A> {
+    fn render<B: Backend>(&self, frame: &mut ratatui::Frame, area: Rect, _props: ()) {
+        let widths: Vec<Constraint> = self
+            .props
             .columns
             .iter()
             .filter_map(|column| {
@@ -147,7 +180,8 @@ impl<A> Render<HeaderProps> for Header<A> {
                 }
             })
             .collect();
-        let cells = props
+        let cells = self
+            .props
             .columns
             .iter()
             .filter_map(|column| {
@@ -159,8 +193,11 @@ impl<A> Render<HeaderProps> for Header<A> {
             })
             .collect::<Vec<_>>();
 
-        let widths = if area.width < props.cutoff as u16 {
-            widths.iter().take(props.cutoff_after).collect::<Vec<_>>()
+        let widths = if area.width < self.props.cutoff as u16 {
+            widths
+                .iter()
+                .take(self.props.cutoff_after)
+                .collect::<Vec<_>>()
         } else {
             widths.iter().collect::<Vec<_>>()
         };
@@ -168,7 +205,7 @@ impl<A> Render<HeaderProps> for Header<A> {
         // Render header
         let block = HeaderBlock::default()
             .borders(Borders::ALL)
-            .border_style(style::border(props.focus))
+            .border_style(style::border(self.props.focus))
             .border_type(BorderType::Rounded);
 
         let header_layout = Layout::default()
