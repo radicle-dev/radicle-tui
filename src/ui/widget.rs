@@ -33,6 +33,10 @@ pub trait Render<P> {
     fn render<B: ratatui::backend::Backend>(&self, frame: &mut Frame, area: Rect, props: P);
 }
 
+pub trait ToRow {
+    fn to_row(&self) -> Vec<Cell>;
+}
+
 pub struct Shortcut {
     pub short: String,
     pub long: String,
@@ -120,40 +124,103 @@ impl<A> Render<ShortcutsProps> for Shortcuts<A> {
     }
 }
 
-pub trait ToRow<const W: usize> {
-    fn to_row(&self) -> [Cell; W];
+#[derive(Clone, Debug)]
+pub struct Column {
+    pub title: String,
+    pub width: Constraint,
+    pub skip: bool,
+}
+
+impl Column {
+    pub fn new(title: &str, width: Constraint) -> Self {
+        Self {
+            title: title.to_string(),
+            width,
+            skip: false,
+        }
+    }
+
+    pub fn skip(mut self, skip: bool) -> Self {
+        self.skip = skip;
+        self
+    }
 }
 
 #[derive(Debug)]
-pub struct TableProps<R: ToRow<W>, const W: usize> {
+pub struct TableProps<R: ToRow> {
     pub items: Vec<R>,
     pub focus: bool,
-    pub widths: [Constraint; W],
+    pub columns: Vec<Column>,
     pub has_header: bool,
     pub has_footer: bool,
     pub cutoff: usize,
     pub cutoff_after: usize,
+    pub page_size: usize,
 }
 
-pub struct Table<A> {
+impl<R: ToRow> Default for TableProps<R> {
+    fn default() -> Self {
+        Self {
+            items: vec![],
+            focus: false,
+            columns: vec![],
+            has_header: false,
+            has_footer: false,
+            cutoff: usize::MAX,
+            cutoff_after: usize::MAX,
+            page_size: 1,
+        }
+    }
+}
+
+pub struct Table<A, R: ToRow> {
     /// Sending actions to the state store
     pub action_tx: UnboundedSender<A>,
+    /// Internal table properties
+    pub props: TableProps<R>,
     /// Internal selection state
     state: TableState,
 }
 
-impl<A> Table<A> {
-    pub fn selected(&self) -> Option<usize> {
-        self.state.selected()
+impl<A, R: ToRow> Table<A, R> {
+    pub fn items(mut self, items: Vec<R>) -> Self {
+        self.props.items = items;
+        self
     }
 
-    pub fn prev(&mut self) -> Option<usize> {
+    pub fn columns(mut self, columns: Vec<Column>) -> Self {
+        self.props.columns = columns;
+        self
+    }
+
+    pub fn header(mut self, has_header: bool) -> Self {
+        self.props.has_header = has_header;
+        self
+    }
+
+    pub fn footer(mut self, has_footer: bool) -> Self {
+        self.props.has_footer = has_footer;
+        self
+    }
+
+    pub fn cutoff(mut self, cutoff: usize, cutoff_after: usize) -> Self {
+        self.props.cutoff = cutoff;
+        self.props.cutoff_after = cutoff_after;
+        self
+    }
+
+    pub fn page_size(mut self, page_size: usize) -> Self {
+        self.props.page_size = page_size;
+        self
+    }
+
+    fn prev(&mut self) -> Option<usize> {
         let selected = self.selected().map(|current| current.saturating_sub(1));
         self.state.select(selected);
         selected
     }
 
-    pub fn next(&mut self, len: usize) -> Option<usize> {
+    fn next(&mut self, len: usize) -> Option<usize> {
         let selected = self.selected().map(|current| {
             if current < len.saturating_sub(1) {
                 current.saturating_add(1)
@@ -165,7 +232,7 @@ impl<A> Table<A> {
         selected
     }
 
-    pub fn prev_page(&mut self, page_size: usize) -> Option<usize> {
+    fn prev_page(&mut self, page_size: usize) -> Option<usize> {
         let selected = self
             .selected()
             .map(|current| current.saturating_sub(page_size));
@@ -173,7 +240,7 @@ impl<A> Table<A> {
         selected
     }
 
-    pub fn next_page(&mut self, len: usize, page_size: usize) -> Option<usize> {
+    fn next_page(&mut self, len: usize, page_size: usize) -> Option<usize> {
         let selected = self.selected().map(|current| {
             if current < len.saturating_sub(1) {
                 cmp::min(current.saturating_add(page_size), len.saturating_sub(1))
@@ -185,13 +252,17 @@ impl<A> Table<A> {
         selected
     }
 
-    pub fn begin(&mut self) -> Option<usize> {
+    fn begin(&mut self) -> Option<usize> {
         self.state.select(Some(0));
         self.state.selected()
     }
 
-    pub fn end(&mut self, len: usize) -> Option<usize> {
+    fn end(&mut self, len: usize) -> Option<usize> {
         self.state.select(Some(len.saturating_sub(1)));
+        self.state.selected()
+    }
+
+    pub fn selected(&self) -> Option<usize> {
         self.state.selected()
     }
 
@@ -224,13 +295,17 @@ impl<A> Table<A> {
     }
 }
 
-impl<S, A> Widget<S, A> for Table<A> {
+impl<S, A, R> Widget<S, A> for Table<A, R>
+where
+    R: ToRow,
+{
     fn new(state: &S, action_tx: UnboundedSender<A>) -> Self
     where
         Self: Sized,
     {
         Self {
             action_tx: action_tx.clone(),
+            props: TableProps::default(),
             state: TableState::default().with_selected(Some(0)),
         }
         .move_with_state(state)
@@ -240,40 +315,95 @@ impl<S, A> Widget<S, A> for Table<A> {
     where
         Self: Sized,
     {
-        Self { ..self }
+        let mut me = Self { ..self };
+
+        if let Some(selected) = me.selected() {
+            if selected > me.props.items.len() {
+                me.begin();
+            }
+        }
+
+        me
     }
 
     fn name(&self) -> &str {
-        "shortcuts"
+        "table"
     }
 
-    fn handle_key_event(&mut self, _key: Key) {}
+    fn handle_key_event(&mut self, key: Key) {
+        match key {
+            Key::Up | Key::Char('k') => {
+                self.prev();
+            }
+            Key::Down | Key::Char('j') => {
+                self.next(self.props.items.len());
+            }
+            Key::PageUp => {
+                self.prev_page(self.props.page_size);
+            }
+            Key::PageDown => {
+                self.next_page(self.props.items.len(), self.props.page_size);
+            }
+            Key::Home => {
+                self.begin();
+            }
+            Key::End => {
+                self.end(self.props.items.len());
+            }
+            _ => {}
+        }
+    }
 }
 
-impl<A, R, const W: usize> Render<TableProps<R, W>> for Table<A>
+impl<A, R> Render<()> for Table<A, R>
 where
-    R: ToRow<W> + Debug,
+    R: ToRow + Debug,
 {
-    fn render<B: Backend>(&self, frame: &mut ratatui::Frame, area: Rect, props: TableProps<R, W>) {
-        let widths = props.widths.to_vec();
-        let widths = if area.width < props.cutoff as u16 {
-            widths.iter().take(props.cutoff_after).collect::<Vec<_>>()
+    fn render<B: Backend>(&self, frame: &mut ratatui::Frame, area: Rect, _props: ()) {
+        let widths: Vec<Constraint> = self
+            .props
+            .columns
+            .iter()
+            .filter_map(|c| if !c.skip { Some(c.width) } else { None })
+            .collect();
+
+        let widths = if area.width < self.props.cutoff as u16 {
+            widths
+                .iter()
+                .take(self.props.cutoff_after)
+                .collect::<Vec<_>>()
         } else {
             widths.iter().collect::<Vec<_>>()
         };
 
-        let borders = match (props.has_header, props.has_footer) {
+        let borders = match (self.props.has_header, self.props.has_footer) {
             (false, false) => Borders::ALL,
             (true, false) => Borders::BOTTOM | Borders::LEFT | Borders::RIGHT,
             (false, true) => Borders::TOP | Borders::LEFT | Borders::RIGHT,
             (true, true) => Borders::LEFT | Borders::RIGHT,
         };
 
-        if !props.items.is_empty() {
-            let rows = props
+        if !self.props.items.is_empty() {
+            let rows = self
+                .props
                 .items
                 .iter()
-                .map(|item| Row::new(item.to_row()))
+                .map(|item| {
+                    let mut cells = vec![];
+                    let mut it = self.props.columns.iter();
+
+                    for cell in item.to_row() {
+                        if let Some(col) = it.next() {
+                            if !col.skip {
+                                cells.push(cell.clone());
+                            }
+                        } else {
+                            continue;
+                        }
+                    }
+
+                    Row::new(cells)
+                })
                 .collect::<Vec<_>>();
             let rows = ratatui::widgets::Table::default()
                 .rows(rows)
@@ -281,7 +411,7 @@ where
                 .column_spacing(1)
                 .block(
                     Block::default()
-                        .border_style(style::border(props.focus))
+                        .border_style(style::border(self.props.focus))
                         .border_type(BorderType::Rounded)
                         .borders(borders),
                 )
@@ -290,7 +420,7 @@ where
             frame.render_stateful_widget(rows, area, &mut self.state.clone());
         } else {
             let block = Block::default()
-                .border_style(style::border(props.focus))
+                .border_style(style::border(self.props.focus))
                 .border_type(BorderType::Rounded)
                 .borders(borders);
 

@@ -10,7 +10,7 @@ use ratatui::widgets::{BorderType, Borders, Row};
 use crate::ui::ext::{FooterBlock, FooterBlockType, HeaderBlock};
 use crate::ui::theme::style;
 
-use super::{Render, Widget};
+use super::{Column, Render, Widget};
 
 #[derive(Debug)]
 pub struct FooterProps<'a, const W: usize> {
@@ -105,9 +105,8 @@ impl<'a, A, const W: usize> Render<FooterProps<'a, W>> for Footer<A> {
 }
 
 #[derive(Debug)]
-pub struct HeaderProps<'a, const W: usize> {
-    pub cells: [Text<'a>; W],
-    pub widths: [Constraint; W],
+pub struct HeaderProps {
+    pub columns: Vec<Column>,
     pub cutoff: usize,
     pub cutoff_after: usize,
     pub focus: bool,
@@ -143,9 +142,31 @@ impl<S, A> Widget<S, A> for Header<A> {
     fn handle_key_event(&mut self, _key: Key) {}
 }
 
-impl<'a, A, const W: usize> Render<HeaderProps<'a, W>> for Header<A> {
-    fn render<B: Backend>(&self, frame: &mut ratatui::Frame, area: Rect, props: HeaderProps<W>) {
-        let widths = props.widths.to_vec();
+impl<A> Render<HeaderProps> for Header<A> {
+    fn render<B: Backend>(&self, frame: &mut ratatui::Frame, area: Rect, props: HeaderProps) {
+        let widths: Vec<Constraint> = props
+            .columns
+            .iter()
+            .filter_map(|column| {
+                if !column.skip {
+                    Some(column.width)
+                } else {
+                    None
+                }
+            })
+            .collect();
+        let cells = props
+            .columns
+            .iter()
+            .filter_map(|column| {
+                if !column.skip {
+                    Some(column.title.clone())
+                } else {
+                    None
+                }
+            })
+            .collect::<Vec<_>>();
+
         let widths = if area.width < props.cutoff as u16 {
             widths.iter().take(props.cutoff_after).collect::<Vec<_>>()
         } else {
@@ -165,7 +186,7 @@ impl<'a, A, const W: usize> Render<HeaderProps<'a, W>> for Header<A> {
             .horizontal_margin(1)
             .split(area);
 
-        let header = Row::new(props.cells).style(style::reset().bold());
+        let header = Row::new(cells).style(style::reset().bold());
         let header = ratatui::widgets::Table::default()
             .column_spacing(1)
             .header(header)
