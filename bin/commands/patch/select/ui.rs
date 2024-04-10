@@ -15,12 +15,12 @@ use radicle::patch::{self, Status};
 
 use radicle_tui as tui;
 
-use tui::ui::items::{PatchItem, PatchItemFilter};
+use tui::ui::items::{Filter, PatchItem, PatchItemFilter};
 use tui::ui::span;
 use tui::ui::widget::container::{Footer, FooterProps, Header, HeaderProps};
 use tui::ui::widget::input::{TextField, TextFieldProps};
 use tui::ui::widget::text::{Paragraph, ParagraphProps};
-use tui::ui::widget::{Render, Shortcut, Shortcuts, ShortcutsProps, Table, TableProps, Widget};
+use tui::ui::widget::{Column, Render, Shortcut, Shortcuts, ShortcutsProps, Table, Widget};
 use tui::Selection;
 
 use crate::tui_patch::common::Mode;
@@ -169,12 +169,13 @@ impl<'a> Render<()> for ListPage<'a> {
     }
 }
 
+#[derive(Clone)]
 struct PatchesProps {
     mode: Mode,
     patches: Vec<PatchItem>,
     search: String,
     stats: HashMap<String, usize>,
-    widths: [Constraint; 9],
+    columns: Vec<Column>,
     cutoff: usize,
     cutoff_after: usize,
     focus: bool,
@@ -189,16 +190,12 @@ impl From<&State> for PatchesProps {
         let mut archived = 0;
         let mut merged = 0;
 
-        let filter = PatchItemFilter::from_str(&state.search.read()).unwrap_or_default();
-        let mut patches = state
+        let patches: Vec<PatchItem> = state
             .patches
-            .clone()
-            .into_iter()
-            .filter(|patch| filter.matches(patch))
-            .collect::<Vec<_>>();
-
-        // Apply sorting
-        patches.sort_by(|a, b| b.timestamp.cmp(&a.timestamp));
+            .iter()
+            .filter(|patch| state.filter.matches(patch))
+            .cloned()
+            .collect();
 
         for patch in &patches {
             match patch.state {
@@ -223,17 +220,18 @@ impl From<&State> for PatchesProps {
             mode: state.mode.clone(),
             patches,
             search: state.search.read(),
-            widths: [
-                Constraint::Length(3),
-                Constraint::Length(8),
-                Constraint::Fill(1),
-                Constraint::Length(16),
-                Constraint::Length(16),
-                Constraint::Length(8),
-                Constraint::Length(6),
-                Constraint::Length(6),
-                Constraint::Length(16),
-            ],
+            columns: [
+                Column::new(" ● ", Constraint::Length(3)),
+                Column::new("ID", Constraint::Length(8)),
+                Column::new("Title", Constraint::Fill(1)),
+                Column::new("Author", Constraint::Length(16)),
+                Column::new("", Constraint::Length(16)),
+                Column::new("Head", Constraint::Length(8)),
+                Column::new("+", Constraint::Length(6)),
+                Column::new("-", Constraint::Length(6)),
+                Column::new("Updated", Constraint::Length(16)),
+            ]
+            .to_vec(),
             cutoff: 150,
             cutoff_after: 5,
             focus: false,
@@ -252,18 +250,25 @@ struct Patches {
     /// Table header
     header: Header<Action>,
     /// Notification table
-    table: Table<Action>,
+    table: Table<Action, PatchItem>,
     /// Table footer
     footer: Footer<Action>,
 }
 
 impl Widget<State, Action> for Patches {
     fn new(state: &State, action_tx: UnboundedSender<Action>) -> Self {
+        let props = PatchesProps::from(state);
+
         Self {
             action_tx: action_tx.clone(),
-            props: PatchesProps::from(state),
+            props: props.clone(),
             header: Header::new(state, action_tx.clone()),
-            table: Table::new(state, action_tx.clone()),
+            table: Table::new(state, action_tx.clone())
+                .items(props.patches.clone())
+                .columns(props.columns.to_vec())
+                .header(true)
+                .footer(!props.show_search)
+                .cutoff(props.cutoff, props.cutoff_after),
             footer: Footer::new(state, action_tx),
         }
     }
@@ -273,13 +278,19 @@ impl Widget<State, Action> for Patches {
         Self: Sized,
     {
         let props = PatchesProps::from(state);
-        let mut table = self.table.move_with_state(state);
+        let patches: Vec<PatchItem> = state
+            .patches
+            .iter()
+            .filter(|patch| state.filter.matches(patch))
+            .cloned()
+            .collect();
 
-        if let Some(selected) = table.selected() {
-            if selected > props.patches.len() {
-                table.begin();
-            }
-        }
+        let table = self
+            .table
+            .move_with_state(state)
+            .items(patches)
+            .footer(!state.ui.show_search)
+            .page_size(state.ui.page_size);
 
         Self {
             props,
@@ -296,25 +307,6 @@ impl Widget<State, Action> for Patches {
 
     fn handle_key_event(&mut self, key: Key) {
         match key {
-            Key::Up | Key::Char('k') => {
-                self.table.prev();
-            }
-            Key::Down | Key::Char('j') => {
-                self.table.next(self.props.patches.len());
-            }
-            Key::PageUp => {
-                self.table.prev_page(self.props.page_size);
-            }
-            Key::PageDown => {
-                self.table
-                    .next_page(self.props.patches.len(), self.props.page_size);
-            }
-            Key::Home => {
-                self.table.begin();
-            }
-            Key::End => {
-                self.table.end(self.props.patches.len());
-            }
             Key::Char('\n') => {
                 let operation = match self.props.mode {
                     Mode::Operation => Some(PatchOperation::Show.to_string()),
@@ -368,7 +360,12 @@ impl Widget<State, Action> for Patches {
                             .ok()
                     });
             }
-            _ => {}
+            _ => {
+                <Table<Action, PatchItem> as Widget<State, Action>>::handle_key_event(
+                    &mut self.table,
+                    key,
+                );
+            }
         }
     }
 }
@@ -379,18 +376,7 @@ impl Patches {
             frame,
             area,
             HeaderProps {
-                cells: [
-                    String::from(" ● ").into(),
-                    String::from("ID").into(),
-                    String::from("Title").into(),
-                    String::from("Author").into(),
-                    String::from("").into(),
-                    String::from("Head").into(),
-                    String::from("+").into(),
-                    String::from("- ").into(),
-                    String::from("Updated").into(),
-                ],
-                widths: self.props.widths,
+                columns: self.props.columns.clone(),
                 focus: self.props.focus,
                 cutoff: self.props.cutoff,
                 cutoff_after: self.props.cutoff_after,
@@ -399,19 +385,7 @@ impl Patches {
     }
 
     fn render_list<B: Backend>(&self, frame: &mut ratatui::Frame, area: Rect) {
-        self.table.render::<B>(
-            frame,
-            area,
-            TableProps {
-                items: self.props.patches.to_vec(),
-                has_header: true,
-                has_footer: !self.props.show_search,
-                widths: self.props.widths,
-                focus: self.props.focus,
-                cutoff: self.props.cutoff,
-                cutoff_after: self.props.cutoff_after,
-            },
-        );
+        self.table.render::<B>(frame, area, ());
     }
 
     fn render_footer<B: Backend>(&self, frame: &mut ratatui::Frame, area: Rect) {
@@ -877,8 +851,7 @@ impl<'a> Render<()> for Help<'a> {
             frame,
             header_area,
             HeaderProps {
-                cells: [String::from(" Help ").into()],
-                widths: [Constraint::Fill(1)],
+                columns: [Column::new(" Help ", Constraint::Fill(1))].to_vec(),
                 focus: self.props.focus,
                 cutoff: usize::MIN,
                 cutoff_after: usize::MAX,

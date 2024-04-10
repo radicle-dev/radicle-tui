@@ -1,6 +1,8 @@
 #[path = "select/ui.rs"]
 mod ui;
 
+use std::str::FromStr;
+
 use anyhow::Result;
 
 use radicle::patch::PatchId;
@@ -9,10 +11,12 @@ use radicle::Profile;
 
 use radicle_tui as tui;
 
-use tui::cob::patch::{self, Filter};
+use tui::cob::patch;
+use tui::cob::patch::Filter;
 use tui::store;
-use tui::task::{self, Interrupted};
-use tui::ui::items::PatchItem;
+use tui::task;
+use tui::task::Interrupted;
+use tui::ui::items::{PatchItem, PatchItemFilter};
 use tui::ui::Frontend;
 use tui::Exit;
 
@@ -54,6 +58,7 @@ impl Default for UIState {
 pub struct State {
     patches: Vec<PatchItem>,
     mode: Mode,
+    filter: PatchItemFilter,
     search: store::StateValue<String>,
     ui: UIState,
 }
@@ -63,6 +68,8 @@ impl TryFrom<&Context> for State {
 
     fn try_from(context: &Context) -> Result<Self, Self::Error> {
         let patches = patch::all(&context.profile, &context.repository)?;
+        let search = store::StateValue::new(context.filter.to_string());
+        let filter = PatchItemFilter::from_str(&context.filter.to_string()).unwrap_or_default();
 
         // Convert into UI items
         let mut items = vec![];
@@ -71,11 +78,13 @@ impl TryFrom<&Context> for State {
                 items.push(item);
             }
         }
+        items.sort_by(|a, b| b.timestamp.cmp(&a.timestamp));
 
         Ok(Self {
             patches: items,
             mode: context.mode.clone(),
-            search: store::StateValue::new(context.filter.to_string()),
+            filter,
+            search,
             ui: UIState::default(),
         })
     }
@@ -108,6 +117,8 @@ impl store::State<Action, Selection> for State {
             }
             Action::UpdateSearch { value } => {
                 self.search.write(value);
+                self.filter = PatchItemFilter::from_str(&self.search.read()).unwrap_or_default();
+
                 None
             }
             Action::ApplySearch => {
@@ -118,6 +129,8 @@ impl store::State<Action, Selection> for State {
             Action::CloseSearch => {
                 self.search.reset();
                 self.ui.show_search = false;
+                self.filter = PatchItemFilter::from_str(&self.search.read()).unwrap_or_default();
+
                 None
             }
             Action::OpenHelp => {
