@@ -10,13 +10,11 @@ use ratatui::layout::{Constraint, Layout, Rect};
 use ratatui::style::Stylize;
 use ratatui::text::{Line, Span, Text};
 
-use radicle::identity::Project;
-
 use radicle_tui as tui;
 
 use tui::ui::items::{Filter, NotificationItem, NotificationItemFilter, NotificationState};
 use tui::ui::span;
-use tui::ui::widget::container::{Footer, FooterProps, Header, HeaderProps};
+use tui::ui::widget::container::{Footer, FooterProps, Header};
 use tui::ui::widget::input::{TextField, TextFieldProps};
 use tui::ui::widget::text::{Paragraph, ParagraphProps};
 use tui::ui::widget::{Column, Render, Shortcut, Shortcuts, ShortcutsProps, Table, Widget};
@@ -168,7 +166,6 @@ impl<'a> Render<()> for ListPage<'a> {
 struct NotificationsProps {
     notifications: Vec<NotificationItem>,
     mode: Mode,
-    project: Project,
     stats: HashMap<String, usize>,
     columns: Vec<Column>,
     cutoff: usize,
@@ -205,7 +202,6 @@ impl From<&State> for NotificationsProps {
         Self {
             notifications,
             mode: state.mode.clone(),
-            project: state.project.clone(),
             stats,
             columns: [
                 Column::new("", Constraint::Length(5)),
@@ -235,8 +231,6 @@ struct Notifications {
     action_tx: UnboundedSender<Action>,
     /// State mapped props
     props: NotificationsProps,
-    /// Table header
-    header: Header<Action>,
     /// Notification table
     table: Table<Action, NotificationItem>,
     /// Table footer
@@ -246,15 +240,30 @@ struct Notifications {
 impl Widget<State, Action> for Notifications {
     fn new(state: &State, action_tx: UnboundedSender<Action>) -> Self {
         let props = NotificationsProps::from(state);
+        let name = match state.mode.repository() {
+            RepositoryMode::Contextual => state.project.name().to_string(),
+            RepositoryMode::All => "All repositories".to_string(),
+            RepositoryMode::ByRepo((_, name)) => name.clone().unwrap_or_default(),
+        };
 
         Self {
             action_tx: action_tx.clone(),
             props: NotificationsProps::from(state),
-            header: Header::new(state, action_tx.clone()),
-            table: Table::new(state, action_tx.clone())
+            table: Table::new(&(), action_tx.clone())
                 .items(props.notifications.clone())
                 .columns(props.columns.to_vec())
-                .header(true)
+                .header(
+                    Header::new(&(), action_tx.clone())
+                        .columns(
+                            [
+                                Column::new("", Constraint::Length(0)),
+                                Column::new(&name, Constraint::Fill(1)),
+                            ]
+                            .to_vec(),
+                        )
+                        .cutoff(props.cutoff, props.cutoff_after)
+                        .focus(props.focus),
+                )
                 .footer(!props.show_search)
                 .cutoff(props.cutoff, props.cutoff_after),
             footer: Footer::new(state, action_tx),
@@ -266,7 +275,7 @@ impl Widget<State, Action> for Notifications {
         Self: Sized,
     {
         let props = NotificationsProps::from(state);
-        let table = self.table.move_with_state(state);
+        let table = self.table.move_with_state(&());
         let notifications: Vec<NotificationItem> = state
             .notifications
             .iter()
@@ -282,7 +291,6 @@ impl Widget<State, Action> for Notifications {
         Self {
             props,
             table,
-            header: self.header.move_with_state(state),
             footer: self.footer.move_with_state(state),
             ..self
         }
@@ -326,7 +334,7 @@ impl Widget<State, Action> for Notifications {
                     });
             }
             _ => {
-                <Table<Action, NotificationItem> as Widget<State, Action>>::handle_key_event(
+                <Table<Action, NotificationItem> as Widget<(), Action>>::handle_key_event(
                     &mut self.table,
                     key,
                 );
@@ -336,33 +344,6 @@ impl Widget<State, Action> for Notifications {
 }
 
 impl Notifications {
-    fn render_header<B: Backend>(&self, frame: &mut ratatui::Frame, area: Rect) {
-        let name = match self.props.mode.repository() {
-            RepositoryMode::Contextual => self.props.project.name().to_string(),
-            RepositoryMode::All => "All repositories".to_string(),
-            RepositoryMode::ByRepo((_, name)) => name.clone().unwrap_or_default(),
-        };
-
-        self.header.render::<B>(
-            frame,
-            area,
-            HeaderProps {
-                columns: [
-                    Column::new("", Constraint::Length(0)),
-                    Column::new(&name, Constraint::Fill(1)),
-                ]
-                .to_vec(),
-                focus: self.props.focus,
-                cutoff: self.props.cutoff,
-                cutoff_after: self.props.cutoff_after,
-            },
-        );
-    }
-
-    fn render_list<B: Backend>(&self, frame: &mut ratatui::Frame, area: Rect) {
-        self.table.render::<B>(frame, area, ());
-    }
-
     fn render_footer<B: Backend>(&self, frame: &mut ratatui::Frame, area: Rect) {
         let search = Line::from(
             [
@@ -457,26 +438,19 @@ impl Notifications {
 
 impl Render<()> for Notifications {
     fn render<B: Backend>(&self, frame: &mut ratatui::Frame, area: Rect, _props: ()) {
+        let header_height = 3_usize;
+
         let page_size = if self.props.show_search {
-            let layout = Layout::vertical([Constraint::Length(3), Constraint::Min(1)]).split(area);
+            self.table.render::<B>(frame, area, ());
 
-            self.render_header::<B>(frame, layout[0]);
-            self.render_list::<B>(frame, layout[1]);
-
-            layout[1].height as usize
+            (area.height as usize).saturating_sub(header_height)
         } else {
-            let layout = Layout::vertical([
-                Constraint::Length(3),
-                Constraint::Min(1),
-                Constraint::Length(3),
-            ])
-            .split(area);
+            let layout = Layout::vertical([Constraint::Min(1), Constraint::Length(3)]).split(area);
 
-            self.render_header::<B>(frame, layout[0]);
-            self.render_list::<B>(frame, layout[1]);
-            self.render_footer::<B>(frame, layout[2]);
+            self.table.render::<B>(frame, layout[0], ());
+            self.render_footer::<B>(frame, layout[1]);
 
-            layout[1].height as usize
+            (area.height as usize).saturating_sub(header_height)
         };
 
         if page_size != self.props.page_size {
@@ -711,10 +685,14 @@ impl<'a> Widget<State, Action> for Help<'a> {
     where
         Self: Sized,
     {
+        let props = HelpProps::from(state);
+
         Self {
             action_tx: action_tx.clone(),
             props: HelpProps::from(state),
-            header: Header::new(state, action_tx.clone()),
+            header: Header::new(&(), action_tx.clone())
+                .columns([Column::new(" Help ", Constraint::Fill(1))].to_vec())
+                .focus(props.focus),
             content: Paragraph::new(state, action_tx.clone()),
             footer: Footer::new(state, action_tx),
         }
@@ -727,7 +705,7 @@ impl<'a> Widget<State, Action> for Help<'a> {
     {
         Self {
             props: HelpProps::from(state),
-            header: self.header.move_with_state(state),
+            header: self.header.move_with_state(&()),
             content: self.content.move_with_state(state),
             footer: self.footer.move_with_state(state),
             ..self
@@ -776,16 +754,7 @@ impl<'a> Render<()> for Help<'a> {
         ])
         .areas(area);
 
-        self.header.render::<B>(
-            frame,
-            header_area,
-            HeaderProps {
-                columns: [Column::new(" Help ", Constraint::Fill(1))].to_vec(),
-                focus: self.props.focus,
-                cutoff: usize::MIN,
-                cutoff_after: usize::MAX,
-            },
-        );
+        self.header.render::<B>(frame, header_area, ());
 
         self.content.render::<B>(
             frame,

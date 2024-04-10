@@ -17,7 +17,7 @@ use radicle_tui as tui;
 
 use tui::ui::items::{Filter, PatchItem, PatchItemFilter};
 use tui::ui::span;
-use tui::ui::widget::container::{Footer, FooterProps, Header, HeaderProps};
+use tui::ui::widget::container::{Footer, FooterProps, Header};
 use tui::ui::widget::input::{TextField, TextFieldProps};
 use tui::ui::widget::text::{Paragraph, ParagraphProps};
 use tui::ui::widget::{Column, Render, Shortcut, Shortcuts, ShortcutsProps, Table, Widget};
@@ -243,8 +243,6 @@ struct Patches {
     action_tx: UnboundedSender<Action>,
     /// State mapped props
     props: PatchesProps,
-    /// Table header
-    header: Header<Action>,
     /// Notification table
     table: Table<Action, PatchItem>,
     /// Table footer
@@ -258,11 +256,15 @@ impl Widget<State, Action> for Patches {
         Self {
             action_tx: action_tx.clone(),
             props: props.clone(),
-            header: Header::new(state, action_tx.clone()),
-            table: Table::new(state, action_tx.clone())
+            table: Table::new(&(), action_tx.clone())
                 .items(props.patches.clone())
                 .columns(props.columns.to_vec())
-                .header(true)
+                .header(
+                    Header::new(&(), action_tx.clone())
+                        .columns(props.columns.clone())
+                        .cutoff(props.cutoff, props.cutoff_after)
+                        .focus(props.focus),
+                )
                 .footer(!props.show_search)
                 .cutoff(props.cutoff, props.cutoff_after),
             footer: Footer::new(state, action_tx),
@@ -283,14 +285,13 @@ impl Widget<State, Action> for Patches {
 
         let table = self
             .table
-            .move_with_state(state)
+            .move_with_state(&())
             .items(patches)
             .footer(!state.ui.show_search)
             .page_size(state.ui.page_size);
 
         Self {
             props,
-            header: self.header.move_with_state(state),
             table,
             footer: self.footer.move_with_state(state),
             ..self
@@ -353,7 +354,7 @@ impl Widget<State, Action> for Patches {
                     });
             }
             _ => {
-                <Table<Action, PatchItem> as Widget<State, Action>>::handle_key_event(
+                <Table<Action, PatchItem> as Widget<(), Action>>::handle_key_event(
                     &mut self.table,
                     key,
                 );
@@ -363,23 +364,6 @@ impl Widget<State, Action> for Patches {
 }
 
 impl Patches {
-    fn render_header<B: Backend>(&self, frame: &mut ratatui::Frame, area: Rect) {
-        self.header.render::<B>(
-            frame,
-            area,
-            HeaderProps {
-                columns: self.props.columns.clone(),
-                focus: self.props.focus,
-                cutoff: self.props.cutoff,
-                cutoff_after: self.props.cutoff_after,
-            },
-        );
-    }
-
-    fn render_list<B: Backend>(&self, frame: &mut ratatui::Frame, area: Rect) {
-        self.table.render::<B>(frame, area, ());
-    }
-
     fn render_footer<B: Backend>(&self, frame: &mut ratatui::Frame, area: Rect) {
         let filter = PatchItemFilter::from_str(&self.props.search).unwrap_or_default();
 
@@ -508,26 +492,19 @@ impl Patches {
 
 impl Render<()> for Patches {
     fn render<B: Backend>(&self, frame: &mut ratatui::Frame, area: Rect, _props: ()) {
+        let header_height = 3_usize;
+
         let page_size = if self.props.show_search {
-            let layout = Layout::vertical([Constraint::Length(3), Constraint::Min(1)]).split(area);
+            self.table.render::<B>(frame, area, ());
 
-            self.render_header::<B>(frame, layout[0]);
-            self.render_list::<B>(frame, layout[1]);
-
-            layout[1].height as usize
+            (area.height as usize).saturating_sub(header_height)
         } else {
-            let layout = Layout::vertical([
-                Constraint::Length(3),
-                Constraint::Min(1),
-                Constraint::Length(3),
-            ])
-            .split(area);
+            let layout = Layout::vertical([Constraint::Min(1), Constraint::Length(3)]).split(area);
 
-            self.render_header::<B>(frame, layout[0]);
-            self.render_list::<B>(frame, layout[1]);
-            self.render_footer::<B>(frame, layout[2]);
+            self.table.render::<B>(frame, layout[0], ());
+            self.render_footer::<B>(frame, layout[1]);
 
-            layout[1].height as usize
+            (area.height as usize).saturating_sub(header_height)
         };
 
         if page_size != self.props.page_size {
@@ -600,6 +577,7 @@ impl Render<SearchProps> for Search {
     }
 }
 
+#[derive(Clone)]
 pub struct HelpProps<'a> {
     content: Text<'a>,
     focus: bool,
@@ -770,10 +748,14 @@ impl<'a> Widget<State, Action> for Help<'a> {
     where
         Self: Sized,
     {
+        let props = HelpProps::from(state);
+
         Self {
             action_tx: action_tx.clone(),
-            props: HelpProps::from(state),
-            header: Header::new(state, action_tx.clone()),
+            props: props.clone(),
+            header: Header::new(&(), action_tx.clone())
+                .columns([Column::new(" Help ", Constraint::Fill(1))].to_vec())
+                .focus(props.focus),
             content: Paragraph::new(state, action_tx.clone()),
             footer: Footer::new(state, action_tx),
         }
@@ -786,7 +768,7 @@ impl<'a> Widget<State, Action> for Help<'a> {
     {
         Self {
             props: HelpProps::from(state),
-            header: self.header.move_with_state(state),
+            header: self.header.move_with_state(&()),
             content: self.content.move_with_state(state),
             footer: self.footer.move_with_state(state),
             ..self
@@ -835,16 +817,7 @@ impl<'a> Render<()> for Help<'a> {
         ])
         .areas(area);
 
-        self.header.render::<B>(
-            frame,
-            header_area,
-            HeaderProps {
-                columns: [Column::new(" Help ", Constraint::Fill(1))].to_vec(),
-                focus: self.props.focus,
-                cutoff: usize::MIN,
-                cutoff_after: usize::MAX,
-            },
-        );
+        self.header.render::<B>(frame, header_area, ());
 
         self.content.render::<B>(
             frame,
