@@ -412,12 +412,14 @@ impl Notifications {
                     frame,
                     area,
                     FooterProps {
-                        cells: [search.into(), block.clone().into(), progress.clone().into()],
+                        cells: [search.into(), block.clone().into(), progress.clone().into()]
+                            .to_vec(),
                         widths: [
                             Constraint::Fill(1),
                             Constraint::Min(block.width() as u16),
                             Constraint::Min(4),
-                        ],
+                        ]
+                        .to_vec(),
                         focus: self.props.focus,
                         cutoff: self.props.cutoff,
                         cutoff_after: self.props.cutoff_after,
@@ -434,13 +436,15 @@ impl Notifications {
                             seen.clone().into(),
                             unseen.clone().into(),
                             progress.clone().into(),
-                        ],
+                        ]
+                        .to_vec(),
                         widths: [
                             Constraint::Fill(1),
                             Constraint::Min(seen.width() as u16),
                             Constraint::Min(unseen.width() as u16),
                             Constraint::Min(4),
-                        ],
+                        ]
+                        .to_vec(),
                         focus: self.props.focus,
                         cutoff: self.props.cutoff,
                         cutoff_after: self.props.cutoff_after,
@@ -800,8 +804,8 @@ impl<'a> Render<()> for Help<'a> {
             frame,
             footer_area,
             FooterProps {
-                cells: [String::new().into(), progress.clone().into()],
-                widths: [Constraint::Fill(1), Constraint::Min(4)],
+                cells: [String::new().into(), progress.clone().into()].to_vec(),
+                widths: [Constraint::Fill(1), Constraint::Min(4)].to_vec(),
                 focus: self.props.focus,
                 cutoff: usize::MAX,
                 cutoff_after: usize::MAX,

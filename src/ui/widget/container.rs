@@ -13,9 +13,9 @@ use crate::ui::theme::style;
 use super::{Column, Render, Widget};
 
 #[derive(Debug)]
-pub struct FooterProps<'a, const W: usize> {
-    pub cells: [Text<'a>; W],
-    pub widths: [Constraint; W],
+pub struct FooterProps<'a> {
+    pub cells: Vec<Text<'a>>,
+    pub widths: Vec<Constraint>,
     pub cutoff: usize,
     pub cutoff_after: usize,
     pub focus: bool,
@@ -71,8 +71,8 @@ impl<A> Footer<A> {
     }
 }
 
-impl<'a, A, const W: usize> Render<FooterProps<'a, W>> for Footer<A> {
-    fn render<B: Backend>(&self, frame: &mut ratatui::Frame, area: Rect, props: FooterProps<W>) {
+impl<'a, A> Render<FooterProps<'a>> for Footer<A> {
+    fn render<B: Backend>(&self, frame: &mut ratatui::Frame, area: Rect, props: FooterProps) {
         let widths = props
             .widths
             .into_iter()

@@ -432,12 +432,14 @@ impl Issues {
                     frame,
                     area,
                     FooterProps {
-                        cells: [search.into(), block.clone().into(), progress.clone().into()],
+                        cells: [search.into(), block.clone().into(), progress.clone().into()]
+                            .to_vec(),
                         widths: [
                             Constraint::Fill(1),
                             Constraint::Min(block.width() as u16),
                             Constraint::Min(4),
-                        ],
+                        ]
+                        .to_vec(),
                         focus: self.props.focus,
                         cutoff: self.props.cutoff,
                         cutoff_after: self.props.cutoff_after,
@@ -455,14 +457,16 @@ impl Issues {
                             closed.clone().into(),
                             sum.clone().into(),
                             progress.clone().into(),
-                        ],
+                        ]
+                        .to_vec(),
                         widths: [
                             Constraint::Fill(1),
                             Constraint::Min(open.width() as u16),
                             Constraint::Min(closed.width() as u16),
                             Constraint::Min(sum.width() as u16),
                             Constraint::Min(4),
-                        ],
+                        ]
+                        .to_vec(),
                         focus: self.props.focus,
                         cutoff: self.props.cutoff,
                         cutoff_after: self.props.cutoff_after,
@@ -822,8 +826,8 @@ impl<'a> Render<()> for Help<'a> {
             frame,
             footer_area,
             FooterProps {
-                cells: [String::new().into(), progress.clone().into()],
-                widths: [Constraint::Fill(1), Constraint::Min(4)],
+                cells: [String::new().into(), progress.clone().into()].to_vec(),
+                widths: [Constraint::Fill(1), Constraint::Min(4)].to_vec(),
                 focus: self.props.focus,
                 cutoff: usize::MAX,
                 cutoff_after: usize::MAX,
