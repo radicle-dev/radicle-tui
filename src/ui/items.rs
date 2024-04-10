@@ -25,6 +25,10 @@ use super::theme::style;
 use super::widget::ToRow;
 use super::{format, span};
 
+pub trait Filter<T> {
+    fn matches(&self, item: &T) -> bool;
+}
+
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct AuthorItem {
     pub nid: Option<NodeId>,
@@ -209,8 +213,8 @@ impl NotificationItem {
     }
 }
 
-impl ToRow<8> for NotificationItem {
-    fn to_row(&self) -> [Cell; 8] {
+impl ToRow for NotificationItem {
+    fn to_row(&self) -> Vec<Cell> {
         let (type_name, summary, status, kind_id) = match &self.kind {
             NotificationKindItem::Branch {
                 name,
@@ -254,6 +258,7 @@ impl ToRow<8> for NotificationItem {
         let kind_id = span::primary(kind_id);
         let summary = span::default(summary.to_string());
         let type_name = span::notification_type(type_name);
+        let name = span::default(self.project.clone()).style(style::gray().dim());
 
         let status = match status.as_str() {
             "archived" => span::default(status.to_string()).yellow(),
@@ -276,12 +281,12 @@ impl ToRow<8> for NotificationItem {
                 None => span::alias("".to_string()),
             },
         };
-
         let timestamp = span::timestamp(format::timestamp(&self.timestamp));
 
         [
             id.into(),
             seen.into(),
+            name.into(),
             kind_id.into(),
             summary.into(),
             type_name.into(),
@@ -289,25 +294,7 @@ impl ToRow<8> for NotificationItem {
             author.into(),
             timestamp.into(),
         ]
-    }
-}
-
-impl ToRow<9> for NotificationItem {
-    fn to_row(&self) -> [Cell; 9] {
-        let row: [Cell; 8] = self.to_row();
-        let name = span::default(self.project.clone()).style(style::gray().dim());
-
-        [
-            row[0].clone(),
-            row[1].clone(),
-            name.into(),
-            row[2].clone(),
-            row[3].clone(),
-            row[4].clone(),
-            row[5].clone(),
-            row[6].clone(),
-            row[7].clone(),
-        ]
+        .to_vec()
     }
 }
 
@@ -336,8 +323,10 @@ impl NotificationItemFilter {
     pub fn state(&self) -> Option<NotificationState> {
         self.state.clone()
     }
+}
 
-    pub fn matches(&self, notif: &NotificationItem) -> bool {
+impl Filter<NotificationItem> for NotificationItemFilter {
+    fn matches(&self, notif: &NotificationItem) -> bool {
         use fuzzy_matcher::skim::SkimMatcherV2;
         use fuzzy_matcher::FuzzyMatcher;
 
@@ -499,8 +488,8 @@ impl IssueItem {
     }
 }
 
-impl ToRow<8> for IssueItem {
-    fn to_row(&self) -> [Cell; 8] {
+impl ToRow for IssueItem {
+    fn to_row(&self) -> Vec<Cell> {
         let (state, state_color) = format::issue_state(&self.state);
 
         let state = span::default(state).style(Style::default().fg(state_color));
@@ -543,6 +532,7 @@ impl ToRow<8> for IssueItem {
             assignees.into(),
             opened.into(),
         ]
+        .to_vec()
     }
 }
 
@@ -560,8 +550,10 @@ impl IssueItemFilter {
     pub fn state(&self) -> Option<issue::State> {
         self.state
     }
+}
 
-    pub fn matches(&self, issue: &IssueItem) -> bool {
+impl Filter<IssueItem> for IssueItemFilter {
+    fn matches(&self, issue: &IssueItem) -> bool {
         use fuzzy_matcher::skim::SkimMatcherV2;
         use fuzzy_matcher::FuzzyMatcher;
 
@@ -748,8 +740,8 @@ impl PatchItem {
     }
 }
 
-impl ToRow<9> for PatchItem {
-    fn to_row(&self) -> [Cell; 9] {
+impl ToRow for PatchItem {
+    fn to_row(&self) -> Vec<Cell> {
         let (state, color) = format::patch_state(&self.state);
 
         let state = span::default(state).style(Style::default().fg(color));
@@ -790,6 +782,7 @@ impl ToRow<9> for PatchItem {
             removed.into(),
             updated.into(),
         ]
+        .to_vec()
     }
 }
 
@@ -805,8 +798,10 @@ impl PatchItemFilter {
     pub fn status(&self) -> Option<patch::Status> {
         self.status
     }
+}
 
-    pub fn matches(&self, patch: &PatchItem) -> bool {
+impl Filter<PatchItem> for PatchItemFilter {
+    fn matches(&self, patch: &PatchItem) -> bool {
         use fuzzy_matcher::skim::SkimMatcherV2;
         use fuzzy_matcher::FuzzyMatcher;
 
