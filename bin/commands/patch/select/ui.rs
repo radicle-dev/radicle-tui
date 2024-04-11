@@ -128,6 +128,7 @@ impl<'a> Widget<State, Action> for ListPage<'a> {
                 }
             }
         }
+        let _ = self.action_tx.send(Action::Update);
     }
 }
 

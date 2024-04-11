@@ -92,6 +92,7 @@ impl TryFrom<&Context> for State {
 
 pub enum Action {
     Exit { selection: Option<Selection> },
+    Update,
     PageSize(usize),
     OpenSearch,
     UpdateSearch { value: String },
@@ -141,6 +142,7 @@ impl store::State<Action, Selection> for State {
                 self.ui.show_help = false;
                 None
             }
+            Action::Update => None,
         }
     }
 }

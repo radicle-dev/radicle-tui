@@ -125,6 +125,7 @@ impl<'a> Widget<State, Action> for ListPage<'a> {
                 }
             }
         }
+        let _ = self.action_tx.send(Action::Update);
     }
 }
 
@@ -333,7 +334,6 @@ impl<'a> Widget<State, Action> for Issues<'a> {
                     &mut self.table,
                     key,
                 );
-                let _ = self.action_tx.send(Action::SelectionChanged);
             }
         }
     }
