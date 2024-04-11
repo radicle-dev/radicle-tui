@@ -138,21 +138,6 @@ impl<'a, A> Render<()> for Header<'a, A> {
     }
 }
 
-// #[derive(Debug)]
-// pub struct FooterCell<'a> {
-//     text: Text<'a>,
-//     width: Constraint,
-// }
-
-// impl<'a> FooterCell<'a> {
-//     pub fn new(text: impl Into<Text<'a>>, width: Constraint) -> Self {
-//         Self {
-//             text: text.into(),
-//             width,
-//         }
-//     }
-// }
-
 #[derive(Debug)]
 pub struct FooterProps<'a> {
     pub columns: Vec<Column<'a>>,

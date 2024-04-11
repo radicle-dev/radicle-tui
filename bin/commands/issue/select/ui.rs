@@ -17,7 +17,7 @@ use radicle_tui as tui;
 use tui::ui::items::{Filter, IssueItem, IssueItemFilter};
 use tui::ui::span;
 use tui::ui::widget::container::{Footer, Header};
-use tui::ui::widget::input::{TextField, TextFieldProps};
+use tui::ui::widget::input::TextField;
 use tui::ui::widget::text::{Paragraph, ParagraphProps};
 use tui::ui::widget::{Column, Render, Shortcuts, Table, Widget};
 use tui::Selection;
@@ -139,8 +139,7 @@ impl<'a> Render<()> for ListPage<'a> {
                 .split(layout.component);
 
             self.issues.render::<B>(frame, component_layout[0], ());
-            self.search
-                .render::<B>(frame, component_layout[1], SearchProps {});
+            self.search.render::<B>(frame, component_layout[1], ());
         } else if self.props.show_help {
             self.help.render::<B>(frame, layout.component, ());
         } else {
@@ -459,11 +458,9 @@ impl<'a> Render<()> for Issues<'a> {
     }
 }
 
-pub struct SearchProps {}
-
 pub struct Search {
     pub action_tx: UnboundedSender<Action>,
-    pub input: TextField,
+    pub input: TextField<Action>,
 }
 
 impl Widget<State, Action> for Search {
@@ -471,9 +468,9 @@ impl Widget<State, Action> for Search {
     where
         Self: Sized,
     {
-        let mut input = TextField::new(state, action_tx.clone());
-        input.set_text(&state.search.read().to_string());
-
+        let input = TextField::new(state, action_tx.clone())
+            .title("Search")
+            .inline(true);
         Self { action_tx, input }.move_with_state(state)
     }
 
@@ -481,8 +478,8 @@ impl Widget<State, Action> for Search {
     where
         Self: Sized,
     {
-        let mut input = <TextField as Widget<State, Action>>::move_with_state(self.input, state);
-        input.set_text(&state.search.read().to_string());
+        let input = self.input.move_with_state(state);
+        let input = input.text(&state.search.read().to_string());
 
         Self { input, ..self }
     }
@@ -496,30 +493,25 @@ impl Widget<State, Action> for Search {
                 let _ = self.action_tx.send(Action::ApplySearch);
             }
             _ => {
-                <TextField as Widget<State, Action>>::handle_key_event(&mut self.input, key);
+                <TextField<Action> as Widget<State, Action>>::handle_key_event(
+                    &mut self.input,
+                    key,
+                );
                 let _ = self.action_tx.send(Action::UpdateSearch {
-                    value: self.input.text().to_string(),
+                    value: self.input.read().to_string(),
                 });
             }
         }
     }
 }
 
-impl Render<SearchProps> for Search {
-    fn render<B: Backend>(&self, frame: &mut ratatui::Frame, area: Rect, _props: SearchProps) {
+impl Render<()> for Search {
+    fn render<B: Backend>(&self, frame: &mut ratatui::Frame, area: Rect, _props: ()) {
         let layout = Layout::horizontal(Constraint::from_mins([0]))
             .horizontal_margin(1)
             .split(area);
 
-        self.input.render::<B>(
-            frame,
-            layout[0],
-            TextFieldProps {
-                titles: ("Search".into(), "Search".into()),
-                show_cursor: true,
-                inline_label: true,
-            },
-        );
+        self.input.render::<B>(frame, layout[0], ());
     }
 }
 
