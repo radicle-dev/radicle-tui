@@ -37,41 +37,57 @@ pub trait ToRow {
     fn to_row(&self) -> Vec<Cell>;
 }
 
-pub struct Shortcut {
-    pub short: String,
-    pub long: String,
+pub struct ShortcutsProps {
+    pub shortcuts: Vec<(String, String)>,
+    pub divider: char,
 }
 
-impl Shortcut {
-    pub fn new(short: &str, long: &str) -> Self {
+impl Default for ShortcutsProps {
+    fn default() -> Self {
         Self {
-            short: short.to_string(),
-            long: long.to_string(),
+            shortcuts: vec![],
+            divider: '∙',
         }
     }
 }
 
-pub struct ShortcutsProps {
-    pub shortcuts: Vec<Shortcut>,
-    pub divider: char,
-}
-
 pub struct Shortcuts<A> {
+    /// Message sender
     pub action_tx: UnboundedSender<A>,
+    /// Internal properties
+    props: ShortcutsProps,
 }
 
-impl<S, A> Widget<S, A> for Shortcuts<A> {
-    fn new(state: &S, action_tx: UnboundedSender<A>) -> Self
+impl<A> Shortcuts<A> {
+    pub fn divider(mut self, divider: char) -> Self {
+        self.props.divider = divider;
+        self
+    }
+
+    pub fn shortcuts(mut self, shortcuts: &[(&str, &str)]) -> Self {
+        self.props.shortcuts.clear();
+        for (short, long) in shortcuts {
+            self.props
+                .shortcuts
+                .push((short.to_string(), long.to_string()));
+        }
+        self
+    }
+}
+
+impl<A> Widget<(), A> for Shortcuts<A> {
+    fn new(state: &(), action_tx: UnboundedSender<A>) -> Self
     where
         Self: Sized,
     {
         Self {
             action_tx: action_tx.clone(),
+            props: ShortcutsProps::default(),
         }
         .move_with_state(state)
     }
 
-    fn move_with_state(self, _state: &S) -> Self
+    fn move_with_state(self, _state: &()) -> Self
     where
         Self: Sized,
     {
@@ -81,22 +97,23 @@ impl<S, A> Widget<S, A> for Shortcuts<A> {
     fn handle_key_event(&mut self, _key: termion::event::Key) {}
 }
 
-impl<A> Render<ShortcutsProps> for Shortcuts<A> {
-    fn render<B: Backend>(&self, frame: &mut ratatui::Frame, area: Rect, props: ShortcutsProps) {
+impl<A> Render<()> for Shortcuts<A> {
+    fn render<B: Backend>(&self, frame: &mut ratatui::Frame, area: Rect, _props: ()) {
         use ratatui::widgets::Table;
 
-        let mut shortcuts = props.shortcuts.iter().peekable();
+        let mut shortcuts = self.props.shortcuts.iter().peekable();
         let mut row = vec![];
 
         while let Some(shortcut) = shortcuts.next() {
-            let short = Text::from(shortcut.short.clone()).style(style::gray());
-            let long = Text::from(shortcut.long.clone()).style(style::gray().dim());
+            let short = Text::from(shortcut.0.clone()).style(style::gray());
+            let long = Text::from(shortcut.1.clone()).style(style::gray().dim());
             let spacer = Text::from(String::new());
-            let divider = Text::from(format!(" {} ", props.divider)).style(style::gray().dim());
+            let divider =
+                Text::from(format!(" {} ", self.props.divider)).style(style::gray().dim());
 
-            row.push((shortcut.short.chars().count(), short));
+            row.push((shortcut.0.chars().count(), short));
             row.push((1, spacer));
-            row.push((shortcut.long.chars().count(), long));
+            row.push((shortcut.1.chars().count(), long));
 
             if shortcuts.peek().is_some() {
                 row.push((3, divider));

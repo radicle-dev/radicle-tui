@@ -17,7 +17,7 @@ use tui::ui::span;
 use tui::ui::widget::container::{Footer, FooterProps, Header};
 use tui::ui::widget::input::{TextField, TextFieldProps};
 use tui::ui::widget::text::{Paragraph, ParagraphProps};
-use tui::ui::widget::{Column, Render, Shortcut, Shortcuts, ShortcutsProps, Table, Widget};
+use tui::ui::widget::{Column, Render, Shortcuts, Table, Widget};
 use tui::Selection;
 
 use crate::tui_inbox::common::{InboxOperation, Mode, RepositoryMode, SelectionMode};
@@ -25,7 +25,6 @@ use crate::tui_inbox::common::{InboxOperation, Mode, RepositoryMode, SelectionMo
 use super::{Action, State};
 
 pub struct ListPageProps {
-    mode: Mode,
     show_search: bool,
     show_help: bool,
 }
@@ -33,7 +32,6 @@ pub struct ListPageProps {
 impl From<&State> for ListPageProps {
     fn from(state: &State) -> Self {
         Self {
-            mode: state.mode.clone(),
             show_search: state.ui.show_search,
             show_help: state.ui.show_help,
         }
@@ -66,7 +64,7 @@ impl<'a> Widget<State, Action> for ListPage<'a> {
             notifications: Notifications::new(state, action_tx.clone()),
             search: Search::new(state, action_tx.clone()),
             help: Help::new(state, action_tx.clone()),
-            shortcuts: Shortcuts::new(state, action_tx.clone()),
+            shortcuts: Shortcuts::new(&(), action_tx.clone()),
         }
         .move_with_state(state)
     }
@@ -75,9 +73,28 @@ impl<'a> Widget<State, Action> for ListPage<'a> {
     where
         Self: Sized,
     {
+        let shorts = if state.ui.show_search {
+            vec![("esc", "cancel"), ("enter", "apply")]
+        } else if state.ui.show_help {
+            vec![("?", "close")]
+        } else {
+            match state.mode.selection() {
+                SelectionMode::Id => vec![("enter", "select"), ("/", "search")],
+                SelectionMode::Operation => vec![
+                    ("enter", "show"),
+                    ("c", "clear"),
+                    ("/", "search"),
+                    ("?", "help"),
+                ],
+            }
+        };
+
+        let shortcuts = self.shortcuts.move_with_state(&());
+        let shortcuts = shortcuts.shortcuts(&shorts);
+
         ListPage {
             notifications: self.notifications.move_with_state(state),
-            shortcuts: self.shortcuts.move_with_state(state),
+            shortcuts,
             help: self.help.move_with_state(state),
             props: ListPageProps::from(state),
             ..self
@@ -116,28 +133,6 @@ impl<'a> Render<()> for ListPage<'a> {
         let area = frame.size();
         let layout = tui::ui::layout::default_page(area, 0u16, 1u16);
 
-        let shortcuts = if self.props.show_search {
-            vec![
-                Shortcut::new("esc", "cancel"),
-                Shortcut::new("enter", "apply"),
-            ]
-        } else if self.props.show_help {
-            vec![Shortcut::new("?", "close")]
-        } else {
-            match self.props.mode.selection() {
-                SelectionMode::Id => vec![
-                    Shortcut::new("enter", "select"),
-                    Shortcut::new("/", "search"),
-                ],
-                SelectionMode::Operation => vec![
-                    Shortcut::new("enter", "show"),
-                    Shortcut::new("c", "clear"),
-                    Shortcut::new("/", "search"),
-                    Shortcut::new("?", "help"),
-                ],
-            }
-        };
-
         if self.props.show_search {
             let component_layout = Layout::vertical([Constraint::Min(1), Constraint::Length(2)])
                 .split(layout.component);
@@ -152,14 +147,7 @@ impl<'a> Render<()> for ListPage<'a> {
             self.notifications.render::<B>(frame, layout.component, ());
         }
 
-        self.shortcuts.render::<B>(
-            frame,
-            layout.shortcuts,
-            ShortcutsProps {
-                shortcuts,
-                divider: '∙',
-            },
-        );
+        self.shortcuts.render::<B>(frame, layout.shortcuts, ());
     }
 }
 
