@@ -18,7 +18,7 @@ use tui::ui::items::{Filter, IssueItem, IssueItemFilter};
 use tui::ui::span;
 use tui::ui::widget::container::{Footer, Header};
 use tui::ui::widget::input::TextField;
-use tui::ui::widget::text::{Paragraph, ParagraphProps};
+use tui::ui::widget::text::Paragraph;
 use tui::ui::widget::{Column, Render, Shortcuts, Table, Widget};
 use tui::Selection;
 
@@ -667,7 +667,7 @@ pub struct Help<'a> {
     /// Container header
     header: Header<'a, Action>,
     /// Content widget
-    content: Paragraph<Action>,
+    content: Paragraph<'a, Action>,
     /// Container footer
     footer: Footer<'a, Action>,
 }
@@ -701,6 +701,8 @@ impl<'a> Widget<State, Action> for Help<'a> {
             .focus(props.focus);
 
         let content = self.content.move_with_state(state);
+        let content = content.text(&props.content).page_size(props.page_size);
+
         let progress = span::default(format!("{}%", content.progress())).dim();
 
         let footer = self.footer.move_with_state(&());
@@ -724,8 +726,6 @@ impl<'a> Widget<State, Action> for Help<'a> {
     }
 
     fn handle_key_event(&mut self, key: termion::event::Key) {
-        let len = self.props.content.lines.len() + 1;
-        let page_size = self.props.page_size;
         match key {
             Key::Esc => {
                 let _ = self.action_tx.send(Action::Exit { selection: None });
@@ -733,25 +733,9 @@ impl<'a> Widget<State, Action> for Help<'a> {
             Key::Char('?') => {
                 let _ = self.action_tx.send(Action::CloseHelp);
             }
-            Key::Up | Key::Char('k') => {
-                self.content.prev(len, page_size);
+            _ => {
+                <Paragraph<_> as Widget<(), _>>::handle_key_event(&mut self.content, key);
             }
-            Key::Down | Key::Char('j') => {
-                self.content.next(len, page_size);
-            }
-            Key::PageUp => {
-                self.content.prev_page(len, page_size);
-            }
-            Key::PageDown => {
-                self.content.next_page(len, page_size);
-            }
-            Key::Home => {
-                self.content.begin(len, page_size);
-            }
-            Key::End => {
-                self.content.end(len, page_size);
-            }
-            _ => {}
         }
     }
 }
@@ -766,16 +750,7 @@ impl<'a> Render<()> for Help<'a> {
         .areas(area);
 
         self.header.render::<B>(frame, header_area, ());
-        self.content.render::<B>(
-            frame,
-            content_area,
-            ParagraphProps {
-                content: self.props.content.clone(),
-                focus: self.props.focus,
-                has_footer: true,
-                has_header: true,
-            },
-        );
+        self.content.render::<B>(frame, content_area, ());
         self.footer.render::<B>(frame, footer_area, ());
 
         let page_size = content_area.height as usize;
