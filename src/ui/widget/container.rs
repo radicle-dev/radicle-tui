@@ -13,102 +13,14 @@ use crate::ui::theme::style;
 use super::{Column, Render, Widget};
 
 #[derive(Debug)]
-pub struct FooterProps<'a> {
-    pub cells: Vec<Text<'a>>,
-    pub widths: Vec<Constraint>,
+pub struct HeaderProps<'a> {
+    pub columns: Vec<Column<'a>>,
     pub cutoff: usize,
     pub cutoff_after: usize,
     pub focus: bool,
 }
 
-pub struct Footer<A> {
-    /// Sending actions to the state store
-    pub action_tx: UnboundedSender<A>,
-}
-
-impl<S, A> Widget<S, A> for Footer<A> {
-    fn new(state: &S, action_tx: UnboundedSender<A>) -> Self
-    where
-        Self: Sized,
-    {
-        Self {
-            action_tx: action_tx.clone(),
-        }
-        .move_with_state(state)
-    }
-
-    fn move_with_state(self, _state: &S) -> Self
-    where
-        Self: Sized,
-    {
-        Self { ..self }
-    }
-
-    fn handle_key_event(&mut self, _key: Key) {}
-}
-
-impl<A> Footer<A> {
-    fn render_cell<'a>(
-        &self,
-        frame: &mut ratatui::Frame,
-        area: Rect,
-        block_type: FooterBlockType,
-        text: impl Into<Text<'a>>,
-        focus: bool,
-    ) {
-        let footer_layout = Layout::default()
-            .direction(Direction::Vertical)
-            .constraints(vec![Constraint::Min(1)])
-            .vertical_margin(1)
-            .horizontal_margin(1)
-            .split(area);
-
-        let footer_block = FooterBlock::default()
-            .border_style(style::border(focus))
-            .block_type(block_type);
-        frame.render_widget(footer_block, area);
-        frame.render_widget(text.into(), footer_layout[0]);
-    }
-}
-
-impl<'a, A> Render<FooterProps<'a>> for Footer<A> {
-    fn render<B: Backend>(&self, frame: &mut ratatui::Frame, area: Rect, props: FooterProps) {
-        let widths = props
-            .widths
-            .into_iter()
-            .map(|c| match c {
-                Constraint::Min(min) => Constraint::Length(min.saturating_add(3)),
-                _ => c,
-            })
-            .collect::<Vec<_>>();
-
-        let layout = Layout::horizontal(widths).split(area);
-        let cells = props.cells.iter().zip(layout.iter()).collect::<Vec<_>>();
-
-        let last = cells.len().saturating_sub(1);
-        let len = cells.len();
-
-        for (i, (cell, area)) in cells.into_iter().enumerate() {
-            let block_type = match i {
-                0 if len == 1 => FooterBlockType::Single,
-                0 => FooterBlockType::Begin,
-                _ if i == last => FooterBlockType::End,
-                _ => FooterBlockType::Repeat,
-            };
-            self.render_cell(frame, *area, block_type, cell.clone(), props.focus);
-        }
-    }
-}
-
-#[derive(Debug)]
-pub struct HeaderProps {
-    pub columns: Vec<Column>,
-    pub cutoff: usize,
-    pub cutoff_after: usize,
-    pub focus: bool,
-}
-
-impl Default for HeaderProps {
+impl<'a> Default for HeaderProps<'a> {
     fn default() -> Self {
         Self {
             columns: vec![],
@@ -119,15 +31,15 @@ impl Default for HeaderProps {
     }
 }
 
-pub struct Header<A> {
+pub struct Header<'a, A> {
     /// Sending actions to the state store
     pub action_tx: UnboundedSender<A>,
     /// Internal props
-    props: HeaderProps,
+    props: HeaderProps<'a>,
 }
 
-impl<A> Header<A> {
-    pub fn columns(mut self, columns: Vec<Column>) -> Self {
+impl<'a, A> Header<'a, A> {
+    pub fn columns(mut self, columns: Vec<Column<'a>>) -> Self {
         self.props.columns = columns;
         self
     }
@@ -144,7 +56,7 @@ impl<A> Header<A> {
     }
 }
 
-impl<A> Widget<(), A> for Header<A> {
+impl<'a, A> Widget<(), A> for Header<'a, A> {
     fn new(state: &(), action_tx: UnboundedSender<A>) -> Self
     where
         Self: Sized,
@@ -166,7 +78,7 @@ impl<A> Widget<(), A> for Header<A> {
     fn handle_key_event(&mut self, _key: Key) {}
 }
 
-impl<A> Render<()> for Header<A> {
+impl<'a, A> Render<()> for Header<'a, A> {
     fn render<B: Backend>(&self, frame: &mut ratatui::Frame, area: Rect, _props: ()) {
         let widths: Vec<Constraint> = self
             .props
@@ -186,7 +98,7 @@ impl<A> Render<()> for Header<A> {
             .iter()
             .filter_map(|column| {
                 if !column.skip {
-                    Some(column.title.clone())
+                    Some(column.text.clone())
                 } else {
                     None
                 }
@@ -223,5 +135,146 @@ impl<A> Render<()> for Header<A> {
 
         frame.render_widget(block, area);
         frame.render_widget(header, header_layout[0]);
+    }
+}
+
+// #[derive(Debug)]
+// pub struct FooterCell<'a> {
+//     text: Text<'a>,
+//     width: Constraint,
+// }
+
+// impl<'a> FooterCell<'a> {
+//     pub fn new(text: impl Into<Text<'a>>, width: Constraint) -> Self {
+//         Self {
+//             text: text.into(),
+//             width,
+//         }
+//     }
+// }
+
+#[derive(Debug)]
+pub struct FooterProps<'a> {
+    pub columns: Vec<Column<'a>>,
+    pub cutoff: usize,
+    pub cutoff_after: usize,
+    pub focus: bool,
+}
+
+impl<'a> Default for FooterProps<'a> {
+    fn default() -> Self {
+        Self {
+            columns: vec![],
+            cutoff: usize::MAX,
+            cutoff_after: usize::MAX,
+            focus: false,
+        }
+    }
+}
+
+pub struct Footer<'a, A> {
+    /// Message sender
+    pub action_tx: UnboundedSender<A>,
+    /// Internal properties
+    props: FooterProps<'a>,
+}
+
+impl<'a, A> Footer<'a, A> {
+    pub fn columns(mut self, columns: Vec<Column<'a>>) -> Self {
+        self.props.columns = columns;
+        self
+    }
+
+    pub fn cutoff(mut self, cutoff: usize, cutoff_after: usize) -> Self {
+        self.props.cutoff = cutoff;
+        self.props.cutoff_after = cutoff_after;
+        self
+    }
+
+    pub fn focus(mut self, focus: bool) -> Self {
+        self.props.focus = focus;
+        self
+    }
+}
+
+impl<'a, A> Widget<(), A> for Footer<'a, A> {
+    fn new(_state: &(), action_tx: UnboundedSender<A>) -> Self
+    where
+        Self: Sized,
+    {
+        Self {
+            action_tx: action_tx.clone(),
+            props: FooterProps::default(),
+        }
+        .move_with_state(&())
+    }
+
+    fn move_with_state(self, _state: &()) -> Self
+    where
+        Self: Sized,
+    {
+        Self { ..self }
+    }
+
+    fn handle_key_event(&mut self, _key: Key) {}
+}
+
+impl<'a, A> Footer<'a, A> {
+    fn render_cell(
+        &self,
+        frame: &mut ratatui::Frame,
+        area: Rect,
+        block_type: FooterBlockType,
+        text: impl Into<Text<'a>>,
+        focus: bool,
+    ) {
+        let footer_layout = Layout::default()
+            .direction(Direction::Vertical)
+            .constraints(vec![Constraint::Min(1)])
+            .vertical_margin(1)
+            .horizontal_margin(1)
+            .split(area);
+
+        let footer_block = FooterBlock::default()
+            .border_style(style::border(focus))
+            .block_type(block_type);
+        frame.render_widget(footer_block, area);
+        frame.render_widget(text.into(), footer_layout[0]);
+    }
+}
+
+impl<'a, A> Render<()> for Footer<'a, A> {
+    fn render<B: Backend>(&self, frame: &mut ratatui::Frame, area: Rect, _props: ()) {
+        let widths = self
+            .props
+            .columns
+            .iter()
+            .map(|c| match c.width {
+                Constraint::Min(min) => Constraint::Length(min.saturating_add(3)),
+                _ => c.width,
+            })
+            .collect::<Vec<_>>();
+
+        let layout = Layout::horizontal(widths).split(area);
+        let cells = self
+            .props
+            .columns
+            .iter()
+            .map(|c| c.text.clone())
+            .zip(layout.iter())
+            .collect::<Vec<_>>();
+
+        let last = cells.len().saturating_sub(1);
+        let len = cells.len();
+
+        for (i, (cell, area)) in cells.into_iter().enumerate() {
+            let block_type = match i {
+                0 if len == 1 => FooterBlockType::Single,
+                0 => FooterBlockType::Begin,
+                _ if i == last => FooterBlockType::End,
+                _ => FooterBlockType::Repeat,
+            };
+            self.render_cell(frame, *area, block_type, cell.clone(), self.props.focus);
+        }
     }
 }

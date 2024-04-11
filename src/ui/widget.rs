@@ -138,16 +138,16 @@ impl<A> Render<()> for Shortcuts<A> {
 }
 
 #[derive(Clone, Debug)]
-pub struct Column {
-    pub title: String,
+pub struct Column<'a> {
+    pub text: Text<'a>,
     pub width: Constraint,
     pub skip: bool,
 }
 
-impl Column {
-    pub fn new(title: &str, width: Constraint) -> Self {
+impl<'a> Column<'a> {
+    pub fn new(text: impl Into<Text<'a>>, width: Constraint) -> Self {
         Self {
-            title: title.to_string(),
+            text: text.into(),
             width,
             skip: false,
         }
@@ -160,17 +160,17 @@ impl Column {
 }
 
 #[derive(Debug)]
-pub struct TableProps<R: ToRow> {
+pub struct TableProps<'a, R: ToRow> {
     pub items: Vec<R>,
     pub focus: bool,
-    pub columns: Vec<Column>,
+    pub columns: Vec<Column<'a>>,
     pub has_footer: bool,
     pub cutoff: usize,
     pub cutoff_after: usize,
     pub page_size: usize,
 }
 
-impl<R: ToRow> Default for TableProps<R> {
+impl<'a, R: ToRow> Default for TableProps<'a, R> {
     fn default() -> Self {
         Self {
             items: vec![],
@@ -184,24 +184,24 @@ impl<R: ToRow> Default for TableProps<R> {
     }
 }
 
-pub struct Table<A, R: ToRow> {
+pub struct Table<'a, A, R: ToRow> {
     /// Sending actions to the state store
     pub action_tx: UnboundedSender<A>,
     /// Internal table properties
-    pub props: TableProps<R>,
+    pub props: TableProps<'a, R>,
     /// Internal selection state
     state: TableState,
     /// Table header widget
-    header: Option<Header<A>>,
+    header: Option<Header<'a, A>>,
 }
 
-impl<A, R: ToRow> Table<A, R> {
+impl<'a, A, R: ToRow> Table<'a, A, R> {
     pub fn items(mut self, items: Vec<R>) -> Self {
         self.props.items = items;
         self
     }
 
-    pub fn columns(mut self, columns: Vec<Column>) -> Self {
+    pub fn columns(mut self, columns: Vec<Column<'a>>) -> Self {
         self.props.columns = columns;
         self
     }
@@ -222,7 +222,7 @@ impl<A, R: ToRow> Table<A, R> {
         self
     }
 
-    pub fn header(mut self, header: Header<A>) -> Self {
+    pub fn header(mut self, header: Header<'a, A>) -> Self {
         self.header = Some(header);
         self
     }
@@ -279,17 +279,8 @@ impl<A, R: ToRow> Table<A, R> {
         self.state.selected()
     }
 
-    pub fn progress(&self, len: usize) -> (usize, usize) {
-        let step = self
-            .selected()
-            .map(|selected| selected.saturating_add(1))
-            .unwrap_or_default();
-
-        (cmp::min(step, len), len)
-    }
-
-    pub fn progress_percentage(&self, len: usize, page_size: usize) -> usize {
-        let step = self.selected().unwrap_or_default();
+    pub fn progress(selected: usize, len: usize, page_size: usize) -> usize {
+        let step = selected;
         let page_size = page_size as f64;
         let len = len as f64;
 
@@ -308,7 +299,7 @@ impl<A, R: ToRow> Table<A, R> {
     }
 }
 
-impl<A, R> Widget<(), A> for Table<A, R>
+impl<'a, A, R> Widget<(), A> for Table<'a, A, R>
 where
     R: ToRow,
 {
@@ -365,7 +356,7 @@ where
     }
 }
 
-impl<A, R> Render<()> for Table<A, R>
+impl<'a, A, R> Render<()> for Table<'a, A, R>
 where
     R: ToRow + Debug,
 {

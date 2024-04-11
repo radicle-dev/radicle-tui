@@ -17,7 +17,7 @@ use radicle_tui as tui;
 
 use tui::ui::items::{Filter, PatchItem, PatchItemFilter};
 use tui::ui::span;
-use tui::ui::widget::container::{Footer, FooterProps, Header};
+use tui::ui::widget::container::{Footer, Header};
 use tui::ui::widget::input::{TextField, TextFieldProps};
 use tui::ui::widget::text::{Paragraph, ParagraphProps};
 use tui::ui::widget::{Column, Render, Shortcuts, Table, Widget};
@@ -48,7 +48,7 @@ pub struct ListPage<'a> {
     /// State mapped props
     props: ListPageProps,
     /// Notification widget
-    patches: Patches,
+    patches: Patches<'a>,
     /// Search widget
     search: Search,
     /// Help widget
@@ -111,7 +111,7 @@ impl<'a> Widget<State, Action> for ListPage<'a> {
         if self.props.show_search {
             <Search as Widget<State, Action>>::handle_key_event(&mut self.search, key)
         } else if self.props.show_help {
-            <Help as Widget<State, Action>>::handle_key_event(&mut self.help, key)
+            <Help as Widget<State, Action>>::handle_key_event(&mut self.help, key);
         } else {
             match key {
                 Key::Esc | Key::Ctrl('c') => {
@@ -154,12 +154,12 @@ impl<'a> Render<()> for ListPage<'a> {
 }
 
 #[derive(Clone)]
-struct PatchesProps {
+struct PatchesProps<'a> {
     mode: Mode,
     patches: Vec<PatchItem>,
     search: String,
     stats: HashMap<String, usize>,
-    columns: Vec<Column>,
+    columns: Vec<Column<'a>>,
     cutoff: usize,
     cutoff_after: usize,
     focus: bool,
@@ -167,7 +167,7 @@ struct PatchesProps {
     show_search: bool,
 }
 
-impl From<&State> for PatchesProps {
+impl<'a> From<&State> for PatchesProps<'a> {
     fn from(state: &State) -> Self {
         let mut draft = 0;
         let mut open = 0;
@@ -226,18 +226,18 @@ impl From<&State> for PatchesProps {
     }
 }
 
-struct Patches {
+struct Patches<'a> {
     /// Action sender
     action_tx: UnboundedSender<Action>,
     /// State mapped props
-    props: PatchesProps,
+    props: PatchesProps<'a>,
     /// Notification table
-    table: Table<Action, PatchItem>,
+    table: Table<'a, Action, PatchItem>,
     /// Table footer
-    footer: Footer<Action>,
+    footer: Footer<'a, Action>,
 }
 
-impl Widget<State, Action> for Patches {
+impl<'a> Widget<State, Action> for Patches<'a> {
     fn new(state: &State, action_tx: UnboundedSender<Action>) -> Self {
         let props = PatchesProps::from(state);
 
@@ -255,21 +255,23 @@ impl Widget<State, Action> for Patches {
                 )
                 .footer(!props.show_search)
                 .cutoff(props.cutoff, props.cutoff_after),
-            footer: Footer::new(state, action_tx),
+            footer: Footer::new(&(), action_tx),
         }
+        .move_with_state(state)
     }
 
     fn move_with_state(self, state: &State) -> Self
     where
         Self: Sized,
     {
-        let props = PatchesProps::from(state);
         let patches: Vec<PatchItem> = state
             .patches
             .iter()
             .filter(|patch| state.filter.matches(patch))
             .cloned()
             .collect();
+
+        let props = PatchesProps::from(state);
 
         let table = self
             .table
@@ -278,10 +280,13 @@ impl Widget<State, Action> for Patches {
             .footer(!state.ui.show_search)
             .page_size(state.ui.page_size);
 
+        let footer = self.footer.move_with_state(&());
+        let footer = footer.columns(Self::build_footer(&props, table.selected()));
+
         Self {
             props,
             table,
-            footer: self.footer.move_with_state(state),
+            footer,
             ..self
         }
     }
@@ -351,9 +356,9 @@ impl Widget<State, Action> for Patches {
     }
 }
 
-impl Patches {
-    fn render_footer<B: Backend>(&self, frame: &mut ratatui::Frame, area: Rect) {
-        let filter = PatchItemFilter::from_str(&self.props.search).unwrap_or_default();
+impl<'a> Patches<'a> {
+    fn build_footer(props: &PatchesProps<'a>, selected: Option<usize>) -> Vec<Column<'a>> {
+        let filter = PatchItemFilter::from_str(&props.search).unwrap_or_default();
 
         let search = Line::from(
             [
@@ -362,14 +367,14 @@ impl Patches {
                     .dim()
                     .reversed(),
                 span::default(" ".into()),
-                span::default(self.props.search.to_string()).gray().dim(),
+                span::default(props.search.to_string()).gray().dim(),
             ]
             .to_vec(),
         );
 
         let draft = Line::from(
             [
-                span::default(self.props.stats.get("Draft").unwrap_or(&0).to_string()).dim(),
+                span::default(props.stats.get("Draft").unwrap_or(&0).to_string()).dim(),
                 span::default(" Draft".to_string()).dim(),
             ]
             .to_vec(),
@@ -377,7 +382,7 @@ impl Patches {
 
         let open = Line::from(
             [
-                span::positive(self.props.stats.get("Open").unwrap_or(&0).to_string()).dim(),
+                span::positive(props.stats.get("Open").unwrap_or(&0).to_string()).dim(),
                 span::default(" Open".to_string()).dim(),
             ]
             .to_vec(),
@@ -385,7 +390,7 @@ impl Patches {
 
         let merged = Line::from(
             [
-                span::default(self.props.stats.get("Merged").unwrap_or(&0).to_string())
+                span::default(props.stats.get("Merged").unwrap_or(&0).to_string())
                     .magenta()
                     .dim(),
                 span::default(" Merged".to_string()).dim(),
@@ -395,7 +400,7 @@ impl Patches {
 
         let archived = Line::from(
             [
-                span::default(self.props.stats.get("Archived").unwrap_or(&0).to_string())
+                span::default(props.stats.get("Archived").unwrap_or(&0).to_string())
                     .yellow()
                     .dim(),
                 span::default(" Archived".to_string()).dim(),
@@ -406,14 +411,16 @@ impl Patches {
         let sum = Line::from(
             [
                 span::default("Σ ".to_string()).dim(),
-                span::default(self.props.patches.len().to_string()).dim(),
+                span::default(props.patches.len().to_string()).dim(),
             ]
             .to_vec(),
         );
 
-        let progress = self
-            .table
-            .progress_percentage(self.props.patches.len(), self.props.page_size);
+        let progress = selected
+            .map(|selected| {
+                Table::<Action, PatchItem>::progress(selected, props.patches.len(), props.page_size)
+            })
+            .unwrap_or_default();
         let progress = span::default(format!("{}%", progress)).dim();
 
         match filter.status() {
@@ -425,60 +432,43 @@ impl Patches {
                     Status::Archived => archived,
                 };
 
-                self.footer.render::<B>(
-                    frame,
-                    area,
-                    FooterProps {
-                        cells: [search.into(), block.clone().into(), progress.clone().into()]
-                            .to_vec(),
-                        widths: [
-                            Constraint::Fill(1),
-                            Constraint::Min(block.width() as u16),
-                            Constraint::Min(4),
-                        ]
-                        .to_vec(),
-                        focus: self.props.focus,
-                        cutoff: self.props.cutoff,
-                        cutoff_after: self.props.cutoff_after,
-                    },
-                );
+                [
+                    Column::new(Text::from(search), Constraint::Fill(1)),
+                    Column::new(
+                        Text::from(block.clone()),
+                        Constraint::Min(block.width() as u16),
+                    ),
+                    Column::new(Text::from(progress), Constraint::Min(4)),
+                ]
+                .to_vec()
             }
-            None => {
-                self.footer.render::<B>(
-                    frame,
-                    area,
-                    FooterProps {
-                        cells: [
-                            search.into(),
-                            draft.clone().into(),
-                            open.clone().into(),
-                            merged.clone().into(),
-                            archived.clone().into(),
-                            sum.clone().into(),
-                            progress.clone().into(),
-                        ]
-                        .to_vec(),
-                        widths: [
-                            Constraint::Fill(1),
-                            Constraint::Min(draft.width() as u16),
-                            Constraint::Min(open.width() as u16),
-                            Constraint::Min(merged.width() as u16),
-                            Constraint::Min(archived.width() as u16),
-                            Constraint::Min(sum.width() as u16),
-                            Constraint::Min(4),
-                        ]
-                        .to_vec(),
-                        focus: self.props.focus,
-                        cutoff: self.props.cutoff,
-                        cutoff_after: self.props.cutoff_after,
-                    },
-                );
-            }
-        };
+            None => [
+                Column::new(Text::from(search), Constraint::Fill(1)),
+                Column::new(
+                    Text::from(draft.clone()),
+                    Constraint::Min(draft.width() as u16),
+                ),
+                Column::new(
+                    Text::from(open.clone()),
+                    Constraint::Min(open.width() as u16),
+                ),
+                Column::new(
+                    Text::from(merged.clone()),
+                    Constraint::Min(merged.width() as u16),
+                ),
+                Column::new(
+                    Text::from(archived.clone()),
+                    Constraint::Min(archived.width() as u16),
+                ),
+                Column::new(Text::from(sum.clone()), Constraint::Min(sum.width() as u16)),
+                Column::new(Text::from(progress), Constraint::Min(4)),
+            ]
+            .to_vec(),
+        }
     }
 }
 
-impl Render<()> for Patches {
+impl<'a> Render<()> for Patches<'a> {
     fn render<B: Backend>(&self, frame: &mut ratatui::Frame, area: Rect, _props: ()) {
         let header_height = 3_usize;
 
@@ -490,7 +480,7 @@ impl Render<()> for Patches {
             let layout = Layout::vertical([Constraint::Min(1), Constraint::Length(3)]).split(area);
 
             self.table.render::<B>(frame, layout[0], ());
-            self.render_footer::<B>(frame, layout[1]);
+            self.footer.render::<B>(frame, layout[1], ());
 
             (area.height as usize).saturating_sub(header_height)
         };
@@ -724,11 +714,11 @@ pub struct Help<'a> {
     /// This widget's render properties
     pub props: HelpProps<'a>,
     /// Container header
-    header: Header<Action>,
+    header: Header<'a, Action>,
     /// Content widget
     content: Paragraph<Action>,
     /// Container footer
-    footer: Footer<Action>,
+    footer: Footer<'a, Action>,
 }
 
 impl<'a> Widget<State, Action> for Help<'a> {
@@ -741,11 +731,9 @@ impl<'a> Widget<State, Action> for Help<'a> {
         Self {
             action_tx: action_tx.clone(),
             props: props.clone(),
-            header: Header::new(&(), action_tx.clone())
-                .columns([Column::new(" Help ", Constraint::Fill(1))].to_vec())
-                .focus(props.focus),
+            header: Header::new(&(), action_tx.clone()),
             content: Paragraph::new(state, action_tx.clone()),
-            footer: Footer::new(state, action_tx),
+            footer: Footer::new(&(), action_tx),
         }
         .move_with_state(state)
     }
@@ -754,11 +742,32 @@ impl<'a> Widget<State, Action> for Help<'a> {
     where
         Self: Sized,
     {
+        let props = HelpProps::from(state);
+
+        let header = self.header.move_with_state(&());
+        let header = header
+            .columns([Column::new(" Help ", Constraint::Fill(1))].to_vec())
+            .focus(props.focus);
+
+        let content = self.content.move_with_state(state);
+        let progress = span::default(format!("{}%", content.progress())).dim();
+
+        let footer = self.footer.move_with_state(&());
+        let footer = footer
+            .columns(
+                [
+                    Column::new(Text::raw(""), Constraint::Fill(1)),
+                    Column::new(Text::from(progress), Constraint::Min(4)),
+                ]
+                .to_vec(),
+            )
+            .focus(props.focus);
+
         Self {
-            props: HelpProps::from(state),
-            header: self.header.move_with_state(&()),
-            content: self.content.move_with_state(state),
-            footer: self.footer.move_with_state(state),
+            props,
+            header,
+            content,
+            footer,
             ..self
         }
     }
@@ -806,7 +815,6 @@ impl<'a> Render<()> for Help<'a> {
         .areas(area);
 
         self.header.render::<B>(frame, header_area, ());
-
         self.content.render::<B>(
             frame,
             content_area,
@@ -817,20 +825,7 @@ impl<'a> Render<()> for Help<'a> {
                 has_header: true,
             },
         );
-
-        let progress = span::default(format!("{}%", self.content.progress())).dim();
-
-        self.footer.render::<B>(
-            frame,
-            footer_area,
-            FooterProps {
-                cells: [String::new().into(), progress.clone().into()].to_vec(),
-                widths: [Constraint::Fill(1), Constraint::Min(4)].to_vec(),
-                focus: self.props.focus,
-                cutoff: usize::MAX,
-                cutoff_after: usize::MAX,
-            },
-        );
+        self.footer.render::<B>(frame, footer_area, ());
 
         let page_size = content_area.height as usize;
         if page_size != self.props.page_size {

@@ -14,7 +14,7 @@ use radicle_tui as tui;
 
 use tui::ui::items::{Filter, NotificationItem, NotificationItemFilter, NotificationState};
 use tui::ui::span;
-use tui::ui::widget::container::{Footer, FooterProps, Header};
+use tui::ui::widget::container::{Footer, Header};
 use tui::ui::widget::input::{TextField, TextFieldProps};
 use tui::ui::widget::text::{Paragraph, ParagraphProps};
 use tui::ui::widget::{Column, Render, Shortcuts, Table, Widget};
@@ -44,7 +44,7 @@ pub struct ListPage<'a> {
     /// State mapped props
     props: ListPageProps,
     /// Notification widget
-    notifications: Notifications,
+    notifications: Notifications<'a>,
     /// Search widget
     search: Search,
     /// Help widget
@@ -151,11 +151,11 @@ impl<'a> Render<()> for ListPage<'a> {
     }
 }
 
-struct NotificationsProps {
+struct NotificationsProps<'a> {
     notifications: Vec<NotificationItem>,
     mode: Mode,
     stats: HashMap<String, usize>,
-    columns: Vec<Column>,
+    columns: Vec<Column<'a>>,
     cutoff: usize,
     cutoff_after: usize,
     focus: bool,
@@ -164,7 +164,7 @@ struct NotificationsProps {
     show_search: bool,
 }
 
-impl From<&State> for NotificationsProps {
+impl<'a> From<&State> for NotificationsProps<'a> {
     fn from(state: &State) -> Self {
         let mut seen = 0;
         let mut unseen = 0;
@@ -214,18 +214,18 @@ impl From<&State> for NotificationsProps {
     }
 }
 
-struct Notifications {
+struct Notifications<'a> {
     /// Action sender
     action_tx: UnboundedSender<Action>,
     /// State mapped props
-    props: NotificationsProps,
+    props: NotificationsProps<'a>,
     /// Notification table
-    table: Table<Action, NotificationItem>,
+    table: Table<'a, Action, NotificationItem>,
     /// Table footer
-    footer: Footer<Action>,
+    footer: Footer<'a, Action>,
 }
 
-impl Widget<State, Action> for Notifications {
+impl<'a> Widget<State, Action> for Notifications<'a> {
     fn new(state: &State, action_tx: UnboundedSender<Action>) -> Self {
         let props = NotificationsProps::from(state);
         let name = match state.mode.repository() {
@@ -245,7 +245,7 @@ impl Widget<State, Action> for Notifications {
                         .columns(
                             [
                                 Column::new("", Constraint::Length(0)),
-                                Column::new(&name, Constraint::Fill(1)),
+                                Column::new(Text::from(name), Constraint::Fill(1)),
                             ]
                             .to_vec(),
                         )
@@ -254,7 +254,7 @@ impl Widget<State, Action> for Notifications {
                 )
                 .footer(!props.show_search)
                 .cutoff(props.cutoff, props.cutoff_after),
-            footer: Footer::new(state, action_tx),
+            footer: Footer::new(&(), action_tx),
         }
     }
 
@@ -262,8 +262,6 @@ impl Widget<State, Action> for Notifications {
     where
         Self: Sized,
     {
-        let props = NotificationsProps::from(state);
-        let table = self.table.move_with_state(&());
         let notifications: Vec<NotificationItem> = state
             .notifications
             .iter()
@@ -271,15 +269,21 @@ impl Widget<State, Action> for Notifications {
             .cloned()
             .collect();
 
+        let props = NotificationsProps::from(state);
+
+        let table = self.table.move_with_state(&());
         let table = table
             .items(notifications)
             .footer(!state.ui.show_search)
             .page_size(state.ui.page_size);
 
+        let footer = self.footer.move_with_state(&());
+        let footer = footer.columns(Self::build_footer(&props, table.selected()));
+
         Self {
             props,
             table,
-            footer: self.footer.move_with_state(state),
+            footer,
             ..self
         }
     }
@@ -331,8 +335,8 @@ impl Widget<State, Action> for Notifications {
     }
 }
 
-impl Notifications {
-    fn render_footer<B: Backend>(&self, frame: &mut ratatui::Frame, area: Rect) {
+impl<'a> Notifications<'a> {
+    fn build_footer(props: &NotificationsProps<'a>, selected: Option<usize>) -> Vec<Column<'a>> {
         let search = Line::from(
             [
                 span::default(" Search ".to_string())
@@ -340,21 +344,21 @@ impl Notifications {
                     .dim()
                     .reversed(),
                 span::default(" ".into()),
-                span::default(self.props.search.to_string()).gray().dim(),
+                span::default(props.search.to_string()).gray().dim(),
             ]
             .to_vec(),
         );
 
         let seen = Line::from(
             [
-                span::positive(self.props.stats.get("Seen").unwrap_or(&0).to_string()).dim(),
+                span::positive(props.stats.get("Seen").unwrap_or(&0).to_string()).dim(),
                 span::default(" Seen".to_string()).dim(),
             ]
             .to_vec(),
         );
         let unseen = Line::from(
             [
-                span::positive(self.props.stats.get("Unseen").unwrap_or(&0).to_string())
+                span::positive(props.stats.get("Unseen").unwrap_or(&0).to_string())
                     .magenta()
                     .dim(),
                 span::default(" Unseen".to_string()).dim(),
@@ -362,12 +366,18 @@ impl Notifications {
             .to_vec(),
         );
 
-        let progress = self
-            .table
-            .progress_percentage(self.props.notifications.len(), self.props.page_size);
+        let progress = selected
+            .map(|selected| {
+                Table::<Action, NotificationItem>::progress(
+                    selected,
+                    props.notifications.len(),
+                    props.page_size,
+                )
+            })
+            .unwrap_or_default();
         let progress = span::default(format!("{}%", progress)).dim();
 
-        match NotificationItemFilter::from_str(&self.props.search)
+        match NotificationItemFilter::from_str(&props.search)
             .unwrap_or_default()
             .state()
         {
@@ -377,54 +387,34 @@ impl Notifications {
                     NotificationState::Unseen => unseen,
                 };
 
-                self.footer.render::<B>(
-                    frame,
-                    area,
-                    FooterProps {
-                        cells: [search.into(), block.clone().into(), progress.clone().into()]
-                            .to_vec(),
-                        widths: [
-                            Constraint::Fill(1),
-                            Constraint::Min(block.width() as u16),
-                            Constraint::Min(4),
-                        ]
-                        .to_vec(),
-                        focus: self.props.focus,
-                        cutoff: self.props.cutoff,
-                        cutoff_after: self.props.cutoff_after,
-                    },
-                );
+                [
+                    Column::new(Text::from(search), Constraint::Fill(1)),
+                    Column::new(
+                        Text::from(block.clone()),
+                        Constraint::Min(block.width() as u16),
+                    ),
+                    Column::new(Text::from(progress), Constraint::Min(4)),
+                ]
+                .to_vec()
             }
-            None => {
-                self.footer.render::<B>(
-                    frame,
-                    area,
-                    FooterProps {
-                        cells: [
-                            search.into(),
-                            seen.clone().into(),
-                            unseen.clone().into(),
-                            progress.clone().into(),
-                        ]
-                        .to_vec(),
-                        widths: [
-                            Constraint::Fill(1),
-                            Constraint::Min(seen.width() as u16),
-                            Constraint::Min(unseen.width() as u16),
-                            Constraint::Min(4),
-                        ]
-                        .to_vec(),
-                        focus: self.props.focus,
-                        cutoff: self.props.cutoff,
-                        cutoff_after: self.props.cutoff_after,
-                    },
-                );
-            }
+            None => [
+                Column::new(Text::from(search), Constraint::Fill(1)),
+                Column::new(
+                    Text::from(seen.clone()),
+                    Constraint::Min(seen.width() as u16),
+                ),
+                Column::new(
+                    Text::from(unseen.clone()),
+                    Constraint::Min(unseen.width() as u16),
+                ),
+                Column::new(Text::from(progress), Constraint::Min(4)),
+            ]
+            .to_vec(),
         }
     }
 }
 
-impl Render<()> for Notifications {
+impl<'a> Render<()> for Notifications<'a> {
     fn render<B: Backend>(&self, frame: &mut ratatui::Frame, area: Rect, _props: ()) {
         let header_height = 3_usize;
 
@@ -436,7 +426,7 @@ impl Render<()> for Notifications {
             let layout = Layout::vertical([Constraint::Min(1), Constraint::Length(3)]).split(area);
 
             self.table.render::<B>(frame, layout[0], ());
-            self.render_footer::<B>(frame, layout[1]);
+            self.footer.render::<B>(frame, layout[1], ());
 
             (area.height as usize).saturating_sub(header_height)
         };
@@ -511,6 +501,7 @@ impl Render<SearchProps> for Search {
     }
 }
 
+#[derive(Clone)]
 pub struct HelpProps<'a> {
     content: Text<'a>,
     focus: bool,
@@ -661,11 +652,11 @@ pub struct Help<'a> {
     /// This widget's render properties
     pub props: HelpProps<'a>,
     /// Container header
-    header: Header<Action>,
+    header: Header<'a, Action>,
     /// Content widget
     content: Paragraph<Action>,
     /// Container footer
-    footer: Footer<Action>,
+    footer: Footer<'a, Action>,
 }
 
 impl<'a> Widget<State, Action> for Help<'a> {
@@ -677,12 +668,10 @@ impl<'a> Widget<State, Action> for Help<'a> {
 
         Self {
             action_tx: action_tx.clone(),
-            props: HelpProps::from(state),
-            header: Header::new(&(), action_tx.clone())
-                .columns([Column::new(" Help ", Constraint::Fill(1))].to_vec())
-                .focus(props.focus),
+            props: props.clone(),
+            header: Header::new(&(), action_tx.clone()),
             content: Paragraph::new(state, action_tx.clone()),
-            footer: Footer::new(state, action_tx),
+            footer: Footer::new(&(), action_tx),
         }
         .move_with_state(state)
     }
@@ -691,11 +680,32 @@ impl<'a> Widget<State, Action> for Help<'a> {
     where
         Self: Sized,
     {
+        let props = HelpProps::from(state);
+
+        let header = self.header.move_with_state(&());
+        let header = header
+            .columns([Column::new(" Help ", Constraint::Fill(1))].to_vec())
+            .focus(props.focus);
+
+        let content = self.content.move_with_state(state);
+        let progress = span::default(format!("{}%", content.progress())).dim();
+
+        let footer = self.footer.move_with_state(&());
+        let footer = footer
+            .columns(
+                [
+                    Column::new(Text::raw(""), Constraint::Fill(1)),
+                    Column::new(Text::from(progress), Constraint::Min(4)),
+                ]
+                .to_vec(),
+            )
+            .focus(props.focus);
+
         Self {
-            props: HelpProps::from(state),
-            header: self.header.move_with_state(&()),
-            content: self.content.move_with_state(state),
-            footer: self.footer.move_with_state(state),
+            props,
+            header,
+            content,
+            footer,
             ..self
         }
     }
@@ -743,7 +753,6 @@ impl<'a> Render<()> for Help<'a> {
         .areas(area);
 
         self.header.render::<B>(frame, header_area, ());
-
         self.content.render::<B>(
             frame,
             content_area,
@@ -754,20 +763,7 @@ impl<'a> Render<()> for Help<'a> {
                 has_header: true,
             },
         );
-
-        let progress = span::default(format!("{}%", self.content.progress())).dim();
-
-        self.footer.render::<B>(
-            frame,
-            footer_area,
-            FooterProps {
-                cells: [String::new().into(), progress.clone().into()].to_vec(),
-                widths: [Constraint::Fill(1), Constraint::Min(4)].to_vec(),
-                focus: self.props.focus,
-                cutoff: usize::MAX,
-                cutoff_after: usize::MAX,
-            },
-        );
+        self.footer.render::<B>(frame, footer_area, ());
 
         let page_size = content_area.height as usize;
         if page_size != self.props.page_size {
