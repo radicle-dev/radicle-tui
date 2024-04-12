@@ -7,7 +7,7 @@ use ratatui::prelude::{Backend, Rect};
 use ratatui::style::Stylize;
 use ratatui::text::{Line, Span};
 
-use super::{Render, View};
+use super::{Render, View, Widget};
 
 pub struct TextFieldProps {
     title: String,
@@ -114,6 +114,8 @@ impl<S, A> View<S, A> for TextField<A> {
         self
     }
 
+    fn update(&mut self, state: &S) {}
+
     fn handle_key_event(&mut self, key: Key) {
         match key {
             Key::Char(to_insert)
@@ -185,3 +187,5 @@ impl<A, B: Backend> Render<B, ()> for TextField<A> {
         }
     }
 }
+
+impl<S, A: 'static, B: Backend> Widget<S, A, B> for TextField<A> {}

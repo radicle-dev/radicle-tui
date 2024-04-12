@@ -137,6 +137,8 @@ impl<'a, S, A> View<S, A> for Paragraph<'a, A> {
         Self { ..self }
     }
 
+    fn update(&mut self, state: &S) {}
+
     fn handle_key_event(&mut self, key: Key) {
         let len = self.props.content.lines.len() + 1;
         let page_size = self.props.page_size;

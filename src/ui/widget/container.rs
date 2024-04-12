@@ -56,8 +56,8 @@ impl<'a, A> Header<'a, A> {
     }
 }
 
-impl<'a, A> View<(), A> for Header<'a, A> {
-    fn new(state: &(), action_tx: UnboundedSender<A>) -> Self {
+impl<'a, S, A> View<S, A> for Header<'a, A> {
+    fn new(state: &S, action_tx: UnboundedSender<A>) -> Self {
         Self {
             action_tx: action_tx.clone(),
             props: HeaderProps::default(),
@@ -65,9 +65,11 @@ impl<'a, A> View<(), A> for Header<'a, A> {
         .move_with_state(state)
     }
 
-    fn move_with_state(self, _state: &()) -> Self {
+    fn move_with_state(self, _state: &S) -> Self {
         Self { ..self }
     }
+
+    fn update(&mut self, state: &S) {}
 
     fn handle_key_event(&mut self, _key: Key) {}
 }
@@ -176,8 +178,8 @@ impl<'a, A> Footer<'a, A> {
     }
 }
 
-impl<'a, A> View<(), A> for Footer<'a, A> {
-    fn new(_state: &(), action_tx: UnboundedSender<A>) -> Self {
+impl<'a, S, A> View<S, A> for Footer<'a, A> {
+    fn new(_state: &S, action_tx: UnboundedSender<A>) -> Self {
         Self {
             action_tx: action_tx.clone(),
             props: FooterProps::default(),
@@ -185,9 +187,11 @@ impl<'a, A> View<(), A> for Footer<'a, A> {
         .move_with_state(&())
     }
 
-    fn move_with_state(self, _state: &()) -> Self {
+    fn move_with_state(self, _state: &S) -> Self {
         Self { ..self }
     }
+
+    fn update(&mut self, state: &S) {}
 
     fn handle_key_event(&mut self, _key: Key) {}
 }

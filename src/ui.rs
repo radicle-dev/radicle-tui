@@ -22,7 +22,7 @@ use super::terminal;
 use super::terminal::TermionBackendExt;
 use super::ui::widget::{Render, View};
 
-type Backend = TermionBackendExt<RawTerminal<io::Stdout>>;
+pub type Backend = TermionBackendExt<RawTerminal<io::Stdout>>;
 
 const RENDERING_TICK_RATE: Duration = Duration::from_millis(250);
 const INLINE_HEIGHT: usize = 20;
@@ -69,7 +69,8 @@ impl<A> Frontend<A> {
                 },
                 // Handle state updates
                 Some(state) = state_rx.recv() => {
-                    root = root.move_with_state(&state);
+                    // root = root.move_with_state(&state);
+                    root.update(&state);
                 },
                 // Catch and handle interrupt signal to gracefully shutdown
                 Ok(interrupted) = interrupt_rx.recv() => {

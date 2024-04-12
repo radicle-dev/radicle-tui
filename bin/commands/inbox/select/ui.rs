@@ -38,7 +38,7 @@ impl From<&State> for ListPageProps {
     }
 }
 
-pub struct ListPage<'a> {
+pub struct ListPage<'a, B: Backend> {
     /// Action sender
     pub action_tx: UnboundedSender<Action>,
     /// State mapped props
@@ -50,10 +50,10 @@ pub struct ListPage<'a> {
     /// Help widget
     help: Help<'a>,
     /// Shortcut widget
-    shortcuts: Shortcuts<Action>,
+    shortcuts: Shortcuts<State, Action, B>,
 }
 
-impl<'a> View<State, Action> for ListPage<'a> {
+impl<'a, B: Backend> View<State, Action> for ListPage<'a, B> {
     fn new(state: &State, action_tx: UnboundedSender<Action>) -> Self
     where
         Self: Sized,
@@ -64,7 +64,7 @@ impl<'a> View<State, Action> for ListPage<'a> {
             notifications: Notifications::new(state, action_tx.clone()),
             search: Search::new(state, action_tx.clone()),
             help: Help::new(state, action_tx.clone()),
-            shortcuts: Shortcuts::new(&(), action_tx.clone()),
+            shortcuts: Shortcuts::new(state, action_tx.clone()),
         }
         .move_with_state(state)
     }
@@ -89,7 +89,7 @@ impl<'a> View<State, Action> for ListPage<'a> {
             }
         };
 
-        let shortcuts = self.shortcuts.move_with_state(&());
+        let shortcuts = self.shortcuts.move_with_state(state);
         let shortcuts = shortcuts.shortcuts(&shorts);
 
         ListPage {
@@ -100,6 +100,8 @@ impl<'a> View<State, Action> for ListPage<'a> {
             ..self
         }
     }
+
+    fn update(&mut self, state: &State) {}
 
     fn handle_key_event(&mut self, key: termion::event::Key) {
         if self.props.show_search {
@@ -129,7 +131,7 @@ impl<'a> View<State, Action> for ListPage<'a> {
     }
 }
 
-impl<'a, B: Backend> Render<B, ()> for ListPage<'a> {
+impl<'a, B: Backend> Render<B, ()> for ListPage<'a, B> {
     fn render(&self, frame: &mut ratatui::Frame, _area: Rect, _props: ()) {
         let area = frame.size();
         let layout = tui::ui::layout::default_page(area, 0u16, 1u16);
@@ -156,7 +158,7 @@ impl<'a, B: Backend> Render<B, ()> for ListPage<'a> {
             );
         }
 
-        <Shortcuts<_> as Render<B, ()>>::render(&self.shortcuts, frame, layout.shortcuts, ());
+        <Shortcuts<_, _, _> as Render<B, ()>>::render(&self.shortcuts, frame, layout.shortcuts, ());
     }
 }
 
@@ -296,6 +298,8 @@ impl<'a> View<State, Action> for Notifications<'a> {
             ..self
         }
     }
+
+    fn update(&mut self, state: &State) {}
 
     fn handle_key_event(&mut self, key: Key) {
         match key {
@@ -471,6 +475,8 @@ impl View<State, Action> for Search {
 
         Self { input, ..self }
     }
+
+    fn update(&mut self, state: &State) {}
 
     fn handle_key_event(&mut self, key: termion::event::Key) {
         match key {
@@ -710,6 +716,8 @@ impl<'a> View<State, Action> for Help<'a> {
             ..self
         }
     }
+
+    fn update(&mut self, state: &State) {}
 
     fn handle_key_event(&mut self, key: termion::event::Key) {
         match key {

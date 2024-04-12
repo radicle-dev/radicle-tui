@@ -20,6 +20,7 @@ use tui::store::StateValue;
 use tui::task::{self, Interrupted};
 use tui::ui::items::NotificationItem;
 use tui::ui::items::NotificationItemFilter;
+use tui::ui::Backend;
 use tui::ui::Frontend;
 use tui::Exit;
 
@@ -241,7 +242,7 @@ impl App {
 
         tokio::try_join!(
             store.main_loop(state, terminator, action_rx, interrupt_rx.resubscribe()),
-            frontend.main_loop::<State, ListPage, Selection>(state_rx, interrupt_rx.resubscribe()),
+            frontend.main_loop::<State, ListPage<Backend>, Selection>(state_rx, interrupt_rx.resubscribe()),
         )?;
 
         if let Ok(reason) = interrupt_rx.recv().await {

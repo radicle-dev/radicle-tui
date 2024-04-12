@@ -13,6 +13,7 @@ use ratatui::prelude::*;
 use ratatui::widgets::{Block, BorderType, Borders, Cell, Row, TableState};
 
 use self::container::Header;
+use self::input::TextField;
 
 use super::theme::style;
 use super::{layout, span};
@@ -25,6 +26,8 @@ pub trait View<S, A> {
     fn move_with_state(self, state: &S) -> Self
     where
         Self: Sized;
+
+    fn update(&mut self, state: &S);
 
     fn handle_key_event(&mut self, key: Key);
 }
@@ -53,14 +56,16 @@ impl Default for ShortcutsProps {
     }
 }
 
-pub struct Shortcuts<A> {
+pub struct Shortcuts<S, A, B: Backend> {
     /// Message sender
     pub action_tx: UnboundedSender<A>,
     /// Internal properties
     props: ShortcutsProps,
+
+    more: Box<dyn Widget<S, A, B>>,
 }
 
-impl<A> Shortcuts<A> {
+impl<S, A, B: Backend> Shortcuts<S, A, B> {
     pub fn divider(mut self, divider: char) -> Self {
         self.props.divider = divider;
         self
@@ -77,23 +82,28 @@ impl<A> Shortcuts<A> {
     }
 }
 
-impl<S, A> View<S, A> for Shortcuts<A> {
+impl<S, A: 'static, B: Backend> View<S, A> for Shortcuts<S, A, B> {
     fn new(state: &S, action_tx: UnboundedSender<A>) -> Self {
         Self {
             action_tx: action_tx.clone(),
             props: ShortcutsProps::default(),
+            more: Box::new(TextField::new(state, action_tx)),
         }
         .move_with_state(state)
     }
 
-    fn move_with_state(self, _state: &S) -> Self {
+    fn move_with_state(self, state: &S) -> Self {
         Self { ..self }
+    }
+
+    fn update(&mut self, state: &S) {
+        self.more.update(state);
     }
 
     fn handle_key_event(&mut self, _key: termion::event::Key) {}
 }
 
-impl<A, B: Backend> Render<B, ()> for Shortcuts<A> {
+impl<S, A, B: Backend> Render<B, ()> for Shortcuts<S, A, B> {
     fn render(&self, frame: &mut ratatui::Frame, area: Rect, _props: ()) {
         use ratatui::widgets::Table;
 
@@ -116,6 +126,10 @@ impl<A, B: Backend> Render<B, ()> for Shortcuts<A> {
             }
         }
 
+        self.more.render(frame, area, ());
+
+        // <dyn View<S, A> as Render<B, ()>>::render(self.more.render, frame, area, ());
+
         let row_copy = row.clone();
         let row: Vec<Text<'_>> = row_copy
             .clone()
@@ -133,7 +147,7 @@ impl<A, B: Backend> Render<B, ()> for Shortcuts<A> {
     }
 }
 
-impl<S, A, B: Backend> Widget<S, A, B> for Shortcuts<A> {}
+impl<S, A: 'static, B: Backend> Widget<S, A, B> for Shortcuts<S, A, B> {}
 
 #[derive(Clone, Debug)]
 pub struct Column<'a> {
@@ -321,6 +335,8 @@ where
 
         me
     }
+
+    fn update(&mut self, state: &S) {}
 
     fn handle_key_event(&mut self, key: Key) {
         match key {
