@@ -7,7 +7,7 @@ use ratatui::prelude::{Backend, Rect};
 use ratatui::style::Stylize;
 use ratatui::text::{Line, Span};
 
-use super::{Render, Widget};
+use super::{Render, View};
 
 pub struct TextFieldProps {
     title: String,
@@ -101,7 +101,7 @@ impl<A> TextField<A> {
     }
 }
 
-impl<S, A> Widget<S, A> for TextField<A> {
+impl<S, A> View<S, A> for TextField<A> {
     fn new(state: &S, action_tx: UnboundedSender<A>) -> Self {
         Self {
             action_tx,
@@ -110,11 +110,8 @@ impl<S, A> Widget<S, A> for TextField<A> {
         .move_with_state(state)
     }
 
-    fn move_with_state(self, _state: &S) -> Self
-    where
-        Self: Sized,
-    {
-        Self { ..self }
+    fn move_with_state(self, _state: &S) -> Self {
+        self
     }
 
     fn handle_key_event(&mut self, key: Key) {
@@ -140,8 +137,8 @@ impl<S, A> Widget<S, A> for TextField<A> {
     }
 }
 
-impl<A> Render<()> for TextField<A> {
-    fn render<B: Backend>(&self, frame: &mut ratatui::Frame, area: Rect, _props: ()) {
+impl<A, B: Backend> Render<B, ()> for TextField<A> {
+    fn render(&self, frame: &mut ratatui::Frame, area: Rect, _props: ()) {
         let layout = Layout::vertical(Constraint::from_lengths([1, 1])).split(area);
 
         let input = self.props.text.as_str();
