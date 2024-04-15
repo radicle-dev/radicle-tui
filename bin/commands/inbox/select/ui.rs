@@ -17,7 +17,7 @@ use tui::ui::span;
 use tui::ui::widget::container::{Footer, Header};
 use tui::ui::widget::input::TextField;
 use tui::ui::widget::text::Paragraph;
-use tui::ui::widget::{Column, Render, Shortcuts, Table, Widget};
+use tui::ui::widget::{Column, Render, Shortcuts, Table, View};
 use tui::Selection;
 
 use crate::tui_inbox::common::{InboxOperation, Mode, RepositoryMode, SelectionMode};
@@ -53,7 +53,7 @@ pub struct ListPage<'a> {
     shortcuts: Shortcuts<Action>,
 }
 
-impl<'a> Widget<State, Action> for ListPage<'a> {
+impl<'a> View<State, Action> for ListPage<'a> {
     fn new(state: &State, action_tx: UnboundedSender<Action>) -> Self
     where
         Self: Sized,
@@ -103,9 +103,9 @@ impl<'a> Widget<State, Action> for ListPage<'a> {
 
     fn handle_key_event(&mut self, key: termion::event::Key) {
         if self.props.show_search {
-            <Search as Widget<State, Action>>::handle_key_event(&mut self.search, key)
+            <Search as View<State, Action>>::handle_key_event(&mut self.search, key)
         } else if self.props.show_help {
-            <Help as Widget<State, Action>>::handle_key_event(&mut self.help, key)
+            <Help as View<State, Action>>::handle_key_event(&mut self.help, key)
         } else {
             match key {
                 Key::Esc | Key::Ctrl('c') => {
@@ -118,7 +118,7 @@ impl<'a> Widget<State, Action> for ListPage<'a> {
                     let _ = self.action_tx.send(Action::OpenHelp);
                 }
                 _ => {
-                    <Notifications as Widget<State, Action>>::handle_key_event(
+                    <Notifications as View<State, Action>>::handle_key_event(
                         &mut self.notifications,
                         key,
                     );
@@ -129,8 +129,8 @@ impl<'a> Widget<State, Action> for ListPage<'a> {
     }
 }
 
-impl<'a> Render<()> for ListPage<'a> {
-    fn render<B: Backend>(&self, frame: &mut ratatui::Frame, _area: Rect, _props: ()) {
+impl<'a, B: Backend> Render<B, ()> for ListPage<'a> {
+    fn render(&self, frame: &mut ratatui::Frame, _area: Rect, _props: ()) {
         let area = frame.size();
         let layout = tui::ui::layout::default_page(area, 0u16, 1u16);
 
@@ -138,16 +138,25 @@ impl<'a> Render<()> for ListPage<'a> {
             let component_layout = Layout::vertical([Constraint::Min(1), Constraint::Length(2)])
                 .split(layout.component);
 
-            self.notifications
-                .render::<B>(frame, component_layout[0], ());
-            self.search.render::<B>(frame, component_layout[1], ());
+            <Notifications<'_> as Render<B, ()>>::render(
+                &self.notifications,
+                frame,
+                component_layout[0],
+                (),
+            );
+            <Search as Render<B, ()>>::render(&self.search, frame, component_layout[1], ());
         } else if self.props.show_help {
-            self.help.render::<B>(frame, layout.component, ());
+            <Help<'_> as Render<B, ()>>::render(&self.help, frame, layout.component, ());
         } else {
-            self.notifications.render::<B>(frame, layout.component, ());
+            <Notifications<'_> as Render<B, ()>>::render(
+                &self.notifications,
+                frame,
+                layout.component,
+                (),
+            );
         }
 
-        self.shortcuts.render::<B>(frame, layout.shortcuts, ());
+        <Shortcuts<_> as Render<B, ()>>::render(&self.shortcuts, frame, layout.shortcuts, ());
     }
 }
 
@@ -225,7 +234,7 @@ struct Notifications<'a> {
     footer: Footer<'a, Action>,
 }
 
-impl<'a> Widget<State, Action> for Notifications<'a> {
+impl<'a> View<State, Action> for Notifications<'a> {
     fn new(state: &State, action_tx: UnboundedSender<Action>) -> Self {
         let props = NotificationsProps::from(state);
         let name = match state.mode.repository() {
@@ -326,7 +335,7 @@ impl<'a> Widget<State, Action> for Notifications<'a> {
                     });
             }
             _ => {
-                <Table<Action, NotificationItem> as Widget<(), Action>>::handle_key_event(
+                <Table<Action, NotificationItem> as View<(), Action>>::handle_key_event(
                     &mut self.table,
                     key,
                 );
@@ -414,19 +423,19 @@ impl<'a> Notifications<'a> {
     }
 }
 
-impl<'a> Render<()> for Notifications<'a> {
-    fn render<B: Backend>(&self, frame: &mut ratatui::Frame, area: Rect, _props: ()) {
+impl<'a, B: Backend> Render<B, ()> for Notifications<'a> {
+    fn render(&self, frame: &mut ratatui::Frame, area: Rect, _props: ()) {
         let header_height = 3_usize;
 
         let page_size = if self.props.show_search {
-            self.table.render::<B>(frame, area, ());
+            <Table<'_, _, _> as Render<B, ()>>::render(&self.table, frame, area, ());
 
             (area.height as usize).saturating_sub(header_height)
         } else {
             let layout = Layout::vertical([Constraint::Min(1), Constraint::Length(3)]).split(area);
 
-            self.table.render::<B>(frame, layout[0], ());
-            self.footer.render::<B>(frame, layout[1], ());
+            <Table<'_, _, _> as Render<B, ()>>::render(&self.table, frame, layout[0], ());
+            <Footer<'_, _> as Render<B, ()>>::render(&self.footer, frame, layout[1], ());
 
             (area.height as usize).saturating_sub(header_height)
         };
@@ -442,7 +451,7 @@ pub struct Search {
     pub input: TextField<Action>,
 }
 
-impl Widget<State, Action> for Search {
+impl View<State, Action> for Search {
     fn new(state: &State, action_tx: UnboundedSender<Action>) -> Self
     where
         Self: Sized,
@@ -472,10 +481,7 @@ impl Widget<State, Action> for Search {
                 let _ = self.action_tx.send(Action::ApplySearch);
             }
             _ => {
-                <TextField<Action> as Widget<State, Action>>::handle_key_event(
-                    &mut self.input,
-                    key,
-                );
+                <TextField<Action> as View<State, Action>>::handle_key_event(&mut self.input, key);
                 let _ = self.action_tx.send(Action::UpdateSearch {
                     value: self.input.read().to_string(),
                 });
@@ -484,13 +490,13 @@ impl Widget<State, Action> for Search {
     }
 }
 
-impl Render<()> for Search {
-    fn render<B: Backend>(&self, frame: &mut ratatui::Frame, area: Rect, _props: ()) {
+impl<B: Backend> Render<B, ()> for Search {
+    fn render(&self, frame: &mut ratatui::Frame, area: Rect, _props: ()) {
         let layout = Layout::horizontal(Constraint::from_mins([0]))
             .horizontal_margin(1)
             .split(area);
 
-        self.input.render::<B>(frame, layout[0], ());
+        <TextField<_> as Render<B, ()>>::render(&self.input, frame, layout[0], ());
     }
 }
 
@@ -652,7 +658,7 @@ pub struct Help<'a> {
     footer: Footer<'a, Action>,
 }
 
-impl<'a> Widget<State, Action> for Help<'a> {
+impl<'a> View<State, Action> for Help<'a> {
     fn new(state: &State, action_tx: UnboundedSender<Action>) -> Self
     where
         Self: Sized,
@@ -714,14 +720,14 @@ impl<'a> Widget<State, Action> for Help<'a> {
                 let _ = self.action_tx.send(Action::CloseHelp);
             }
             _ => {
-                <Paragraph<_> as Widget<(), _>>::handle_key_event(&mut self.content, key);
+                <Paragraph<_> as View<(), _>>::handle_key_event(&mut self.content, key);
             }
         }
     }
 }
 
-impl<'a> Render<()> for Help<'a> {
-    fn render<B: Backend>(&self, frame: &mut ratatui::Frame, area: Rect, _props: ()) {
+impl<'a, B: Backend> Render<B, ()> for Help<'a> {
+    fn render(&self, frame: &mut ratatui::Frame, area: Rect, _props: ()) {
         let [header_area, content_area, footer_area] = Layout::vertical([
             Constraint::Length(3),
             Constraint::Min(1),
@@ -729,9 +735,9 @@ impl<'a> Render<()> for Help<'a> {
         ])
         .areas(area);
 
-        self.header.render::<B>(frame, header_area, ());
-        self.content.render::<B>(frame, content_area, ());
-        self.footer.render::<B>(frame, footer_area, ());
+        <Header<'_, _> as Render<B, ()>>::render(&self.header, frame, header_area, ());
+        <Paragraph<'_, _> as Render<B, ()>>::render(&self.content, frame, content_area, ());
+        <Footer<'_, _> as Render<B, ()>>::render(&self.footer, frame, footer_area, ());
 
         let page_size = content_area.height as usize;
         if page_size != self.props.page_size {

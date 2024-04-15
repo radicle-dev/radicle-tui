@@ -17,7 +17,7 @@ use self::container::Header;
 use super::theme::style;
 use super::{layout, span};
 
-pub trait Widget<S, A> {
+pub trait View<S, A> {
     fn new(state: &S, action_tx: UnboundedSender<A>) -> Self
     where
         Self: Sized;
@@ -29,9 +29,11 @@ pub trait Widget<S, A> {
     fn handle_key_event(&mut self, key: Key);
 }
 
-pub trait Render<P> {
-    fn render<B: ratatui::backend::Backend>(&self, frame: &mut Frame, area: Rect, props: P);
+pub trait Render<B: Backend, P> {
+    fn render(&self, frame: &mut Frame, area: Rect, props: P);
 }
+
+pub trait Widget<S, A, B: Backend>: View<S, A> + Render<B, ()> {}
 
 pub trait ToRow {
     fn to_row(&self) -> Vec<Cell>;
@@ -75,11 +77,8 @@ impl<A> Shortcuts<A> {
     }
 }
 
-impl<A> Widget<(), A> for Shortcuts<A> {
-    fn new(state: &(), action_tx: UnboundedSender<A>) -> Self
-    where
-        Self: Sized,
-    {
+impl<S, A> View<S, A> for Shortcuts<A> {
+    fn new(state: &S, action_tx: UnboundedSender<A>) -> Self {
         Self {
             action_tx: action_tx.clone(),
             props: ShortcutsProps::default(),
@@ -87,18 +86,15 @@ impl<A> Widget<(), A> for Shortcuts<A> {
         .move_with_state(state)
     }
 
-    fn move_with_state(self, _state: &()) -> Self
-    where
-        Self: Sized,
-    {
+    fn move_with_state(self, _state: &S) -> Self {
         Self { ..self }
     }
 
     fn handle_key_event(&mut self, _key: termion::event::Key) {}
 }
 
-impl<A> Render<()> for Shortcuts<A> {
-    fn render<B: Backend>(&self, frame: &mut ratatui::Frame, area: Rect, _props: ()) {
+impl<A, B: Backend> Render<B, ()> for Shortcuts<A> {
+    fn render(&self, frame: &mut ratatui::Frame, area: Rect, _props: ()) {
         use ratatui::widgets::Table;
 
         let mut shortcuts = self.props.shortcuts.iter().peekable();
@@ -136,6 +132,8 @@ impl<A> Render<()> for Shortcuts<A> {
         frame.render_widget(table, area);
     }
 }
+
+impl<S, A, B: Backend> Widget<S, A, B> for Shortcuts<A> {}
 
 #[derive(Clone, Debug)]
 pub struct Column<'a> {
@@ -299,14 +297,11 @@ impl<'a, A, R: ToRow> Table<'a, A, R> {
     }
 }
 
-impl<'a, A, R> Widget<(), A> for Table<'a, A, R>
+impl<'a, S, A, R> View<S, A> for Table<'a, A, R>
 where
     R: ToRow,
 {
-    fn new(state: &(), action_tx: UnboundedSender<A>) -> Self
-    where
-        Self: Sized,
-    {
+    fn new(state: &S, action_tx: UnboundedSender<A>) -> Self {
         Self {
             action_tx: action_tx.clone(),
             props: TableProps::default(),
@@ -316,12 +311,8 @@ where
         .move_with_state(state)
     }
 
-    fn move_with_state(self, _state: &()) -> Self
-    where
-        Self: Sized,
-    {
-        let mut me = Self { ..self };
-
+    fn move_with_state(self, _state: &S) -> Self {
+        let mut me = self;
         if let Some(selected) = me.selected() {
             if selected > me.props.items.len() {
                 me.begin();
@@ -356,11 +347,12 @@ where
     }
 }
 
-impl<'a, A, R> Render<()> for Table<'a, A, R>
+impl<'a, A, B, R> Render<B, ()> for Table<'a, A, R>
 where
+    B: Backend,
     R: ToRow + Debug,
 {
-    fn render<B: Backend>(&self, frame: &mut ratatui::Frame, area: Rect, _props: ()) {
+    fn render(&self, frame: &mut ratatui::Frame, area: Rect, _props: ()) {
         let header_height = if self.header.is_some() { 3 } else { 0 };
         let [header_area, table_area] =
             Layout::vertical([Constraint::Length(header_height), Constraint::Min(1)]).areas(area);
@@ -422,7 +414,7 @@ where
                 .highlight_style(style::highlight());
 
             if let Some(header) = &self.header {
-                header.render::<B>(frame, header_area, ());
+                <Header<'_, _> as Render<B, ()>>::render(header, frame, header_area, ());
             }
             frame.render_stateful_widget(rows, table_area, &mut self.state.clone());
         } else {
@@ -432,7 +424,7 @@ where
                 .borders(borders);
 
             if let Some(header) = &self.header {
-                header.render::<B>(frame, header_area, ());
+                <Header<'_, _> as Render<B, ()>>::render(header, frame, header_area, ());
             }
             frame.render_widget(block, table_area);
 
@@ -445,4 +437,11 @@ where
             frame.render_widget(hint, center);
         }
     }
+}
+
+impl<'a, S, A, B, R> Widget<S, A, B> for Table<'a, A, R>
+where
+    B: Backend,
+    R: ToRow + Debug,
+{
 }

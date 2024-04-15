@@ -9,7 +9,7 @@ use ratatui::widgets::{Block, BorderType, Borders};
 
 use crate::ui::theme::style;
 
-use super::{Render, Widget};
+use super::{Render, View};
 
 pub struct ParagraphProps<'a> {
     pub content: Text<'a>,
@@ -116,7 +116,7 @@ impl<'a, A> Paragraph<'a, A> {
     }
 }
 
-impl<'a, S, A> Widget<S, A> for Paragraph<'a, A> {
+impl<'a, S, A> View<S, A> for Paragraph<'a, A> {
     fn new(state: &S, action_tx: UnboundedSender<A>) -> Self
     where
         Self: Sized,
@@ -165,8 +165,8 @@ impl<'a, S, A> Widget<S, A> for Paragraph<'a, A> {
     }
 }
 
-impl<'a, A> Render<()> for Paragraph<'a, A> {
-    fn render<B: Backend>(&self, frame: &mut ratatui::Frame, area: Rect, _props: ()) {
+impl<'a, A, B: Backend> Render<B, ()> for Paragraph<'a, A> {
+    fn render(&self, frame: &mut ratatui::Frame, area: Rect, _props: ()) {
         let block = Block::default()
             .borders(Borders::LEFT | Borders::RIGHT)
             .border_type(BorderType::Rounded)
@@ -176,8 +176,8 @@ impl<'a, A> Render<()> for Paragraph<'a, A> {
         let [content_area] = Layout::horizontal([Constraint::Min(1)])
             .horizontal_margin(2)
             .areas(area);
-        let content =
-            ratatui::widgets::Paragraph::new(self.props.content.clone()).scroll((self.offset as u16, 0));
+        let content = ratatui::widgets::Paragraph::new(self.props.content.clone())
+            .scroll((self.offset as u16, 0));
 
         frame.render_widget(content, content_area);
     }

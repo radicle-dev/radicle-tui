@@ -10,7 +10,7 @@ use ratatui::widgets::{BorderType, Borders, Row};
 use crate::ui::ext::{FooterBlock, FooterBlockType, HeaderBlock};
 use crate::ui::theme::style;
 
-use super::{Column, Render, Widget};
+use super::{Column, Render, View};
 
 #[derive(Debug)]
 pub struct HeaderProps<'a> {
@@ -56,11 +56,8 @@ impl<'a, A> Header<'a, A> {
     }
 }
 
-impl<'a, A> Widget<(), A> for Header<'a, A> {
-    fn new(state: &(), action_tx: UnboundedSender<A>) -> Self
-    where
-        Self: Sized,
-    {
+impl<'a, A> View<(), A> for Header<'a, A> {
+    fn new(state: &(), action_tx: UnboundedSender<A>) -> Self {
         Self {
             action_tx: action_tx.clone(),
             props: HeaderProps::default(),
@@ -68,18 +65,15 @@ impl<'a, A> Widget<(), A> for Header<'a, A> {
         .move_with_state(state)
     }
 
-    fn move_with_state(self, _state: &()) -> Self
-    where
-        Self: Sized,
-    {
+    fn move_with_state(self, _state: &()) -> Self {
         Self { ..self }
     }
 
     fn handle_key_event(&mut self, _key: Key) {}
 }
 
-impl<'a, A> Render<()> for Header<'a, A> {
-    fn render<B: Backend>(&self, frame: &mut ratatui::Frame, area: Rect, _props: ()) {
+impl<'a, A, B: Backend> Render<B, ()> for Header<'a, A> {
+    fn render(&self, frame: &mut ratatui::Frame, area: Rect, _props: ()) {
         let widths: Vec<Constraint> = self
             .props
             .columns
@@ -182,11 +176,8 @@ impl<'a, A> Footer<'a, A> {
     }
 }
 
-impl<'a, A> Widget<(), A> for Footer<'a, A> {
-    fn new(_state: &(), action_tx: UnboundedSender<A>) -> Self
-    where
-        Self: Sized,
-    {
+impl<'a, A> View<(), A> for Footer<'a, A> {
+    fn new(_state: &(), action_tx: UnboundedSender<A>) -> Self {
         Self {
             action_tx: action_tx.clone(),
             props: FooterProps::default(),
@@ -194,10 +185,7 @@ impl<'a, A> Widget<(), A> for Footer<'a, A> {
         .move_with_state(&())
     }
 
-    fn move_with_state(self, _state: &()) -> Self
-    where
-        Self: Sized,
-    {
+    fn move_with_state(self, _state: &()) -> Self {
         Self { ..self }
     }
 
@@ -228,8 +216,8 @@ impl<'a, A> Footer<'a, A> {
     }
 }
 
-impl<'a, A> Render<()> for Footer<'a, A> {
-    fn render<B: Backend>(&self, frame: &mut ratatui::Frame, area: Rect, _props: ()) {
+impl<'a, A, B: Backend> Render<B, ()> for Footer<'a, A> {
+    fn render(&self, frame: &mut ratatui::Frame, area: Rect, _props: ()) {
         let widths = self
             .props
             .columns
