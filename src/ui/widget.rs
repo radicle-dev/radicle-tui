@@ -2,6 +2,7 @@ pub mod container;
 pub mod input;
 pub mod text;
 
+use std::any::Any;
 use std::cmp;
 use std::fmt::Debug;
 
@@ -12,33 +13,48 @@ use termion::event::Key;
 use ratatui::prelude::*;
 use ratatui::widgets::{Block, BorderType, Borders, Cell, Row, TableState};
 
-use self::container::Header;
-
 use super::theme::style;
 use super::{layout, span};
+
+pub type BoxedWidget<S, A, B> = Box<dyn Widget<S, A, B>>;
+
+pub type UpdateCallback<S> = fn(&S) -> Box<dyn Any>;
+pub type EventCallback<A> = fn(&dyn Any, UnboundedSender<A>);
 
 pub trait View<S, A> {
     fn new(state: &S, action_tx: UnboundedSender<A>) -> Self
     where
         Self: Sized;
 
-    fn move_with_state(self, state: &S) -> Self
+    fn on_change(self, callback: EventCallback<A>) -> Self
+    where
+        Self: Sized;
+
+    fn on_update(self, callback: UpdateCallback<S>) -> Self
     where
         Self: Sized;
 
     fn handle_key_event(&mut self, key: Key);
+
+    fn update(&mut self, state: &S);
+
+    fn to_boxed(self) -> Box<Self>
+    where
+        Self: Sized,
+    {
+        Box::new(self)
+    }
 }
 
-pub trait Render<B: Backend, P> {
-    fn render(&self, frame: &mut Frame, area: Rect, props: P);
+pub trait Widget<S, A, B: Backend>: View<S, A> {
+    fn render(&self, frame: &mut Frame, area: Rect, _props: &dyn Any);
 }
-
-pub trait Widget<S, A, B: Backend>: View<S, A> + Render<B, ()> {}
 
 pub trait ToRow {
     fn to_row(&self) -> Vec<Cell>;
 }
 
+#[derive(Clone)]
 pub struct ShortcutsProps {
     pub shortcuts: Vec<(String, String)>,
     pub divider: char,
@@ -53,14 +69,33 @@ impl Default for ShortcutsProps {
     }
 }
 
-pub struct Shortcuts<A> {
-    /// Message sender
-    pub action_tx: UnboundedSender<A>,
-    /// Internal properties
-    props: ShortcutsProps,
+impl ShortcutsProps {
+    pub fn divider(mut self, divider: char) -> Self {
+        self.divider = divider;
+        self
+    }
+
+    pub fn shortcuts(mut self, shortcuts: &[(&str, &str)]) -> Self {
+        self.shortcuts.clear();
+        for (short, long) in shortcuts {
+            self.shortcuts.push((short.to_string(), long.to_string()));
+        }
+        self
+    }
 }
 
-impl<A> Shortcuts<A> {
+pub struct Shortcuts<S, A> {
+    /// Internal properties
+    props: ShortcutsProps,
+    /// Message sender
+    action_tx: UnboundedSender<A>,
+    /// Custom update handler
+    on_update: Option<UpdateCallback<S>>,
+    /// Additional custom event handler
+    on_change: Option<EventCallback<A>>,
+}
+
+impl<S, A> Shortcuts<S, A> {
     pub fn divider(mut self, divider: char) -> Self {
         self.props.divider = divider;
         self
@@ -77,24 +112,43 @@ impl<A> Shortcuts<A> {
     }
 }
 
-impl<S, A> View<S, A> for Shortcuts<A> {
-    fn new(state: &S, action_tx: UnboundedSender<A>) -> Self {
+impl<S, A> View<S, A> for Shortcuts<S, A> {
+    fn new(_state: &S, action_tx: UnboundedSender<A>) -> Self {
         Self {
             action_tx: action_tx.clone(),
             props: ShortcutsProps::default(),
+            on_update: None,
+            on_change: None,
         }
-        .move_with_state(state)
     }
 
-    fn move_with_state(self, _state: &S) -> Self {
-        Self { ..self }
+    fn on_change(mut self, callback: EventCallback<A>) -> Self {
+        self.on_change = Some(callback);
+        self
     }
 
-    fn handle_key_event(&mut self, _key: termion::event::Key) {}
+    fn on_update(mut self, callback: UpdateCallback<S>) -> Self {
+        self.on_update = Some(callback);
+        self
+    }
+
+    fn handle_key_event(&mut self, _key: Key) {
+        if let Some(on_change) = self.on_change {
+            (on_change)(&self.props, self.action_tx.clone());
+        }
+    }
+
+    fn update(&mut self, state: &S) {
+        if let Some(on_update) = self.on_update {
+            if let Some(props) = (on_update)(state).downcast_ref::<ShortcutsProps>() {
+                self.props.shortcuts = props.shortcuts.clone();
+            }
+        }
+    }
 }
 
-impl<A, B: Backend> Render<B, ()> for Shortcuts<A> {
-    fn render(&self, frame: &mut ratatui::Frame, area: Rect, _props: ()) {
+impl<S, A, B: Backend> Widget<S, A, B> for Shortcuts<S, A> {
+    fn render(&self, frame: &mut ratatui::Frame, area: Rect, _props: &dyn Any) {
         use ratatui::widgets::Table;
 
         let mut shortcuts = self.props.shortcuts.iter().peekable();
@@ -133,8 +187,6 @@ impl<A, B: Backend> Render<B, ()> for Shortcuts<A> {
     }
 }
 
-impl<S, A, B: Backend> Widget<S, A, B> for Shortcuts<A> {}
-
 #[derive(Clone, Debug)]
 pub struct Column<'a> {
     pub text: Text<'a>,
@@ -157,9 +209,13 @@ impl<'a> Column<'a> {
     }
 }
 
-#[derive(Debug)]
-pub struct TableProps<'a, R: ToRow> {
+#[derive(Clone, Debug)]
+pub struct TableProps<'a, R>
+where
+    R: ToRow,
+{
     pub items: Vec<R>,
+    pub selected: Option<usize>,
     pub focus: bool,
     pub columns: Vec<Column<'a>>,
     pub has_footer: bool,
@@ -168,7 +224,10 @@ pub struct TableProps<'a, R: ToRow> {
     pub page_size: usize,
 }
 
-impl<'a, R: ToRow> Default for TableProps<'a, R> {
+impl<'a, R> Default for TableProps<'a, R>
+where
+    R: ToRow,
+{
     fn default() -> Self {
         Self {
             items: vec![],
@@ -178,61 +237,87 @@ impl<'a, R: ToRow> Default for TableProps<'a, R> {
             cutoff: usize::MAX,
             cutoff_after: usize::MAX,
             page_size: 1,
+            selected: Some(0),
         }
     }
 }
 
-pub struct Table<'a, A, R: ToRow> {
-    /// Sending actions to the state store
-    pub action_tx: UnboundedSender<A>,
-    /// Internal table properties
-    pub props: TableProps<'a, R>,
-    /// Internal selection state
-    state: TableState,
-    /// Table header widget
-    header: Option<Header<'a, A>>,
-}
-
-impl<'a, A, R: ToRow> Table<'a, A, R> {
+impl<'a, R> TableProps<'a, R>
+where
+    R: ToRow,
+{
     pub fn items(mut self, items: Vec<R>) -> Self {
-        self.props.items = items;
+        self.items = items;
+        self
+    }
+
+    pub fn selected(mut self, selected: Option<usize>) -> Self {
+        self.selected = selected;
         self
     }
 
     pub fn columns(mut self, columns: Vec<Column<'a>>) -> Self {
-        self.props.columns = columns;
+        self.columns = columns;
         self
     }
 
     pub fn footer(mut self, has_footer: bool) -> Self {
-        self.props.has_footer = has_footer;
+        self.has_footer = has_footer;
         self
     }
 
     pub fn cutoff(mut self, cutoff: usize, cutoff_after: usize) -> Self {
-        self.props.cutoff = cutoff;
-        self.props.cutoff_after = cutoff_after;
+        self.cutoff = cutoff;
+        self.cutoff_after = cutoff_after;
         self
     }
 
     pub fn page_size(mut self, page_size: usize) -> Self {
-        self.props.page_size = page_size;
+        self.page_size = page_size;
         self
     }
+}
 
-    pub fn header(mut self, header: Header<'a, A>) -> Self {
+pub struct Table<'a, S, A, B, R>
+where
+    B: Backend,
+    R: ToRow,
+{
+    /// Internal table properties
+    props: TableProps<'a, R>,
+    /// Message sender
+    action_tx: UnboundedSender<A>,
+    /// Custom update handler
+    on_update: Option<UpdateCallback<S>>,
+    /// Additional custom event handler
+    on_change: Option<EventCallback<A>>,
+    /// Internal selection and offset state
+    state: TableState,
+    /// Table header widget
+    header: Option<BoxedWidget<S, A, B>>,
+}
+
+impl<'a, S, A, B, R> Table<'a, S, A, B, R>
+where
+    B: Backend,
+    R: ToRow,
+{
+    pub fn header(mut self, header: BoxedWidget<S, A, B>) -> Self {
         self.header = Some(header);
         self
     }
 
     fn prev(&mut self) -> Option<usize> {
-        let selected = self.selected().map(|current| current.saturating_sub(1));
+        let selected = self
+            .state
+            .selected()
+            .map(|current| current.saturating_sub(1));
         self.state.select(selected);
         selected
     }
 
     fn next(&mut self, len: usize) -> Option<usize> {
-        let selected = self.selected().map(|current| {
+        let selected = self.state.selected().map(|current| {
             if current < len.saturating_sub(1) {
                 current.saturating_add(1)
             } else {
@@ -245,6 +330,7 @@ impl<'a, A, R: ToRow> Table<'a, A, R> {
 
     fn prev_page(&mut self, page_size: usize) -> Option<usize> {
         let selected = self
+            .state
             .selected()
             .map(|current| current.saturating_sub(page_size));
         self.state.select(selected);
@@ -252,7 +338,7 @@ impl<'a, A, R: ToRow> Table<'a, A, R> {
     }
 
     fn next_page(&mut self, len: usize, page_size: usize) -> Option<usize> {
-        let selected = self.selected().map(|current| {
+        let selected = self.state.selected().map(|current| {
             if current < len.saturating_sub(1) {
                 cmp::min(current.saturating_add(page_size), len.saturating_sub(1))
             } else {
@@ -263,18 +349,12 @@ impl<'a, A, R: ToRow> Table<'a, A, R> {
         selected
     }
 
-    fn begin(&mut self) -> Option<usize> {
+    fn begin(&mut self) {
         self.state.select(Some(0));
-        self.state.selected()
     }
 
-    fn end(&mut self, len: usize) -> Option<usize> {
+    fn end(&mut self, len: usize) {
         self.state.select(Some(len.saturating_sub(1)));
-        self.state.selected()
-    }
-
-    pub fn selected(&self) -> Option<usize> {
-        self.state.selected()
     }
 
     pub fn progress(selected: usize, len: usize, page_size: usize) -> usize {
@@ -297,29 +377,45 @@ impl<'a, A, R: ToRow> Table<'a, A, R> {
     }
 }
 
-impl<'a, S, A, R> View<S, A> for Table<'a, A, R>
+impl<'a: 'static, S, A, B, R> View<S, A> for Table<'a, S, A, B, R>
 where
-    R: ToRow,
+    B: Backend,
+    R: ToRow + Clone + 'static,
 {
-    fn new(state: &S, action_tx: UnboundedSender<A>) -> Self {
+    fn new(_state: &S, action_tx: UnboundedSender<A>) -> Self {
         Self {
             action_tx: action_tx.clone(),
             props: TableProps::default(),
             state: TableState::default().with_selected(Some(0)),
             header: None,
+            on_update: None,
+            on_change: None,
         }
-        .move_with_state(state)
     }
 
-    fn move_with_state(self, _state: &S) -> Self {
-        let mut me = self;
-        if let Some(selected) = me.selected() {
-            if selected > me.props.items.len() {
-                me.begin();
+    fn on_update(mut self, callback: UpdateCallback<S>) -> Self {
+        self.on_update = Some(callback);
+        self
+    }
+
+    fn on_change(mut self, callback: EventCallback<A>) -> Self {
+        self.on_change = Some(callback);
+        self
+    }
+
+    fn update(&mut self, state: &S) {
+        if let Some(on_update) = self.on_update {
+            if let Some(props) = (on_update)(state).downcast_ref::<TableProps<'_, R>>() {
+                self.props = props.clone();
             }
         }
 
-        me
+        // TODO: Move to state reducer
+        if let Some(selected) = self.state.selected() {
+            if selected > self.props.items.len() {
+                self.begin();
+            }
+        }
     }
 
     fn handle_key_event(&mut self, key: Key) {
@@ -344,15 +440,21 @@ where
             }
             _ => {}
         }
+
+        self.props.selected = self.state.selected();
+
+        if let Some(on_change) = self.on_change {
+            (on_change)(&self.props, self.action_tx.clone());
+        }
     }
 }
 
-impl<'a, A, B, R> Render<B, ()> for Table<'a, A, R>
+impl<'a: 'static, S, A, B, R> Widget<S, A, B> for Table<'a, S, A, B, R>
 where
     B: Backend,
-    R: ToRow + Debug,
+    R: ToRow + Clone + Debug + 'static,
 {
-    fn render(&self, frame: &mut ratatui::Frame, area: Rect, _props: ()) {
+    fn render(&self, frame: &mut ratatui::Frame, area: Rect, _props: &dyn Any) {
         let header_height = if self.header.is_some() { 3 } else { 0 };
         let [header_area, table_area] =
             Layout::vertical([Constraint::Length(header_height), Constraint::Min(1)]).areas(area);
@@ -414,8 +516,9 @@ where
                 .highlight_style(style::highlight());
 
             if let Some(header) = &self.header {
-                <Header<'_, _> as Render<B, ()>>::render(header, frame, header_area, ());
+                header.render(frame, header_area, &());
             }
+
             frame.render_stateful_widget(rows, table_area, &mut self.state.clone());
         } else {
             let block = Block::default()
@@ -424,7 +527,7 @@ where
                 .borders(borders);
 
             if let Some(header) = &self.header {
-                <Header<'_, _> as Render<B, ()>>::render(header, frame, header_area, ());
+                header.render(frame, header_area, &());
             }
             frame.render_widget(block, table_area);
 
@@ -437,11 +540,4 @@ where
             frame.render_widget(hint, center);
         }
     }
-}
-
-impl<'a, S, A, B, R> Widget<S, A, B> for Table<'a, A, R>
-where
-    B: Backend,
-    R: ToRow + Debug,
-{
 }

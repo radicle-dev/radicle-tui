@@ -10,7 +10,7 @@ use tokio::sync::mpsc::{self};
 
 use super::event::Event;
 
-type Backend = TermionBackendExt<RawTerminal<io::Stdout>>;
+pub type Backend = TermionBackendExt<RawTerminal<io::Stdout>>;
 
 /// FIXME Remove workaround after a new `ratatui` version with
 /// https://github.com/ratatui-org/ratatui/pull/981/ included was released.

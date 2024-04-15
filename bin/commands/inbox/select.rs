@@ -18,13 +18,14 @@ use tui::cob::inbox::{self};
 use tui::store;
 use tui::store::StateValue;
 use tui::task::{self, Interrupted};
-use tui::ui::items::NotificationItem;
-use tui::ui::items::NotificationItemFilter;
+use tui::terminal;
+use tui::ui::items::{Filter, NotificationItem, NotificationItemFilter};
 use tui::ui::Frontend;
 use tui::Exit;
 
 use ui::ListPage;
 
+use super::common::SelectionMode;
 use super::common::{Mode, RepositoryMode};
 
 type Selection = tui::Selection<NotificationId>;
@@ -59,13 +60,48 @@ impl Default for UIState {
 }
 
 #[derive(Clone, Debug)]
+pub struct NotificationsState {
+    items: Vec<NotificationItem>,
+    selected: Option<usize>,
+}
+
+#[derive(Clone, Debug)]
 pub struct State {
-    notifications: Vec<NotificationItem>,
+    notifications: NotificationsState,
     mode: Mode,
     project: Project,
     filter: NotificationItemFilter,
     search: StateValue<String>,
     ui: UIState,
+}
+
+impl State {
+    pub fn shortcuts(&self) -> Vec<(&str, &str)> {
+        if self.ui.show_search {
+            vec![("esc", "cancel"), ("enter", "apply")]
+        } else if self.ui.show_help {
+            vec![("?", "close")]
+        } else {
+            match self.mode.selection() {
+                SelectionMode::Id => vec![("enter", "select"), ("/", "search")],
+                SelectionMode::Operation => vec![
+                    ("enter", "show"),
+                    ("c", "clear"),
+                    ("/", "search"),
+                    ("?", "help"),
+                ],
+            }
+        }
+    }
+
+    pub fn notifications(&self) -> Vec<NotificationItem> {
+        self.notifications
+            .items
+            .iter()
+            .filter(|patch| self.filter.matches(patch))
+            .cloned()
+            .collect()
+    }
 }
 
 impl TryFrom<&Context> for State {
@@ -159,7 +195,10 @@ impl TryFrom<&Context> for State {
         }
 
         Ok(Self {
-            notifications,
+            notifications: NotificationsState {
+                items: notifications,
+                selected: None,
+            },
             mode: mode.clone(),
             project,
             filter,
@@ -171,7 +210,7 @@ impl TryFrom<&Context> for State {
 
 pub enum Action {
     Exit { selection: Option<Selection> },
-    Update,
+    Select { selected: Option<usize> },
     PageSize(usize),
     OpenSearch,
     UpdateSearch { value: String },
@@ -187,6 +226,10 @@ impl store::State<Action, Selection> for State {
     fn handle_action(&mut self, action: Action) -> Option<Exit<Selection>> {
         match action {
             Action::Exit { selection } => Some(Exit { value: selection }),
+            Action::Select { selected } => {
+                self.notifications.selected = selected;
+                None
+            }
             Action::PageSize(size) => {
                 self.ui.page_size = size;
                 None
@@ -223,7 +266,6 @@ impl store::State<Action, Selection> for State {
                 self.ui.show_help = false;
                 None
             }
-            Action::Update => None,
         }
     }
 }
@@ -241,7 +283,10 @@ impl App {
 
         tokio::try_join!(
             store.main_loop(state, terminator, action_rx, interrupt_rx.resubscribe()),
-            frontend.main_loop::<State, ListPage, Selection>(state_rx, interrupt_rx.resubscribe()),
+            frontend.main_loop::<State, ListPage<terminal::Backend>, Selection>(
+                state_rx,
+                interrupt_rx.resubscribe()
+            ),
         )?;
 
         if let Ok(reason) = interrupt_rx.recv().await {

@@ -20,7 +20,7 @@ use super::store::State;
 use super::task::Interrupted;
 use super::terminal;
 use super::terminal::TermionBackendExt;
-use super::ui::widget::{Render, View};
+use super::ui::widget::Widget;
 
 type Backend = TermionBackendExt<RawTerminal<io::Stdout>>;
 
@@ -45,7 +45,7 @@ impl<A> Frontend<A> {
     ) -> anyhow::Result<Interrupted<P>>
     where
         S: State<A, P>,
-        W: View<S, A> + Render<Backend, ()>,
+        W: Widget<S, A, Backend>,
         P: Clone + Send + Sync + Debug,
     {
         let mut ticker = tokio::time::interval(RENDERING_TICK_RATE);
@@ -69,7 +69,7 @@ impl<A> Frontend<A> {
                 },
                 // Handle state updates
                 Some(state) = state_rx.recv() => {
-                    root = root.move_with_state(&state);
+                    root.update(&state);
                 },
                 // Catch and handle interrupt signal to gracefully shutdown
                 Ok(interrupted) = interrupt_rx.recv() => {
@@ -79,7 +79,7 @@ impl<A> Frontend<A> {
                     break Ok(interrupted);
                 }
             }
-            terminal.draw(|frame| root.render(frame, frame.size(), ()))?;
+            terminal.draw(|frame| root.render(frame, frame.size(), &()))?;
         };
 
         terminal::restore(&mut terminal)?;

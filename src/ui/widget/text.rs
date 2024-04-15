@@ -1,3 +1,5 @@
+use std::any::Any;
+
 use tokio::sync::mpsc::UnboundedSender;
 
 use termion::event::Key;
@@ -9,14 +11,32 @@ use ratatui::widgets::{Block, BorderType, Borders};
 
 use crate::ui::theme::style;
 
-use super::{Render, View};
+use super::{EventCallback, UpdateCallback, View, Widget};
 
+#[derive(Clone)]
 pub struct ParagraphProps<'a> {
     pub content: Text<'a>,
     pub focus: bool,
     pub has_header: bool,
     pub has_footer: bool,
     pub page_size: usize,
+}
+
+impl<'a> ParagraphProps<'a> {
+    pub fn page_size(mut self, page_size: usize) -> Self {
+        self.page_size = page_size;
+        self
+    }
+
+    pub fn text(mut self, text: &Text<'a>) -> Self {
+        self.content = text.clone();
+        self
+    }
+
+    pub fn focus(mut self, focus: bool) -> Self {
+        self.focus = focus;
+        self
+    }
 }
 
 impl<'a> Default for ParagraphProps<'a> {
@@ -31,18 +51,22 @@ impl<'a> Default for ParagraphProps<'a> {
     }
 }
 
-pub struct Paragraph<'a, A> {
-    /// Sending actions to the state store
-    pub action_tx: UnboundedSender<A>,
+pub struct Paragraph<'a, S, A> {
+    /// Internal properties
+    props: ParagraphProps<'a>,
+    /// Message sender
+    action_tx: UnboundedSender<A>,
+    /// Custom update handler
+    on_update: Option<UpdateCallback<S>>,
+    /// Additional custom event handler
+    on_change: Option<EventCallback<A>>,
     /// Internal offset
     offset: usize,
     /// Internal progress
     progress: usize,
-    /// Internal properties
-    props: ParagraphProps<'a>,
 }
 
-impl<'a, A> Paragraph<'a, A> {
+impl<'a, S, A> Paragraph<'a, S, A> {
     pub fn scroll(&self) -> (u16, u16) {
         (self.offset as u16, 0)
     }
@@ -116,8 +140,8 @@ impl<'a, A> Paragraph<'a, A> {
     }
 }
 
-impl<'a, S, A> View<S, A> for Paragraph<'a, A> {
-    fn new(state: &S, action_tx: UnboundedSender<A>) -> Self
+impl<'a: 'static, S, A> View<S, A> for Paragraph<'a, S, A> {
+    fn new(_state: &S, action_tx: UnboundedSender<A>) -> Self
     where
         Self: Sized,
     {
@@ -126,15 +150,27 @@ impl<'a, S, A> View<S, A> for Paragraph<'a, A> {
             offset: 0,
             progress: 0,
             props: ParagraphProps::default(),
+            on_update: None,
+            on_change: None,
         }
-        .move_with_state(state)
     }
 
-    fn move_with_state(self, _state: &S) -> Self
-    where
-        Self: Sized,
-    {
-        Self { ..self }
+    fn on_change(mut self, callback: EventCallback<A>) -> Self {
+        self.on_change = Some(callback);
+        self
+    }
+
+    fn on_update(mut self, callback: UpdateCallback<S>) -> Self {
+        self.on_update = Some(callback);
+        self
+    }
+
+    fn update(&mut self, state: &S) {
+        if let Some(on_update) = self.on_update {
+            if let Some(props) = (on_update)(state).downcast_ref::<ParagraphProps<'_>>() {
+                self.props = props.clone();
+            }
+        }
     }
 
     fn handle_key_event(&mut self, key: Key) {
@@ -162,11 +198,15 @@ impl<'a, S, A> View<S, A> for Paragraph<'a, A> {
             }
             _ => {}
         }
+
+        if let Some(on_change) = self.on_change {
+            (on_change)(&self.props, self.action_tx.clone());
+        }
     }
 }
 
-impl<'a, A, B: Backend> Render<B, ()> for Paragraph<'a, A> {
-    fn render(&self, frame: &mut ratatui::Frame, area: Rect, _props: ()) {
+impl<'a: 'static, S, A, B: Backend> Widget<S, A, B> for Paragraph<'a, S, A> {
+    fn render(&self, frame: &mut ratatui::Frame, area: Rect, _props: &dyn Any) {
         let block = Block::default()
             .borders(Borders::LEFT | Borders::RIGHT)
             .border_type(BorderType::Rounded)

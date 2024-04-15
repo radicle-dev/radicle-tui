@@ -1,3 +1,5 @@
+use std::any::Any;
+
 use termion::event::Key;
 
 use tokio::sync::mpsc::UnboundedSender;
@@ -7,14 +9,35 @@ use ratatui::prelude::{Backend, Rect};
 use ratatui::style::Stylize;
 use ratatui::text::{Line, Span};
 
-use super::{Render, View};
+use super::{EventCallback, UpdateCallback, View, Widget};
 
+#[derive(Clone)]
 pub struct TextFieldProps {
-    title: String,
-    inline_label: bool,
-    show_cursor: bool,
-    text: String,
-    cursor_position: usize,
+    pub title: String,
+    pub inline_label: bool,
+    pub show_cursor: bool,
+    pub text: String,
+    pub cursor_position: usize,
+}
+
+impl TextFieldProps {
+    pub fn text(mut self, new_text: &str) -> Self {
+        if self.text != new_text {
+            self.text = String::from(new_text);
+            self.cursor_position = self.text.len();
+        }
+        self
+    }
+
+    pub fn title(mut self, title: &str) -> Self {
+        self.title = title.to_string();
+        self
+    }
+
+    pub fn inline(mut self, inline: bool) -> Self {
+        self.inline_label = inline;
+        self
+    }
 }
 
 impl Default for TextFieldProps {
@@ -29,14 +52,18 @@ impl Default for TextFieldProps {
     }
 }
 
-pub struct TextField<A> {
-    /// Message sender
-    pub action_tx: UnboundedSender<A>,
+pub struct TextField<S, A> {
     /// Internal props
     props: TextFieldProps,
+    /// Message sender
+    action_tx: UnboundedSender<A>,
+    /// Custom update handler
+    on_update: Option<UpdateCallback<S>>,
+    /// Additional custom event handler
+    on_change: Option<EventCallback<A>>,
 }
 
-impl<A> TextField<A> {
+impl<S, A> TextField<S, A> {
     pub fn read(&self) -> &str {
         &self.props.text
     }
@@ -101,17 +128,32 @@ impl<A> TextField<A> {
     }
 }
 
-impl<S, A> View<S, A> for TextField<A> {
-    fn new(state: &S, action_tx: UnboundedSender<A>) -> Self {
+impl<S, A> View<S, A> for TextField<S, A> {
+    fn new(_state: &S, action_tx: UnboundedSender<A>) -> Self {
         Self {
             action_tx,
             props: TextFieldProps::default(),
+            on_update: None,
+            on_change: None,
         }
-        .move_with_state(state)
     }
 
-    fn move_with_state(self, _state: &S) -> Self {
+    fn on_update(mut self, callback: UpdateCallback<S>) -> Self {
+        self.on_update = Some(callback);
         self
+    }
+
+    fn on_change(mut self, callback: EventCallback<A>) -> Self {
+        self.on_change = Some(callback);
+        self
+    }
+
+    fn update(&mut self, state: &S) {
+        if let Some(on_update) = self.on_update {
+            if let Some(props) = (on_update)(state).downcast_ref::<TextFieldProps>() {
+                self.props = props.clone();
+            }
+        }
     }
 
     fn handle_key_event(&mut self, key: Key) {
@@ -134,11 +176,15 @@ impl<S, A> View<S, A> for TextField<A> {
             }
             _ => {}
         }
+
+        if let Some(on_change) = self.on_change {
+            (on_change)(&self.props, self.action_tx.clone());
+        }
     }
 }
 
-impl<A, B: Backend> Render<B, ()> for TextField<A> {
-    fn render(&self, frame: &mut ratatui::Frame, area: Rect, _props: ()) {
+impl<S, A, B: Backend> Widget<S, A, B> for TextField<S, A> {
+    fn render(&self, frame: &mut ratatui::Frame, area: Rect, _props: &dyn Any) {
         let layout = Layout::vertical(Constraint::from_lengths([1, 1])).split(area);
 
         let input = self.props.text.as_str();

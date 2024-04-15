@@ -16,7 +16,8 @@ use tui::store;
 use tui::store::StateValue;
 use tui::task;
 use tui::task::Interrupted;
-use tui::ui::items::{IssueItem, IssueItemFilter};
+use tui::terminal;
+use tui::ui::items::{Filter, IssueItem, IssueItemFilter};
 use tui::ui::Frontend;
 use tui::Exit;
 
@@ -55,12 +56,47 @@ impl Default for UIState {
 }
 
 #[derive(Clone, Debug)]
+pub struct IssuesState {
+    items: Vec<IssueItem>,
+    selected: Option<usize>,
+}
+
+#[derive(Clone, Debug)]
 pub struct State {
-    issues: Vec<IssueItem>,
+    issues: IssuesState,
     mode: Mode,
     filter: IssueItemFilter,
     search: StateValue<String>,
     ui: UIState,
+}
+
+impl State {
+    pub fn shortcuts(&self) -> Vec<(&str, &str)> {
+        if self.ui.show_search {
+            vec![("esc", "cancel"), ("enter", "apply")]
+        } else if self.ui.show_help {
+            vec![("?", "close")]
+        } else {
+            match self.mode {
+                Mode::Id => vec![("enter", "select"), ("/", "search")],
+                Mode::Operation => vec![
+                    ("enter", "show"),
+                    ("e", "edit"),
+                    ("/", "search"),
+                    ("?", "help"),
+                ],
+            }
+        }
+    }
+
+    pub fn issues(&self) -> Vec<IssueItem> {
+        self.issues
+            .items
+            .iter()
+            .filter(|issue| self.filter.matches(issue))
+            .cloned()
+            .collect()
+    }
 }
 
 impl TryFrom<&Context> for State {
@@ -81,7 +117,10 @@ impl TryFrom<&Context> for State {
         items.sort_by(|a, b| b.timestamp.cmp(&a.timestamp));
 
         Ok(Self {
-            issues: items,
+            issues: IssuesState {
+                items,
+                selected: None,
+            },
             mode: context.mode.clone(),
             filter,
             search,
@@ -92,7 +131,7 @@ impl TryFrom<&Context> for State {
 
 pub enum Action {
     Exit { selection: Option<Selection> },
-    Update,
+    Select { selected: Option<usize> },
     PageSize(usize),
     OpenSearch,
     UpdateSearch { value: String },
@@ -108,6 +147,10 @@ impl store::State<Action, Selection> for State {
     fn handle_action(&mut self, action: Action) -> Option<Exit<Selection>> {
         match action {
             Action::Exit { selection } => Some(Exit { value: selection }),
+            Action::Select { selected } => {
+                self.issues.selected = selected;
+                None
+            }
             Action::PageSize(size) => {
                 self.ui.page_size = size;
                 None
@@ -142,7 +185,6 @@ impl store::State<Action, Selection> for State {
                 self.ui.show_help = false;
                 None
             }
-            Action::Update => None,
         }
     }
 }
@@ -160,7 +202,10 @@ impl App {
 
         tokio::try_join!(
             store.main_loop(state, terminator, action_rx, interrupt_rx.resubscribe()),
-            frontend.main_loop::<State, ListPage, Selection>(state_rx, interrupt_rx.resubscribe()),
+            frontend.main_loop::<State, ListPage<terminal::Backend>, Selection>(
+                state_rx,
+                interrupt_rx.resubscribe()
+            ),
         )?;
 
         if let Ok(reason) = interrupt_rx.recv().await {

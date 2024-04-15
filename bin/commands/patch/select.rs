@@ -12,11 +12,11 @@ use radicle::Profile;
 use radicle_tui as tui;
 
 use tui::cob::patch;
-use tui::cob::patch::Filter;
 use tui::store;
 use tui::task;
 use tui::task::Interrupted;
-use tui::ui::items::{PatchItem, PatchItemFilter};
+use tui::terminal;
+use tui::ui::items::{Filter, PatchItem, PatchItemFilter};
 use tui::ui::Frontend;
 use tui::Exit;
 
@@ -30,7 +30,7 @@ pub struct Context {
     pub profile: Profile,
     pub repository: Repository,
     pub mode: Mode,
-    pub filter: Filter,
+    pub filter: patch::Filter,
 }
 
 pub struct App {
@@ -55,12 +55,48 @@ impl Default for UIState {
 }
 
 #[derive(Clone, Debug)]
+pub struct PatchesState {
+    items: Vec<PatchItem>,
+    selected: Option<usize>,
+}
+
+#[derive(Clone, Debug)]
 pub struct State {
-    patches: Vec<PatchItem>,
+    patches: PatchesState,
     mode: Mode,
     filter: PatchItemFilter,
     search: store::StateValue<String>,
     ui: UIState,
+}
+
+impl State {
+    pub fn shortcuts(&self) -> Vec<(&str, &str)> {
+        if self.ui.show_search {
+            vec![("esc", "cancel"), ("enter", "apply")]
+        } else if self.ui.show_help {
+            vec![("?", "close")]
+        } else {
+            match self.mode {
+                Mode::Id => vec![("enter", "select"), ("/", "search")],
+                Mode::Operation => vec![
+                    ("enter", "show"),
+                    ("c", "checkout"),
+                    ("d", "diff"),
+                    ("/", "search"),
+                    ("?", "help"),
+                ],
+            }
+        }
+    }
+
+    pub fn patches(&self) -> Vec<PatchItem> {
+        self.patches
+            .items
+            .iter()
+            .filter(|patch| self.filter.matches(patch))
+            .cloned()
+            .collect()
+    }
 }
 
 impl TryFrom<&Context> for State {
@@ -81,7 +117,10 @@ impl TryFrom<&Context> for State {
         items.sort_by(|a, b| b.timestamp.cmp(&a.timestamp));
 
         Ok(Self {
-            patches: items,
+            patches: PatchesState {
+                items,
+                selected: None,
+            },
             mode: context.mode.clone(),
             filter,
             search,
@@ -92,7 +131,7 @@ impl TryFrom<&Context> for State {
 
 pub enum Action {
     Exit { selection: Option<Selection> },
-    Update,
+    Select { selected: Option<usize> },
     PageSize(usize),
     OpenSearch,
     UpdateSearch { value: String },
@@ -108,6 +147,10 @@ impl store::State<Action, Selection> for State {
     fn handle_action(&mut self, action: Action) -> Option<Exit<Selection>> {
         match action {
             Action::Exit { selection } => Some(Exit { value: selection }),
+            Action::Select { selected } => {
+                self.patches.selected = selected;
+                None
+            }
             Action::PageSize(size) => {
                 self.ui.page_size = size;
                 None
@@ -142,7 +185,6 @@ impl store::State<Action, Selection> for State {
                 self.ui.show_help = false;
                 None
             }
-            Action::Update => None,
         }
     }
 }
@@ -160,7 +202,10 @@ impl App {
 
         tokio::try_join!(
             store.main_loop(state, terminator, action_rx, interrupt_rx.resubscribe()),
-            frontend.main_loop::<State, ListPage, Selection>(state_rx, interrupt_rx.resubscribe()),
+            frontend.main_loop::<State, ListPage<terminal::Backend>, Selection>(
+                state_rx,
+                interrupt_rx.resubscribe()
+            ),
         )?;
 
         if let Ok(reason) = interrupt_rx.recv().await {

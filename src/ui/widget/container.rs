@@ -1,3 +1,4 @@
+use std::any::Any;
 use std::fmt::Debug;
 
 use tokio::sync::mpsc::UnboundedSender;
@@ -10,14 +11,32 @@ use ratatui::widgets::{BorderType, Borders, Row};
 use crate::ui::ext::{FooterBlock, FooterBlockType, HeaderBlock};
 use crate::ui::theme::style;
 
-use super::{Column, Render, View};
+use super::{Column, EventCallback, UpdateCallback, View, Widget};
 
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub struct HeaderProps<'a> {
     pub columns: Vec<Column<'a>>,
     pub cutoff: usize,
     pub cutoff_after: usize,
     pub focus: bool,
+}
+
+impl<'a> HeaderProps<'a> {
+    pub fn columns(mut self, columns: Vec<Column<'a>>) -> Self {
+        self.columns = columns;
+        self
+    }
+
+    pub fn focus(mut self, focus: bool) -> Self {
+        self.focus = focus;
+        self
+    }
+
+    pub fn cutoff(mut self, cutoff: usize, cutoff_after: usize) -> Self {
+        self.cutoff = cutoff;
+        self.cutoff_after = cutoff_after;
+        self
+    }
 }
 
 impl<'a> Default for HeaderProps<'a> {
@@ -31,14 +50,18 @@ impl<'a> Default for HeaderProps<'a> {
     }
 }
 
-pub struct Header<'a, A> {
-    /// Sending actions to the state store
-    pub action_tx: UnboundedSender<A>,
+pub struct Header<'a, S, A> {
     /// Internal props
     props: HeaderProps<'a>,
+    /// Message sender
+    action_tx: UnboundedSender<A>,
+    /// Custom update handler
+    on_update: Option<UpdateCallback<S>>,
+    /// Additional custom event handler
+    on_change: Option<EventCallback<A>>,
 }
 
-impl<'a, A> Header<'a, A> {
+impl<'a, S, A> Header<'a, S, A> {
     pub fn columns(mut self, columns: Vec<Column<'a>>) -> Self {
         self.props.columns = columns;
         self
@@ -56,24 +79,43 @@ impl<'a, A> Header<'a, A> {
     }
 }
 
-impl<'a, A> View<(), A> for Header<'a, A> {
-    fn new(state: &(), action_tx: UnboundedSender<A>) -> Self {
+impl<'a: 'static, S, A> View<S, A> for Header<'a, S, A> {
+    fn new(_state: &S, action_tx: UnboundedSender<A>) -> Self {
         Self {
             action_tx: action_tx.clone(),
             props: HeaderProps::default(),
+            on_update: None,
+            on_change: None,
         }
-        .move_with_state(state)
     }
 
-    fn move_with_state(self, _state: &()) -> Self {
-        Self { ..self }
+    fn on_update(mut self, callback: UpdateCallback<S>) -> Self {
+        self.on_update = Some(callback);
+        self
     }
 
-    fn handle_key_event(&mut self, _key: Key) {}
+    fn on_change(mut self, callback: EventCallback<A>) -> Self {
+        self.on_change = Some(callback);
+        self
+    }
+
+    fn update(&mut self, state: &S) {
+        if let Some(on_update) = self.on_update {
+            if let Some(props) = (on_update)(state).downcast_ref::<HeaderProps<'_>>() {
+                self.props = props.clone();
+            }
+        }
+    }
+
+    fn handle_key_event(&mut self, _key: Key) {
+        if let Some(on_change) = self.on_change {
+            (on_change)(&self.props, self.action_tx.clone());
+        }
+    }
 }
 
-impl<'a, A, B: Backend> Render<B, ()> for Header<'a, A> {
-    fn render(&self, frame: &mut ratatui::Frame, area: Rect, _props: ()) {
+impl<'a: 'static, S, A, B: Backend> Widget<S, A, B> for Header<'a, S, A> {
+    fn render(&self, frame: &mut ratatui::Frame, area: Rect, _props: &dyn Any) {
         let widths: Vec<Constraint> = self
             .props
             .columns
@@ -132,12 +174,30 @@ impl<'a, A, B: Backend> Render<B, ()> for Header<'a, A> {
     }
 }
 
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub struct FooterProps<'a> {
     pub columns: Vec<Column<'a>>,
     pub cutoff: usize,
     pub cutoff_after: usize,
     pub focus: bool,
+}
+
+impl<'a> FooterProps<'a> {
+    pub fn columns(mut self, columns: Vec<Column<'a>>) -> Self {
+        self.columns = columns;
+        self
+    }
+
+    pub fn cutoff(mut self, cutoff: usize, cutoff_after: usize) -> Self {
+        self.cutoff = cutoff;
+        self.cutoff_after = cutoff_after;
+        self
+    }
+
+    pub fn focus(mut self, focus: bool) -> Self {
+        self.focus = focus;
+        self
+    }
 }
 
 impl<'a> Default for FooterProps<'a> {
@@ -151,14 +211,18 @@ impl<'a> Default for FooterProps<'a> {
     }
 }
 
-pub struct Footer<'a, A> {
-    /// Message sender
-    pub action_tx: UnboundedSender<A>,
+pub struct Footer<'a, S, A> {
     /// Internal properties
     props: FooterProps<'a>,
+    /// Message sender
+    action_tx: UnboundedSender<A>,
+    /// Custom update handler
+    on_update: Option<UpdateCallback<S>>,
+    /// Additional custom event handler
+    on_change: Option<EventCallback<A>>,
 }
 
-impl<'a, A> Footer<'a, A> {
+impl<'a, S, A> Footer<'a, S, A> {
     pub fn columns(mut self, columns: Vec<Column<'a>>) -> Self {
         self.props.columns = columns;
         self
@@ -176,23 +240,42 @@ impl<'a, A> Footer<'a, A> {
     }
 }
 
-impl<'a, A> View<(), A> for Footer<'a, A> {
-    fn new(_state: &(), action_tx: UnboundedSender<A>) -> Self {
+impl<'a: 'static, S, A> View<S, A> for Footer<'a, S, A> {
+    fn new(_state: &S, action_tx: UnboundedSender<A>) -> Self {
         Self {
             action_tx: action_tx.clone(),
             props: FooterProps::default(),
+            on_update: None,
+            on_change: None,
         }
-        .move_with_state(&())
     }
 
-    fn move_with_state(self, _state: &()) -> Self {
-        Self { ..self }
+    fn on_update(mut self, callback: UpdateCallback<S>) -> Self {
+        self.on_update = Some(callback);
+        self
     }
 
-    fn handle_key_event(&mut self, _key: Key) {}
+    fn on_change(mut self, callback: EventCallback<A>) -> Self {
+        self.on_change = Some(callback);
+        self
+    }
+
+    fn update(&mut self, state: &S) {
+        if let Some(on_update) = self.on_update {
+            if let Some(props) = (on_update)(state).downcast_ref::<FooterProps<'_>>() {
+                self.props = props.clone();
+            }
+        }
+    }
+
+    fn handle_key_event(&mut self, _key: Key) {
+        if let Some(on_change) = self.on_change {
+            (on_change)(&self.props, self.action_tx.clone());
+        }
+    }
 }
 
-impl<'a, A> Footer<'a, A> {
+impl<'a, S, A> Footer<'a, S, A> {
     fn render_cell(
         &self,
         frame: &mut ratatui::Frame,
@@ -216,8 +299,8 @@ impl<'a, A> Footer<'a, A> {
     }
 }
 
-impl<'a, A, B: Backend> Render<B, ()> for Footer<'a, A> {
-    fn render(&self, frame: &mut ratatui::Frame, area: Rect, _props: ()) {
+impl<'a: 'static, S, A, B: Backend> Widget<S, A, B> for Footer<'a, S, A> {
+    fn render(&self, frame: &mut ratatui::Frame, area: Rect, _props: &dyn Any) {
         let widths = self
             .props
             .columns

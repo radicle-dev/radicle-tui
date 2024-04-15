@@ -1,3 +1,4 @@
+use std::any::Any;
 use std::collections::HashMap;
 use std::str::FromStr;
 use std::vec;
@@ -14,18 +15,24 @@ use ratatui::text::{Line, Span, Text};
 
 use radicle_tui as tui;
 
-use tui::ui::items::{Filter, IssueItem, IssueItemFilter};
+use tui::ui::items::{IssueItem, IssueItemFilter};
 use tui::ui::span;
-use tui::ui::widget::container::{Footer, Header};
-use tui::ui::widget::input::TextField;
-use tui::ui::widget::text::Paragraph;
-use tui::ui::widget::{Column, Render, Shortcuts, Table, View};
+use tui::ui::widget;
+use tui::ui::widget::container::{Footer, FooterProps, Header, HeaderProps};
+use tui::ui::widget::input::{TextField, TextFieldProps};
+use tui::ui::widget::text::{Paragraph, ParagraphProps};
+use tui::ui::widget::{
+    Column, EventCallback, Shortcuts, ShortcutsProps, Table, TableProps, UpdateCallback, View,
+    Widget,
+};
 use tui::Selection;
 
 use crate::tui_issue::common::IssueOperation;
 use crate::tui_issue::common::Mode;
 
 use super::{Action, State};
+
+type BoxedWidget<B> = widget::BoxedWidget<State, Action, B>;
 
 pub struct ListPageProps {
     show_search: bool,
@@ -41,22 +48,29 @@ impl From<&State> for ListPageProps {
     }
 }
 
-pub struct ListPage<'a> {
-    /// Action sender
-    pub action_tx: UnboundedSender<Action>,
-    /// State mapped props
+pub struct ListPage<B: Backend> {
+    /// Internal properties
     props: ListPageProps,
-    /// Notification widget
-    issues: Issues<'a>,
+    /// Message sender
+    action_tx: UnboundedSender<Action>,
+    /// Custom update handler
+    on_update: Option<UpdateCallback<State>>,
+    /// Additional custom event handler
+    on_change: Option<EventCallback<Action>>,
+    /// Patches widget
+    issues: BoxedWidget<B>,
     /// Search widget
-    search: Search,
+    search: BoxedWidget<B>,
     /// Help widget
-    help: Help<'a>,
+    help: BoxedWidget<B>,
     /// Shortcut widget
-    shortcuts: Shortcuts<Action>,
+    shortcuts: BoxedWidget<B>,
 }
 
-impl<'a> View<State, Action> for ListPage<'a> {
+impl<'a: 'static, B> View<State, Action> for ListPage<B>
+where
+    B: Backend + 'a,
+{
     fn new(state: &State, action_tx: UnboundedSender<Action>) -> Self
     where
         Self: Sized,
@@ -64,51 +78,43 @@ impl<'a> View<State, Action> for ListPage<'a> {
         Self {
             action_tx: action_tx.clone(),
             props: ListPageProps::from(state),
-            issues: Issues::new(state, action_tx.clone()),
-            search: Search::new(state, action_tx.clone()),
-            help: Help::new(state, action_tx.clone()),
-            shortcuts: Shortcuts::new(&(), action_tx.clone()),
+            issues: Issues::new(state, action_tx.clone()).to_boxed(),
+            search: Search::new(state, action_tx.clone()).to_boxed(),
+            help: Help::new(state, action_tx.clone()).to_boxed(),
+            shortcuts: Shortcuts::new(state, action_tx.clone())
+                .on_update(|state| {
+                    Box::new(ShortcutsProps::default().shortcuts(&state.shortcuts()))
+                })
+                .to_boxed(),
+            on_update: None,
+            on_change: None,
         }
-        .move_with_state(state)
     }
 
-    fn move_with_state(self, state: &State) -> Self
-    where
-        Self: Sized,
-    {
-        let shorts = if state.ui.show_search {
-            vec![("esc", "cancel"), ("enter", "apply")]
-        } else if state.ui.show_help {
-            vec![("?", "close")]
-        } else {
-            match state.mode {
-                Mode::Id => vec![("enter", "select"), ("/", "search")],
-                Mode::Operation => vec![
-                    ("enter", "show"),
-                    ("e", "edit"),
-                    ("/", "search"),
-                    ("?", "help"),
-                ],
-            }
-        };
+    fn on_change(mut self, callback: EventCallback<Action>) -> Self {
+        self.on_change = Some(callback);
+        self
+    }
 
-        let shortcuts = self.shortcuts.move_with_state(&());
-        let shortcuts = shortcuts.shortcuts(&shorts);
+    fn on_update(mut self, callback: UpdateCallback<State>) -> Self {
+        self.on_update = Some(callback);
+        self
+    }
 
-        ListPage {
-            issues: self.issues.move_with_state(state),
-            shortcuts,
-            help: self.help.move_with_state(state),
-            props: ListPageProps::from(state),
-            ..self
-        }
+    fn update(&mut self, state: &State) {
+        self.props = ListPageProps::from(state);
+
+        self.issues.update(state);
+        self.search.update(state);
+        self.help.update(state);
+        self.shortcuts.update(state);
     }
 
     fn handle_key_event(&mut self, key: termion::event::Key) {
         if self.props.show_search {
-            <Search as View<State, Action>>::handle_key_event(&mut self.search, key)
+            self.search.handle_key_event(key);
         } else if self.props.show_help {
-            <Help as View<State, Action>>::handle_key_event(&mut self.help, key)
+            self.help.handle_key_event(key);
         } else {
             match key {
                 Key::Esc | Key::Ctrl('c') => {
@@ -121,16 +127,18 @@ impl<'a> View<State, Action> for ListPage<'a> {
                     let _ = self.action_tx.send(Action::OpenHelp);
                 }
                 _ => {
-                    <Issues as View<State, Action>>::handle_key_event(&mut self.issues, key);
+                    self.issues.handle_key_event(key);
                 }
             }
         }
-        let _ = self.action_tx.send(Action::Update);
     }
 }
 
-impl<'a, B: Backend> Render<B, ()> for ListPage<'a> {
-    fn render(&self, frame: &mut ratatui::Frame, _area: Rect, _props: ()) {
+impl<'a: 'static, B> Widget<State, Action, B> for ListPage<B>
+where
+    B: Backend + 'a,
+{
+    fn render(&self, frame: &mut ratatui::Frame, _area: Rect, _props: &dyn Any) {
         let area = frame.size();
         let layout = tui::ui::layout::default_page(area, 0u16, 1u16);
 
@@ -138,15 +146,15 @@ impl<'a, B: Backend> Render<B, ()> for ListPage<'a> {
             let component_layout = Layout::vertical([Constraint::Min(1), Constraint::Length(2)])
                 .split(layout.component);
 
-            <Issues<'_> as Render<B, ()>>::render(&self.issues, frame, component_layout[0], ());
-            <Search as Render<B, ()>>::render(&self.search, frame, component_layout[1], ());
+            self.issues.render(frame, component_layout[0], &());
+            self.search.render(frame, component_layout[1], &());
         } else if self.props.show_help {
-            <Help<'_> as Render<B, ()>>::render(&self.help, frame, layout.component, ());
+            self.help.render(frame, layout.component, &());
         } else {
-            <Issues<'_> as Render<B, ()>>::render(&self.issues, frame, layout.component, ());
+            self.issues.render(frame, layout.component, &());
         }
 
-        <Shortcuts<_> as Render<B, ()>>::render(&self.shortcuts, frame, layout.shortcuts, ());
+        self.shortcuts.render(frame, layout.shortcuts, &());
     }
 }
 
@@ -154,6 +162,7 @@ impl<'a, B: Backend> Render<B, ()> for ListPage<'a> {
 struct IssuesProps<'a> {
     mode: Mode,
     issues: Vec<IssueItem>,
+    selected: Option<usize>,
     search: String,
     stats: HashMap<String, usize>,
     columns: Vec<Column<'a>>,
@@ -168,12 +177,7 @@ impl<'a> From<&State> for IssuesProps<'a> {
     fn from(state: &State) -> Self {
         use radicle::issue::State;
 
-        let issues: Vec<IssueItem> = state
-            .issues
-            .iter()
-            .filter(|issue| state.filter.matches(issue))
-            .cloned()
-            .collect();
+        let issues = state.issues();
 
         let mut open = 0;
         let mut other = 0;
@@ -221,72 +225,95 @@ impl<'a> From<&State> for IssuesProps<'a> {
             stats,
             page_size: state.ui.page_size,
             show_search: state.ui.show_search,
+            selected: state.issues.selected,
         }
     }
 }
 
-struct Issues<'a> {
-    /// Action sender
-    action_tx: UnboundedSender<Action>,
-    /// State mapped props
+struct Issues<'a, B> {
+    /// Internal properties
     props: IssuesProps<'a>,
-    /// Notification table
-    table: Table<'a, Action, IssueItem>,
-    /// Footer
-    footer: Footer<'a, Action>,
+    /// Message sender
+    action_tx: UnboundedSender<Action>,
+    /// Custom update handler
+    on_update: Option<UpdateCallback<State>>,
+    /// Additional custom event handler
+    on_change: Option<EventCallback<Action>>,
+    /// Table widget
+    table: BoxedWidget<B>,
+    /// Footer widget w/ context
+    footer: BoxedWidget<B>,
 }
 
-impl<'a> View<State, Action> for Issues<'a> {
+impl<'a: 'static, B> View<State, Action> for Issues<'a, B>
+where
+    B: Backend + 'a,
+{
     fn new(state: &State, action_tx: UnboundedSender<Action>) -> Self {
         let props = IssuesProps::from(state);
 
         Self {
             action_tx: action_tx.clone(),
             props: props.clone(),
-            table: Table::new(&(), action_tx.clone())
-                .items(props.issues.clone())
-                .columns(props.columns.to_vec())
-                .header(
-                    Header::new(&(), action_tx.clone())
-                        .columns(props.columns.clone())
-                        .cutoff(props.cutoff, props.cutoff_after)
-                        .focus(props.focus),
-                )
-                .footer(!props.show_search)
-                .cutoff(props.cutoff, props.cutoff_after),
-            footer: Footer::new(&(), action_tx),
+            table: Box::<Table<'_, State, Action, B, IssueItem>>::new(
+                Table::new(state, action_tx.clone())
+                    .header(
+                        Header::new(state, action_tx.clone())
+                            .columns(props.columns.clone())
+                            .cutoff(props.cutoff, props.cutoff_after)
+                            .focus(props.focus)
+                            .to_boxed(),
+                    )
+                    .on_change(|props, action_tx| {
+                        if let Some(props) = props.downcast_ref::<TableProps<'_, IssueItem>>() {
+                            let _ = action_tx.send(Action::Select {
+                                selected: props.selected,
+                            });
+                        }
+                    })
+                    .on_update(|state| {
+                        let props = IssuesProps::from(state);
+
+                        Box::<TableProps<'_, IssueItem>>::new(
+                            TableProps::default()
+                                .columns(props.columns)
+                                .items(state.issues())
+                                .footer(!state.ui.show_search)
+                                .page_size(state.ui.page_size)
+                                .cutoff(props.cutoff, props.cutoff_after),
+                        )
+                    }),
+            ),
+            footer: Footer::new(state, action_tx)
+                .on_update(|state| {
+                    let props = IssuesProps::from(state);
+
+                    Box::<FooterProps<'_>>::new(
+                        FooterProps::default().columns(Self::build_footer(&props, props.selected)),
+                    )
+                })
+                .to_boxed(),
+            on_update: None,
+            on_change: None,
         }
-        .move_with_state(state)
     }
 
-    fn move_with_state(self, state: &State) -> Self
-    where
-        Self: Sized,
-    {
-        let issues: Vec<IssueItem> = state
-            .issues
-            .iter()
-            .filter(|issue| state.filter.matches(issue))
-            .cloned()
-            .collect();
+    fn on_update(mut self, callback: UpdateCallback<State>) -> Self {
+        self.on_update = Some(callback);
+        self
+    }
 
-        let props = IssuesProps::from(state);
+    fn on_change(mut self, callback: EventCallback<Action>) -> Self {
+        self.on_change = Some(callback);
+        self
+    }
 
-        let table = self.table.move_with_state(&());
-        let table = table
-            .items(issues)
-            .footer(!state.ui.show_search)
-            .page_size(state.ui.page_size);
+    fn update(&mut self, state: &State) {
+        // TODO call mapper here instead?
+        self.props = IssuesProps::from(state);
 
-        let footer = self.footer.move_with_state(&());
-        let footer = footer.columns(Self::build_footer(&props, table.selected()));
-
-        Self {
-            props,
-            table,
-            footer,
-            ..self
-        }
+        self.table.update(state);
+        self.footer.update(state);
     }
 
     fn handle_key_event(&mut self, key: Key) {
@@ -297,8 +324,8 @@ impl<'a> View<State, Action> for Issues<'a> {
                     Mode::Id => None,
                 };
 
-                self.table
-                    .selected()
+                self.props
+                    .selected
                     .and_then(|selected| self.props.issues.get(selected))
                     .and_then(|issue| {
                         self.action_tx
@@ -313,8 +340,8 @@ impl<'a> View<State, Action> for Issues<'a> {
                     });
             }
             Key::Char('e') => {
-                self.table
-                    .selected()
+                self.props
+                    .selected
                     .and_then(|selected| self.props.issues.get(selected))
                     .and_then(|issue| {
                         self.action_tx
@@ -329,16 +356,13 @@ impl<'a> View<State, Action> for Issues<'a> {
                     });
             }
             _ => {
-                <Table<Action, IssueItem> as View<(), Action>>::handle_key_event(
-                    &mut self.table,
-                    key,
-                );
+                self.table.handle_key_event(key);
             }
         }
     }
 }
 
-impl<'a> Issues<'a> {
+impl<'a, B: Backend> Issues<'a, B> {
     fn build_footer(props: &IssuesProps<'a>, selected: Option<usize>) -> Vec<Column<'a>> {
         let search = Line::from(
             [
@@ -387,7 +411,11 @@ impl<'a> Issues<'a> {
 
         let progress = selected
             .map(|selected| {
-                Table::<Action, IssueItem>::progress(selected, props.issues.len(), props.page_size)
+                Table::<State, Action, B, IssueItem>::progress(
+                    selected,
+                    props.issues.len(),
+                    props.page_size,
+                )
             })
             .unwrap_or_default();
         let progress = span::default(format!("{}%", progress)).dim();
@@ -435,19 +463,22 @@ impl<'a> Issues<'a> {
     }
 }
 
-impl<'a, B: Backend> Render<B, ()> for Issues<'a> {
-    fn render(&self, frame: &mut ratatui::Frame, area: Rect, _props: ()) {
+impl<'a: 'static, B> Widget<State, Action, B> for Issues<'a, B>
+where
+    B: Backend + 'a,
+{
+    fn render(&self, frame: &mut ratatui::Frame, area: Rect, _props: &dyn Any) {
         let header_height = 3_usize;
 
         let page_size = if self.props.show_search {
-            <Table<'_, _, _> as Render<B, ()>>::render(&self.table, frame, area, ());
+            self.table.render(frame, area, &());
 
             (area.height as usize).saturating_sub(header_height)
         } else {
             let layout = Layout::vertical([Constraint::Min(1), Constraint::Length(3)]).split(area);
 
-            <Table<'_, _, _> as Render<B, ()>>::render(&self.table, frame, layout[0], ());
-            <Footer<'_, _> as Render<B, ()>>::render(&self.footer, frame, layout[1], ());
+            self.table.render(frame, layout[0], &());
+            self.footer.render(frame, layout[1], &());
 
             (area.height as usize).saturating_sub(header_height)
         };
@@ -458,30 +489,61 @@ impl<'a, B: Backend> Render<B, ()> for Issues<'a> {
     }
 }
 
-pub struct Search {
-    pub action_tx: UnboundedSender<Action>,
-    pub input: TextField<Action>,
+pub struct Search<B: Backend> {
+    /// Message sender
+    action_tx: UnboundedSender<Action>,
+    /// Custom update handler
+    on_update: Option<UpdateCallback<State>>,
+    /// Additional custom event handler
+    on_change: Option<EventCallback<Action>>,
+    /// Search input field
+    input: BoxedWidget<B>,
 }
 
-impl View<State, Action> for Search {
+impl<B: Backend> View<State, Action> for Search<B> {
     fn new(state: &State, action_tx: UnboundedSender<Action>) -> Self
     where
         Self: Sized,
     {
         let input = TextField::new(state, action_tx.clone())
-            .title("Search")
-            .inline(true);
-        Self { action_tx, input }.move_with_state(state)
+            .on_change(|props, action_tx| {
+                props.downcast_ref::<TextFieldProps>().and_then(|props| {
+                    action_tx
+                        .send(Action::UpdateSearch {
+                            value: props.text.clone(),
+                        })
+                        .ok()
+                });
+            })
+            .on_update(|state| {
+                Box::<TextFieldProps>::new(
+                    TextFieldProps::default()
+                        .text(&state.search.read().to_string())
+                        .title("Search")
+                        .inline(true),
+                )
+            })
+            .to_boxed();
+        Self {
+            action_tx,
+            input,
+            on_update: None,
+            on_change: None,
+        }
     }
 
-    fn move_with_state(self, state: &State) -> Self
-    where
-        Self: Sized,
-    {
-        let input = self.input.move_with_state(state);
-        let input = input.text(&state.search.read().to_string());
+    fn on_update(mut self, callback: UpdateCallback<State>) -> Self {
+        self.on_update = Some(callback);
+        self
+    }
 
-        Self { input, ..self }
+    fn on_change(mut self, callback: EventCallback<Action>) -> Self {
+        self.on_change = Some(callback);
+        self
+    }
+
+    fn update(&mut self, state: &State) {
+        self.input.update(state);
     }
 
     fn handle_key_event(&mut self, key: termion::event::Key) {
@@ -493,25 +555,23 @@ impl View<State, Action> for Search {
                 let _ = self.action_tx.send(Action::ApplySearch);
             }
             _ => {
-                <TextField<Action> as View<State, Action>>::handle_key_event(&mut self.input, key);
-                let _ = self.action_tx.send(Action::UpdateSearch {
-                    value: self.input.read().to_string(),
-                });
+                self.input.handle_key_event(key);
             }
         }
     }
 }
 
-impl<B: Backend> Render<B, ()> for Search {
-    fn render(&self, frame: &mut ratatui::Frame, area: Rect, _props: ()) {
+impl<B: Backend> Widget<State, Action, B> for Search<B> {
+    fn render(&self, frame: &mut ratatui::Frame, area: Rect, _props: &dyn Any) {
         let layout = Layout::horizontal(Constraint::from_mins([0]))
             .horizontal_margin(1)
             .split(area);
 
-        <TextField<_> as Render<B, ()>>::render(&self.input, frame, layout[0], ());
+        self.input.render(frame, layout[0], &());
     }
 }
 
+#[derive(Clone)]
 pub struct HelpProps<'a> {
     content: Text<'a>,
     focus: bool,
@@ -656,70 +716,93 @@ impl<'a> From<&State> for HelpProps<'a> {
     }
 }
 
-pub struct Help<'a> {
-    /// Send messages
-    pub action_tx: UnboundedSender<Action>,
-    /// This widget's render properties
-    pub props: HelpProps<'a>,
+pub struct Help<'a, B: Backend> {
+    /// Internal properties
+    props: HelpProps<'a>,
+    /// Message sender
+    action_tx: UnboundedSender<Action>,
+    /// Custom update handler
+    on_update: Option<UpdateCallback<State>>,
+    /// Additional custom event handler
+    on_change: Option<EventCallback<Action>>,
     /// Container header
-    header: Header<'a, Action>,
+    header: BoxedWidget<B>,
     /// Content widget
-    content: Paragraph<'a, Action>,
+    content: BoxedWidget<B>,
     /// Container footer
-    footer: Footer<'a, Action>,
+    footer: BoxedWidget<B>,
 }
 
-impl<'a> View<State, Action> for Help<'a> {
+impl<'a, B: Backend> View<State, Action> for Help<'a, B> {
     fn new(state: &State, action_tx: UnboundedSender<Action>) -> Self
     where
         Self: Sized,
     {
-        let props = HelpProps::from(state);
-
         Self {
             action_tx: action_tx.clone(),
-            props,
-            header: Header::new(&(), action_tx.clone()),
-            content: Paragraph::new(state, action_tx.clone()),
-            footer: Footer::new(&(), action_tx),
+            props: HelpProps::from(state),
+            header: Header::new(state, action_tx.clone())
+                .on_update(|state| {
+                    let props = HelpProps::from(state);
+
+                    Box::<HeaderProps<'_>>::new(
+                        HeaderProps::default()
+                            .columns([Column::new(" Help ", Constraint::Fill(1))].to_vec())
+                            .focus(props.focus),
+                    )
+                })
+                .to_boxed(),
+            content: Paragraph::new(state, action_tx.clone())
+                .on_update(|state| {
+                    let props = HelpProps::from(state);
+
+                    Box::<ParagraphProps<'_>>::new(
+                        ParagraphProps::default()
+                            .text(&props.content)
+                            .page_size(props.page_size)
+                            .focus(props.focus),
+                    )
+                })
+                .to_boxed(),
+            footer: Footer::new(state, action_tx)
+                .on_update(|state| {
+                    let props = HelpProps::from(state);
+                    let progress = span::default(format!("{}%", 0)).dim();
+
+                    Box::<FooterProps<'_>>::new(
+                        FooterProps::default()
+                            .columns(
+                                [
+                                    Column::new(Text::raw(""), Constraint::Fill(1)),
+                                    Column::new(Text::from(progress), Constraint::Min(4)),
+                                ]
+                                .to_vec(),
+                            )
+                            .focus(props.focus),
+                    )
+                })
+                .to_boxed(),
+            on_update: None,
+            on_change: None,
         }
-        .move_with_state(state)
     }
 
-    fn move_with_state(self, state: &State) -> Self
-    where
-        Self: Sized,
-    {
-        let props = HelpProps::from(state);
+    fn on_update(mut self, callback: UpdateCallback<State>) -> Self {
+        self.on_update = Some(callback);
+        self
+    }
 
-        let header = self.header.move_with_state(&());
-        let header = header
-            .columns([Column::new(" Help ", Constraint::Fill(1))].to_vec())
-            .focus(props.focus);
+    fn on_change(mut self, callback: EventCallback<Action>) -> Self {
+        self.on_change = Some(callback);
+        self
+    }
 
-        let content = self.content.move_with_state(state);
-        let content = content.text(&props.content).page_size(props.page_size);
+    fn update(&mut self, state: &State) {
+        self.props = HelpProps::from(state);
 
-        let progress = span::default(format!("{}%", content.progress())).dim();
-
-        let footer = self.footer.move_with_state(&());
-        let footer = footer
-            .columns(
-                [
-                    Column::new(Text::raw(""), Constraint::Fill(1)),
-                    Column::new(Text::from(progress), Constraint::Min(4)),
-                ]
-                .to_vec(),
-            )
-            .focus(props.focus);
-
-        Self {
-            props,
-            header,
-            content,
-            footer,
-            ..self
-        }
+        self.header.update(state);
+        self.content.update(state);
+        self.footer.update(state);
     }
 
     fn handle_key_event(&mut self, key: termion::event::Key) {
@@ -731,14 +814,14 @@ impl<'a> View<State, Action> for Help<'a> {
                 let _ = self.action_tx.send(Action::CloseHelp);
             }
             _ => {
-                <Paragraph<_> as View<(), _>>::handle_key_event(&mut self.content, key);
+                self.content.handle_key_event(key);
             }
         }
     }
 }
 
-impl<'a, B: Backend> Render<B, ()> for Help<'a> {
-    fn render(&self, frame: &mut ratatui::Frame, area: Rect, _props: ()) {
+impl<'a, B: Backend> Widget<State, Action, B> for Help<'a, B> {
+    fn render(&self, frame: &mut ratatui::Frame, area: Rect, _props: &dyn Any) {
         let [header_area, content_area, footer_area] = Layout::vertical([
             Constraint::Length(3),
             Constraint::Min(1),
@@ -746,9 +829,9 @@ impl<'a, B: Backend> Render<B, ()> for Help<'a> {
         ])
         .areas(area);
 
-        <Header<'_, _> as Render<B, ()>>::render(&self.header, frame, header_area, ());
-        <Paragraph<'_, _> as Render<B, ()>>::render(&self.content, frame, content_area, ());
-        <Footer<'_, _> as Render<B, ()>>::render(&self.footer, frame, footer_area, ());
+        self.header.render(frame, header_area, &());
+        self.content.render(frame, content_area, &());
+        self.footer.render(frame, footer_area, &());
 
         let page_size = content_area.height as usize;
         if page_size != self.props.page_size {
