@@ -21,23 +21,37 @@ pub type BoxedWidget<B, S, A> = Box<dyn Widget<B, S, A>>;
 pub type UpdateCallback<S> = fn(&S) -> Box<dyn Any>;
 pub type EventCallback<A> = fn(&dyn Any, UnboundedSender<A>);
 
+/// Main trait defining a `View` behaviour.
+///
+/// This is the first trait that you should implement to define a custom `Widget`.
 pub trait View<S, A> {
+    /// Should return a new view with props build from state (if type is known) and a
+    /// message sender set.
     fn new(state: &S, action_tx: UnboundedSender<A>) -> Self
     where
         Self: Sized;
 
+    /// Should set the optional custom event handler.
     fn on_change(self, callback: EventCallback<A>) -> Self
     where
         Self: Sized;
 
+    /// Should set the optional update handler.
     fn on_update(self, callback: UpdateCallback<S>) -> Self
     where
         Self: Sized;
 
+    /// Should handle key events and call `handle_key_event` on all children.
+    ///
+    /// After key events have been handled, the custom event handler `on_change` should
+    /// be called
     fn handle_key_event(&mut self, key: Key);
 
+    /// Should update internal props by calling the custom update handler `on_update`
+    /// and call `update` on all children.
     fn update(&mut self, state: &S);
 
+    /// Returns a boxed `View`
     fn to_boxed(self) -> Box<Self>
     where
         Self: Sized,
@@ -46,17 +60,26 @@ pub trait View<S, A> {
     }
 }
 
+/// A `Widget` is a `View` that can be rendered using a specific backend.
+///
+/// This is the second trait that you should implement to define a custom `Widget`.
 pub trait Widget<B, S, A>: View<S, A>
 where
     B: Backend,
 {
+    /// Renders a widget to the given frame in the given area.
+    ///
+    /// Will try to downcast the given props object to the internally used one.
+    /// If successful, these props take precedence over the internal ones.
     fn render(&self, frame: &mut Frame, area: Rect, props: &dyn Any);
 }
 
+/// Needs to be implemented for items that are supposed to be rendering in tables.
 pub trait ToRow {
     fn to_row(&self) -> Vec<Cell>;
 }
 
+/// Common trait for view properties.
 pub trait Properties {
     fn to_boxed(self) -> Box<Self>
     where
