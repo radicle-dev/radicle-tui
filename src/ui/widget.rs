@@ -57,19 +57,19 @@ pub trait ToRow {
     fn to_row(&self) -> Vec<Cell>;
 }
 
+pub trait Properties {
+    fn to_boxed(self) -> Box<Self>
+    where
+        Self: Sized,
+    {
+        Box::new(self)
+    }
+}
+
 #[derive(Clone)]
 pub struct ShortcutsProps {
     pub shortcuts: Vec<(String, String)>,
     pub divider: char,
-}
-
-impl Default for ShortcutsProps {
-    fn default() -> Self {
-        Self {
-            shortcuts: vec![],
-            divider: '∙',
-        }
-    }
 }
 
 impl ShortcutsProps {
@@ -85,11 +85,18 @@ impl ShortcutsProps {
         }
         self
     }
+}
 
-    pub fn to_boxed(self) -> Box<Self> {
-        Box::new(self)
+impl Default for ShortcutsProps {
+    fn default() -> Self {
+        Self {
+            shortcuts: vec![],
+            divider: '∙',
+        }
     }
 }
+
+impl Properties for ShortcutsProps {}
 
 pub struct Shortcuts<S, A> {
     /// Internal properties
@@ -289,11 +296,9 @@ where
         self.page_size = page_size;
         self
     }
-
-    pub fn to_boxed(self) -> Box<Self> {
-        Box::new(self)
-    }
 }
+
+impl<'a, R> Properties for TableProps<'a, R> where R: ToRow {}
 
 pub struct Table<'a, B, S, A, R>
 where

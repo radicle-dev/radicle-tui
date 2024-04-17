@@ -9,7 +9,7 @@ use ratatui::prelude::{Backend, Rect};
 use ratatui::style::Stylize;
 use ratatui::text::{Line, Span};
 
-use super::{EventCallback, UpdateCallback, View, Widget};
+use super::{EventCallback, Properties, UpdateCallback, View, Widget};
 
 #[derive(Clone)]
 pub struct TextFieldProps {
@@ -38,10 +38,6 @@ impl TextFieldProps {
         self.inline_label = inline;
         self
     }
-
-    pub fn to_boxed(self) -> Box<Self> {
-        Box::new(self)
-    }
 }
 
 impl Default for TextFieldProps {
@@ -55,6 +51,8 @@ impl Default for TextFieldProps {
         }
     }
 }
+
+impl Properties for TextFieldProps {}
 
 pub struct TextField<S, A> {
     /// Internal props

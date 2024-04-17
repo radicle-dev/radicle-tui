@@ -11,7 +11,7 @@ use ratatui::widgets::{Block, BorderType, Borders};
 
 use crate::ui::theme::style;
 
-use super::{EventCallback, UpdateCallback, View, Widget};
+use super::{EventCallback, Properties, UpdateCallback, View, Widget};
 
 #[derive(Clone)]
 pub struct ParagraphProps<'a> {
@@ -37,10 +37,6 @@ impl<'a> ParagraphProps<'a> {
         self.focus = focus;
         self
     }
-
-    pub fn to_boxed(self) -> Box<Self> {
-        Box::new(self)
-    }
 }
 
 impl<'a> Default for ParagraphProps<'a> {
@@ -54,6 +50,8 @@ impl<'a> Default for ParagraphProps<'a> {
         }
     }
 }
+
+impl<'a> Properties for ParagraphProps<'a> {}
 
 pub struct Paragraph<'a, S, A> {
     /// Internal properties

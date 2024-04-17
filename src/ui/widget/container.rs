@@ -11,7 +11,7 @@ use ratatui::widgets::{BorderType, Borders, Row};
 use crate::ui::ext::{FooterBlock, FooterBlockType, HeaderBlock};
 use crate::ui::theme::style;
 
-use super::{Column, EventCallback, UpdateCallback, View, Widget};
+use super::{Column, EventCallback, Properties, UpdateCallback, View, Widget};
 
 #[derive(Clone, Debug)]
 pub struct HeaderProps<'a> {
@@ -49,6 +49,8 @@ impl<'a> Default for HeaderProps<'a> {
         }
     }
 }
+
+impl<'a> Properties for HeaderProps<'a> {}
 
 pub struct Header<'a, S, A> {
     /// Internal props
@@ -212,6 +214,8 @@ impl<'a> Default for FooterProps<'a> {
         }
     }
 }
+
+impl<'a> Properties for FooterProps<'a> {}
 
 pub struct Footer<'a, S, A> {
     /// Internal properties
