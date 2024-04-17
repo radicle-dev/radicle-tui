@@ -32,7 +32,7 @@ use crate::tui_issue::common::Mode;
 
 use super::{Action, State};
 
-type BoxedWidget<B> = widget::BoxedWidget<State, Action, B>;
+type BoxedWidget<B> = widget::BoxedWidget<B, State, Action>;
 
 pub struct ListPageProps {
     show_search: bool,
@@ -134,7 +134,7 @@ where
     }
 }
 
-impl<'a: 'static, B> Widget<State, Action, B> for ListPage<B>
+impl<'a: 'static, B> Widget<B, State, Action> for ListPage<B>
 where
     B: Backend + 'a,
 {
@@ -255,7 +255,7 @@ where
         Self {
             action_tx: action_tx.clone(),
             props: props.clone(),
-            table: Box::<Table<'_, State, Action, B, IssueItem>>::new(
+            table: Box::<Table<B, State, Action, IssueItem>>::new(
                 Table::new(state, action_tx.clone())
                     .header(
                         Header::new(state, action_tx.clone())
@@ -403,7 +403,7 @@ impl<'a, B: Backend> Issues<'a, B> {
 
         let progress = selected
             .map(|selected| {
-                Table::<State, Action, B, IssueItem>::progress(
+                Table::<B, State, Action, IssueItem>::progress(
                     selected,
                     props.issues.len(),
                     props.page_size,
@@ -455,7 +455,7 @@ impl<'a, B: Backend> Issues<'a, B> {
     }
 }
 
-impl<'a: 'static, B> Widget<State, Action, B> for Issues<'a, B>
+impl<'a: 'static, B> Widget<B, State, Action> for Issues<'a, B>
 where
     B: Backend + 'a,
 {
@@ -561,7 +561,10 @@ impl<B: Backend> View<State, Action> for Search<B> {
     }
 }
 
-impl<B: Backend> Widget<State, Action, B> for Search<B> {
+impl<B> Widget<B, State, Action> for Search<B>
+where
+    B: Backend,
+{
     fn render(&self, frame: &mut ratatui::Frame, area: Rect, _props: &dyn Any) {
         let layout = Layout::horizontal(Constraint::from_mins([0]))
             .horizontal_margin(1)
@@ -793,7 +796,10 @@ impl<'a, B: Backend> View<State, Action> for Help<'a, B> {
     }
 }
 
-impl<'a: 'static, B: Backend> Widget<State, Action, B> for Help<'a, B> {
+impl<'a: 'static, B> Widget<B, State, Action> for Help<'a, B>
+where
+    B: Backend,
+{
     fn render(&self, frame: &mut ratatui::Frame, area: Rect, props: &dyn Any) {
         let props = props.downcast_ref::<HelpProps<'_>>().unwrap_or(&self.props);
 

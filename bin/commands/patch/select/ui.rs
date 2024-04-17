@@ -33,7 +33,7 @@ use crate::tui_patch::common::PatchOperation;
 
 use super::{Action, State};
 
-type BoxedWidget<B> = widget::BoxedWidget<State, Action, B>;
+type BoxedWidget<B> = widget::BoxedWidget<B, State, Action>;
 
 pub struct ListPageProps {
     show_search: bool,
@@ -132,7 +132,10 @@ impl<'a: 'static, B: Backend + 'a> View<State, Action> for ListPage<B> {
     }
 }
 
-impl<'a: 'static, B: Backend + 'a> Widget<State, Action, B> for ListPage<B> {
+impl<'a: 'static, B> Widget<B, State, Action> for ListPage<B>
+where
+    B: Backend + 'a,
+{
     fn render(&self, frame: &mut ratatui::Frame, _area: Rect, __props: &dyn Any) {
         let area = frame.size();
         let layout = tui::ui::layout::default_page(area, 0u16, 1u16);
@@ -248,7 +251,7 @@ where
         Self {
             action_tx: action_tx.clone(),
             props: props.clone(),
-            table: Box::<Table<'_, State, Action, B, PatchItem>>::new(
+            table: Box::<Table<B, State, Action, PatchItem>>::new(
                 Table::new(state, action_tx.clone())
                     .header(
                         Header::new(state, action_tx.clone())
@@ -429,7 +432,7 @@ impl<'a, B: Backend> Patches<'a, B> {
 
         let progress = selected
             .map(|selected| {
-                Table::<State, Action, B, PatchItem>::progress(
+                Table::<B, State, Action, PatchItem>::progress(
                     selected,
                     props.patches.len(),
                     props.page_size,
@@ -483,7 +486,7 @@ impl<'a, B: Backend> Patches<'a, B> {
     }
 }
 
-impl<'a: 'static, B> Widget<State, Action, B> for Patches<'a, B>
+impl<'a: 'static, B> Widget<B, State, Action> for Patches<'a, B>
 where
     B: Backend + 'a,
 {
@@ -589,7 +592,10 @@ impl<B: Backend> View<State, Action> for Search<B> {
     }
 }
 
-impl<B: Backend> Widget<State, Action, B> for Search<B> {
+impl<B> Widget<B, State, Action> for Search<B>
+where
+    B: Backend,
+{
     fn render(&self, frame: &mut ratatui::Frame, area: Rect, _props: &dyn Any) {
         let layout = Layout::horizontal(Constraint::from_mins([0]))
             .horizontal_margin(1)
@@ -829,7 +835,10 @@ impl<'a, B: Backend> View<State, Action> for Help<'a, B> {
     }
 }
 
-impl<'a: 'static, B: Backend> Widget<State, Action, B> for Help<'a, B> {
+impl<'a: 'static, B> Widget<B, State, Action> for Help<'a, B>
+where
+    B: Backend,
+{
     fn render(&self, frame: &mut ratatui::Frame, area: Rect, props: &dyn Any) {
         let props = props.downcast_ref::<HelpProps<'_>>().unwrap_or(&self.props);
 
