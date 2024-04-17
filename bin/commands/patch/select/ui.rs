@@ -23,8 +23,8 @@ use tui::ui::widget::input::{TextField, TextFieldProps};
 use tui::ui::widget::text::{Paragraph, ParagraphProps};
 use tui::ui::widget::{self, TableUtils};
 use tui::ui::widget::{
-    Column, EventCallback, Shortcuts, ShortcutsProps, Table, TableProps, UpdateCallback, View,
-    Widget,
+    Column, EventCallback, Properties, Shortcuts, ShortcutsProps, Table, TableProps,
+    UpdateCallback, View, Widget,
 };
 use tui::Selection;
 
@@ -227,6 +227,8 @@ impl<'a> From<&State> for PatchesProps<'a> {
         }
     }
 }
+
+impl<'a> Properties for PatchesProps<'a> {}
 
 struct Patches<'a, B> {
     /// Internal properties
@@ -749,6 +751,8 @@ impl<'a> From<&State> for HelpProps<'a> {
         }
     }
 }
+
+impl<'a> Properties for HelpProps<'a> {}
 
 pub struct Help<'a, B: Backend> {
     /// Internal properties

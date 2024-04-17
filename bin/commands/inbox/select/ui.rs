@@ -20,8 +20,8 @@ use tui::ui::widget::input::{TextField, TextFieldProps};
 use tui::ui::widget::text::{Paragraph, ParagraphProps};
 use tui::ui::widget::{self, TableUtils};
 use tui::ui::widget::{
-    Column, EventCallback, Shortcuts, ShortcutsProps, Table, TableProps, UpdateCallback, View,
-    Widget,
+    Column, EventCallback, Properties, Shortcuts, ShortcutsProps, Table, TableProps,
+    UpdateCallback, View, Widget,
 };
 use tui::Selection;
 
@@ -214,6 +214,8 @@ impl<'a> From<&State> for NotificationsProps<'a> {
     }
 }
 
+impl<'a> Properties for NotificationsProps<'a> {}
+
 struct Notifications<'a, B: Backend> {
     /// Internal properties
     props: NotificationsProps<'a>,
@@ -273,14 +275,13 @@ where
                     .on_update(|state| {
                         let props = NotificationsProps::from(state);
 
-                        Box::<TableProps<'_, NotificationItem>>::new(
                             TableProps::default()
                                 .columns(props.columns)
                                 .items(state.notifications())
                                 .footer(!state.ui.show_search)
                                 .page_size(state.ui.page_size)
-                                .cutoff(props.cutoff, props.cutoff_after),
-                        )
+                            .cutoff(props.cutoff, props.cutoff_after)
+                            .to_boxed()
                     }),
             ),
             footer: Footer::new(state, action_tx).to_boxed(),
@@ -688,6 +689,8 @@ impl<'a> From<&State> for HelpProps<'a> {
         }
     }
 }
+
+impl<'a> Properties for HelpProps<'a> {}
 
 pub struct Help<'a, B: Backend> {
     /// Internal properties
