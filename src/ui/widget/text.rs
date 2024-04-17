@@ -20,6 +20,7 @@ pub struct ParagraphProps<'a> {
     pub has_header: bool,
     pub has_footer: bool,
     pub page_size: usize,
+    pub progress: usize,
 }
 
 impl<'a> ParagraphProps<'a> {
@@ -47,6 +48,7 @@ impl<'a> Default for ParagraphProps<'a> {
             has_header: false,
             has_footer: false,
             page_size: 1,
+            progress: 0,
         }
     }
 }
@@ -203,6 +205,8 @@ impl<'a: 'static, S, A> View<S, A> for Paragraph<'a, S, A> {
             }
             _ => {}
         }
+
+        self.progress = self.offset;
 
         if let Some(on_change) = self.on_change {
             (on_change)(&self.props, self.action_tx.clone());

@@ -604,6 +604,7 @@ pub struct HelpProps<'a> {
     content: Text<'a>,
     focus: bool,
     page_size: usize,
+    progress: usize,
 }
 
 impl<'a> From<&State> for HelpProps<'a> {
@@ -748,6 +749,7 @@ impl<'a> From<&State> for HelpProps<'a> {
             content,
             focus: false,
             page_size: state.ui.page_size,
+            progress: state.help.progress,
         }
     }
 }
@@ -781,6 +783,15 @@ impl<'a, B: Backend> View<State, Action> for Help<'a, B> {
             props: HelpProps::from(state),
             header: Header::new(state, action_tx.clone()).to_boxed(),
             content: Paragraph::new(state, action_tx.clone())
+                .on_change(|props, action_tx| {
+                    props.downcast_ref::<ParagraphProps>().and_then(|props| {
+                        action_tx
+                            .send(Action::HelpScroll {
+                                progress: props.progress.clone(),
+                            })
+                            .ok()
+                    });
+                })
                 .on_update(|state| {
                     let props = HelpProps::from(state);
 
@@ -843,7 +854,7 @@ where
             Constraint::Length(3),
         ])
         .areas(area);
-        let progress = span::default(format!("{}%", 0)).dim();
+        let progress = span::default(format!("{}%", props.progress)).dim();
 
         self.header.render(
             frame,

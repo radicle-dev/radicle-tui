@@ -61,12 +61,18 @@ pub struct PatchesState {
 }
 
 #[derive(Clone, Debug)]
+pub struct HelpState {
+    progress: usize,
+}
+
+#[derive(Clone, Debug)]
 pub struct State {
     patches: PatchesState,
     mode: Mode,
     filter: PatchItemFilter,
     search: store::StateValue<String>,
     ui: UIState,
+    help: HelpState,
 }
 
 impl State {
@@ -119,12 +125,15 @@ impl TryFrom<&Context> for State {
         Ok(Self {
             patches: PatchesState {
                 items,
-                selected: None,
+                selected: Some(0),
             },
             mode: context.mode.clone(),
             filter,
             search,
             ui: UIState::default(),
+            help: HelpState {
+                progress: 0,
+            }
         })
     }
 }
@@ -139,6 +148,7 @@ pub enum Action {
     CloseSearch,
     OpenHelp,
     CloseHelp,
+    HelpScroll { progress: usize },
 }
 
 impl store::State<Action, Selection> for State {
@@ -183,6 +193,10 @@ impl store::State<Action, Selection> for State {
             }
             Action::CloseHelp => {
                 self.ui.show_help = false;
+                None
+            }
+            Action::HelpScroll { progress } => {
+                self.help.progress = progress;
                 None
             }
         }
