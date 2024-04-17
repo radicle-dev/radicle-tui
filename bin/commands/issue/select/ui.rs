@@ -284,15 +284,7 @@ where
                         )
                     }),
             ),
-            footer: Footer::new(state, action_tx)
-                .on_update(|state| {
-                    let props = IssuesProps::from(state);
-
-                    Box::<FooterProps<'_>>::new(
-                        FooterProps::default().columns(Self::build_footer(&props, props.selected)),
-                    )
-                })
-                .to_boxed(),
+            footer: Footer::new(state, action_tx).to_boxed(),
             on_update: None,
             on_change: None,
         }
@@ -467,7 +459,11 @@ impl<'a: 'static, B> Widget<State, Action, B> for Issues<'a, B>
 where
     B: Backend + 'a,
 {
-    fn render(&self, frame: &mut ratatui::Frame, area: Rect, _props: &dyn Any) {
+    fn render(&self, frame: &mut ratatui::Frame, area: Rect, props: &dyn Any) {
+        let props = props
+            .downcast_ref::<IssuesProps<'_>>()
+            .unwrap_or(&self.props);
+
         let header_height = 3_usize;
 
         let page_size = if self.props.show_search {
@@ -478,7 +474,11 @@ where
             let layout = Layout::vertical([Constraint::Min(1), Constraint::Length(3)]).split(area);
 
             self.table.render(frame, layout[0], &());
-            self.footer.render(frame, layout[1], &());
+            self.footer.render(
+                frame,
+                layout[1],
+                &FooterProps::default().columns(Self::build_footer(&props, props.selected)),
+            );
 
             (area.height as usize).saturating_sub(header_height)
         };
@@ -741,17 +741,7 @@ impl<'a, B: Backend> View<State, Action> for Help<'a, B> {
         Self {
             action_tx: action_tx.clone(),
             props: HelpProps::from(state),
-            header: Header::new(state, action_tx.clone())
-                .on_update(|state| {
-                    let props = HelpProps::from(state);
-
-                    Box::<HeaderProps<'_>>::new(
-                        HeaderProps::default()
-                            .columns([Column::new(" Help ", Constraint::Fill(1))].to_vec())
-                            .focus(props.focus),
-                    )
-                })
-                .to_boxed(),
+            header: Header::new(state, action_tx.clone()).to_boxed(),
             content: Paragraph::new(state, action_tx.clone())
                 .on_update(|state| {
                     let props = HelpProps::from(state);
@@ -764,24 +754,7 @@ impl<'a, B: Backend> View<State, Action> for Help<'a, B> {
                     )
                 })
                 .to_boxed(),
-            footer: Footer::new(state, action_tx)
-                .on_update(|state| {
-                    let props = HelpProps::from(state);
-                    let progress = span::default(format!("{}%", 0)).dim();
-
-                    Box::<FooterProps<'_>>::new(
-                        FooterProps::default()
-                            .columns(
-                                [
-                                    Column::new(Text::raw(""), Constraint::Fill(1)),
-                                    Column::new(Text::from(progress), Constraint::Min(4)),
-                                ]
-                                .to_vec(),
-                            )
-                            .focus(props.focus),
-                    )
-                })
-                .to_boxed(),
+            footer: Footer::new(state, action_tx).to_boxed(),
             on_update: None,
             on_change: None,
         }
@@ -820,21 +793,51 @@ impl<'a, B: Backend> View<State, Action> for Help<'a, B> {
     }
 }
 
-impl<'a, B: Backend> Widget<State, Action, B> for Help<'a, B> {
-    fn render(&self, frame: &mut ratatui::Frame, area: Rect, _props: &dyn Any) {
+impl<'a: 'static, B: Backend> Widget<State, Action, B> for Help<'a, B> {
+    fn render(&self, frame: &mut ratatui::Frame, area: Rect, props: &dyn Any) {
+        let props = props.downcast_ref::<HelpProps<'_>>().unwrap_or(&self.props);
+
         let [header_area, content_area, footer_area] = Layout::vertical([
             Constraint::Length(3),
             Constraint::Min(1),
             Constraint::Length(3),
         ])
         .areas(area);
+        let progress = span::default(format!("{}%", 0)).dim();
 
-        self.header.render(frame, header_area, &());
-        self.content.render(frame, content_area, &());
-        self.footer.render(frame, footer_area, &());
+        self.header.render(
+            frame,
+            header_area,
+            &HeaderProps::default()
+                .columns([Column::new(" Help ", Constraint::Fill(1))].to_vec())
+                .focus(props.focus),
+        );
+
+        self.content.render(
+            frame,
+            content_area,
+            &ParagraphProps::default()
+                .text(&props.content)
+                .page_size(props.page_size)
+                .focus(props.focus),
+        );
+
+        self.footer.render(
+            frame,
+            footer_area,
+            &FooterProps::default()
+                .columns(
+                    [
+                        Column::new(Text::raw(""), Constraint::Fill(1)),
+                        Column::new(progress, Constraint::Min(4)),
+                    ]
+                    .to_vec(),
+                )
+                .focus(props.focus),
+        );
 
         let page_size = content_area.height as usize;
-        if page_size != self.props.page_size {
+        if page_size != props.page_size {
             let _ = self.action_tx.send(Action::PageSize(page_size));
         }
     }
