@@ -206,17 +206,21 @@ impl<'a: 'static, S, A> View<S, A> for Paragraph<'a, S, A> {
 }
 
 impl<'a: 'static, S, A, B: Backend> Widget<S, A, B> for Paragraph<'a, S, A> {
-    fn render(&self, frame: &mut ratatui::Frame, area: Rect, _props: &dyn Any) {
+    fn render(&self, frame: &mut ratatui::Frame, area: Rect, props: &dyn Any) {
+        let props = props
+            .downcast_ref::<ParagraphProps<'_>>()
+            .unwrap_or(&self.props);
+
         let block = Block::default()
             .borders(Borders::LEFT | Borders::RIGHT)
             .border_type(BorderType::Rounded)
-            .border_style(style::border(self.props.focus));
+            .border_style(style::border(props.focus));
         frame.render_widget(block, area);
 
         let [content_area] = Layout::horizontal([Constraint::Min(1)])
             .horizontal_margin(2)
             .areas(area);
-        let content = ratatui::widgets::Paragraph::new(self.props.content.clone())
+        let content = ratatui::widgets::Paragraph::new(props.content.clone())
             .scroll((self.offset as u16, 0));
 
         frame.render_widget(content, content_area);

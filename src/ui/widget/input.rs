@@ -184,15 +184,19 @@ impl<S, A> View<S, A> for TextField<S, A> {
 }
 
 impl<S, A, B: Backend> Widget<S, A, B> for TextField<S, A> {
-    fn render(&self, frame: &mut ratatui::Frame, area: Rect, _props: &dyn Any) {
+    fn render(&self, frame: &mut ratatui::Frame, area: Rect, props: &dyn Any) {
+        let props = props
+            .downcast_ref::<TextFieldProps>()
+            .unwrap_or(&self.props);
+
         let layout = Layout::vertical(Constraint::from_lengths([1, 1])).split(area);
 
-        let input = self.props.text.as_str();
-        let label = format!(" {} ", self.props.title);
+        let input = props.text.as_str();
+        let label = format!(" {} ", props.title);
         let overline = String::from("▔").repeat(area.width as usize);
-        let cursor_pos = self.props.cursor_position as u16;
+        let cursor_pos = props.cursor_position as u16;
 
-        if self.props.inline_label {
+        if props.inline_label {
             let top_layout = Layout::horizontal([
                 Constraint::Length(label.chars().count() as u16),
                 Constraint::Length(1),
@@ -209,7 +213,7 @@ impl<S, A, B: Backend> Widget<S, A, B> for TextField<S, A> {
             frame.render_widget(input, top_layout[2]);
             frame.render_widget(overline, layout[1]);
 
-            if self.props.show_cursor {
+            if props.show_cursor {
                 frame.set_cursor(top_layout[2].x + cursor_pos, top_layout[2].y)
             }
         } else {
@@ -225,7 +229,7 @@ impl<S, A, B: Backend> Widget<S, A, B> for TextField<S, A> {
             frame.render_widget(top, layout[0]);
             frame.render_widget(bottom, layout[1]);
 
-            if self.props.show_cursor {
+            if props.show_cursor {
                 frame.set_cursor(area.x + cursor_pos, area.y)
             }
         }

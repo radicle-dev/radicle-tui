@@ -115,9 +115,12 @@ impl<'a: 'static, S, A> View<S, A> for Header<'a, S, A> {
 }
 
 impl<'a: 'static, S, A, B: Backend> Widget<S, A, B> for Header<'a, S, A> {
-    fn render(&self, frame: &mut ratatui::Frame, area: Rect, _props: &dyn Any) {
-        let widths: Vec<Constraint> = self
-            .props
+    fn render(&self, frame: &mut ratatui::Frame, area: Rect, props: &dyn Any) {
+        let props = props
+            .downcast_ref::<HeaderProps<'_>>()
+            .unwrap_or(&self.props);
+
+        let widths: Vec<Constraint> = props
             .columns
             .iter()
             .filter_map(|column| {
@@ -128,8 +131,7 @@ impl<'a: 'static, S, A, B: Backend> Widget<S, A, B> for Header<'a, S, A> {
                 }
             })
             .collect();
-        let cells = self
-            .props
+        let cells = props
             .columns
             .iter()
             .filter_map(|column| {
@@ -141,11 +143,8 @@ impl<'a: 'static, S, A, B: Backend> Widget<S, A, B> for Header<'a, S, A> {
             })
             .collect::<Vec<_>>();
 
-        let widths = if area.width < self.props.cutoff as u16 {
-            widths
-                .iter()
-                .take(self.props.cutoff_after)
-                .collect::<Vec<_>>()
+        let widths = if area.width < props.cutoff as u16 {
+            widths.iter().take(props.cutoff_after).collect::<Vec<_>>()
         } else {
             widths.iter().collect::<Vec<_>>()
         };
@@ -153,7 +152,7 @@ impl<'a: 'static, S, A, B: Backend> Widget<S, A, B> for Header<'a, S, A> {
         // Render header
         let block = HeaderBlock::default()
             .borders(Borders::ALL)
-            .border_style(style::border(self.props.focus))
+            .border_style(style::border(props.focus))
             .border_type(BorderType::Rounded);
 
         let header_layout = Layout::default()
@@ -300,9 +299,12 @@ impl<'a, S, A> Footer<'a, S, A> {
 }
 
 impl<'a: 'static, S, A, B: Backend> Widget<S, A, B> for Footer<'a, S, A> {
-    fn render(&self, frame: &mut ratatui::Frame, area: Rect, _props: &dyn Any) {
-        let widths = self
-            .props
+    fn render(&self, frame: &mut ratatui::Frame, area: Rect, props: &dyn Any) {
+        let props = props
+            .downcast_ref::<FooterProps<'_>>()
+            .unwrap_or(&self.props);
+
+        let widths = props
             .columns
             .iter()
             .map(|c| match c.width {
@@ -312,8 +314,7 @@ impl<'a: 'static, S, A, B: Backend> Widget<S, A, B> for Footer<'a, S, A> {
             .collect::<Vec<_>>();
 
         let layout = Layout::horizontal(widths).split(area);
-        let cells = self
-            .props
+        let cells = props
             .columns
             .iter()
             .map(|c| c.text.clone())
@@ -330,7 +331,7 @@ impl<'a: 'static, S, A, B: Backend> Widget<S, A, B> for Footer<'a, S, A> {
                 _ if i == last => FooterBlockType::End,
                 _ => FooterBlockType::Repeat,
             };
-            self.render_cell(frame, *area, block_type, cell.clone(), self.props.focus);
+            self.render_cell(frame, *area, block_type, cell.clone(), props.focus);
         }
     }
 }

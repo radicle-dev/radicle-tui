@@ -148,18 +148,21 @@ impl<S, A> View<S, A> for Shortcuts<S, A> {
 }
 
 impl<S, A, B: Backend> Widget<S, A, B> for Shortcuts<S, A> {
-    fn render(&self, frame: &mut ratatui::Frame, area: Rect, _props: &dyn Any) {
+    fn render(&self, frame: &mut ratatui::Frame, area: Rect, props: &dyn Any) {
         use ratatui::widgets::Table;
 
-        let mut shortcuts = self.props.shortcuts.iter().peekable();
+        let props = props
+            .downcast_ref::<ShortcutsProps>()
+            .unwrap_or(&self.props);
+
+        let mut shortcuts = props.shortcuts.iter().peekable();
         let mut row = vec![];
 
         while let Some(shortcut) = shortcuts.next() {
             let short = Text::from(shortcut.0.clone()).style(style::gray());
             let long = Text::from(shortcut.1.clone()).style(style::gray().dim());
             let spacer = Text::from(String::new());
-            let divider =
-                Text::from(format!(" {} ", self.props.divider)).style(style::gray().dim());
+            let divider = Text::from(format!(" {} ", props.divider)).style(style::gray().dim());
 
             row.push((shortcut.0.chars().count(), short));
             row.push((1, spacer));
@@ -454,7 +457,11 @@ where
     B: Backend,
     R: ToRow + Clone + Debug + 'static,
 {
-    fn render(&self, frame: &mut ratatui::Frame, area: Rect, _props: &dyn Any) {
+    fn render(&self, frame: &mut ratatui::Frame, area: Rect, props: &dyn Any) {
+        let props = props
+            .downcast_ref::<TableProps<'_, R>>()
+            .unwrap_or(&self.props);
+
         let header_height = if self.header.is_some() { 3 } else { 0 };
         let [header_area, table_area] =
             Layout::vertical([Constraint::Length(header_height), Constraint::Min(1)]).areas(area);
@@ -465,30 +472,26 @@ where
             .filter_map(|c| if !c.skip { Some(c.width) } else { None })
             .collect();
 
-        let widths = if area.width < self.props.cutoff as u16 {
-            widths
-                .iter()
-                .take(self.props.cutoff_after)
-                .collect::<Vec<_>>()
+        let widths = if area.width < props.cutoff as u16 {
+            widths.iter().take(props.cutoff_after).collect::<Vec<_>>()
         } else {
             widths.iter().collect::<Vec<_>>()
         };
 
-        let borders = match (self.header.is_some(), self.props.has_footer) {
+        let borders = match (self.header.is_some(), props.has_footer) {
             (false, false) => Borders::ALL,
             (true, false) => Borders::BOTTOM | Borders::LEFT | Borders::RIGHT,
             (false, true) => Borders::TOP | Borders::LEFT | Borders::RIGHT,
             (true, true) => Borders::LEFT | Borders::RIGHT,
         };
 
-        if !self.props.items.is_empty() {
-            let rows = self
-                .props
+        if !props.items.is_empty() {
+            let rows = props
                 .items
                 .iter()
                 .map(|item| {
                     let mut cells = vec![];
-                    let mut it = self.props.columns.iter();
+                    let mut it = props.columns.iter();
 
                     for cell in item.to_row() {
                         if let Some(col) = it.next() {
@@ -509,7 +512,7 @@ where
                 .column_spacing(1)
                 .block(
                     Block::default()
-                        .border_style(style::border(self.props.focus))
+                        .border_style(style::border(props.focus))
                         .border_type(BorderType::Rounded)
                         .borders(borders),
                 )
@@ -522,7 +525,7 @@ where
             frame.render_stateful_widget(rows, table_area, &mut self.state.clone());
         } else {
             let block = Block::default()
-                .border_style(style::border(self.props.focus))
+                .border_style(style::border(props.focus))
                 .border_type(BorderType::Rounded)
                 .borders(borders);
 
