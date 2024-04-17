@@ -50,7 +50,7 @@ pub trait Widget<B, S, A>: View<S, A>
 where
     B: Backend,
 {
-    fn render(&self, frame: &mut Frame, area: Rect, _props: &dyn Any);
+    fn render(&self, frame: &mut Frame, area: Rect, props: &dyn Any);
 }
 
 pub trait ToRow {
@@ -84,6 +84,10 @@ impl ShortcutsProps {
             self.shortcuts.push((short.to_string(), long.to_string()));
         }
         self
+    }
+
+    pub fn to_boxed(self) -> Box<Self> {
+        Box::new(self)
     }
 }
 
@@ -284,6 +288,10 @@ where
     pub fn page_size(mut self, page_size: usize) -> Self {
         self.page_size = page_size;
         self
+    }
+
+    pub fn to_boxed(self) -> Box<Self> {
+        Box::new(self)
     }
 }
 

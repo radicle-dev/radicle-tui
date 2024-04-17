@@ -83,7 +83,9 @@ where
             help: Help::new(state, action_tx.clone()).to_boxed(),
             shortcuts: Shortcuts::new(state, action_tx.clone())
                 .on_update(|state| {
-                    Box::new(ShortcutsProps::default().shortcuts(&state.shortcuts()))
+                    ShortcutsProps::default()
+                        .shortcuts(&state.shortcuts())
+                        .to_boxed()
                 })
                 .to_boxed(),
             on_update: None,
@@ -274,14 +276,13 @@ where
                     .on_update(|state| {
                         let props = IssuesProps::from(state);
 
-                        Box::new(
-                            TableProps::default()
-                                .columns(props.columns)
-                                .items(state.issues())
-                                .footer(!state.ui.show_search)
-                                .page_size(state.ui.page_size)
-                                .cutoff(props.cutoff, props.cutoff_after),
-                        )
+                        TableProps::default()
+                            .columns(props.columns)
+                            .items(state.issues())
+                            .footer(!state.ui.show_search)
+                            .page_size(state.ui.page_size)
+                            .cutoff(props.cutoff, props.cutoff_after)
+                            .to_boxed()
                     }),
             ),
             footer: Footer::new(state, action_tx).to_boxed(),
@@ -508,12 +509,11 @@ impl<B: Backend> View<State, Action> for Search<B> {
                 });
             })
             .on_update(|state| {
-                Box::new(
-                    TextFieldProps::default()
-                        .text(&state.search.read().to_string())
-                        .title("Search")
-                        .inline(true),
-                )
+                TextFieldProps::default()
+                    .text(&state.search.read().to_string())
+                    .title("Search")
+                    .inline(true)
+                    .to_boxed()
             })
             .to_boxed();
         Self {
@@ -741,12 +741,11 @@ impl<'a, B: Backend> View<State, Action> for Help<'a, B> {
                 .on_update(|state| {
                     let props = HelpProps::from(state);
 
-                    Box::new(
-                        ParagraphProps::default()
-                            .text(&props.content)
-                            .page_size(props.page_size)
-                            .focus(props.focus),
-                    )
+                    ParagraphProps::default()
+                        .text(&props.content)
+                        .page_size(props.page_size)
+                        .focus(props.focus)
+                        .to_boxed()
                 })
                 .to_boxed(),
             footer: Footer::new(state, action_tx).to_boxed(),

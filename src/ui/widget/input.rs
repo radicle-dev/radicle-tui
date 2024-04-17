@@ -38,6 +38,10 @@ impl TextFieldProps {
         self.inline_label = inline;
         self
     }
+
+    pub fn to_boxed(self) -> Box<Self> {
+        Box::new(self)
+    }
 }
 
 impl Default for TextFieldProps {

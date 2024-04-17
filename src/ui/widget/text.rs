@@ -37,6 +37,10 @@ impl<'a> ParagraphProps<'a> {
         self.focus = focus;
         self
     }
+
+    pub fn to_boxed(self) -> Box<Self> {
+        Box::new(self)
+    }
 }
 
 impl<'a> Default for ParagraphProps<'a> {
