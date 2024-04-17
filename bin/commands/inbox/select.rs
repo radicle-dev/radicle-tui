@@ -197,7 +197,7 @@ impl TryFrom<&Context> for State {
         Ok(Self {
             notifications: NotificationsState {
                 items: notifications,
-                selected: None,
+                selected: Some(0),
             },
             mode: mode.clone(),
             project,

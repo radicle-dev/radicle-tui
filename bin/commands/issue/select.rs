@@ -119,7 +119,7 @@ impl TryFrom<&Context> for State {
         Ok(Self {
             issues: IssuesState {
                 items,
-                selected: None,
+                selected: Some(0),
             },
             mode: context.mode.clone(),
             filter,
