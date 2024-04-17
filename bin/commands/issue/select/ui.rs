@@ -265,7 +265,7 @@ where
                             .to_boxed(),
                     )
                     .on_change(|props, action_tx| {
-                        if let Some(props) = props.downcast_ref::<TableProps<'_, IssueItem>>() {
+                        if let Some(props) = props.downcast_ref::<TableProps<IssueItem>>() {
                             let _ = action_tx.send(Action::Select {
                                 selected: props.selected,
                             });
@@ -274,7 +274,7 @@ where
                     .on_update(|state| {
                         let props = IssuesProps::from(state);
 
-                        Box::<TableProps<'_, IssueItem>>::new(
+                        Box::new(
                             TableProps::default()
                                 .columns(props.columns)
                                 .items(state.issues())
@@ -454,13 +454,11 @@ where
     B: Backend + 'a,
 {
     fn render(&self, frame: &mut ratatui::Frame, area: Rect, props: &dyn Any) {
-        let props = props
-            .downcast_ref::<IssuesProps<'_>>()
-            .unwrap_or(&self.props);
+        let props = props.downcast_ref::<IssuesProps>().unwrap_or(&self.props);
 
         let header_height = 3_usize;
 
-        let page_size = if self.props.show_search {
+        let page_size = if props.show_search {
             self.table.render(frame, area, &());
 
             (area.height as usize).saturating_sub(header_height)
@@ -471,13 +469,13 @@ where
             self.footer.render(
                 frame,
                 layout[1],
-                &FooterProps::default().columns(Self::build_footer(&props, props.selected)),
+                &FooterProps::default().columns(Self::build_footer(props, props.selected)),
             );
 
             (area.height as usize).saturating_sub(header_height)
         };
 
-        if page_size != self.props.page_size {
+        if page_size != props.page_size {
             let _ = self.action_tx.send(Action::PageSize(page_size));
         }
     }
@@ -510,7 +508,7 @@ impl<B: Backend> View<State, Action> for Search<B> {
                 });
             })
             .on_update(|state| {
-                Box::<TextFieldProps>::new(
+                Box::new(
                     TextFieldProps::default()
                         .text(&state.search.read().to_string())
                         .title("Search")
@@ -743,7 +741,7 @@ impl<'a, B: Backend> View<State, Action> for Help<'a, B> {
                 .on_update(|state| {
                     let props = HelpProps::from(state);
 
-                    Box::<ParagraphProps<'_>>::new(
+                    Box::new(
                         ParagraphProps::default()
                             .text(&props.content)
                             .page_size(props.page_size)
@@ -795,7 +793,7 @@ where
     B: Backend,
 {
     fn render(&self, frame: &mut ratatui::Frame, area: Rect, props: &dyn Any) {
-        let props = props.downcast_ref::<HelpProps<'_>>().unwrap_or(&self.props);
+        let props = props.downcast_ref::<HelpProps>().unwrap_or(&self.props);
 
         let [header_area, content_area, footer_area] = Layout::vertical([
             Constraint::Length(3),

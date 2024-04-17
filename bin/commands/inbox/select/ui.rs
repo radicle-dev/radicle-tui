@@ -281,15 +281,7 @@ where
                         )
                     }),
             ),
-            footer: Footer::new(state, action_tx)
-                .on_update(|state| {
-                    let props = NotificationsProps::from(state);
-
-                    Box::<FooterProps<'_>>::new(
-                        FooterProps::default().columns(Self::build_footer(&props, props.selected)),
-                    )
-                })
-                .to_boxed(),
+            footer: Footer::new(state, action_tx).to_boxed(),
             on_update: None,
             on_change: None,
         }
@@ -436,7 +428,11 @@ impl<'a: 'static, B> Widget<B, State, Action> for Notifications<'a, B>
 where
     B: Backend + 'a,
 {
-    fn render(&self, frame: &mut ratatui::Frame, area: Rect, _props: &dyn Any) {
+    fn render(&self, frame: &mut ratatui::Frame, area: Rect, props: &dyn Any) {
+        let props = props
+            .downcast_ref::<NotificationsProps>()
+            .unwrap_or(&self.props);
+
         let header_height = 3_usize;
 
         let page_size = if self.props.show_search {
@@ -447,7 +443,11 @@ where
             let layout = Layout::vertical([Constraint::Min(1), Constraint::Length(3)]).split(area);
 
             self.table.render(frame, layout[0], &());
-            self.footer.render(frame, layout[1], &());
+            self.footer.render(
+                frame,
+                layout[1],
+                &FooterProps::default().columns(Self::build_footer(props, props.selected)),
+            );
 
             (area.height as usize).saturating_sub(header_height)
         };
@@ -485,7 +485,7 @@ impl<B: Backend> View<State, Action> for Search<B> {
                 });
             })
             .on_update(|state| {
-                Box::<TextFieldProps>::new(
+                Box::new(
                     TextFieldProps::default()
                         .text(&state.search.read().to_string())
                         .title("Search")
@@ -718,7 +718,7 @@ impl<'a, B: Backend> View<State, Action> for Help<'a, B> {
                 .on_update(|state| {
                     let props = HelpProps::from(state);
 
-                    Box::<ParagraphProps<'_>>::new(
+                    Box::new(
                         ParagraphProps::default()
                             .text(&props.content)
                             .page_size(props.page_size)
@@ -770,7 +770,7 @@ where
     B: Backend,
 {
     fn render(&self, frame: &mut ratatui::Frame, area: Rect, props: &dyn Any) {
-        let props = props.downcast_ref::<HelpProps<'_>>().unwrap_or(&self.props);
+        let props = props.downcast_ref::<HelpProps>().unwrap_or(&self.props);
 
         let [header_area, content_area, footer_area] = Layout::vertical([
             Constraint::Length(3),
