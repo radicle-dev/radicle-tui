@@ -183,7 +183,10 @@ impl<S, A> View<S, A> for TextField<S, A> {
     }
 }
 
-impl<S, A, B: Backend> Widget<S, A, B> for TextField<S, A> {
+impl<B, S, A> Widget<B, S, A> for TextField<S, A>
+where
+    B: Backend,
+{
     fn render(&self, frame: &mut ratatui::Frame, area: Rect, props: &dyn Any) {
         let props = props
             .downcast_ref::<TextFieldProps>()

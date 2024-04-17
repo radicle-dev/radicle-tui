@@ -205,7 +205,10 @@ impl<'a: 'static, S, A> View<S, A> for Paragraph<'a, S, A> {
     }
 }
 
-impl<'a: 'static, S, A, B: Backend> Widget<S, A, B> for Paragraph<'a, S, A> {
+impl<'a: 'static, B, S, A> Widget<B, S, A> for Paragraph<'a, S, A>
+where
+    B: Backend,
+{
     fn render(&self, frame: &mut ratatui::Frame, area: Rect, props: &dyn Any) {
         let props = props
             .downcast_ref::<ParagraphProps<'_>>()
@@ -220,8 +223,8 @@ impl<'a: 'static, S, A, B: Backend> Widget<S, A, B> for Paragraph<'a, S, A> {
         let [content_area] = Layout::horizontal([Constraint::Min(1)])
             .horizontal_margin(2)
             .areas(area);
-        let content = ratatui::widgets::Paragraph::new(props.content.clone())
-            .scroll((self.offset as u16, 0));
+        let content =
+            ratatui::widgets::Paragraph::new(props.content.clone()).scroll((self.offset as u16, 0));
 
         frame.render_widget(content, content_area);
     }

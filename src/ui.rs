@@ -45,7 +45,7 @@ impl<A> Frontend<A> {
     ) -> anyhow::Result<Interrupted<P>>
     where
         S: State<A, P>,
-        W: Widget<S, A, Backend>,
+        W: Widget<Backend, S, A>,
         P: Clone + Send + Sync + Debug,
     {
         let mut ticker = tokio::time::interval(RENDERING_TICK_RATE);

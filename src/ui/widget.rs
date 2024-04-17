@@ -16,7 +16,7 @@ use ratatui::widgets::{Block, BorderType, Borders, Cell, Row, TableState};
 use super::theme::style;
 use super::{layout, span};
 
-pub type BoxedWidget<S, A, B> = Box<dyn Widget<S, A, B>>;
+pub type BoxedWidget<B, S, A> = Box<dyn Widget<B, S, A>>;
 
 pub type UpdateCallback<S> = fn(&S) -> Box<dyn Any>;
 pub type EventCallback<A> = fn(&dyn Any, UnboundedSender<A>);
@@ -46,7 +46,10 @@ pub trait View<S, A> {
     }
 }
 
-pub trait Widget<S, A, B: Backend>: View<S, A> {
+pub trait Widget<B, S, A>: View<S, A>
+where
+    B: Backend,
+{
     fn render(&self, frame: &mut Frame, area: Rect, _props: &dyn Any);
 }
 
@@ -147,7 +150,10 @@ impl<S, A> View<S, A> for Shortcuts<S, A> {
     }
 }
 
-impl<S, A, B: Backend> Widget<S, A, B> for Shortcuts<S, A> {
+impl<B, S, A> Widget<B, S, A> for Shortcuts<S, A>
+where
+    B: Backend,
+{
     fn render(&self, frame: &mut ratatui::Frame, area: Rect, props: &dyn Any) {
         use ratatui::widgets::Table;
 
@@ -281,7 +287,7 @@ where
     }
 }
 
-pub struct Table<'a, S, A, B, R>
+pub struct Table<'a, B, S, A, R>
 where
     B: Backend,
     R: ToRow,
@@ -297,15 +303,15 @@ where
     /// Internal selection and offset state
     state: TableState,
     /// Table header widget
-    header: Option<BoxedWidget<S, A, B>>,
+    header: Option<BoxedWidget<B, S, A>>,
 }
 
-impl<'a, S, A, B, R> Table<'a, S, A, B, R>
+impl<'a, B, S, A, R> Table<'a, B, S, A, R>
 where
     B: Backend,
     R: ToRow,
 {
-    pub fn header(mut self, header: BoxedWidget<S, A, B>) -> Self {
+    pub fn header(mut self, header: BoxedWidget<B, S, A>) -> Self {
         self.header = Some(header);
         self
     }
@@ -380,7 +386,7 @@ where
     }
 }
 
-impl<'a: 'static, S, A, B, R> View<S, A> for Table<'a, S, A, B, R>
+impl<'a: 'static, B, S, A, R> View<S, A> for Table<'a, B, S, A, R>
 where
     B: Backend,
     R: ToRow + Clone + 'static,
@@ -452,7 +458,7 @@ where
     }
 }
 
-impl<'a: 'static, S, A, B, R> Widget<S, A, B> for Table<'a, S, A, B, R>
+impl<'a: 'static, B, S, A, R> Widget<B, S, A> for Table<'a, B, S, A, R>
 where
     B: Backend,
     R: ToRow + Clone + Debug + 'static,

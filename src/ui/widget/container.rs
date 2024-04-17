@@ -114,7 +114,10 @@ impl<'a: 'static, S, A> View<S, A> for Header<'a, S, A> {
     }
 }
 
-impl<'a: 'static, S, A, B: Backend> Widget<S, A, B> for Header<'a, S, A> {
+impl<'a: 'static, B, S, A> Widget<B, S, A> for Header<'a, S, A>
+where
+    B: Backend,
+{
     fn render(&self, frame: &mut ratatui::Frame, area: Rect, props: &dyn Any) {
         let props = props
             .downcast_ref::<HeaderProps<'_>>()
@@ -298,7 +301,10 @@ impl<'a, S, A> Footer<'a, S, A> {
     }
 }
 
-impl<'a: 'static, S, A, B: Backend> Widget<S, A, B> for Footer<'a, S, A> {
+impl<'a: 'static, B, S, A> Widget<B, S, A> for Footer<'a, S, A>
+where
+    B: Backend,
+{
     fn render(&self, frame: &mut ratatui::Frame, area: Rect, props: &dyn Any) {
         let props = props
             .downcast_ref::<FooterProps<'_>>()
