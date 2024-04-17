@@ -18,10 +18,10 @@ use radicle_tui as tui;
 
 use tui::ui::items::{PatchItem, PatchItemFilter};
 use tui::ui::span;
-use tui::ui::widget;
 use tui::ui::widget::container::{Footer, FooterProps, Header, HeaderProps};
 use tui::ui::widget::input::{TextField, TextFieldProps};
 use tui::ui::widget::text::{Paragraph, ParagraphProps};
+use tui::ui::widget::{self, TableUtils};
 use tui::ui::widget::{
     Column, EventCallback, Shortcuts, ShortcutsProps, Table, TableProps, UpdateCallback, View,
     Widget,
@@ -431,13 +431,7 @@ impl<'a, B: Backend> Patches<'a, B> {
         );
 
         let progress = selected
-            .map(|selected| {
-                Table::<B, State, Action, PatchItem>::progress(
-                    selected,
-                    props.patches.len(),
-                    props.page_size,
-                )
-            })
+            .map(|selected| TableUtils::progress(selected, props.patches.len(), props.page_size))
             .unwrap_or_default();
         let progress = span::default(format!("{}%", progress)).dim();
 
