@@ -101,7 +101,7 @@ impl<'a: 'static, S, A> View<S, A> for Header<'a, S, A> {
 
     fn update(&mut self, state: &S) {
         if let Some(on_update) = self.on_update {
-            if let Some(props) = (on_update)(state).downcast_ref::<HeaderProps<'_>>() {
+            if let Some(props) = (on_update)(state).downcast_ref::<HeaderProps>() {
                 self.props = props.clone();
             }
         }
@@ -264,7 +264,7 @@ impl<'a: 'static, S, A> View<S, A> for Footer<'a, S, A> {
 
     fn update(&mut self, state: &S) {
         if let Some(on_update) = self.on_update {
-            if let Some(props) = (on_update)(state).downcast_ref::<FooterProps<'_>>() {
+            if let Some(props) = (on_update)(state).downcast_ref::<FooterProps>() {
                 self.props = props.clone();
             }
         }
@@ -306,9 +306,7 @@ where
     B: Backend,
 {
     fn render(&self, frame: &mut ratatui::Frame, area: Rect, props: &dyn Any) {
-        let props = props
-            .downcast_ref::<FooterProps<'_>>()
-            .unwrap_or(&self.props);
+        let props = props.downcast_ref::<FooterProps>().unwrap_or(&self.props);
 
         let widths = props
             .columns

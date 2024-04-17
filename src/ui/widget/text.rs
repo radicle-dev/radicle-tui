@@ -167,7 +167,7 @@ impl<'a: 'static, S, A> View<S, A> for Paragraph<'a, S, A> {
 
     fn update(&mut self, state: &S) {
         if let Some(on_update) = self.on_update {
-            if let Some(props) = (on_update)(state).downcast_ref::<ParagraphProps<'_>>() {
+            if let Some(props) = (on_update)(state).downcast_ref::<ParagraphProps>() {
                 self.props = props.clone();
             }
         }
@@ -211,7 +211,7 @@ where
 {
     fn render(&self, frame: &mut ratatui::Frame, area: Rect, props: &dyn Any) {
         let props = props
-            .downcast_ref::<ParagraphProps<'_>>()
+            .downcast_ref::<ParagraphProps>()
             .unwrap_or(&self.props);
 
         let block = Block::default()
