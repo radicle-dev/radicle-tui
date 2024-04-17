@@ -102,11 +102,14 @@ impl<'a: 'static, S, A> View<S, A> for Header<'a, S, A> {
     }
 
     fn update(&mut self, state: &S) {
-        if let Some(on_update) = self.on_update {
-            if let Some(props) = (on_update)(state).downcast_ref::<HeaderProps>() {
-                self.props = props.clone();
-            }
-        }
+        self.props = self
+            .on_update
+            .and_then(|on_update| {
+                (on_update)(state)
+                    .downcast_ref::<HeaderProps>()
+                    .map(|props| props.clone())
+            })
+            .unwrap_or(self.props.clone());
     }
 
     fn handle_key_event(&mut self, _key: Key) {
@@ -267,11 +270,14 @@ impl<'a: 'static, S, A> View<S, A> for Footer<'a, S, A> {
     }
 
     fn update(&mut self, state: &S) {
-        if let Some(on_update) = self.on_update {
-            if let Some(props) = (on_update)(state).downcast_ref::<FooterProps>() {
-                self.props = props.clone();
-            }
-        }
+        self.props = self
+            .on_update
+            .and_then(|on_update| {
+                (on_update)(state)
+                    .downcast_ref::<FooterProps>()
+                    .map(|props| props.clone())
+            })
+            .unwrap_or(self.props.clone());
     }
 
     fn handle_key_event(&mut self, _key: Key) {

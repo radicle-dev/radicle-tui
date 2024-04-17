@@ -168,11 +168,14 @@ impl<'a: 'static, S, A> View<S, A> for Paragraph<'a, S, A> {
     }
 
     fn update(&mut self, state: &S) {
-        if let Some(on_update) = self.on_update {
-            if let Some(props) = (on_update)(state).downcast_ref::<ParagraphProps>() {
-                self.props = props.clone();
-            }
-        }
+        self.props = self
+            .on_update
+            .and_then(|on_update| {
+                (on_update)(state)
+                    .downcast_ref::<ParagraphProps>()
+                    .map(|props| props.clone())
+            })
+            .unwrap_or(self.props.clone());
     }
 
     fn handle_key_event(&mut self, key: Key) {

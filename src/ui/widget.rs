@@ -153,11 +153,14 @@ impl<S, A> View<S, A> for Shortcuts<S, A> {
     }
 
     fn update(&mut self, state: &S) {
-        if let Some(on_update) = self.on_update {
-            if let Some(props) = (on_update)(state).downcast_ref::<ShortcutsProps>() {
-                self.props.shortcuts = props.shortcuts.clone();
-            }
-        }
+        self.props = self
+            .on_update
+            .and_then(|on_update| {
+                (on_update)(state)
+                    .downcast_ref::<ShortcutsProps>()
+                    .map(|props| props.clone())
+            })
+            .unwrap_or(self.props.clone())
     }
 }
 
@@ -407,11 +410,14 @@ where
     }
 
     fn update(&mut self, state: &S) {
-        if let Some(on_update) = self.on_update {
-            if let Some(props) = (on_update)(state).downcast_ref::<TableProps<'_, R>>() {
-                self.props = props.clone();
-            }
-        }
+        self.props = self
+            .on_update
+            .and_then(|on_update| {
+                (on_update)(state)
+                    .downcast_ref::<TableProps<'_, R>>()
+                    .map(|props| props.clone())
+            })
+            .unwrap_or(self.props.clone());
 
         // TODO: Move to state reducer
         if let Some(selected) = self.state.selected() {
