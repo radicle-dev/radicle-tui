@@ -476,7 +476,7 @@ where
         self.props.selected = self.state.selected();
 
         if let Some(on_change) = self.on_change {
-            (on_change)(&self.props, self.action_tx.clone());
+            (on_change)(&self.state, self.action_tx.clone());
         }
     }
 }
