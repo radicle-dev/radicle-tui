@@ -3,6 +3,7 @@ use std::collections::HashMap;
 use std::str::FromStr;
 use std::vec;
 
+use ratatui::widgets::TableState;
 use tokio::sync::mpsc::UnboundedSender;
 
 use termion::event::Key;
@@ -20,7 +21,7 @@ use tui::ui::items::{PatchItem, PatchItemFilter};
 use tui::ui::span;
 use tui::ui::widget::container::{Footer, FooterProps, Header, HeaderProps};
 use tui::ui::widget::input::{TextField, TextFieldProps};
-use tui::ui::widget::text::{Paragraph, ParagraphProps};
+use tui::ui::widget::text::{Paragraph, ParagraphProps, ParagraphState};
 use tui::ui::widget::{self, TableUtils};
 use tui::ui::widget::{
     Column, EventCallback, Properties, Shortcuts, ShortcutsProps, Table, TableProps,
@@ -44,7 +45,7 @@ impl From<&State> for ListPageProps {
     fn from(state: &State) -> Self {
         Self {
             show_search: state.ui.show_search,
-            show_help: state.ui.show_help,
+            show_help: state.help.show,
         }
     }
 }
@@ -264,16 +265,14 @@ where
                             .focus(props.focus)
                             .to_boxed(),
                     )
-                    .on_change(|props, action_tx| {
-                        props
-                            .downcast_ref::<TableProps<'_, PatchItem>>()
-                            .and_then(|props| {
-                                action_tx
-                                    .send(Action::Select {
-                                        selected: props.selected,
-                                    })
-                                    .ok()
-                            });
+                    .on_change(|state, action_tx| {
+                        state.downcast_ref::<TableState>().and_then(|state| {
+                            action_tx
+                                .send(Action::Select {
+                                    selected: state.selected(),
+                                })
+                                .ok()
+                        });
                     })
                     .on_update(|state| {
                         let props = PatchesProps::from(state);
@@ -786,8 +785,8 @@ impl<'a, B: Backend> View<State, Action> for Help<'a, B> {
                 .on_change(|props, action_tx| {
                     props.downcast_ref::<ParagraphProps>().and_then(|props| {
                         action_tx
-                            .send(Action::HelpScroll {
-                                progress: props.progress.clone(),
+                            .send(Action::ScrollHelp {
+                                progress: props.progress,
                             })
                             .ok()
                     });
@@ -800,6 +799,15 @@ impl<'a, B: Backend> View<State, Action> for Help<'a, B> {
                         .page_size(props.page_size)
                         .focus(props.focus)
                         .to_boxed()
+                })
+                .on_change(|state, action_tx| {
+                    state.downcast_ref::<ParagraphState>().and_then(|state| {
+                        action_tx
+                            .send(Action::ScrollHelp {
+                                progress: state.progress,
+                            })
+                            .ok()
+                    });
                 })
                 .to_boxed(),
             footer: Footer::new(state, action_tx).to_boxed(),

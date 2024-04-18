@@ -104,11 +104,7 @@ impl<'a: 'static, S, A> View<S, A> for Header<'a, S, A> {
     fn update(&mut self, state: &S) {
         self.props = self
             .on_update
-            .and_then(|on_update| {
-                (on_update)(state)
-                    .downcast_ref::<HeaderProps>()
-                    .map(|props| props.clone())
-            })
+            .and_then(|on_update| (on_update)(state).downcast_ref::<HeaderProps>().cloned())
             .unwrap_or(self.props.clone());
     }
 
@@ -272,11 +268,7 @@ impl<'a: 'static, S, A> View<S, A> for Footer<'a, S, A> {
     fn update(&mut self, state: &S) {
         self.props = self
             .on_update
-            .and_then(|on_update| {
-                (on_update)(state)
-                    .downcast_ref::<FooterProps>()
-                    .map(|props| props.clone())
-            })
+            .and_then(|on_update| (on_update)(state).downcast_ref::<FooterProps>().cloned())
             .unwrap_or(self.props.clone());
     }
 

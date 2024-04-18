@@ -2,6 +2,7 @@ use std::any::Any;
 use std::collections::HashMap;
 use std::str::FromStr;
 
+use ratatui::widgets::TableState;
 use tokio::sync::mpsc::UnboundedSender;
 
 use termion::event::Key;
@@ -17,7 +18,7 @@ use tui::ui::items::{NotificationItem, NotificationItemFilter, NotificationState
 use tui::ui::span;
 use tui::ui::widget::container::{Footer, FooterProps, Header, HeaderProps};
 use tui::ui::widget::input::{TextField, TextFieldProps};
-use tui::ui::widget::text::{Paragraph, ParagraphProps};
+use tui::ui::widget::text::{Paragraph, ParagraphProps, ParagraphState};
 use tui::ui::widget::{self, TableUtils};
 use tui::ui::widget::{
     Column, EventCallback, Properties, Shortcuts, ShortcutsProps, Table, TableProps,
@@ -40,7 +41,7 @@ impl From<&State> for ListPageProps {
     fn from(state: &State) -> Self {
         Self {
             show_search: state.ui.show_search,
-            show_help: state.ui.show_help,
+            show_help: state.help.show,
         }
     }
 }
@@ -188,7 +189,7 @@ impl<'a> From<&State> for NotificationsProps<'a> {
 
         Self {
             notifications,
-            selected: None,
+            selected: state.notifications.selected,
             mode: state.mode.clone(),
             stats,
             columns: [
@@ -261,25 +262,23 @@ where
                             .focus(props.focus)
                             .to_boxed(),
                     )
-                    .on_change(|props, action_tx| {
-                        props
-                            .downcast_ref::<TableProps<'_, NotificationItem>>()
-                            .and_then(|props| {
-                                action_tx
-                                    .send(Action::Select {
-                                        selected: props.selected,
-                                    })
-                                    .ok()
-                            });
+                    .on_change(|state, action_tx| {
+                        state.downcast_ref::<TableState>().and_then(|state| {
+                            action_tx
+                                .send(Action::Select {
+                                    selected: state.selected(),
+                                })
+                                .ok()
+                        });
                     })
                     .on_update(|state| {
                         let props = NotificationsProps::from(state);
 
-                            TableProps::default()
-                                .columns(props.columns)
-                                .items(state.notifications())
-                                .footer(!state.ui.show_search)
-                                .page_size(state.ui.page_size)
+                        TableProps::default()
+                            .columns(props.columns)
+                            .items(state.notifications())
+                            .footer(!state.ui.show_search)
+                            .page_size(state.ui.page_size)
                             .cutoff(props.cutoff, props.cutoff_after)
                             .to_boxed()
                     }),
@@ -438,7 +437,7 @@ where
 
         let header_height = 3_usize;
 
-        let page_size = if self.props.show_search {
+        let page_size = if props.show_search {
             self.table.render(frame, area, &());
 
             (area.height as usize).saturating_sub(header_height)
@@ -455,7 +454,7 @@ where
             (area.height as usize).saturating_sub(header_height)
         };
 
-        if page_size != self.props.page_size {
+        if page_size != props.page_size {
             let _ = self.action_tx.send(Action::PageSize(page_size));
         }
     }
@@ -550,6 +549,7 @@ pub struct HelpProps<'a> {
     content: Text<'a>,
     focus: bool,
     page_size: usize,
+    progress: usize,
 }
 
 impl<'a> From<&State> for HelpProps<'a> {
@@ -686,6 +686,7 @@ impl<'a> From<&State> for HelpProps<'a> {
             content,
             focus: false,
             page_size: state.ui.page_size,
+            progress: state.help.progress,
         }
     }
 }
@@ -727,6 +728,15 @@ impl<'a, B: Backend> View<State, Action> for Help<'a, B> {
                         .page_size(props.page_size)
                         .focus(props.focus)
                         .to_boxed()
+                })
+                .on_change(|state, action_tx| {
+                    state.downcast_ref::<ParagraphState>().and_then(|state| {
+                        action_tx
+                            .send(Action::ScrollHelp {
+                                progress: state.progress,
+                            })
+                            .ok()
+                    });
                 })
                 .to_boxed(),
             footer: Footer::new(state, action_tx).to_boxed(),
@@ -781,7 +791,7 @@ where
             Constraint::Length(3),
         ])
         .areas(area);
-        let progress = span::default(format!("{}%", 0)).dim();
+        let progress = span::default(format!("{}%", props.progress)).dim();
 
         self.header.render(
             frame,

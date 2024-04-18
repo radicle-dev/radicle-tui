@@ -4,6 +4,7 @@ use std::str::FromStr;
 use std::vec;
 
 use radicle::issue::{self, CloseReason};
+use ratatui::widgets::TableState;
 use tokio::sync::mpsc::UnboundedSender;
 
 use termion::event::Key;
@@ -17,12 +18,12 @@ use radicle_tui as tui;
 
 use tui::ui::items::{IssueItem, IssueItemFilter};
 use tui::ui::span;
+use tui::ui::widget;
 use tui::ui::widget::container::{Footer, FooterProps, Header, HeaderProps};
 use tui::ui::widget::input::{TextField, TextFieldProps};
-use tui::ui::widget::text::{Paragraph, ParagraphProps};
-use tui::ui::widget::{self, TableUtils};
+use tui::ui::widget::text::{Paragraph, ParagraphProps, ParagraphState};
 use tui::ui::widget::{
-    Column, EventCallback, Properties, Shortcuts, ShortcutsProps, Table, TableProps,
+    Column, EventCallback, Properties, Shortcuts, ShortcutsProps, Table, TableProps, TableUtils,
     UpdateCallback, View, Widget,
 };
 use tui::Selection;
@@ -43,7 +44,7 @@ impl From<&State> for ListPageProps {
     fn from(state: &State) -> Self {
         Self {
             show_search: state.ui.show_search,
-            show_help: state.ui.show_help,
+            show_help: state.help.show,
         }
     }
 }
@@ -266,12 +267,14 @@ where
                             .focus(props.focus)
                             .to_boxed(),
                     )
-                    .on_change(|props, action_tx| {
-                        if let Some(props) = props.downcast_ref::<TableProps<IssueItem>>() {
-                            let _ = action_tx.send(Action::Select {
-                                selected: props.selected,
-                            });
-                        }
+                    .on_change(|state, action_tx| {
+                        state.downcast_ref::<TableState>().and_then(|state| {
+                            action_tx
+                                .send(Action::Select {
+                                    selected: state.selected(),
+                                })
+                                .ok()
+                        });
                     })
                     .on_update(|state| {
                         let props = IssuesProps::from(state);
@@ -571,6 +574,7 @@ pub struct HelpProps<'a> {
     content: Text<'a>,
     focus: bool,
     page_size: usize,
+    progress: usize,
 }
 
 impl<'a> From<&State> for HelpProps<'a> {
@@ -707,6 +711,7 @@ impl<'a> From<&State> for HelpProps<'a> {
             content,
             focus: false,
             page_size: state.ui.page_size,
+            progress: state.help.progress,
         }
     }
 }
@@ -746,6 +751,15 @@ impl<'a, B: Backend> View<State, Action> for Help<'a, B> {
                         .page_size(props.page_size)
                         .focus(props.focus)
                         .to_boxed()
+                })
+                .on_change(|state, action_tx| {
+                    state.downcast_ref::<ParagraphState>().and_then(|state| {
+                        action_tx
+                            .send(Action::ScrollHelp {
+                                progress: state.progress,
+                            })
+                            .ok()
+                    });
                 })
                 .to_boxed(),
             footer: Footer::new(state, action_tx).to_boxed(),
@@ -800,7 +814,7 @@ where
             Constraint::Length(3),
         ])
         .areas(area);
-        let progress = span::default(format!("{}%", 0)).dim();
+        let progress = span::default(format!("{}%", props.progress)).dim();
 
         self.header.render(
             frame,

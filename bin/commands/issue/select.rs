@@ -42,7 +42,6 @@ pub struct App {
 pub struct UIState {
     page_size: usize,
     show_search: bool,
-    show_help: bool,
 }
 
 impl Default for UIState {
@@ -50,7 +49,6 @@ impl Default for UIState {
         Self {
             page_size: 1,
             show_search: false,
-            show_help: false,
         }
     }
 }
@@ -62,8 +60,15 @@ pub struct IssuesState {
 }
 
 #[derive(Clone, Debug)]
+pub struct HelpState {
+    show: bool,
+    progress: usize,
+}
+
+#[derive(Clone, Debug)]
 pub struct State {
     issues: IssuesState,
+    help: HelpState,
     mode: Mode,
     filter: IssueItemFilter,
     search: StateValue<String>,
@@ -74,7 +79,7 @@ impl State {
     pub fn shortcuts(&self) -> Vec<(&str, &str)> {
         if self.ui.show_search {
             vec![("esc", "cancel"), ("enter", "apply")]
-        } else if self.ui.show_help {
+        } else if self.help.show {
             vec![("?", "close")]
         } else {
             match self.mode {
@@ -121,6 +126,10 @@ impl TryFrom<&Context> for State {
                 items,
                 selected: Some(0),
             },
+            help: HelpState {
+                show: false,
+                progress: 0,
+            },
             mode: context.mode.clone(),
             filter,
             search,
@@ -139,6 +148,7 @@ pub enum Action {
     CloseSearch,
     OpenHelp,
     CloseHelp,
+    ScrollHelp { progress: usize },
 }
 
 impl store::State<Action, Selection> for State {
@@ -178,11 +188,15 @@ impl store::State<Action, Selection> for State {
                 None
             }
             Action::OpenHelp => {
-                self.ui.show_help = true;
+                self.help.show = true;
                 None
             }
             Action::CloseHelp => {
-                self.ui.show_help = false;
+                self.help.show = false;
+                None
+            }
+            Action::ScrollHelp { progress } => {
+                self.help.progress = progress;
                 None
             }
         }

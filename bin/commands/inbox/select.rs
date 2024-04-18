@@ -46,7 +46,6 @@ pub struct App {
 pub struct UIState {
     page_size: usize,
     show_search: bool,
-    show_help: bool,
 }
 
 impl Default for UIState {
@@ -54,7 +53,6 @@ impl Default for UIState {
         Self {
             page_size: 1,
             show_search: false,
-            show_help: false,
         }
     }
 }
@@ -66,8 +64,15 @@ pub struct NotificationsState {
 }
 
 #[derive(Clone, Debug)]
+pub struct HelpState {
+    show: bool,
+    progress: usize,
+}
+
+#[derive(Clone, Debug)]
 pub struct State {
     notifications: NotificationsState,
+    help: HelpState,
     mode: Mode,
     project: Project,
     filter: NotificationItemFilter,
@@ -79,7 +84,7 @@ impl State {
     pub fn shortcuts(&self) -> Vec<(&str, &str)> {
         if self.ui.show_search {
             vec![("esc", "cancel"), ("enter", "apply")]
-        } else if self.ui.show_help {
+        } else if self.help.show {
             vec![("?", "close")]
         } else {
             match self.mode.selection() {
@@ -199,6 +204,10 @@ impl TryFrom<&Context> for State {
                 items: notifications,
                 selected: Some(0),
             },
+            help: HelpState {
+                show: false,
+                progress: 0,
+            },
             mode: mode.clone(),
             project,
             filter,
@@ -218,6 +227,7 @@ pub enum Action {
     CloseSearch,
     OpenHelp,
     CloseHelp,
+    ScrollHelp { progress: usize },
 }
 
 impl store::State<Action, Selection> for State {
@@ -259,11 +269,15 @@ impl store::State<Action, Selection> for State {
                 None
             }
             Action::OpenHelp => {
-                self.ui.show_help = true;
+                self.help.show = true;
                 None
             }
             Action::CloseHelp => {
-                self.ui.show_help = false;
+                self.help.show = false;
+                None
+            }
+            Action::ScrollHelp { progress } => {
+                self.help.progress = progress;
                 None
             }
         }

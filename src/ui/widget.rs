@@ -178,11 +178,7 @@ impl<S, A> View<S, A> for Shortcuts<S, A> {
     fn update(&mut self, state: &S) {
         self.props = self
             .on_update
-            .and_then(|on_update| {
-                (on_update)(state)
-                    .downcast_ref::<ShortcutsProps>()
-                    .map(|props| props.clone())
-            })
+            .and_then(|on_update| (on_update)(state).downcast_ref::<ShortcutsProps>().cloned())
             .unwrap_or(self.props.clone())
     }
 }
@@ -438,7 +434,7 @@ where
             .and_then(|on_update| {
                 (on_update)(state)
                     .downcast_ref::<TableProps<'_, R>>()
-                    .map(|props| props.clone())
+                    .cloned()
             })
             .unwrap_or(self.props.clone());
 

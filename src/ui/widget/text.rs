@@ -178,11 +178,7 @@ impl<'a: 'static, S, A> View<S, A> for Paragraph<'a, S, A> {
     fn update(&mut self, state: &S) {
         self.props = self
             .on_update
-            .and_then(|on_update| {
-                (on_update)(state)
-                    .downcast_ref::<ParagraphProps>()
-                    .map(|props| props.clone())
-            })
+            .and_then(|on_update| (on_update)(state).downcast_ref::<ParagraphProps>().cloned())
             .unwrap_or(self.props.clone());
     }
 
