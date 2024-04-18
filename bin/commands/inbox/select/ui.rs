@@ -477,11 +477,11 @@ impl<B: Backend> View<State, Action> for Search<B> {
         Self: Sized,
     {
         let input = TextField::new(state, action_tx.clone())
-            .on_change(|props, action_tx| {
-                props.downcast_ref::<TextFieldProps>().and_then(|props| {
+            .on_change(|state, action_tx| {
+                state.downcast_ref::<TextFieldState>().and_then(|state| {
                     action_tx
                         .send(Action::UpdateSearch {
-                            value: props.text.clone(),
+                            value: state.text.clone(),
                         })
                         .ok()
                 });
