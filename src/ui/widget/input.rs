@@ -17,14 +17,12 @@ pub struct TextFieldProps {
     pub inline_label: bool,
     pub show_cursor: bool,
     pub text: String,
-    pub cursor_position: usize,
 }
 
 impl TextFieldProps {
     pub fn text(mut self, new_text: &str) -> Self {
         if self.text != new_text {
             self.text = String::from(new_text);
-            self.cursor_position = self.text.len();
         }
         self
     }
@@ -47,12 +45,15 @@ impl Default for TextFieldProps {
             inline_label: false,
             show_cursor: true,
             text: String::new(),
-            cursor_position: 0,
         }
     }
 }
 
 impl Properties for TextFieldProps {}
+pub struct TextFieldState {
+    pub text: String,
+    pub cursor_position: usize,
+}
 
 pub struct TextField<S, A> {
     /// Internal props
@@ -63,70 +64,50 @@ pub struct TextField<S, A> {
     on_update: Option<UpdateCallback<S>>,
     /// Additional custom event handler
     on_change: Option<EventCallback<A>>,
+    /// Internal state
+    state: TextFieldState,
 }
 
 impl<S, A> TextField<S, A> {
-    pub fn read(&self) -> &str {
-        &self.props.text
-    }
-
-    pub fn text(mut self, new_text: &str) -> Self {
-        if self.props.text != new_text {
-            self.props.text = String::from(new_text);
-            self.props.cursor_position = self.props.text.len();
-        }
-        self
-    }
-
-    pub fn title(mut self, title: &str) -> Self {
-        self.props.title = title.to_string();
-        self
-    }
-
-    pub fn inline(mut self, inline: bool) -> Self {
-        self.props.inline_label = inline;
-        self
-    }
-
     fn move_cursor_left(&mut self) {
-        let cursor_moved_left = self.props.cursor_position.saturating_sub(1);
-        self.props.cursor_position = self.clamp_cursor(cursor_moved_left);
+        let cursor_moved_left = self.state.cursor_position.saturating_sub(1);
+        self.state.cursor_position = self.clamp_cursor(cursor_moved_left);
     }
 
     fn move_cursor_right(&mut self) {
-        let cursor_moved_right = self.props.cursor_position.saturating_add(1);
-        self.props.cursor_position = self.clamp_cursor(cursor_moved_right);
+        let cursor_moved_right = self.state.cursor_position.saturating_add(1);
+        self.state.cursor_position = self.clamp_cursor(cursor_moved_right);
     }
 
     fn enter_char(&mut self, new_char: char) {
-        self.props.text.insert(self.props.cursor_position, new_char);
+        self.state.text.insert(self.state.cursor_position, new_char);
         self.move_cursor_right();
     }
 
     fn delete_char(&mut self) {
-        let is_not_cursor_leftmost = self.props.cursor_position != 0;
+        let is_not_cursor_leftmost = self.state.cursor_position != 0;
         if is_not_cursor_leftmost {
             // Method "remove" is not used on the saved text for deleting the selected char.
             // Reason: Using remove on String works on bytes instead of the chars.
             // Using remove would require special care because of char boundaries.
 
-            let current_index = self.props.cursor_position;
+            let current_index = self.state.cursor_position;
             let from_left_to_current_index = current_index - 1;
 
             // Getting all characters before the selected character.
-            let before_char_to_delete = self.props.text.chars().take(from_left_to_current_index);
+            let before_char_to_delete = self.state.text.chars().take(from_left_to_current_index);
             // Getting all characters after selected character.
-            let after_char_to_delete = self.props.text.chars().skip(current_index);
+            let after_char_to_delete = self.state.text.chars().skip(current_index);
 
             // Put all characters together except the selected one.
             // By leaving the selected one out, it is forgotten and therefore deleted.
-            self.props.text = before_char_to_delete.chain(after_char_to_delete).collect();
+            self.state.text = before_char_to_delete.chain(after_char_to_delete).collect();
             self.move_cursor_left();
         }
     }
 
     fn clamp_cursor(&self, new_cursor_pos: usize) -> usize {
-        new_cursor_pos.clamp(0, self.props.text.len())
+        new_cursor_pos.clamp(0, self.state.text.len())
     }
 }
 
@@ -137,6 +118,10 @@ impl<S, A> View<S, A> for TextField<S, A> {
             props: TextFieldProps::default(),
             on_update: None,
             on_change: None,
+            state: TextFieldState {
+                text: String::new(),
+                cursor_position: 0,
+            },
         }
     }
 
@@ -151,14 +136,13 @@ impl<S, A> View<S, A> for TextField<S, A> {
     }
 
     fn update(&mut self, state: &S) {
-        self.props = self
-            .on_update
-            .and_then(|on_update| {
-                (on_update)(state)
-                    .downcast_ref::<TextFieldProps>()
-                    .map(|props| props.clone())
-            })
-            .unwrap_or(self.props.clone());
+        if let Some(on_update) = self.on_update {
+            if let Some(props) = (on_update)(state).downcast_ref::<TextFieldProps>() {
+                self.props = props.clone();
+                self.state.text = props.text.clone();
+                self.state.cursor_position = props.text.len().saturating_sub(1);
+            }
+        }
     }
 
     fn handle_key_event(&mut self, key: Key) {
@@ -183,7 +167,7 @@ impl<S, A> View<S, A> for TextField<S, A> {
         }
 
         if let Some(on_change) = self.on_change {
-            (on_change)(&self.props, self.action_tx.clone());
+            (on_change)(&self.state, self.action_tx.clone());
         }
     }
 }
@@ -199,10 +183,10 @@ where
 
         let layout = Layout::vertical(Constraint::from_lengths([1, 1])).split(area);
 
-        let input = props.text.as_str();
+        let input = self.state.text.as_str();
         let label = format!(" {} ", props.title);
         let overline = String::from("▔").repeat(area.width as usize);
-        let cursor_pos = props.cursor_position as u16;
+        let cursor_pos = self.state.cursor_position as u16;
 
         if props.inline_label {
             let top_layout = Layout::horizontal([
