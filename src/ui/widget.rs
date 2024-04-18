@@ -41,6 +41,14 @@ pub trait View<S, A> {
     where
         Self: Sized;
 
+    /// Returns a boxed `View`
+    fn to_boxed(self) -> Box<Self>
+    where
+        Self: Sized,
+    {
+        Box::new(self)
+    }
+
     /// Should handle key events and call `handle_key_event` on all children.
     ///
     /// After key events have been handled, the custom event handler `on_change` should
@@ -50,14 +58,6 @@ pub trait View<S, A> {
     /// Should update internal props by calling the custom update handler `on_update`
     /// and call `update` on all children.
     fn update(&mut self, state: &S);
-
-    /// Returns a boxed `View`
-    fn to_boxed(self) -> Box<Self>
-    where
-        Self: Sized,
-    {
-        Box::new(self)
-    }
 }
 
 /// A `Widget` is a `View` that can be rendered using a specific backend.
@@ -69,9 +69,8 @@ where
 {
     /// Renders a widget to the given frame in the given area.
     ///
-    /// Will try to downcast the given props object to the internally used one.
-    /// If successful, these props take precedence over the internal ones.
-    fn render(&self, frame: &mut Frame, area: Rect, props: &dyn Any);
+    /// Optional props take precedence over the internal ones.
+    fn render(&self, frame: &mut Frame, area: Rect, props: Option<&dyn Any>);
 }
 
 /// Needs to be implemented for items that are supposed to be rendering in tables.
@@ -187,11 +186,11 @@ impl<B, S, A> Widget<B, S, A> for Shortcuts<S, A>
 where
     B: Backend,
 {
-    fn render(&self, frame: &mut ratatui::Frame, area: Rect, props: &dyn Any) {
+    fn render(&self, frame: &mut ratatui::Frame, area: Rect, props: Option<&dyn Any>) {
         use ratatui::widgets::Table;
 
         let props = props
-            .downcast_ref::<ShortcutsProps>()
+            .and_then(|props| props.downcast_ref::<ShortcutsProps>())
             .unwrap_or(&self.props);
 
         let mut shortcuts = props.shortcuts.iter().peekable();
@@ -482,9 +481,9 @@ where
     B: Backend,
     R: ToRow + Clone + Debug + 'static,
 {
-    fn render(&self, frame: &mut ratatui::Frame, area: Rect, props: &dyn Any) {
+    fn render(&self, frame: &mut ratatui::Frame, area: Rect, props: Option<&dyn Any>) {
         let props = props
-            .downcast_ref::<TableProps<'_, R>>()
+            .and_then(|props| props.downcast_ref::<TableProps<'_, R>>())
             .unwrap_or(&self.props);
 
         let header_height = if self.header.is_some() { 3 } else { 0 };
@@ -544,7 +543,7 @@ where
                 .highlight_style(style::highlight());
 
             if let Some(header) = &self.header {
-                header.render(frame, header_area, &());
+                header.render(frame, header_area, None);
             }
 
             frame.render_stateful_widget(rows, table_area, &mut self.state.clone());
@@ -555,7 +554,7 @@ where
                 .borders(borders);
 
             if let Some(header) = &self.header {
-                header.render(frame, header_area, &());
+                header.render(frame, header_area, None);
             }
             frame.render_widget(block, table_area);
 

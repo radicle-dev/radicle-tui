@@ -20,7 +20,7 @@ use radicle_tui as tui;
 use tui::ui::items::{PatchItem, PatchItemFilter};
 use tui::ui::span;
 use tui::ui::widget::container::{Footer, FooterProps, Header, HeaderProps};
-use tui::ui::widget::input::{TextField, TextFieldProps};
+use tui::ui::widget::input::{TextField, TextFieldProps, TextFieldState};
 use tui::ui::widget::text::{Paragraph, ParagraphProps, ParagraphState};
 use tui::ui::widget::{self, TableUtils};
 use tui::ui::widget::{
@@ -139,7 +139,7 @@ impl<'a: 'static, B> Widget<B, State, Action> for ListPage<B>
 where
     B: Backend + 'a,
 {
-    fn render(&self, frame: &mut ratatui::Frame, _area: Rect, __props: &dyn Any) {
+    fn render(&self, frame: &mut ratatui::Frame, _area: Rect, __props: Option<&dyn Any>) {
         let area = frame.size();
         let layout = tui::ui::layout::default_page(area, 0u16, 1u16);
 
@@ -147,15 +147,15 @@ where
             let component_layout = Layout::vertical([Constraint::Min(1), Constraint::Length(2)])
                 .split(layout.component);
 
-            self.patches.render(frame, component_layout[0], &());
-            self.search.render(frame, component_layout[1], &());
+            self.patches.render(frame, component_layout[0], None);
+            self.search.render(frame, component_layout[1], None);
         } else if self.props.show_help {
-            self.help.render(frame, layout.component, &());
+            self.help.render(frame, layout.component, None);
         } else {
-            self.patches.render(frame, layout.component, &());
+            self.patches.render(frame, layout.component, None);
         }
 
-        self.shortcuts.render(frame, layout.shortcuts, &());
+        self.shortcuts.render(frame, layout.shortcuts, None);
     }
 }
 
@@ -486,23 +486,25 @@ impl<'a: 'static, B> Widget<B, State, Action> for Patches<'a, B>
 where
     B: Backend + 'a,
 {
-    fn render(&self, frame: &mut ratatui::Frame, area: Rect, props: &dyn Any) {
-        let props = props.downcast_ref::<PatchesProps>().unwrap_or(&self.props);
+    fn render(&self, frame: &mut ratatui::Frame, area: Rect, props: Option<&dyn Any>) {
+        let props = props
+            .and_then(|props| props.downcast_ref::<PatchesProps>())
+            .unwrap_or(&self.props);
 
         let header_height = 3_usize;
 
         let page_size = if props.show_search {
-            self.table.render(frame, area, &());
+            self.table.render(frame, area, None);
 
             (area.height as usize).saturating_sub(header_height)
         } else {
             let layout = Layout::vertical([Constraint::Min(1), Constraint::Length(3)]).split(area);
 
-            self.table.render(frame, layout[0], &());
+            self.table.render(frame, layout[0], None);
             self.footer.render(
                 frame,
                 layout[1],
-                &FooterProps::default().columns(Self::build_footer(props, props.selected)),
+                Some(&FooterProps::default().columns(Self::build_footer(props, props.selected))),
             );
 
             (area.height as usize).saturating_sub(header_height)
@@ -589,12 +591,12 @@ impl<B> Widget<B, State, Action> for Search<B>
 where
     B: Backend,
 {
-    fn render(&self, frame: &mut ratatui::Frame, area: Rect, _props: &dyn Any) {
+    fn render(&self, frame: &mut ratatui::Frame, area: Rect, _props: Option<&dyn Any>) {
         let layout = Layout::horizontal(Constraint::from_mins([0]))
             .horizontal_margin(1)
             .split(area);
 
-        self.input.render(frame, layout[0], &());
+        self.input.render(frame, layout[0], None);
     }
 }
 
@@ -853,8 +855,10 @@ impl<'a: 'static, B> Widget<B, State, Action> for Help<'a, B>
 where
     B: Backend,
 {
-    fn render(&self, frame: &mut ratatui::Frame, area: Rect, props: &dyn Any) {
-        let props = props.downcast_ref::<HelpProps<'_>>().unwrap_or(&self.props);
+    fn render(&self, frame: &mut ratatui::Frame, area: Rect, props: Option<&dyn Any>) {
+        let props = props
+            .and_then(|props| props.downcast_ref::<HelpProps>())
+            .unwrap_or(&self.props);
 
         let [header_area, content_area, footer_area] = Layout::vertical([
             Constraint::Length(3),
@@ -867,32 +871,38 @@ where
         self.header.render(
             frame,
             header_area,
-            &HeaderProps::default()
-                .columns([Column::new(" Help ", Constraint::Fill(1))].to_vec())
-                .focus(props.focus),
+            Some(
+                &HeaderProps::default()
+                    .columns([Column::new(" Help ", Constraint::Fill(1))].to_vec())
+                    .focus(props.focus),
+            ),
         );
 
         self.content.render(
             frame,
             content_area,
-            &ParagraphProps::default()
-                .text(&props.content)
-                .page_size(props.page_size)
-                .focus(props.focus),
+            Some(
+                &ParagraphProps::default()
+                    .text(&props.content)
+                    .page_size(props.page_size)
+                    .focus(props.focus),
+            ),
         );
 
         self.footer.render(
             frame,
             footer_area,
-            &FooterProps::default()
-                .columns(
-                    [
-                        Column::new(Text::raw(""), Constraint::Fill(1)),
-                        Column::new(progress, Constraint::Min(4)),
-                    ]
-                    .to_vec(),
-                )
-                .focus(props.focus),
+            Some(
+                &FooterProps::default()
+                    .columns(
+                        [
+                            Column::new(Text::raw(""), Constraint::Fill(1)),
+                            Column::new(progress, Constraint::Min(4)),
+                        ]
+                        .to_vec(),
+                    )
+                    .focus(props.focus),
+            ),
         );
 
         let page_size = content_area.height as usize;

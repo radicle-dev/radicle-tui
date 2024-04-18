@@ -176,9 +176,9 @@ impl<B, S, A> Widget<B, S, A> for TextField<S, A>
 where
     B: Backend,
 {
-    fn render(&self, frame: &mut ratatui::Frame, area: Rect, props: &dyn Any) {
+    fn render(&self, frame: &mut ratatui::Frame, area: Rect, props: Option<&dyn Any>) {
         let props = props
-            .downcast_ref::<TextFieldProps>()
+            .and_then(|props| props.downcast_ref::<TextFieldProps>())
             .unwrap_or(&self.props);
 
         let layout = Layout::vertical(Constraint::from_lengths([1, 1])).split(area);

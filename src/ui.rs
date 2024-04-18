@@ -79,7 +79,7 @@ impl<A> Frontend<A> {
                     break Ok(interrupted);
                 }
             }
-            terminal.draw(|frame| root.render(frame, frame.size(), &()))?;
+            terminal.draw(|frame| root.render(frame, frame.size(), None))?;
         };
 
         terminal::restore(&mut terminal)?;

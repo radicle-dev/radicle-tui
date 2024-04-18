@@ -219,9 +219,9 @@ impl<'a: 'static, B, S, A> Widget<B, S, A> for Paragraph<'a, S, A>
 where
     B: Backend,
 {
-    fn render(&self, frame: &mut ratatui::Frame, area: Rect, props: &dyn Any) {
+    fn render(&self, frame: &mut ratatui::Frame, area: Rect, props: Option<&dyn Any>) {
         let props = props
-            .downcast_ref::<ParagraphProps>()
+            .and_then(|props| props.downcast_ref::<ParagraphProps>())
             .unwrap_or(&self.props);
 
         let block = Block::default()

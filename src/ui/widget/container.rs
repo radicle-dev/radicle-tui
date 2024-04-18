@@ -119,9 +119,9 @@ impl<'a: 'static, B, S, A> Widget<B, S, A> for Header<'a, S, A>
 where
     B: Backend,
 {
-    fn render(&self, frame: &mut ratatui::Frame, area: Rect, props: &dyn Any) {
+    fn render(&self, frame: &mut ratatui::Frame, area: Rect, props: Option<&dyn Any>) {
         let props = props
-            .downcast_ref::<HeaderProps<'_>>()
+            .and_then(|props| props.downcast_ref::<HeaderProps>())
             .unwrap_or(&self.props);
 
         let widths: Vec<Constraint> = props
@@ -307,8 +307,10 @@ impl<'a: 'static, B, S, A> Widget<B, S, A> for Footer<'a, S, A>
 where
     B: Backend,
 {
-    fn render(&self, frame: &mut ratatui::Frame, area: Rect, props: &dyn Any) {
-        let props = props.downcast_ref::<FooterProps>().unwrap_or(&self.props);
+    fn render(&self, frame: &mut ratatui::Frame, area: Rect, props: Option<&dyn Any>) {
+        let props = props
+            .and_then(|props| props.downcast_ref::<FooterProps>())
+            .unwrap_or(&self.props);
 
         let widths = props
             .columns
