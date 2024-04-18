@@ -54,6 +54,12 @@ impl<'a> Default for ParagraphProps<'a> {
 }
 
 impl<'a> Properties for ParagraphProps<'a> {}
+pub struct ParagraphState {
+    /// Internal offset
+    pub offset: usize,
+    /// Internal progress
+    pub progress: usize,
+}
 
 pub struct Paragraph<'a, S, A> {
     /// Internal properties
@@ -64,15 +70,13 @@ pub struct Paragraph<'a, S, A> {
     on_update: Option<UpdateCallback<S>>,
     /// Additional custom event handler
     on_change: Option<EventCallback<A>>,
-    /// Internal offset
-    offset: usize,
-    /// Internal progress
-    progress: usize,
+    /// Internal state
+    state: ParagraphState,
 }
 
 impl<'a, S, A> Paragraph<'a, S, A> {
     pub fn scroll(&self) -> (u16, u16) {
-        (self.offset as u16, 0)
+        (self.state.offset as u16, 0)
     }
 
     pub fn page_size(mut self, page_size: usize) -> Self {
@@ -86,48 +90,48 @@ impl<'a, S, A> Paragraph<'a, S, A> {
     }
 
     fn prev(&mut self, len: usize, page_size: usize) -> (u16, u16) {
-        self.offset = self.offset.saturating_sub(1);
-        self.progress = Self::scroll_percent(self.offset, len, page_size);
+        self.state.offset = self.state.offset.saturating_sub(1);
+        self.state.progress = Self::scroll_percent(self.state.offset, len, page_size);
         self.scroll()
     }
 
     fn next(&mut self, len: usize, page_size: usize) -> (u16, u16) {
-        if self.progress < 100 {
-            self.offset = self.offset.saturating_add(1);
-            self.progress = Self::scroll_percent(self.offset, len, page_size);
+        if self.state.progress < 100 {
+            self.state.offset = self.state.offset.saturating_add(1);
+            self.state.progress = Self::scroll_percent(self.state.offset, len, page_size);
         }
 
         self.scroll()
     }
 
     fn prev_page(&mut self, len: usize, page_size: usize) -> (u16, u16) {
-        self.offset = self.offset.saturating_sub(page_size);
-        self.progress = Self::scroll_percent(self.offset, len, page_size);
+        self.state.offset = self.state.offset.saturating_sub(page_size);
+        self.state.progress = Self::scroll_percent(self.state.offset, len, page_size);
         self.scroll()
     }
 
     fn next_page(&mut self, len: usize, page_size: usize) -> (u16, u16) {
         let end = len.saturating_sub(page_size);
 
-        self.offset = std::cmp::min(self.offset.saturating_add(page_size), end);
-        self.progress = Self::scroll_percent(self.offset, len, page_size);
+        self.state.offset = std::cmp::min(self.state.offset.saturating_add(page_size), end);
+        self.state.progress = Self::scroll_percent(self.state.offset, len, page_size);
         self.scroll()
     }
 
     fn begin(&mut self, len: usize, page_size: usize) -> (u16, u16) {
-        self.offset = 0;
-        self.progress = Self::scroll_percent(self.offset, len, page_size);
+        self.state.offset = 0;
+        self.state.progress = Self::scroll_percent(self.state.offset, len, page_size);
         self.scroll()
     }
 
     fn end(&mut self, len: usize, page_size: usize) -> (u16, u16) {
-        self.offset = len.saturating_sub(page_size);
-        self.progress = Self::scroll_percent(self.offset, len, page_size);
+        self.state.offset = len.saturating_sub(page_size);
+        self.state.progress = Self::scroll_percent(self.state.offset, len, page_size);
         self.scroll()
     }
 
     pub fn progress(&self) -> usize {
-        self.progress
+        self.state.progress
     }
 
     fn scroll_percent(offset: usize, len: usize, height: usize) -> usize {
@@ -151,11 +155,13 @@ impl<'a: 'static, S, A> View<S, A> for Paragraph<'a, S, A> {
     {
         Self {
             action_tx: action_tx.clone(),
-            offset: 0,
-            progress: 0,
             props: ParagraphProps::default(),
             on_update: None,
             on_change: None,
+            state: ParagraphState {
+                offset: 0,
+                progress: 0,
+            },
         }
     }
 
@@ -206,10 +212,9 @@ impl<'a: 'static, S, A> View<S, A> for Paragraph<'a, S, A> {
             _ => {}
         }
 
-        self.progress = self.offset;
-
         if let Some(on_change) = self.on_change {
-            (on_change)(&self.props, self.action_tx.clone());
+            // (on_change)(&self.props, self.action_tx.clone());
+            (on_change)(&self.state, self.action_tx.clone());
         }
     }
 }
@@ -232,8 +237,8 @@ where
         let [content_area] = Layout::horizontal([Constraint::Min(1)])
             .horizontal_margin(2)
             .areas(area);
-        let content =
-            ratatui::widgets::Paragraph::new(props.content.clone()).scroll((self.offset as u16, 0));
+        let content = ratatui::widgets::Paragraph::new(props.content.clone())
+            .scroll((self.state.offset as u16, 0));
 
         frame.render_widget(content, content_area);
     }
