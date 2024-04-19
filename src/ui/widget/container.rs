@@ -11,7 +11,7 @@ use ratatui::widgets::{BorderType, Borders, Row};
 use crate::ui::ext::{FooterBlock, FooterBlockType, HeaderBlock};
 use crate::ui::theme::style;
 
-use super::{Column, EventCallback, Properties, UpdateCallback, View, Widget};
+use super::{BoxedWidget, Column, EventCallback, Properties, UpdateCallback, View, Widget};
 
 #[derive(Clone, Debug)]
 pub struct HeaderProps<'a> {
@@ -340,6 +340,141 @@ where
                 _ => FooterBlockType::Repeat,
             };
             self.render_cell(frame, *area, block_type, cell.clone(), props.focus);
+        }
+    }
+}
+
+#[derive(Clone, Default)]
+pub struct ContainerProps {
+    _focus: bool,
+}
+
+impl Properties for ContainerProps {}
+
+pub struct Container<B, S, A>
+where
+    B: Backend,
+{
+    /// Internal properties
+    props: ContainerProps,
+    /// Message sender
+    _action_tx: UnboundedSender<A>,
+    /// Custom update handler
+    on_update: Option<UpdateCallback<S>>,
+    /// Additional custom event handler
+    on_change: Option<EventCallback<A>>,
+    /// Container header
+    header: Option<BoxedWidget<B, S, A>>,
+    /// Content widget
+    content: Option<BoxedWidget<B, S, A>>,
+    /// Container footer
+    footer: Option<BoxedWidget<B, S, A>>,
+}
+
+impl<B, S, A> Container<B, S, A>
+where
+    B: Backend,
+{
+    pub fn header(mut self, header: BoxedWidget<B, S, A>) -> Self {
+        self.header = Some(header);
+        self
+    }
+
+    pub fn content(mut self, content: BoxedWidget<B, S, A>) -> Self {
+        self.content = Some(content);
+        self
+    }
+
+    pub fn footer(mut self, footer: BoxedWidget<B, S, A>) -> Self {
+        self.footer = Some(footer);
+        self
+    }
+}
+
+impl<B, S, A> View<S, A> for Container<B, S, A>
+where
+    B: Backend,
+{
+    fn new(_state: &S, action_tx: UnboundedSender<A>) -> Self
+    where
+        Self: Sized,
+    {
+        Self {
+            _action_tx: action_tx.clone(),
+            props: ContainerProps::default(),
+            header: None,
+            content: None,
+            footer: None,
+            on_update: None,
+            on_change: None,
+        }
+    }
+
+    fn on_update(mut self, callback: UpdateCallback<S>) -> Self {
+        self.on_update = Some(callback);
+        self
+    }
+
+    fn on_change(mut self, callback: EventCallback<A>) -> Self {
+        self.on_change = Some(callback);
+        self
+    }
+
+    fn update(&mut self, state: &S) {
+        self.props = self
+            .on_update
+            .and_then(|on_update| (on_update)(state).downcast_ref::<ContainerProps>().cloned())
+            .unwrap_or(self.props.clone());
+
+        if let Some(header) = &mut self.header {
+            header.update(state);
+        }
+
+        if let Some(content) = &mut self.content {
+            content.update(state);
+        }
+
+        if let Some(footer) = &mut self.footer {
+            footer.update(state);
+        }
+    }
+
+    fn handle_key_event(&mut self, key: termion::event::Key) {
+        if let Some(content) = &mut self.content {
+            content.handle_key_event(key);
+        }
+    }
+}
+
+impl<'a: 'static, B, S, A> Widget<B, S, A> for Container<B, S, A>
+where
+    B: Backend,
+{
+    fn render(&self, frame: &mut ratatui::Frame, area: Rect, props: Option<&dyn Any>) {
+        let _props = props
+            .and_then(|props| props.downcast_ref::<ContainerProps>())
+            .unwrap_or(&self.props);
+
+        let header_h = if self.header.is_some() { 3 } else { 0 };
+        let footer_h = if self.footer.is_some() { 3 } else { 0 };
+
+        let [header_area, content_area, footer_area] = Layout::vertical([
+            Constraint::Length(header_h),
+            Constraint::Min(1),
+            Constraint::Length(footer_h),
+        ])
+        .areas(area);
+
+        if let Some(header) = &self.header {
+            header.render(frame, header_area, None);
+        }
+
+        if let Some(content) = &self.content {
+            content.render(frame, content_area, None);
+        }
+
+        if let Some(footer) = &self.footer {
+            footer.render(frame, footer_area, None);
         }
     }
 }
