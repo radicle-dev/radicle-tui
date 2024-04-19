@@ -16,7 +16,7 @@ use radicle_tui as tui;
 
 use tui::ui::items::{NotificationItem, NotificationItemFilter, NotificationState};
 use tui::ui::span;
-use tui::ui::widget::container::{Footer, FooterProps, Header, HeaderProps};
+use tui::ui::widget::container::{Container, Footer, FooterProps, Header, HeaderProps};
 use tui::ui::widget::input::{TextField, TextFieldProps, TextFieldState};
 use tui::ui::widget::text::{Paragraph, ParagraphProps, ParagraphState};
 use tui::ui::widget::{self, TableUtils};
@@ -35,6 +35,9 @@ type BoxedWidget<B> = widget::BoxedWidget<B, State, Action>;
 pub struct ListPageProps {
     show_search: bool,
     show_help: bool,
+    help_progress: usize,
+    page_size: usize,
+    focus: bool,
 }
 
 impl From<&State> for ListPageProps {
@@ -42,6 +45,9 @@ impl From<&State> for ListPageProps {
         Self {
             show_search: state.ui.show_search,
             show_help: state.help.show,
+            help_progress: state.help.progress,
+            page_size: state.ui.page_size,
+            focus: false,
         }
     }
 }
@@ -75,7 +81,64 @@ impl<'a: 'static, B: Backend + 'a> View<State, Action> for ListPage<B> {
             props: ListPageProps::from(state),
             notifications: Notifications::new(state, action_tx.clone()).to_boxed(),
             search: Search::new(state, action_tx.clone()).to_boxed(),
-            help: Help::new(state, action_tx.clone()).to_boxed(),
+            help: Container::new(state, action_tx.clone())
+                .header(
+                    Header::new(state, action_tx.clone())
+                        .on_update(|state| {
+                            let props = ListPageProps::from(state);
+
+                            HeaderProps::default()
+                                .columns([Column::new(" Help ", Constraint::Fill(1))].to_vec())
+                                .focus(props.focus)
+                                .to_boxed()
+                        })
+                        .to_boxed(),
+                )
+                .content(
+                    Paragraph::new(state, action_tx.clone())
+                        .on_update(|state| {
+                            let props = ListPageProps::from(state);
+
+                            ParagraphProps::default()
+                                .text(&help_text())
+                                .page_size(props.page_size)
+                                .focus(props.focus)
+                                .to_boxed()
+                        })
+                        .on_change(|state, action_tx| {
+                            state.downcast_ref::<ParagraphState>().and_then(|state| {
+                                action_tx
+                                    .send(Action::ScrollHelp {
+                                        progress: state.progress,
+                                    })
+                                    .ok()
+                            });
+                        })
+                        .to_boxed(),
+                )
+                .footer(
+                    Footer::new(state, action_tx.clone())
+                        .on_update(|state| {
+                            let props = ListPageProps::from(state);
+
+                            FooterProps::default()
+                                .columns(
+                                    [
+                                        Column::new(Text::raw(""), Constraint::Fill(1)),
+                                        Column::new(
+                                            span::default(format!("{}%", props.help_progress))
+                                                .dim(),
+                                            Constraint::Min(4),
+                                        ),
+                                    ]
+                                    .to_vec(),
+                                )
+                                .focus(props.focus)
+                                .to_boxed()
+                        })
+                        .to_boxed(),
+                )
+                .to_boxed(),
             shortcuts: Shortcuts::new(state, action_tx.clone())
                 .on_update(|state| {
                     ShortcutsProps::default()
@@ -111,7 +174,17 @@ impl<'a: 'static, B: Backend + 'a> View<State, Action> for ListPage<B> {
         if self.props.show_search {
             self.search.handle_key_event(key);
         } else if self.props.show_help {
-            self.help.handle_key_event(key);
+            match key {
+                Key::Esc | Key::Ctrl('c') => {
+                    let _ = self.action_tx.send(Action::Exit { selection: None });
+                }
+                Key::Char('?') => {
+                    let _ = self.action_tx.send(Action::CloseHelp);
+                }
+                _ => {
+                    self.help.handle_key_event(key);
+                }
+            }
         } else {
             match key {
                 Key::Esc | Key::Ctrl('c') => {
@@ -135,11 +208,17 @@ impl<'a: 'static, B> Widget<B, State, Action> for ListPage<B>
 where
     B: Backend + 'a,
 {
-    fn render(&self, frame: &mut ratatui::Frame, _area: Rect, _props: Option<&dyn Any>) {
+    fn render(&self, frame: &mut ratatui::Frame, _area: Rect, props: Option<&dyn Any>) {
+        let props = props
+            .and_then(|props| props.downcast_ref::<ListPageProps>())
+            .unwrap_or(&self.props);
+
         let area = frame.size();
         let layout = tui::ui::layout::default_page(area, 0u16, 1u16);
 
-        if self.props.show_search {
+        let page_size = area.height.saturating_sub(6) as usize;
+
+        if props.show_search {
             let component_layout = Layout::vertical([Constraint::Min(1), Constraint::Length(2)])
                 .split(layout.component);
 
@@ -152,6 +231,10 @@ where
         }
 
         self.shortcuts.render(frame, layout.shortcuts, None);
+
+        if page_size != props.page_size {
+            let _ = self.action_tx.send(Action::PageSize(page_size));
+        }
     }
 }
 
@@ -544,297 +627,132 @@ where
     }
 }
 
-#[derive(Clone)]
-pub struct HelpProps<'a> {
-    content: Text<'a>,
-    focus: bool,
-    page_size: usize,
-    progress: usize,
-}
-
-impl<'a> From<&State> for HelpProps<'a> {
-    fn from(state: &State) -> Self {
-        let content = Text::from(
-            [
-                Line::from(Span::raw("Generic keybindings").cyan()),
-                Line::raw(""),
-                Line::from(
-                    [
-                        Span::raw(format!("{key:>10}", key = "↑,k")).gray(),
-                        Span::raw(" "),
-                        Span::raw("move cursor one line up").gray().dim(),
-                    ]
-                    .to_vec(),
-                ),
-                Line::from(
-                    [
-                        Span::raw(format!("{key:>10}", key = "↓,j")).gray(),
-                        Span::raw(" "),
-                        Span::raw("move cursor one line down").gray().dim(),
-                    ]
-                    .to_vec(),
-                ),
-                Line::from(
-                    [
-                        Span::raw(format!("{key:>10}", key = "PageUp")).gray(),
-                        Span::raw(" "),
-                        Span::raw("move cursor one page up").gray().dim(),
-                    ]
-                    .to_vec(),
-                ),
-                Line::from(
-                    [
-                        Span::raw(format!("{key:>10}", key = "PageDown")).gray(),
-                        Span::raw(" "),
-                        Span::raw("move cursor one page down").gray().dim(),
-                    ]
-                    .to_vec(),
-                ),
-                Line::from(
-                    [
-                        Span::raw(format!("{key:>10}", key = "Home")).gray(),
-                        Span::raw(" "),
-                        Span::raw("move cursor to the first line").gray().dim(),
-                    ]
-                    .to_vec(),
-                ),
-                Line::from(
-                    [
-                        Span::raw(format!("{key:>10}", key = "End")).gray(),
-                        Span::raw(" "),
-                        Span::raw("move cursor to the last line").gray().dim(),
-                    ]
-                    .to_vec(),
-                ),
-                Line::raw(""),
-                Line::from(Span::raw("Specific keybindings").cyan()),
-                Line::raw(""),
-                Line::from(
-                    [
-                        Span::raw(format!("{key:>10}", key = "enter")).gray(),
-                        Span::raw(" "),
-                        Span::raw("Select notification (if --mode id)").gray().dim(),
-                    ]
-                    .to_vec(),
-                ),
-                Line::from(
-                    [
-                        Span::raw(format!("{key:>10}", key = "enter")).gray(),
-                        Span::raw(" "),
-                        Span::raw("Show notification").gray().dim(),
-                    ]
-                    .to_vec(),
-                ),
-                Line::from(
-                    [
-                        Span::raw(format!("{key:>10}", key = "c")).gray(),
-                        Span::raw(" "),
-                        Span::raw("Clear notifications").gray().dim(),
-                    ]
-                    .to_vec(),
-                ),
-                Line::from(
-                    [
-                        Span::raw(format!("{key:>10}", key = "/")).gray(),
-                        Span::raw(" "),
-                        Span::raw("Search").gray().dim(),
-                    ]
-                    .to_vec(),
-                ),
-                Line::from(
-                    [
-                        Span::raw(format!("{key:>10}", key = "?")).gray(),
-                        Span::raw(" "),
-                        Span::raw("Show help").gray().dim(),
-                    ]
-                    .to_vec(),
-                ),
-                Line::from(
-                    [
-                        Span::raw(format!("{key:>10}", key = "Esc")).gray(),
-                        Span::raw(" "),
-                        Span::raw("Quit / cancel").gray().dim(),
-                    ]
-                    .to_vec(),
-                ),
-                Line::raw(""),
-                Line::from(Span::raw("Searching").cyan()),
-                Line::raw(""),
-                Line::from(
-                    [
-                        Span::raw(format!("{key:>10}", key = "Pattern")).gray(),
-                        Span::raw(" "),
-                        Span::raw("is:<state> | is:patch | is:issue | <search>")
-                            .gray()
-                            .dim(),
-                    ]
-                    .to_vec(),
-                ),
-                Line::from(
-                    [
-                        Span::raw(format!("{key:>10}", key = "Example")).gray(),
-                        Span::raw(" "),
-                        Span::raw("is:unseen is:patch Print").gray().dim(),
-                    ]
-                    .to_vec(),
-                ),
-            ]
-            .to_vec(),
-        );
-
-        Self {
-            content,
-            focus: false,
-            page_size: state.ui.page_size,
-            progress: state.help.progress,
-        }
-    }
-}
-
-impl<'a> Properties for HelpProps<'a> {}
-
-pub struct Help<'a, B: Backend> {
-    /// Internal properties
-    props: HelpProps<'a>,
-    /// Message sender
-    action_tx: UnboundedSender<Action>,
-    /// Custom update handler
-    on_update: Option<UpdateCallback<State>>,
-    /// Additional custom event handler
-    on_change: Option<EventCallback<Action>>,
-    /// Container header
-    header: BoxedWidget<B>,
-    /// Content widget
-    content: BoxedWidget<B>,
-    /// Container footer
-    footer: BoxedWidget<B>,
-}
-
-impl<'a, B: Backend> View<State, Action> for Help<'a, B> {
-    fn new(state: &State, action_tx: UnboundedSender<Action>) -> Self
-    where
-        Self: Sized,
-    {
-        Self {
-            action_tx: action_tx.clone(),
-            props: HelpProps::from(state),
-            header: Header::new(state, action_tx.clone()).to_boxed(),
-            content: Paragraph::new(state, action_tx.clone())
-                .on_update(|state| {
-                    let props = HelpProps::from(state);
-
-                    ParagraphProps::default()
-                        .text(&props.content)
-                        .page_size(props.page_size)
-                        .focus(props.focus)
-                        .to_boxed()
-                })
-                .on_change(|state, action_tx| {
-                    state.downcast_ref::<ParagraphState>().and_then(|state| {
-                        action_tx
-                            .send(Action::ScrollHelp {
-                                progress: state.progress,
-                            })
-                            .ok()
-                    });
-                })
-                .to_boxed(),
-            footer: Footer::new(state, action_tx).to_boxed(),
-            on_update: None,
-            on_change: None,
-        }
-    }
-
-    fn on_update(mut self, callback: UpdateCallback<State>) -> Self {
-        self.on_update = Some(callback);
-        self
-    }
-
-    fn on_change(mut self, callback: EventCallback<Action>) -> Self {
-        self.on_change = Some(callback);
-        self
-    }
-
-    fn update(&mut self, state: &State) {
-        self.props = HelpProps::from(state);
-
-        self.header.update(state);
-        self.content.update(state);
-        self.footer.update(state);
-    }
-
-    fn handle_key_event(&mut self, key: termion::event::Key) {
-        match key {
-            Key::Esc => {
-                let _ = self.action_tx.send(Action::Exit { selection: None });
-            }
-            Key::Char('?') => {
-                let _ = self.action_tx.send(Action::CloseHelp);
-            }
-            _ => {
-                self.content.handle_key_event(key);
-            }
-        }
-    }
-}
-
-impl<'a: 'static, B> Widget<B, State, Action> for Help<'a, B>
-where
-    B: Backend,
-{
-    fn render(&self, frame: &mut ratatui::Frame, area: Rect, props: Option<&dyn Any>) {
-        let props = props
-            .and_then(|props| props.downcast_ref::<HelpProps>())
-            .unwrap_or(&self.props);
-
-        let [header_area, content_area, footer_area] = Layout::vertical([
-            Constraint::Length(3),
-            Constraint::Min(1),
-            Constraint::Length(3),
-        ])
-        .areas(area);
-        let progress = span::default(format!("{}%", props.progress)).dim();
-
-        self.header.render(
-            frame,
-            header_area,
-            Some(
-                &HeaderProps::default()
-                    .columns([Column::new(" Help ", Constraint::Fill(1))].to_vec())
-                    .focus(props.focus),
+fn help_text() -> Text<'static> {
+    Text::from(
+        [
+            Line::from(Span::raw("Generic keybindings").cyan()),
+            Line::raw(""),
+            Line::from(
+                [
+                    Span::raw(format!("{key:>10}", key = "↑,k")).gray(),
+                    Span::raw(" "),
+                    Span::raw("move cursor one line up").gray().dim(),
+                ]
+                .to_vec(),
             ),
-        );
-
-        self.content.render(
-            frame,
-            content_area,
-            Some(
-                &ParagraphProps::default()
-                    .text(&props.content)
-                    .page_size(props.page_size)
-                    .focus(props.focus),
+            Line::from(
+                [
+                    Span::raw(format!("{key:>10}", key = "↓,j")).gray(),
+                    Span::raw(" "),
+                    Span::raw("move cursor one line down").gray().dim(),
+                ]
+                .to_vec(),
             ),
-        );
-
-        self.footer.render(
-            frame,
-            footer_area,
-            Some(
-                &FooterProps::default()
-                    .columns(
-                        [
-                            Column::new(Text::raw(""), Constraint::Fill(1)),
-                            Column::new(progress, Constraint::Min(4)),
-                        ]
-                        .to_vec(),
-                    )
-                    .focus(props.focus),
+            Line::from(
+                [
+                    Span::raw(format!("{key:>10}", key = "PageUp")).gray(),
+                    Span::raw(" "),
+                    Span::raw("move cursor one page up").gray().dim(),
+                ]
+                .to_vec(),
             ),
-        );
-
-        let page_size = content_area.height as usize;
-        if page_size != props.page_size {
-            let _ = self.action_tx.send(Action::PageSize(page_size));
-        }
-    }
+            Line::from(
+                [
+                    Span::raw(format!("{key:>10}", key = "PageDown")).gray(),
+                    Span::raw(" "),
+                    Span::raw("move cursor one page down").gray().dim(),
+                ]
+                .to_vec(),
+            ),
+            Line::from(
+                [
+                    Span::raw(format!("{key:>10}", key = "Home")).gray(),
+                    Span::raw(" "),
+                    Span::raw("move cursor to the first line").gray().dim(),
+                ]
+                .to_vec(),
+            ),
+            Line::from(
+                [
+                    Span::raw(format!("{key:>10}", key = "End")).gray(),
+                    Span::raw(" "),
+                    Span::raw("move cursor to the last line").gray().dim(),
+                ]
+                .to_vec(),
+            ),
+            Line::raw(""),
+            Line::from(Span::raw("Specific keybindings").cyan()),
+            Line::raw(""),
+            Line::from(
+                [
+                    Span::raw(format!("{key:>10}", key = "enter")).gray(),
+                    Span::raw(" "),
+                    Span::raw("Select notification (if --mode id)").gray().dim(),
+                ]
+                .to_vec(),
+            ),
+            Line::from(
+                [
+                    Span::raw(format!("{key:>10}", key = "enter")).gray(),
+                    Span::raw(" "),
+                    Span::raw("Show notification").gray().dim(),
+                ]
+                .to_vec(),
+            ),
+            Line::from(
+                [
+                    Span::raw(format!("{key:>10}", key = "c")).gray(),
+                    Span::raw(" "),
+                    Span::raw("Clear notifications").gray().dim(),
+                ]
+                .to_vec(),
+            ),
+            Line::from(
+                [
+                    Span::raw(format!("{key:>10}", key = "/")).gray(),
+                    Span::raw(" "),
+                    Span::raw("Search").gray().dim(),
+                ]
+                .to_vec(),
+            ),
+            Line::from(
+                [
+                    Span::raw(format!("{key:>10}", key = "?")).gray(),
+                    Span::raw(" "),
+                    Span::raw("Show help").gray().dim(),
+                ]
+                .to_vec(),
+            ),
+            Line::from(
+                [
+                    Span::raw(format!("{key:>10}", key = "Esc")).gray(),
+                    Span::raw(" "),
+                    Span::raw("Quit / cancel").gray().dim(),
+                ]
+                .to_vec(),
+            ),
+            Line::raw(""),
+            Line::from(Span::raw("Searching").cyan()),
+            Line::raw(""),
+            Line::from(
+                [
+                    Span::raw(format!("{key:>10}", key = "Pattern")).gray(),
+                    Span::raw(" "),
+                    Span::raw("is:<state> | is:patch | is:issue | <search>")
+                        .gray()
+                        .dim(),
+                ]
+                .to_vec(),
+            ),
+            Line::from(
+                [
+                    Span::raw(format!("{key:>10}", key = "Example")).gray(),
+                    Span::raw(" "),
+                    Span::raw("is:unseen is:patch Print").gray().dim(),
+                ]
+                .to_vec(),
+            ),
+        ]
+        .to_vec(),
+    )
 }
