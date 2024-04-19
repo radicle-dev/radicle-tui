@@ -20,7 +20,7 @@ use tui::ui::items::{Filter, PatchItem, PatchItemFilter};
 use tui::ui::Frontend;
 use tui::Exit;
 
-use ui::ListPage;
+use ui::Window;
 
 use super::common::Mode;
 
@@ -37,71 +37,74 @@ pub struct App {
     context: Context,
 }
 
+/// A 'PageStack' for applications. Page identifier can be pushed to and
+/// popped from the stack.
+#[derive(Clone, Default, Debug)]
+pub struct PageStack<T> {
+    pages: Vec<T>,
+}
+
+impl<T> PageStack<T> {
+    pub fn new(pages: Vec<T>) -> Self {
+        Self { pages }
+    }
+
+    pub fn push(&mut self, page: T) {
+        self.pages.push(page);
+    }
+
+    pub fn pop(&mut self) -> Option<T> {
+        self.pages.pop()
+    }
+
+    pub fn peek(&self) -> Result<&T> {
+        match self.pages.last() {
+            Some(page) => Ok(page),
+            None => Err(anyhow::anyhow!(
+                "Could not peek active page. Page stack is empty."
+            )),
+        }
+    }
+}
+
+#[derive(Clone, Debug, Eq, PartialEq, Hash)]
+pub enum Page {
+    Browse,
+    Help,
+}
+
 #[derive(Clone, Debug)]
-pub struct UIState {
+pub struct BrowserState {
+    items: Vec<PatchItem>,
+    selected: Option<usize>,
+    filter: PatchItemFilter,
+    search: store::StateValue<String>,
     page_size: usize,
     show_search: bool,
 }
 
-impl Default for UIState {
-    fn default() -> Self {
-        Self {
-            page_size: 1,
-            show_search: false,
-        }
-    }
-}
-
-#[derive(Clone, Debug)]
-pub struct PatchesState {
-    items: Vec<PatchItem>,
-    selected: Option<usize>,
-}
-
-#[derive(Clone, Debug)]
-pub struct HelpState {
-    show: bool,
-    progress: usize,
-}
-
-#[derive(Clone, Debug)]
-pub struct State {
-    patches: PatchesState,
-    help: HelpState,
-    mode: Mode,
-    filter: PatchItemFilter,
-    search: store::StateValue<String>,
-    ui: UIState,
-}
-
-impl State {
-    pub fn shortcuts(&self) -> Vec<(&str, &str)> {
-        if self.ui.show_search {
-            vec![("esc", "cancel"), ("enter", "apply")]
-        } else if self.help.show {
-            vec![("?", "close")]
-        } else {
-            match self.mode {
-                Mode::Id => vec![("enter", "select"), ("/", "search")],
-                Mode::Operation => vec![
-                    ("enter", "show"),
-                    ("c", "checkout"),
-                    ("d", "diff"),
-                    ("/", "search"),
-                    ("?", "help"),
-                ],
-            }
-        }
-    }
-
+impl BrowserState {
     pub fn patches(&self) -> Vec<PatchItem> {
-        self.patches
-            .items
+        self.items
             .iter()
             .filter(|patch| self.filter.matches(patch))
             .cloned()
             .collect()
     }
+}
+
+#[derive(Clone, Debug)]
+pub struct HelpState {
+    progress: usize,
+    page_size: usize,
+}
+
+#[derive(Clone, Debug)]
+pub struct State {
+    mode: Mode,
+    pages: PageStack<Page>,
+    browser: BrowserState,
+    help: HelpState,
 }
 
 impl TryFrom<&Context> for State {
@@ -122,18 +125,20 @@ impl TryFrom<&Context> for State {
         items.sort_by(|a, b| b.timestamp.cmp(&a.timestamp));
 
         Ok(Self {
-            patches: PatchesState {
+            mode: context.mode.clone(),
+            pages: PageStack::new(vec![Page::Browse]),
+            browser: BrowserState {
                 items,
                 selected: Some(0),
+                filter,
+                search,
+                show_search: false,
+                page_size: 1,
             },
             help: HelpState {
-                show: false,
                 progress: 0,
+                page_size: 1,
             },
-            mode: context.mode.clone(),
-            filter,
-            search,
-            ui: UIState::default(),
         })
     }
 }
@@ -141,13 +146,14 @@ impl TryFrom<&Context> for State {
 pub enum Action {
     Exit { selection: Option<Selection> },
     Select { selected: Option<usize> },
-    PageSize(usize),
+    BrowserPageSize(usize),
+    HelpPageSize(usize),
     OpenSearch,
     UpdateSearch { value: String },
     ApplySearch,
     CloseSearch,
     OpenHelp,
-    CloseHelp,
+    LeavePage,
     ScrollHelp { progress: usize },
 }
 
@@ -158,41 +164,47 @@ impl store::State<Action, Selection> for State {
         match action {
             Action::Exit { selection } => Some(Exit { value: selection }),
             Action::Select { selected } => {
-                self.patches.selected = selected;
+                self.browser.selected = selected;
                 None
             }
-            Action::PageSize(size) => {
-                self.ui.page_size = size;
+            Action::BrowserPageSize(size) => {
+                self.browser.page_size = size;
+                None
+            }
+            Action::HelpPageSize(size) => {
+                self.help.page_size = size;
                 None
             }
             Action::OpenSearch => {
-                self.ui.show_search = true;
+                self.browser.show_search = true;
                 None
             }
             Action::UpdateSearch { value } => {
-                self.search.write(value);
-                self.filter = PatchItemFilter::from_str(&self.search.read()).unwrap_or_default();
+                self.browser.search.write(value);
+                self.browser.filter =
+                    PatchItemFilter::from_str(&self.browser.search.read()).unwrap_or_default();
 
                 None
             }
             Action::ApplySearch => {
-                self.search.apply();
-                self.ui.show_search = false;
+                self.browser.search.apply();
+                self.browser.show_search = false;
                 None
             }
             Action::CloseSearch => {
-                self.search.reset();
-                self.ui.show_search = false;
-                self.filter = PatchItemFilter::from_str(&self.search.read()).unwrap_or_default();
+                self.browser.search.reset();
+                self.browser.show_search = false;
+                self.browser.filter =
+                    PatchItemFilter::from_str(&self.browser.search.read()).unwrap_or_default();
 
                 None
             }
             Action::OpenHelp => {
-                self.help.show = true;
+                self.pages.push(Page::Help);
                 None
             }
-            Action::CloseHelp => {
-                self.help.show = false;
+            Action::LeavePage => {
+                self.pages.pop();
                 None
             }
             Action::ScrollHelp { progress } => {
@@ -216,7 +228,7 @@ impl App {
 
         tokio::try_join!(
             store.main_loop(state, terminator, action_rx, interrupt_rx.resubscribe()),
-            frontend.main_loop::<State, ListPage<terminal::Backend>, Selection>(
+            frontend.main_loop::<State, Window<terminal::Backend>, Selection>(
                 state_rx,
                 interrupt_rx.resubscribe()
             ),
