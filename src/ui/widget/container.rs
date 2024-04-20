@@ -6,7 +6,7 @@ use tokio::sync::mpsc::UnboundedSender;
 use termion::event::Key;
 
 use ratatui::prelude::*;
-use ratatui::widgets::{BorderType, Borders, Row};
+use ratatui::widgets::{Block, BorderType, Borders, Row};
 
 use crate::ui::ext::{FooterBlock, FooterBlockType, HeaderBlock};
 use crate::ui::theme::style;
@@ -346,7 +346,20 @@ where
 
 #[derive(Clone, Default)]
 pub struct ContainerProps {
-    _focus: bool,
+    focus: bool,
+    hide_footer: bool,
+}
+
+impl ContainerProps {
+    pub fn hide_footer(mut self, hide: bool) -> Self {
+        self.hide_footer = hide;
+        self
+    }
+
+    pub fn focus(mut self, focus: bool) -> Self {
+        self.focus = focus;
+        self
+    }
 }
 
 impl Properties for ContainerProps {}
@@ -451,12 +464,16 @@ where
     B: Backend,
 {
     fn render(&self, frame: &mut ratatui::Frame, area: Rect, props: Option<&dyn Any>) {
-        let _props = props
+        let props = props
             .and_then(|props| props.downcast_ref::<ContainerProps>())
             .unwrap_or(&self.props);
 
         let header_h = if self.header.is_some() { 3 } else { 0 };
-        let footer_h = if self.footer.is_some() { 3 } else { 0 };
+        let footer_h = if self.footer.is_some() && !props.hide_footer {
+            3
+        } else {
+            0
+        };
 
         let [header_area, content_area, footer_area] = Layout::vertical([
             Constraint::Length(header_h),
@@ -465,12 +482,28 @@ where
         ])
         .areas(area);
 
+        let borders = match (
+            self.header.is_some(),
+            (self.footer.is_some() && !props.hide_footer),
+        ) {
+            (false, false) => Borders::ALL,
+            (true, false) => Borders::BOTTOM | Borders::LEFT | Borders::RIGHT,
+            (false, true) => Borders::TOP | Borders::LEFT | Borders::RIGHT,
+            (true, true) => Borders::LEFT | Borders::RIGHT,
+        };
+
+        let block = Block::default()
+            .border_style(style::border(props.focus))
+            .border_type(BorderType::Rounded)
+            .borders(borders);
+        frame.render_widget(block.clone(), content_area);
+
         if let Some(header) = &self.header {
             header.render(frame, header_area, None);
         }
 
         if let Some(content) = &self.content {
-            content.render(frame, content_area, None);
+            content.render(frame, block.inner(content_area), None);
         }
 
         if let Some(footer) = &self.footer {
