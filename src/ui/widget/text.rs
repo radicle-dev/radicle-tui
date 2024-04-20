@@ -218,7 +218,7 @@ where
 {
     fn render(&self, frame: &mut ratatui::Frame, area: Rect, props: Option<Box<dyn Any>>) {
         let props = props
-            .and_then(|props| ParagraphProps::from_boxed_any(props))
+            .and_then(ParagraphProps::from_boxed_any)
             .unwrap_or(self.props.clone());
 
         let [content_area] = Layout::horizontal([Constraint::Min(1)])

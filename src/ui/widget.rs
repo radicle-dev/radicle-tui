@@ -193,7 +193,7 @@ where
         use ratatui::widgets::Table;
 
         let props = props
-            .and_then(|props| ShortcutsProps::from_boxed_any(props))
+            .and_then(ShortcutsProps::from_boxed_any)
             .unwrap_or(self.props.clone());
 
         let mut shortcuts = props.shortcuts.iter().peekable();
@@ -471,7 +471,7 @@ where
 {
     fn render(&self, frame: &mut ratatui::Frame, area: Rect, props: Option<Box<dyn Any>>) {
         let props = props
-            .and_then(|props| TableProps::<'_, R>::from_boxed_any(props))
+            .and_then(TableProps::<'_, R>::from_boxed_any)
             .unwrap_or(self.props.clone());
 
         let widths: Vec<Constraint> = self

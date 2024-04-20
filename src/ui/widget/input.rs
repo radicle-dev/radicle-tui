@@ -200,7 +200,7 @@ where
 {
     fn render(&self, frame: &mut ratatui::Frame, area: Rect, props: Option<Box<dyn Any>>) {
         let props = props
-            .and_then(|props| TextFieldProps::from_boxed_any(props))
+            .and_then(TextFieldProps::from_boxed_any)
             .unwrap_or(self.props.clone());
 
         let layout = Layout::vertical(Constraint::from_lengths([1, 1])).split(area);

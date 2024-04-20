@@ -121,7 +121,7 @@ where
 {
     fn render(&self, frame: &mut ratatui::Frame, area: Rect, props: Option<Box<dyn Any>>) {
         let props = props
-            .and_then(|props| HeaderProps::from_boxed_any(props))
+            .and_then(HeaderProps::from_boxed_any)
             .unwrap_or(self.props.clone());
 
         let widths: Vec<Constraint> = props
@@ -309,7 +309,7 @@ where
 {
     fn render(&self, frame: &mut ratatui::Frame, area: Rect, props: Option<Box<dyn Any>>) {
         let props = props
-            .and_then(|props| FooterProps::from_boxed_any(props))
+            .and_then(FooterProps::from_boxed_any)
             .unwrap_or(self.props.clone());
 
         let widths = props
@@ -465,7 +465,7 @@ where
 {
     fn render(&self, frame: &mut ratatui::Frame, area: Rect, props: Option<Box<dyn Any>>) {
         let props = props
-            .and_then(|props| ContainerProps::from_boxed_any(props))
+            .and_then(ContainerProps::from_boxed_any)
             .unwrap_or(self.props.clone());
 
         let header_h = if self.header.is_some() { 3 } else { 0 };
