@@ -198,10 +198,10 @@ impl<B, S, A> Widget<B, S, A> for TextField<S, A>
 where
     B: Backend,
 {
-    fn render(&self, frame: &mut ratatui::Frame, area: Rect, props: Option<&dyn Any>) {
+    fn render(&self, frame: &mut ratatui::Frame, area: Rect, props: Option<Box<dyn Any>>) {
         let props = props
-            .and_then(|props| props.downcast_ref::<TextFieldProps>())
-            .unwrap_or(&self.props);
+            .and_then(|props| TextFieldProps::from_boxed_any(props))
+            .unwrap_or(self.props.clone());
 
         let layout = Layout::vertical(Constraint::from_lengths([1, 1])).split(area);
 

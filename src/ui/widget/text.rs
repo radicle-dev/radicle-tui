@@ -7,9 +7,6 @@ use termion::event::Key;
 use ratatui::backend::Backend;
 use ratatui::layout::{Constraint, Layout, Rect};
 use ratatui::text::Text;
-use ratatui::widgets::{Block, BorderType, Borders};
-
-use crate::ui::theme::style;
 
 use super::{EventCallback, Properties, UpdateCallback, View, Widget};
 
@@ -53,7 +50,8 @@ impl<'a> Default for ParagraphProps<'a> {
     }
 }
 
-impl<'a> Properties for ParagraphProps<'a> {}
+impl<'a: 'static> Properties for ParagraphProps<'a> {}
+
 pub struct ParagraphState {
     /// Internal offset
     pub offset: usize,
@@ -178,7 +176,7 @@ impl<'a: 'static, S, A> View<S, A> for Paragraph<'a, S, A> {
     fn update(&mut self, state: &S) {
         self.props = self
             .on_update
-            .and_then(|on_update| (on_update)(state).downcast_ref::<ParagraphProps>().cloned())
+            .and_then(|on_update| ParagraphProps::from_boxed_any((on_update)(state)))
             .unwrap_or(self.props.clone());
     }
 
@@ -218,19 +216,13 @@ impl<'a: 'static, B, S, A> Widget<B, S, A> for Paragraph<'a, S, A>
 where
     B: Backend,
 {
-    fn render(&self, frame: &mut ratatui::Frame, area: Rect, props: Option<&dyn Any>) {
+    fn render(&self, frame: &mut ratatui::Frame, area: Rect, props: Option<Box<dyn Any>>) {
         let props = props
-            .and_then(|props| props.downcast_ref::<ParagraphProps>())
-            .unwrap_or(&self.props);
-
-        let block = Block::default()
-            .borders(Borders::LEFT | Borders::RIGHT)
-            .border_type(BorderType::Rounded)
-            .border_style(style::border(props.focus));
-        frame.render_widget(block, area);
+            .and_then(|props| ParagraphProps::from_boxed_any(props))
+            .unwrap_or(self.props.clone());
 
         let [content_area] = Layout::horizontal([Constraint::Min(1)])
-            .horizontal_margin(2)
+            .horizontal_margin(1)
             .areas(area);
         let content = ratatui::widgets::Paragraph::new(props.content.clone())
             .scroll((self.state.offset as u16, 0));

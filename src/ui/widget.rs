@@ -70,7 +70,7 @@ where
     /// Renders a widget to the given frame in the given area.
     ///
     /// Optional props take precedence over the internal ones.
-    fn render(&self, frame: &mut Frame, area: Rect, props: Option<&dyn Any>);
+    fn render(&self, frame: &mut Frame, area: Rect, props: Option<Box<dyn Any>>);
 }
 
 /// Needs to be implemented for items that are supposed to be rendering in tables.
@@ -85,6 +85,13 @@ pub trait Properties {
         Self: Sized,
     {
         Box::new(self)
+    }
+
+    fn from_boxed_any(any: Box<dyn Any>) -> Option<Self>
+    where
+        Self: Sized + Clone + 'static,
+    {
+        any.downcast_ref::<Self>().cloned()
     }
 }
 
@@ -124,7 +131,7 @@ pub struct Shortcuts<S, A> {
     /// Internal properties
     props: ShortcutsProps,
     /// Message sender
-    action_tx: UnboundedSender<A>,
+    _action_tx: UnboundedSender<A>,
     /// Custom update handler
     on_update: Option<UpdateCallback<S>>,
     /// Additional custom event handler
@@ -151,7 +158,7 @@ impl<S, A> Shortcuts<S, A> {
 impl<S, A> View<S, A> for Shortcuts<S, A> {
     fn new(_state: &S, action_tx: UnboundedSender<A>) -> Self {
         Self {
-            action_tx: action_tx.clone(),
+            _action_tx: action_tx.clone(),
             props: ShortcutsProps::default(),
             on_update: None,
             on_change: None,
@@ -168,16 +175,12 @@ impl<S, A> View<S, A> for Shortcuts<S, A> {
         self
     }
 
-    fn handle_key_event(&mut self, _key: Key) {
-        if let Some(on_change) = self.on_change {
-            (on_change)(&self.props, self.action_tx.clone());
-        }
-    }
+    fn handle_key_event(&mut self, _key: Key) {}
 
     fn update(&mut self, state: &S) {
         self.props = self
             .on_update
-            .and_then(|on_update| (on_update)(state).downcast_ref::<ShortcutsProps>().cloned())
+            .and_then(|on_update| ShortcutsProps::from_boxed_any((on_update)(state)))
             .unwrap_or(self.props.clone())
     }
 }
@@ -186,12 +189,12 @@ impl<B, S, A> Widget<B, S, A> for Shortcuts<S, A>
 where
     B: Backend,
 {
-    fn render(&self, frame: &mut ratatui::Frame, area: Rect, props: Option<&dyn Any>) {
+    fn render(&self, frame: &mut ratatui::Frame, area: Rect, props: Option<Box<dyn Any>>) {
         use ratatui::widgets::Table;
 
         let props = props
-            .and_then(|props| props.downcast_ref::<ShortcutsProps>())
-            .unwrap_or(&self.props);
+            .and_then(|props| ShortcutsProps::from_boxed_any(props))
+            .unwrap_or(self.props.clone());
 
         let mut shortcuts = props.shortcuts.iter().peekable();
         let mut row = vec![];
@@ -319,7 +322,7 @@ where
     }
 }
 
-impl<'a, R> Properties for TableProps<'a, R> where R: ToRow {}
+impl<'a: 'static, R> Properties for TableProps<'a, R> where R: ToRow + 'static {}
 
 pub struct Table<'a, S, A, R>
 where
@@ -419,11 +422,7 @@ where
     fn update(&mut self, state: &S) {
         self.props = self
             .on_update
-            .and_then(|on_update| {
-                (on_update)(state)
-                    .downcast_ref::<TableProps<'_, R>>()
-                    .cloned()
-            })
+            .and_then(|on_update| TableProps::<'_, R>::from_boxed_any((on_update)(state)))
             .unwrap_or(self.props.clone());
 
         // TODO: Move to state reducer
@@ -470,10 +469,10 @@ where
     B: Backend,
     R: ToRow + Clone + Debug + 'static,
 {
-    fn render(&self, frame: &mut ratatui::Frame, area: Rect, props: Option<&dyn Any>) {
+    fn render(&self, frame: &mut ratatui::Frame, area: Rect, props: Option<Box<dyn Any>>) {
         let props = props
-            .and_then(|props| props.downcast_ref::<TableProps<'_, R>>())
-            .unwrap_or(&self.props);
+            .and_then(|props| TableProps::<'_, R>::from_boxed_any(props))
+            .unwrap_or(self.props.clone());
 
         let widths: Vec<Constraint> = self
             .props

@@ -50,7 +50,7 @@ impl<'a> Default for HeaderProps<'a> {
     }
 }
 
-impl<'a> Properties for HeaderProps<'a> {}
+impl<'a: 'static> Properties for HeaderProps<'a> {}
 
 pub struct Header<'a, S, A> {
     /// Internal props
@@ -104,7 +104,7 @@ impl<'a: 'static, S, A> View<S, A> for Header<'a, S, A> {
     fn update(&mut self, state: &S) {
         self.props = self
             .on_update
-            .and_then(|on_update| (on_update)(state).downcast_ref::<HeaderProps>().cloned())
+            .and_then(|on_update| HeaderProps::from_boxed_any((on_update)(state)))
             .unwrap_or(self.props.clone());
     }
 
@@ -119,10 +119,10 @@ impl<'a: 'static, B, S, A> Widget<B, S, A> for Header<'a, S, A>
 where
     B: Backend,
 {
-    fn render(&self, frame: &mut ratatui::Frame, area: Rect, props: Option<&dyn Any>) {
+    fn render(&self, frame: &mut ratatui::Frame, area: Rect, props: Option<Box<dyn Any>>) {
         let props = props
-            .and_then(|props| props.downcast_ref::<HeaderProps>())
-            .unwrap_or(&self.props);
+            .and_then(|props| HeaderProps::from_boxed_any(props))
+            .unwrap_or(self.props.clone());
 
         let widths: Vec<Constraint> = props
             .columns
@@ -214,7 +214,7 @@ impl<'a> Default for FooterProps<'a> {
     }
 }
 
-impl<'a> Properties for FooterProps<'a> {}
+impl<'a: 'static> Properties for FooterProps<'a> {}
 
 pub struct Footer<'a, S, A> {
     /// Internal properties
@@ -268,7 +268,7 @@ impl<'a: 'static, S, A> View<S, A> for Footer<'a, S, A> {
     fn update(&mut self, state: &S) {
         self.props = self
             .on_update
-            .and_then(|on_update| (on_update)(state).downcast_ref::<FooterProps>().cloned())
+            .and_then(|on_update| FooterProps::from_boxed_any((on_update)(state)))
             .unwrap_or(self.props.clone());
     }
 
@@ -307,10 +307,10 @@ impl<'a: 'static, B, S, A> Widget<B, S, A> for Footer<'a, S, A>
 where
     B: Backend,
 {
-    fn render(&self, frame: &mut ratatui::Frame, area: Rect, props: Option<&dyn Any>) {
+    fn render(&self, frame: &mut ratatui::Frame, area: Rect, props: Option<Box<dyn Any>>) {
         let props = props
-            .and_then(|props| props.downcast_ref::<FooterProps>())
-            .unwrap_or(&self.props);
+            .and_then(|props| FooterProps::from_boxed_any(props))
+            .unwrap_or(self.props.clone());
 
         let widths = props
             .columns
@@ -436,7 +436,7 @@ where
     fn update(&mut self, state: &S) {
         self.props = self
             .on_update
-            .and_then(|on_update| (on_update)(state).downcast_ref::<ContainerProps>().cloned())
+            .and_then(|on_update| ContainerProps::from_boxed_any((on_update)(state)))
             .unwrap_or(self.props.clone());
 
         if let Some(header) = &mut self.header {
@@ -463,10 +463,10 @@ impl<'a: 'static, B, S, A> Widget<B, S, A> for Container<B, S, A>
 where
     B: Backend,
 {
-    fn render(&self, frame: &mut ratatui::Frame, area: Rect, props: Option<&dyn Any>) {
+    fn render(&self, frame: &mut ratatui::Frame, area: Rect, props: Option<Box<dyn Any>>) {
         let props = props
-            .and_then(|props| props.downcast_ref::<ContainerProps>())
-            .unwrap_or(&self.props);
+            .and_then(|props| ContainerProps::from_boxed_any(props))
+            .unwrap_or(self.props.clone());
 
         let header_h = if self.header.is_some() { 3 } else { 0 };
         let footer_h = if self.footer.is_some() && !props.hide_footer {
