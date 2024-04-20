@@ -20,7 +20,9 @@ use radicle_tui as tui;
 use tui::ui::items::{PatchItem, PatchItemFilter};
 use tui::ui::span;
 use tui::ui::widget;
-use tui::ui::widget::container::{Container, Footer, FooterProps, Header, HeaderProps};
+use tui::ui::widget::container::{
+    Container, ContainerProps, Footer, FooterProps, Header, HeaderProps,
+};
 use tui::ui::widget::input::{TextField, TextFieldProps, TextFieldState};
 use tui::ui::widget::text::{Paragraph, ParagraphProps, ParagraphState};
 use tui::ui::widget::TableUtils;
@@ -222,10 +224,8 @@ struct BrowsePage<'a, B> {
     on_update: Option<UpdateCallback<State>>,
     /// Additional custom event handler
     on_change: Option<EventCallback<Action>>,
-    /// Table widget
-    table: BoxedWidget<B>,
-    /// Footer widget w/ context
-    footer: BoxedWidget<B>,
+    /// Patches widget
+    patches: BoxedWidget<B>,
     /// Search widget
     search: BoxedWidget<B>,
     /// Shortcut widget
@@ -242,37 +242,49 @@ where
         Self {
             action_tx: action_tx.clone(),
             props: props.clone(),
-            table: Box::<Table<B, State, Action, PatchItem>>::new(
-                Table::new(state, action_tx.clone())
-                    .header(
-                        Header::new(state, action_tx.clone())
-                            .columns(props.columns.clone())
-                            .cutoff(props.cutoff, props.cutoff_after)
-                            .focus(props.focus)
-                            .to_boxed(),
-                    )
-                    .on_change(|state, action_tx| {
-                        state.downcast_ref::<TableState>().and_then(|state| {
-                            action_tx
-                                .send(Action::Select {
-                                    selected: state.selected(),
-                                })
-                                .ok()
-                        });
-                    })
-                    .on_update(|state| {
-                        let props = BrowsePageProps::from(state);
+            patches: Container::new(state, action_tx.clone())
+                .header(
+                    Header::new(state, action_tx.clone())
+                        .columns(props.columns.clone())
+                        .cutoff(props.cutoff, props.cutoff_after)
+                        .focus(props.focus)
+                        .to_boxed(),
+                )
+                .content(Box::<Table<State, Action, PatchItem>>::new(
+                    Table::new(state, action_tx.clone())
+                        .on_change(|state, action_tx| {
+                            state.downcast_ref::<TableState>().and_then(|state| {
+                                action_tx
+                                    .send(Action::Select {
+                                        selected: state.selected(),
+                                    })
+                                    .ok()
+                            });
+                        })
+                        .on_update(|state| {
+                            let props = BrowsePageProps::from(state);
 
-                        TableProps::default()
-                            .columns(props.columns)
-                            .items(state.browser.patches())
-                            .footer(!state.browser.show_search)
-                            .page_size(state.browser.page_size)
-                            .cutoff(props.cutoff, props.cutoff_after)
-                            .to_boxed()
-                    }),
-            ),
-            footer: Footer::new(state, action_tx.clone()).to_boxed(),
+                            TableProps::default()
+                                .columns(props.columns)
+                                .items(state.browser.patches())
+                                .footer(!state.browser.show_search)
+                                .page_size(state.browser.page_size)
+                                .cutoff(props.cutoff, props.cutoff_after)
+                                .to_boxed()
+                        }),
+                ))
+                .footer(
+                    Footer::new(state, action_tx.clone())
+                        .on_update(|state| {
+                            let props = BrowsePageProps::from(state);
+
+                            FooterProps::default()
+                                .columns(Self::build_footer(&props, props.selected))
+                                .to_boxed()
+                        })
+                        .to_boxed(),
+                )
+                .to_boxed(),
             search: Search::new(state, action_tx.clone()).to_boxed(),
             shortcuts: Shortcuts::new(state, action_tx.clone()).to_boxed(),
             on_update: None,
@@ -294,8 +306,7 @@ where
         // TODO call mapper here instead?
         self.props = BrowsePageProps::from(state);
 
-        self.table.update(state);
-        self.footer.update(state);
+        self.patches.update(state);
         self.search.update(state);
         self.shortcuts.update(state);
     }
@@ -368,7 +379,7 @@ where
                         });
                 }
                 _ => {
-                    self.table.handle_key_event(key);
+                    self.patches.handle_key_event(key);
                 }
             }
         }
@@ -503,17 +514,17 @@ where
             let [table_area, search_area] =
                 Layout::vertical([Constraint::Min(1), Constraint::Length(2)]).areas(content_area);
 
-            self.table.render(frame, table_area, None);
+            self.patches.render(
+                frame,
+                table_area,
+                Some(&ContainerProps::default().hide_footer(props.show_search)),
+            );
             self.search.render(frame, search_area, None);
         } else {
-            let [table_area, search_area] =
-                Layout::vertical([Constraint::Min(1), Constraint::Length(3)]).areas(content_area);
-
-            self.table.render(frame, table_area, None);
-            self.footer.render(
+            self.patches.render(
                 frame,
-                search_area,
-                Some(&FooterProps::default().columns(Self::build_footer(props, props.selected))),
+                content_area,
+                Some(&ContainerProps::default().hide_footer(props.show_search)),
             );
         }
 
