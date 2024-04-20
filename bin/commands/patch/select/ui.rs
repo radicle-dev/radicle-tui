@@ -39,6 +39,7 @@ use super::{Action, Page, State};
 
 type BoxedWidget<B> = widget::BoxedWidget<B, State, Action>;
 
+#[derive(Clone)]
 pub struct WindowProps {
     page: Page,
 }
@@ -50,6 +51,8 @@ impl From<&State> for WindowProps {
         }
     }
 }
+
+impl Properties for WindowProps {}
 
 pub struct Window<B: Backend> {
     /// Internal properties
@@ -119,10 +122,10 @@ impl<'a: 'static, B> Widget<B, State, Action> for Window<B>
 where
     B: Backend + 'a,
 {
-    fn render(&self, frame: &mut ratatui::Frame, _area: Rect, props: Option<&dyn Any>) {
+    fn render(&self, frame: &mut ratatui::Frame, _area: Rect, props: Option<Box<dyn Any>>) {
         let props = props
-            .and_then(|props| props.downcast_ref::<WindowProps>())
-            .unwrap_or(&self.props);
+            .and_then(|props| WindowProps::from_boxed_any(props))
+            .unwrap_or(self.props.clone());
 
         let area = frame.size();
 
@@ -213,7 +216,7 @@ impl<'a> From<&State> for BrowsePageProps<'a> {
     }
 }
 
-impl<'a> Properties for BrowsePageProps<'a> {}
+impl<'a: 'static> Properties for BrowsePageProps<'a> {}
 
 struct BrowsePage<'a, B> {
     /// Internal properties
@@ -500,10 +503,10 @@ impl<'a: 'static, B> Widget<B, State, Action> for BrowsePage<'a, B>
 where
     B: Backend + 'a,
 {
-    fn render(&self, frame: &mut ratatui::Frame, area: Rect, props: Option<&dyn Any>) {
+    fn render(&self, frame: &mut ratatui::Frame, area: Rect, props: Option<Box<dyn Any>>) {
         let props = props
-            .and_then(|props| props.downcast_ref::<BrowsePageProps>())
-            .unwrap_or(&self.props);
+            .and_then(|props| BrowsePageProps::from_boxed_any(props))
+            .unwrap_or(self.props.clone());
 
         let page_size = area.height.saturating_sub(6) as usize;
 
@@ -517,21 +520,33 @@ where
             self.patches.render(
                 frame,
                 table_area,
-                Some(&ContainerProps::default().hide_footer(props.show_search)),
+                Some(
+                    ContainerProps::default()
+                        .hide_footer(props.show_search)
+                        .to_boxed(),
+                ),
             );
             self.search.render(frame, search_area, None);
         } else {
             self.patches.render(
                 frame,
                 content_area,
-                Some(&ContainerProps::default().hide_footer(props.show_search)),
+                Some(
+                    ContainerProps::default()
+                        .hide_footer(props.show_search)
+                        .to_boxed(),
+                ),
             );
         }
 
         self.shortcuts.render(
             frame,
             shortcuts_area,
-            Some(&ShortcutsProps::default().shortcuts(&props.shortcuts)),
+            Some(
+                ShortcutsProps::default()
+                    .shortcuts(&props.shortcuts)
+                    .to_boxed(),
+            ),
         );
 
         if page_size != props.page_size {
@@ -561,7 +576,7 @@ impl<B: Backend> View<State, Action> for Search<B> {
                 state.downcast_ref::<TextFieldState>().and_then(|state| {
                     action_tx
                         .send(Action::UpdateSearch {
-                            value: state.text.clone(),
+                            value: state.text.clone().unwrap_or_default(),
                         })
                         .ok()
                 });
@@ -615,7 +630,7 @@ impl<B> Widget<B, State, Action> for Search<B>
 where
     B: Backend,
 {
-    fn render(&self, frame: &mut ratatui::Frame, area: Rect, _props: Option<&dyn Any>) {
+    fn render(&self, frame: &mut ratatui::Frame, area: Rect, _props: Option<Box<dyn Any>>) {
         let layout = Layout::horizontal(Constraint::from_mins([0]))
             .horizontal_margin(1)
             .split(area);
@@ -642,6 +657,8 @@ impl<'a> From<&State> for HelpPageProps<'a> {
         }
     }
 }
+
+impl<'a> Properties for HelpPageProps<'a> {}
 
 pub struct HelpPage<'a, B>
 where
@@ -771,10 +788,10 @@ impl<'a: 'static, B> Widget<B, State, Action> for HelpPage<'a, B>
 where
     B: Backend + 'a,
 {
-    fn render(&self, frame: &mut ratatui::Frame, area: Rect, props: Option<&dyn Any>) {
+    fn render(&self, frame: &mut ratatui::Frame, area: Rect, props: Option<Box<dyn Any>>) {
         let props = props
-            .and_then(|props| props.downcast_ref::<HelpPageProps>())
-            .unwrap_or(&self.props);
+            .and_then(|props| HelpPageProps::from_boxed_any(props))
+            .unwrap_or(self.props.clone());
 
         let page_size = area.height.saturating_sub(6) as usize;
 
@@ -785,7 +802,11 @@ where
         self.shortcuts.render(
             frame,
             shortcuts_area,
-            Some(&ShortcutsProps::default().shortcuts(&props.shortcuts)),
+            Some(
+                ShortcutsProps::default()
+                    .shortcuts(&props.shortcuts)
+                    .to_boxed(),
+            ),
         );
 
         if page_size != props.page_size {

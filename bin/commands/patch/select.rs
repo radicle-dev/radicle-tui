@@ -20,6 +20,7 @@ use tui::ui::items::{Filter, PatchItem, PatchItemFilter};
 use tui::ui::Frontend;
 use tui::Exit;
 
+use tui::PageStack;
 use ui::Window;
 
 use super::common::Mode;
@@ -35,36 +36,6 @@ pub struct Context {
 
 pub struct App {
     context: Context,
-}
-
-/// A 'PageStack' for applications. Page identifier can be pushed to and
-/// popped from the stack.
-#[derive(Clone, Default, Debug)]
-pub struct PageStack<T> {
-    pages: Vec<T>,
-}
-
-impl<T> PageStack<T> {
-    pub fn new(pages: Vec<T>) -> Self {
-        Self { pages }
-    }
-
-    pub fn push(&mut self, page: T) {
-        self.pages.push(page);
-    }
-
-    pub fn pop(&mut self) -> Option<T> {
-        self.pages.pop()
-    }
-
-    pub fn peek(&self) -> Result<&T> {
-        match self.pages.last() {
-            Some(page) => Ok(page),
-            None => Err(anyhow::anyhow!(
-                "Could not peek active page. Page stack is empty."
-            )),
-        }
-    }
 }
 
 #[derive(Clone, Debug, Eq, PartialEq, Hash)]
