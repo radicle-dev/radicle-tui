@@ -51,7 +51,7 @@ impl Default for TextFieldProps {
 
 impl Properties for TextFieldProps {}
 pub struct TextFieldState {
-    pub text: String,
+    pub text: Option<String>,
     pub cursor_position: usize,
 }
 
@@ -80,11 +80,18 @@ impl<S, A> TextField<S, A> {
     }
 
     fn enter_char(&mut self, new_char: char) {
-        self.state.text.insert(self.state.cursor_position, new_char);
+        self.state.text = Some(self.state.text.clone().unwrap_or_default());
+        self.state
+            .text
+            .as_mut()
+            .unwrap()
+            .insert(self.state.cursor_position, new_char);
         self.move_cursor_right();
     }
 
     fn delete_char(&mut self) {
+        self.state.text = Some(self.state.text.clone().unwrap_or_default());
+
         let is_not_cursor_leftmost = self.state.cursor_position != 0;
         if is_not_cursor_leftmost {
             // Method "remove" is not used on the saved text for deleting the selected char.
@@ -95,19 +102,31 @@ impl<S, A> TextField<S, A> {
             let from_left_to_current_index = current_index - 1;
 
             // Getting all characters before the selected character.
-            let before_char_to_delete = self.state.text.chars().take(from_left_to_current_index);
+            let before_char_to_delete = self
+                .state
+                .text
+                .as_ref()
+                .unwrap()
+                .chars()
+                .take(from_left_to_current_index);
             // Getting all characters after selected character.
-            let after_char_to_delete = self.state.text.chars().skip(current_index);
+            let after_char_to_delete = self
+                .state
+                .text
+                .as_ref()
+                .unwrap()
+                .chars()
+                .skip(current_index);
 
             // Put all characters together except the selected one.
             // By leaving the selected one out, it is forgotten and therefore deleted.
-            self.state.text = before_char_to_delete.chain(after_char_to_delete).collect();
+            self.state.text = Some(before_char_to_delete.chain(after_char_to_delete).collect());
             self.move_cursor_left();
         }
     }
 
     fn clamp_cursor(&self, new_cursor_pos: usize) -> usize {
-        new_cursor_pos.clamp(0, self.state.text.len())
+        new_cursor_pos.clamp(0, self.state.text.clone().unwrap_or_default().len())
     }
 }
 
@@ -119,7 +138,7 @@ impl<S, A> View<S, A> for TextField<S, A> {
             on_update: None,
             on_change: None,
             state: TextFieldState {
-                text: String::new(),
+                text: None,
                 cursor_position: 0,
             },
         }
@@ -139,8 +158,11 @@ impl<S, A> View<S, A> for TextField<S, A> {
         if let Some(on_update) = self.on_update {
             if let Some(props) = (on_update)(state).downcast_ref::<TextFieldProps>() {
                 self.props = props.clone();
-                self.state.text = props.text.clone();
-                self.state.cursor_position = props.text.len().saturating_sub(1);
+
+                if self.state.text.is_none() {
+                    self.state.cursor_position = props.text.len().saturating_sub(1);
+                }
+                self.state.text = Some(props.text.clone());
             }
         }
     }
@@ -183,7 +205,8 @@ where
 
         let layout = Layout::vertical(Constraint::from_lengths([1, 1])).split(area);
 
-        let input = self.state.text.as_str();
+        let text = self.state.text.clone().unwrap_or_default();
+        let input = text.as_str();
         let label = format!(" {} ", props.title);
         let overline = String::from("▔").repeat(area.width as usize);
         let cursor_pos = self.state.cursor_position as u16;
