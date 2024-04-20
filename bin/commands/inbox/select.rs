@@ -23,9 +23,10 @@ use tui::ui::items::{Filter, NotificationItem, NotificationItemFilter};
 use tui::ui::Frontend;
 use tui::Exit;
 
-use ui::ListPage;
+use tui::PageStack;
 
-use super::common::SelectionMode;
+use crate::tui_inbox::select::ui::Window;
+
 use super::common::{Mode, RepositoryMode};
 
 type Selection = tui::Selection<NotificationId>;
@@ -42,71 +43,45 @@ pub struct App {
     context: Context,
 }
 
+#[derive(Clone, Debug, Eq, PartialEq, Hash)]
+pub enum Page {
+    Browse,
+    Help,
+}
+
 #[derive(Clone, Debug)]
-pub struct UIState {
+pub struct BrowserState {
+    items: Vec<NotificationItem>,
+    selected: Option<usize>,
+    filter: NotificationItemFilter,
+    search: store::StateValue<String>,
     page_size: usize,
     show_search: bool,
 }
 
-impl Default for UIState {
-    fn default() -> Self {
-        Self {
-            page_size: 1,
-            show_search: false,
-        }
-    }
-}
-
-#[derive(Clone, Debug)]
-pub struct NotificationsState {
-    items: Vec<NotificationItem>,
-    selected: Option<usize>,
-}
-
-#[derive(Clone, Debug)]
-pub struct HelpState {
-    show: bool,
-    progress: usize,
-}
-
-#[derive(Clone, Debug)]
-pub struct State {
-    notifications: NotificationsState,
-    help: HelpState,
-    mode: Mode,
-    project: Project,
-    filter: NotificationItemFilter,
-    search: StateValue<String>,
-    ui: UIState,
-}
-
-impl State {
-    pub fn shortcuts(&self) -> Vec<(&str, &str)> {
-        if self.ui.show_search {
-            vec![("esc", "cancel"), ("enter", "apply")]
-        } else if self.help.show {
-            vec![("?", "close")]
-        } else {
-            match self.mode.selection() {
-                SelectionMode::Id => vec![("enter", "select"), ("/", "search")],
-                SelectionMode::Operation => vec![
-                    ("enter", "show"),
-                    ("c", "clear"),
-                    ("/", "search"),
-                    ("?", "help"),
-                ],
-            }
-        }
-    }
-
+impl BrowserState {
     pub fn notifications(&self) -> Vec<NotificationItem> {
-        self.notifications
-            .items
+        self.items
             .iter()
             .filter(|patch| self.filter.matches(patch))
             .cloned()
             .collect()
     }
+}
+
+#[derive(Clone, Debug)]
+pub struct HelpState {
+    progress: usize,
+    page_size: usize,
+}
+
+#[derive(Clone, Debug)]
+pub struct State {
+    mode: Mode,
+    project: Project,
+    pages: PageStack<Page>,
+    browser: BrowserState,
+    help: HelpState,
 }
 
 impl TryFrom<&Context> for State {
@@ -200,19 +175,21 @@ impl TryFrom<&Context> for State {
         }
 
         Ok(Self {
-            notifications: NotificationsState {
+            mode: context.mode.clone(),
+            project,
+            pages: PageStack::new(vec![Page::Browse]),
+            browser: BrowserState {
                 items: notifications,
                 selected: Some(0),
+                filter,
+                search,
+                show_search: false,
+                page_size: 1,
             },
             help: HelpState {
-                show: false,
                 progress: 0,
+                page_size: 1,
             },
-            mode: mode.clone(),
-            project,
-            filter,
-            search,
-            ui: UIState::default(),
         })
     }
 }
@@ -220,13 +197,14 @@ impl TryFrom<&Context> for State {
 pub enum Action {
     Exit { selection: Option<Selection> },
     Select { selected: Option<usize> },
-    PageSize(usize),
+    BrowserPageSize(usize),
+    HelpPageSize(usize),
     OpenSearch,
     UpdateSearch { value: String },
     ApplySearch,
     CloseSearch,
     OpenHelp,
-    CloseHelp,
+    LeavePage,
     ScrollHelp { progress: usize },
 }
 
@@ -237,43 +215,47 @@ impl store::State<Action, Selection> for State {
         match action {
             Action::Exit { selection } => Some(Exit { value: selection }),
             Action::Select { selected } => {
-                self.notifications.selected = selected;
+                self.browser.selected = selected;
                 None
             }
-            Action::PageSize(size) => {
-                self.ui.page_size = size;
+            Action::BrowserPageSize(size) => {
+                self.browser.page_size = size;
+                None
+            }
+            Action::HelpPageSize(size) => {
+                self.help.page_size = size;
                 None
             }
             Action::OpenSearch => {
-                self.ui.show_search = true;
+                self.browser.show_search = true;
                 None
             }
             Action::UpdateSearch { value } => {
-                self.search.write(value);
-                self.filter =
-                    NotificationItemFilter::from_str(&self.search.read()).unwrap_or_default();
+                self.browser.search.write(value);
+                self.browser.filter = NotificationItemFilter::from_str(&self.browser.search.read())
+                    .unwrap_or_default();
 
                 None
             }
             Action::ApplySearch => {
-                self.search.apply();
-                self.ui.show_search = false;
+                self.browser.search.apply();
+                self.browser.show_search = false;
                 None
             }
             Action::CloseSearch => {
-                self.search.reset();
-                self.ui.show_search = false;
-                self.filter =
-                    NotificationItemFilter::from_str(&self.search.read()).unwrap_or_default();
+                self.browser.search.reset();
+                self.browser.show_search = false;
+                self.browser.filter = NotificationItemFilter::from_str(&self.browser.search.read())
+                    .unwrap_or_default();
 
                 None
             }
             Action::OpenHelp => {
-                self.help.show = true;
+                self.pages.push(Page::Help);
                 None
             }
-            Action::CloseHelp => {
-                self.help.show = false;
+            Action::LeavePage => {
+                self.pages.pop();
                 None
             }
             Action::ScrollHelp { progress } => {
@@ -297,7 +279,7 @@ impl App {
 
         tokio::try_join!(
             store.main_loop(state, terminator, action_rx, interrupt_rx.resubscribe()),
-            frontend.main_loop::<State, ListPage<terminal::Backend>, Selection>(
+            frontend.main_loop::<State, Window<terminal::Backend>, Selection>(
                 state_rx,
                 interrupt_rx.resubscribe()
             ),
