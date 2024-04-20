@@ -67,3 +67,33 @@ where
         state.end()
     }
 }
+
+/// A 'PageStack' for applications. Page identifier can be pushed to and
+/// popped from the stack.
+#[derive(Clone, Default, Debug)]
+pub struct PageStack<T> {
+    pages: Vec<T>,
+}
+
+impl<T> PageStack<T> {
+    pub fn new(pages: Vec<T>) -> Self {
+        Self { pages }
+    }
+
+    pub fn push(&mut self, page: T) {
+        self.pages.push(page);
+    }
+
+    pub fn pop(&mut self) -> Option<T> {
+        self.pages.pop()
+    }
+
+    pub fn peek(&self) -> Result<&T> {
+        match self.pages.last() {
+            Some(page) => Ok(page),
+            None => Err(anyhow::anyhow!(
+                "Could not peek active page. Page stack is empty."
+            )),
+        }
+    }
+}
