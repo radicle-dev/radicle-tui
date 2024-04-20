@@ -124,7 +124,7 @@ where
 {
     fn render(&self, frame: &mut ratatui::Frame, _area: Rect, props: Option<Box<dyn Any>>) {
         let props = props
-            .and_then(|props| WindowProps::from_boxed_any(props))
+            .and_then(WindowProps::from_boxed_any)
             .unwrap_or(self.props.clone());
 
         let area = frame.size();
@@ -505,7 +505,7 @@ where
 {
     fn render(&self, frame: &mut ratatui::Frame, area: Rect, props: Option<Box<dyn Any>>) {
         let props = props
-            .and_then(|props| BrowsePageProps::from_boxed_any(props))
+            .and_then(BrowsePageProps::from_boxed_any)
             .unwrap_or(self.props.clone());
 
         let page_size = area.height.saturating_sub(6) as usize;
@@ -790,7 +790,7 @@ where
 {
     fn render(&self, frame: &mut ratatui::Frame, area: Rect, props: Option<Box<dyn Any>>) {
         let props = props
-            .and_then(|props| HelpPageProps::from_boxed_any(props))
+            .and_then(HelpPageProps::from_boxed_any)
             .unwrap_or(self.props.clone());
 
         let page_size = area.height.saturating_sub(6) as usize;
