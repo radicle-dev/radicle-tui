@@ -62,7 +62,7 @@ pub struct Window<B: Backend> {
     /// Custom update handler
     on_update: Option<UpdateCallback<State>>,
     /// Additional custom event handler
-    on_change: Option<EventCallback<Action>>,
+    on_event: Option<EventCallback<Action>>,
     /// All pages known
     pages: HashMap<Page, BoxedWidget<B>>,
 }
@@ -89,7 +89,7 @@ where
                 ),
             ]),
             on_update: None,
-            on_change: None,
+            on_event: None,
         }
     }
 
@@ -98,8 +98,8 @@ where
         self
     }
 
-    fn on_change(mut self, callback: EventCallback<Action>) -> Self {
-        self.on_change = Some(callback);
+    fn on_event(mut self, callback: EventCallback<Action>) -> Self {
+        self.on_event = Some(callback);
         self
     }
 
@@ -226,7 +226,7 @@ struct BrowsePage<'a, B> {
     /// Custom update handler
     on_update: Option<UpdateCallback<State>>,
     /// Additional custom event handler
-    on_change: Option<EventCallback<Action>>,
+    on_event: Option<EventCallback<Action>>,
     /// Patches widget
     patches: BoxedWidget<B>,
     /// Search widget
@@ -255,7 +255,7 @@ where
                 )
                 .content(Box::<Table<State, Action, PatchItem>>::new(
                     Table::new(state, action_tx.clone())
-                        .on_change(|state, action_tx| {
+                        .on_event(|state, action_tx| {
                             state.downcast_ref::<TableState>().and_then(|state| {
                                 action_tx
                                     .send(Action::Select {
@@ -291,7 +291,7 @@ where
             search: Search::new(state, action_tx.clone()).to_boxed(),
             shortcuts: Shortcuts::new(state, action_tx.clone()).to_boxed(),
             on_update: None,
-            on_change: None,
+            on_event: None,
         }
     }
 
@@ -300,14 +300,14 @@ where
         self
     }
 
-    fn on_change(mut self, callback: EventCallback<Action>) -> Self {
-        self.on_change = Some(callback);
+    fn on_event(mut self, callback: EventCallback<Action>) -> Self {
+        self.on_event = Some(callback);
         self
     }
 
     fn update(&mut self, state: &State) {
-        // TODO call mapper here instead?
-        self.props = BrowsePageProps::from(state);
+        self.props = BrowsePageProps::from_callback(self.on_update, state)
+            .unwrap_or(BrowsePageProps::from(state));
 
         self.patches.update(state);
         self.search.update(state);
@@ -561,7 +561,7 @@ pub struct Search<B: Backend> {
     /// Custom update handler
     on_update: Option<UpdateCallback<State>>,
     /// Additional custom event handler
-    on_change: Option<EventCallback<Action>>,
+    on_event: Option<EventCallback<Action>>,
     /// Search input field
     input: BoxedWidget<B>,
 }
@@ -572,7 +572,7 @@ impl<B: Backend> View<State, Action> for Search<B> {
         Self: Sized,
     {
         let input = TextField::new(state, action_tx.clone())
-            .on_change(|state, action_tx| {
+            .on_event(|state, action_tx| {
                 state.downcast_ref::<TextFieldState>().and_then(|state| {
                     action_tx
                         .send(Action::UpdateSearch {
@@ -593,7 +593,7 @@ impl<B: Backend> View<State, Action> for Search<B> {
             action_tx,
             input,
             on_update: None,
-            on_change: None,
+            on_event: None,
         }
     }
 
@@ -602,8 +602,8 @@ impl<B: Backend> View<State, Action> for Search<B> {
         self
     }
 
-    fn on_change(mut self, callback: EventCallback<Action>) -> Self {
-        self.on_change = Some(callback);
+    fn on_event(mut self, callback: EventCallback<Action>) -> Self {
+        self.on_event = Some(callback);
         self
     }
 
@@ -671,7 +671,7 @@ where
     /// Custom update handler
     on_update: Option<UpdateCallback<State>>,
     /// Additional custom event handler
-    on_change: Option<EventCallback<Action>>,
+    on_event: Option<EventCallback<Action>>,
     /// Content widget
     content: BoxedWidget<B>,
     /// Shortcut widget
@@ -713,7 +713,7 @@ where
                                 .focus(props.focus)
                                 .to_boxed()
                         })
-                        .on_change(|state, action_tx| {
+                        .on_event(|state, action_tx| {
                             state.downcast_ref::<ParagraphState>().and_then(|state| {
                                 action_tx
                                     .send(Action::ScrollHelp {
@@ -749,7 +749,7 @@ where
                 .to_boxed(),
             shortcuts: Shortcuts::new(state, action_tx.clone()).to_boxed(),
             on_update: None,
-            on_change: None,
+            on_event: None,
         }
     }
 
@@ -758,13 +758,14 @@ where
         self
     }
 
-    fn on_change(mut self, callback: EventCallback<Action>) -> Self {
-        self.on_change = Some(callback);
+    fn on_event(mut self, callback: EventCallback<Action>) -> Self {
+        self.on_event = Some(callback);
         self
     }
 
     fn update(&mut self, state: &State) {
-        self.props = HelpPageProps::from(state);
+        self.props = HelpPageProps::from_callback(self.on_update, state)
+            .unwrap_or(HelpPageProps::from(state));
 
         self.content.update(state);
     }
