@@ -13,7 +13,7 @@ use std::time::Duration;
 use termion::raw::RawTerminal;
 
 use tokio::sync::broadcast;
-use tokio::sync::mpsc::{self, UnboundedReceiver};
+use tokio::sync::mpsc::{self, UnboundedReceiver, UnboundedSender};
 
 use super::event::Event;
 use super::store::State;
@@ -32,14 +32,21 @@ pub struct Frontend<A> {
 }
 
 impl<A> Frontend<A> {
-    pub fn new() -> (Self, UnboundedReceiver<A>) {
+    pub fn new() -> (Self, UnboundedSender<A>, UnboundedReceiver<A>) {
         let (action_tx, action_rx) = mpsc::unbounded_channel();
 
-        (Self { action_tx }, action_rx)
+        (
+            Self {
+                action_tx: action_tx.clone(),
+            },
+            action_tx,
+            action_rx,
+        )
     }
 
     pub async fn main_loop<S, W, P>(
         self,
+        root: Option<W>,
         mut state_rx: UnboundedReceiver<S>,
         mut interrupt_rx: broadcast::Receiver<Interrupted<P>>,
     ) -> anyhow::Result<Interrupted<P>>
@@ -56,7 +63,13 @@ impl<A> Frontend<A> {
         let mut root = {
             let state = state_rx.recv().await.unwrap();
 
-            W::new(&state, self.action_tx.clone())
+            match root {
+                Some(mut root) => {
+                    root.update(&state);
+                    root
+                }
+                None => W::new(&state, self.action_tx.clone()),
+            }
         };
 
         let result: anyhow::Result<Interrupted<P>> = loop {
