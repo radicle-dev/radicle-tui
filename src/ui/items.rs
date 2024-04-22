@@ -249,39 +249,39 @@ impl ToRow for NotificationItem {
             ),
         };
 
-        let id = span::notification_id(format!(" {:-03}", &self.id));
+        let id = span::notification_id(&format!(" {:-03}", &self.id));
         let seen = if self.seen {
             span::blank()
         } else {
-            span::primary(" ● ".into())
+            span::primary(" ● ")
         };
-        let kind_id = span::primary(kind_id);
-        let summary = span::default(summary.to_string());
-        let type_name = span::notification_type(type_name);
-        let name = span::default(self.project.clone()).style(style::gray().dim());
+        let kind_id = span::primary(&kind_id);
+        let summary = span::default(&summary);
+        let type_name = span::notification_type(&type_name);
+        let name = span::default(&self.project.clone()).style(style::gray().dim());
 
         let status = match status.as_str() {
-            "archived" => span::default(status.to_string()).yellow(),
-            "draft" => span::default(status.to_string()).gray().dim(),
-            "updated" => span::primary(status.to_string()),
-            "open" | "created" => span::positive(status.to_string()),
-            "closed" | "merged" => span::ternary(status.to_string()),
-            _ => span::default(status.to_string()),
+            "archived" => span::default(&status).yellow(),
+            "draft" => span::default(&status).gray().dim(),
+            "updated" => span::primary(&status),
+            "open" | "created" => span::positive(&status),
+            "closed" | "merged" => span::ternary(&status),
+            _ => span::default(&status),
         };
         let author = match &self.author.alias {
             Some(alias) => {
                 if self.author.you {
-                    span::alias(format!("{} (you)", alias))
+                    span::alias(&format!("{} (you)", alias))
                 } else {
-                    span::alias(alias.to_string())
+                    span::alias(alias)
                 }
             }
             None => match self.author.nid {
-                Some(nid) => span::alias(format::did(&Did::from(nid))).dim(),
-                None => span::alias("".to_string()),
+                Some(nid) => span::alias(&format::did(&Did::from(nid))).dim(),
+                None => span::blank(),
             },
         };
-        let timestamp = span::timestamp(format::timestamp(&self.timestamp));
+        let timestamp = span::timestamp(&format::timestamp(&self.timestamp));
 
         [
             id.into(),
@@ -492,35 +492,35 @@ impl ToRow for IssueItem {
     fn to_row(&self) -> Vec<Cell> {
         let (state, state_color) = format::issue_state(&self.state);
 
-        let state = span::default(state).style(Style::default().fg(state_color));
-        let id = span::primary(format::cob(&self.id));
-        let title = span::default(self.title.clone());
+        let state = span::default(&state).style(Style::default().fg(state_color));
+        let id = span::primary(&format::cob(&self.id));
+        let title = span::default(&self.title.clone());
 
         let author = match &self.author.alias {
             Some(alias) => {
                 if self.author.you {
-                    span::alias(format!("{} (you)", alias))
+                    span::alias(&format!("{} (you)", alias))
                 } else {
-                    span::alias(alias.to_string())
+                    span::alias(alias)
                 }
             }
             None => match self.author.nid {
-                Some(nid) => span::alias(format::did(&Did::from(nid))).dim(),
-                None => span::alias("".to_string()),
+                Some(nid) => span::alias(&format::did(&Did::from(nid))).dim(),
+                None => span::alias(""),
             },
         };
         let did = match self.author.nid {
-            Some(nid) => span::alias(format::did(&Did::from(nid))).dim(),
-            None => span::alias("".to_string()),
+            Some(nid) => span::alias(&format::did(&Did::from(nid))).dim(),
+            None => span::alias(""),
         };
-        let labels = span::labels(format::labels(&self.labels));
+        let labels = span::labels(&format::labels(&self.labels));
         let assignees = self
             .assignees
             .iter()
             .map(|author| (author.nid, author.alias.clone(), author.you))
             .collect::<Vec<_>>();
-        let assignees = span::alias(format::assignees(&assignees));
-        let opened = span::timestamp(format::timestamp(&self.timestamp));
+        let assignees = span::alias(&format::assignees(&assignees));
+        let opened = span::timestamp(&format::timestamp(&self.timestamp));
 
         [
             state.into(),
@@ -744,32 +744,32 @@ impl ToRow for PatchItem {
     fn to_row(&self) -> Vec<Cell> {
         let (state, color) = format::patch_state(&self.state);
 
-        let state = span::default(state).style(Style::default().fg(color));
-        let id = span::primary(format::cob(&self.id));
-        let title = span::default(self.title.clone());
+        let state = span::default(&state).style(Style::default().fg(color));
+        let id = span::primary(&format::cob(&self.id));
+        let title = span::default(&self.title.clone());
 
         let author = match &self.author.alias {
             Some(alias) => {
                 if self.author.you {
-                    span::alias(format!("{} (you)", alias))
+                    span::alias(&format!("{} (you)", alias))
                 } else {
-                    span::alias(alias.to_string())
+                    span::alias(alias)
                 }
             }
             None => match self.author.nid {
-                Some(nid) => span::alias(format::did(&Did::from(nid))).dim(),
-                None => span::alias("".to_string()),
+                Some(nid) => span::alias(&format::did(&Did::from(nid))).dim(),
+                None => span::blank(),
             },
         };
         let did = match self.author.nid {
-            Some(nid) => span::alias(format::did(&Did::from(nid))).dim(),
-            None => span::alias("".to_string()),
+            Some(nid) => span::alias(&format::did(&Did::from(nid))).dim(),
+            None => span::blank(),
         };
 
-        let head = span::ternary(format::oid(self.head));
-        let added = span::positive(format!("+{}", self.added));
-        let removed = span::negative(format!("-{}", self.removed));
-        let updated = span::timestamp(format::timestamp(&self.timestamp));
+        let head = span::ternary(&format::oid(self.head));
+        let added = span::positive(&format!("+{}", self.added));
+        let removed = span::negative(&format!("-{}", self.removed));
+        let updated = span::timestamp(&format::timestamp(&self.timestamp));
 
         [
             state.into(),

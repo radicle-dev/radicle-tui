@@ -660,7 +660,7 @@ where
             frame.render_stateful_widget(rows, area, &mut self.state.clone());
         } else {
             let center = layout::centered_rect(area, 50, 10);
-            let hint = Text::from(span::default("Nothing to show".to_string()))
+            let hint = Text::from(span::default("Nothing to show"))
                 .centered()
                 .light_magenta()
                 .dim();
