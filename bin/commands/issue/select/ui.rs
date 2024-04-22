@@ -33,105 +33,9 @@ use tui::Selection;
 use crate::tui_issue::common::IssueOperation;
 use crate::tui_issue::common::Mode;
 
-use super::{Action, Page, State};
+use super::{Action, State};
 
 type BoxedWidget<B> = widget::BoxedWidget<B, State, Action>;
-
-#[derive(Clone)]
-pub struct WindowProps {
-    page: Page,
-}
-
-impl From<&State> for WindowProps {
-    fn from(state: &State) -> Self {
-        Self {
-            page: state.pages.peek().unwrap_or(&Page::Browse).clone(),
-        }
-    }
-}
-
-impl Properties for WindowProps {}
-
-pub struct Window<B: Backend> {
-    /// Internal properties
-    props: WindowProps,
-    /// Message sender
-    _action_tx: UnboundedSender<Action>,
-    /// Custom update handler
-    on_update: Option<UpdateCallback<State>>,
-    /// Additional custom event handler
-    on_event: Option<EventCallback<Action>>,
-    /// All pages known
-    pages: HashMap<Page, BoxedWidget<B>>,
-}
-
-impl<'a: 'static, B> View<State, Action> for Window<B>
-where
-    B: Backend + 'a,
-{
-    fn new(state: &State, action_tx: UnboundedSender<Action>) -> Self
-    where
-        Self: Sized,
-    {
-        Self {
-            _action_tx: action_tx.clone(),
-            props: WindowProps::from(state),
-            pages: HashMap::from([
-                (
-                    Page::Browse,
-                    BrowsePage::new(state, action_tx.clone()).to_boxed() as BoxedWidget<B>,
-                ),
-                (
-                    Page::Help,
-                    HelpPage::new(state, action_tx.clone()).to_boxed() as BoxedWidget<B>,
-                ),
-            ]),
-            on_update: None,
-            on_event: None,
-        }
-    }
-
-    fn on_update(mut self, callback: UpdateCallback<State>) -> Self {
-        self.on_update = Some(callback);
-        self
-    }
-
-    fn on_event(mut self, callback: EventCallback<Action>) -> Self {
-        self.on_event = Some(callback);
-        self
-    }
-
-    fn update(&mut self, state: &State) {
-        self.props = WindowProps::from(state);
-
-        if let Some(page) = self.pages.get_mut(&self.props.page) {
-            page.update(state);
-        }
-    }
-
-    fn handle_key_event(&mut self, key: termion::event::Key) {
-        if let Some(page) = self.pages.get_mut(&self.props.page) {
-            page.handle_key_event(key);
-        }
-    }
-}
-
-impl<'a: 'static, B> Widget<B, State, Action> for Window<B>
-where
-    B: Backend + 'a,
-{
-    fn render(&self, frame: &mut ratatui::Frame, _area: Rect, props: Option<Box<dyn Any>>) {
-        let props = props
-            .and_then(WindowProps::from_boxed_any)
-            .unwrap_or(self.props.clone());
-
-        let area = frame.size();
-
-        if let Some(page) = self.pages.get(&props.page) {
-            page.render(frame, area, None);
-        }
-    }
-}
 
 #[derive(Clone)]
 struct BrowsePageProps<'a> {
@@ -217,7 +121,7 @@ impl<'a> From<&State> for BrowsePageProps<'a> {
 
 impl<'a> Properties for BrowsePageProps<'a> {}
 
-struct BrowsePage<'a, B> {
+pub struct BrowsePage<'a, B> {
     /// Internal properties
     props: BrowsePageProps<'a>,
     /// Message sender

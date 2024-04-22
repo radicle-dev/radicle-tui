@@ -15,13 +15,19 @@ use tui::cob::patch;
 use tui::store;
 use tui::task;
 use tui::task::Interrupted;
-use tui::terminal;
+use tui::terminal::Backend;
 use tui::ui::items::{Filter, PatchItem, PatchItemFilter};
+use tui::ui::widget::Properties;
+use tui::ui::widget::View;
+use tui::ui::widget::Window;
+use tui::ui::widget::WindowProps;
 use tui::ui::Frontend;
 use tui::Exit;
 
 use tui::PageStack;
-use ui::Window;
+
+use self::ui::BrowsePage;
+use self::ui::HelpPage;
 
 use super::common::Mode;
 
@@ -194,15 +200,27 @@ impl App {
     pub async fn run(&self) -> Result<Option<Selection>> {
         let (terminator, mut interrupt_rx) = task::create_termination();
         let (store, state_rx) = store::Store::<Action, State, Selection>::new();
-        let (frontend, action_rx) = Frontend::<Action>::new();
+        let (frontend, action_tx, action_rx) = Frontend::<Action>::new();
         let state = State::try_from(&self.context)?;
+
+        let window: Window<Backend, State, Action, Page> = Window::new(&state, action_tx.clone())
+            .page(
+                Page::Browse,
+                BrowsePage::new(&state, action_tx.clone()).to_boxed(),
+            )
+            .page(
+                Page::Help,
+                HelpPage::new(&state, action_tx.clone()).to_boxed(),
+            )
+            .on_update(|state| {
+                WindowProps::default()
+                    .current_page(state.pages.peek().unwrap_or(&Page::Browse).clone())
+                    .to_boxed()
+            });
 
         tokio::try_join!(
             store.main_loop(state, terminator, action_rx, interrupt_rx.resubscribe()),
-            frontend.main_loop::<State, Window<terminal::Backend>, Selection>(
-                state_rx,
-                interrupt_rx.resubscribe()
-            ),
+            frontend.main_loop(Some(window), state_rx, interrupt_rx.resubscribe()),
         )?;
 
         if let Ok(reason) = interrupt_rx.recv().await {
