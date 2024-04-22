@@ -4,7 +4,9 @@ pub mod text;
 
 use std::any::Any;
 use std::cmp;
+use std::collections::HashMap;
 use std::fmt::Debug;
+use std::hash::Hash;
 
 use tokio::sync::mpsc::UnboundedSender;
 
@@ -109,6 +111,134 @@ pub trait Properties {
         callback
             .map(|callback| (callback)(state))
             .and_then(|props| Self::from_boxed_any(props))
+    }
+}
+
+#[derive(Clone)]
+pub struct WindowProps<Id> {
+    current_page: Option<Id>,
+}
+
+impl<Id> WindowProps<Id> {
+    pub fn current_page(mut self, page: Id) -> Self {
+        self.current_page = Some(page);
+        self
+    }
+}
+
+impl<Id> Default for WindowProps<Id> {
+    fn default() -> Self {
+        Self { current_page: None }
+    }
+}
+
+impl<Id> Properties for WindowProps<Id> {}
+
+pub struct Window<B, S, A, Id>
+where
+    B: Backend,
+{
+    /// Internal properties
+    props: WindowProps<Id>,
+    /// Message sender
+    _action_tx: UnboundedSender<A>,
+    /// Custom update handler
+    on_update: Option<UpdateCallback<S>>,
+    /// Additional custom event handler
+    on_event: Option<EventCallback<A>>,
+    /// All pages known
+    pages: HashMap<Id, BoxedWidget<B, S, A>>,
+}
+
+impl<B, S, A, Id> Window<B, S, A, Id>
+where
+    B: Backend,
+    Id: Clone + Hash + Eq + PartialEq,
+{
+    pub fn page(mut self, id: Id, page: BoxedWidget<B, S, A>) -> Self {
+        // self.pages.inse
+        self.pages.insert(id, page);
+        self
+    }
+}
+
+impl<'a: 'static, B, S, A, Id> View<S, A> for Window<B, S, A, Id>
+where
+    B: Backend + 'a,
+    Id: Clone + Hash + Eq + PartialEq + 'a,
+{
+    fn new(_state: &S, action_tx: UnboundedSender<A>) -> Self
+    where
+        Self: Sized,
+    {
+        Self {
+            _action_tx: action_tx.clone(),
+            props: WindowProps::default(),
+            pages: HashMap::new(),
+            on_update: None,
+            on_event: None,
+        }
+    }
+
+    fn on_update(mut self, callback: UpdateCallback<S>) -> Self {
+        self.on_update = Some(callback);
+        self
+    }
+
+    fn on_event(mut self, callback: EventCallback<A>) -> Self {
+        self.on_event = Some(callback);
+        self
+    }
+
+    fn update(&mut self, state: &S) {
+        self.props =
+            WindowProps::from_callback(self.on_update, state).unwrap_or(self.props.clone());
+
+        let page = self
+            .props
+            .current_page
+            .as_ref()
+            .and_then(|id| self.pages.get_mut(id));
+
+        if let Some(page) = page {
+            page.update(state);
+        }
+    }
+
+    fn handle_key_event(&mut self, key: termion::event::Key) {
+        let page = self
+            .props
+            .current_page
+            .as_ref()
+            .and_then(|id| self.pages.get_mut(id));
+
+        if let Some(page) = page {
+            page.handle_key_event(key);
+        }
+    }
+}
+
+impl<'a: 'static, B, S, A, Id> Widget<B, S, A> for Window<B, S, A, Id>
+where
+    B: Backend + 'a,
+    Id: Clone + Hash + Eq + PartialEq + 'a,
+{
+    fn render(&self, frame: &mut ratatui::Frame, _area: Rect, props: Option<Box<dyn Any>>) {
+        let _props = props
+            .and_then(WindowProps::from_boxed_any)
+            .unwrap_or(self.props.clone());
+
+        let area = frame.size();
+
+        let page = self
+            .props
+            .current_page
+            .as_ref()
+            .and_then(|id| self.pages.get(id));
+
+        if let Some(page) = page {
+            page.render(frame, area, None);
+        }
     }
 }
 
