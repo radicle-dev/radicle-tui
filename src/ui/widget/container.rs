@@ -60,7 +60,7 @@ pub struct Header<'a, S, A> {
     /// Custom update handler
     on_update: Option<UpdateCallback<S>>,
     /// Additional custom event handler
-    on_change: Option<EventCallback<A>>,
+    on_event: Option<EventCallback<A>>,
 }
 
 impl<'a, S, A> Header<'a, S, A> {
@@ -87,7 +87,7 @@ impl<'a: 'static, S, A> View<S, A> for Header<'a, S, A> {
             action_tx: action_tx.clone(),
             props: HeaderProps::default(),
             on_update: None,
-            on_change: None,
+            on_event: None,
         }
     }
 
@@ -96,8 +96,8 @@ impl<'a: 'static, S, A> View<S, A> for Header<'a, S, A> {
         self
     }
 
-    fn on_change(mut self, callback: EventCallback<A>) -> Self {
-        self.on_change = Some(callback);
+    fn on_event(mut self, callback: EventCallback<A>) -> Self {
+        self.on_event = Some(callback);
         self
     }
 
@@ -109,8 +109,8 @@ impl<'a: 'static, S, A> View<S, A> for Header<'a, S, A> {
     }
 
     fn handle_key_event(&mut self, _key: Key) {
-        if let Some(on_change) = self.on_change {
-            (on_change)(&self.props, self.action_tx.clone());
+        if let Some(on_event) = self.on_event {
+            (on_event)(&self.props, self.action_tx.clone());
         }
     }
 }
@@ -224,7 +224,7 @@ pub struct Footer<'a, S, A> {
     /// Custom update handler
     on_update: Option<UpdateCallback<S>>,
     /// Additional custom event handler
-    on_change: Option<EventCallback<A>>,
+    on_event: Option<EventCallback<A>>,
 }
 
 impl<'a, S, A> Footer<'a, S, A> {
@@ -251,7 +251,7 @@ impl<'a: 'static, S, A> View<S, A> for Footer<'a, S, A> {
             action_tx: action_tx.clone(),
             props: FooterProps::default(),
             on_update: None,
-            on_change: None,
+            on_event: None,
         }
     }
 
@@ -260,8 +260,8 @@ impl<'a: 'static, S, A> View<S, A> for Footer<'a, S, A> {
         self
     }
 
-    fn on_change(mut self, callback: EventCallback<A>) -> Self {
-        self.on_change = Some(callback);
+    fn on_event(mut self, callback: EventCallback<A>) -> Self {
+        self.on_event = Some(callback);
         self
     }
 
@@ -273,8 +273,8 @@ impl<'a: 'static, S, A> View<S, A> for Footer<'a, S, A> {
     }
 
     fn handle_key_event(&mut self, _key: Key) {
-        if let Some(on_change) = self.on_change {
-            (on_change)(&self.props, self.action_tx.clone());
+        if let Some(on_event) = self.on_event {
+            (on_event)(&self.props, self.action_tx.clone());
         }
     }
 }
@@ -375,7 +375,7 @@ where
     /// Custom update handler
     on_update: Option<UpdateCallback<S>>,
     /// Additional custom event handler
-    on_change: Option<EventCallback<A>>,
+    on_event: Option<EventCallback<A>>,
     /// Container header
     header: Option<BoxedWidget<B, S, A>>,
     /// Content widget
@@ -419,7 +419,7 @@ where
             content: None,
             footer: None,
             on_update: None,
-            on_change: None,
+            on_event: None,
         }
     }
 
@@ -428,16 +428,14 @@ where
         self
     }
 
-    fn on_change(mut self, callback: EventCallback<A>) -> Self {
-        self.on_change = Some(callback);
+    fn on_event(mut self, callback: EventCallback<A>) -> Self {
+        self.on_event = Some(callback);
         self
     }
 
     fn update(&mut self, state: &S) {
-        self.props = self
-            .on_update
-            .and_then(|on_update| ContainerProps::from_boxed_any((on_update)(state)))
-            .unwrap_or(self.props.clone());
+        self.props =
+            ContainerProps::from_callback(self.on_update, state).unwrap_or(self.props.clone());
 
         if let Some(header) = &mut self.header {
             header.update(state);

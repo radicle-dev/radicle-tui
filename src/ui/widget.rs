@@ -32,7 +32,7 @@ pub trait View<S, A> {
         Self: Sized;
 
     /// Should set the optional custom event handler.
-    fn on_change(self, callback: EventCallback<A>) -> Self
+    fn on_event(self, callback: EventCallback<A>) -> Self
     where
         Self: Sized;
 
@@ -51,12 +51,20 @@ pub trait View<S, A> {
 
     /// Should handle key events and call `handle_key_event` on all children.
     ///
-    /// After key events have been handled, the custom event handler `on_change` should
+    /// After key events have been handled, the custom event handler `on_event` should
     /// be called
     fn handle_key_event(&mut self, key: Key);
 
-    /// Should update internal props by calling the custom update handler `on_update`
-    /// and call `update` on all children.
+    /// Should update the internal props of this and all children.
+    ///
+    /// Applications are usually defined by app-specific widgets that do know
+    /// the type of `state`. These can use widgets from the library that do not know the
+    /// type of `state`.
+    ///
+    /// If `on_update` is set, implementators of this function should call it to
+    /// construct and update the internal props. If it is not set, app widgets can construct
+    /// prosp directly via their state converters, whereas library widgets can just fallback
+    /// to their current props.
     fn update(&mut self, state: &S);
 }
 
@@ -92,6 +100,15 @@ pub trait Properties {
         Self: Sized + Clone + 'static,
     {
         any.downcast_ref::<Self>().cloned()
+    }
+
+    fn from_callback<S>(callback: Option<UpdateCallback<S>>, state: &S) -> Option<Self>
+    where
+        Self: Sized + Clone + 'static,
+    {
+        callback
+            .map(|callback| (callback)(state))
+            .and_then(|props| Self::from_boxed_any(props))
     }
 }
 
@@ -135,7 +152,7 @@ pub struct Shortcuts<S, A> {
     /// Custom update handler
     on_update: Option<UpdateCallback<S>>,
     /// Additional custom event handler
-    on_change: Option<EventCallback<A>>,
+    on_event: Option<EventCallback<A>>,
 }
 
 impl<S, A> Shortcuts<S, A> {
@@ -161,12 +178,12 @@ impl<S, A> View<S, A> for Shortcuts<S, A> {
             _action_tx: action_tx.clone(),
             props: ShortcutsProps::default(),
             on_update: None,
-            on_change: None,
+            on_event: None,
         }
     }
 
-    fn on_change(mut self, callback: EventCallback<A>) -> Self {
-        self.on_change = Some(callback);
+    fn on_event(mut self, callback: EventCallback<A>) -> Self {
+        self.on_event = Some(callback);
         self
     }
 
@@ -178,10 +195,8 @@ impl<S, A> View<S, A> for Shortcuts<S, A> {
     fn handle_key_event(&mut self, _key: Key) {}
 
     fn update(&mut self, state: &S) {
-        self.props = self
-            .on_update
-            .and_then(|on_update| ShortcutsProps::from_boxed_any((on_update)(state)))
-            .unwrap_or(self.props.clone())
+        self.props =
+            ShortcutsProps::from_callback(self.on_update, state).unwrap_or(self.props.clone());
     }
 }
 
@@ -335,7 +350,7 @@ where
     /// Custom update handler
     on_update: Option<UpdateCallback<S>>,
     /// Additional custom event handler
-    on_change: Option<EventCallback<A>>,
+    on_event: Option<EventCallback<A>>,
     /// Internal selection and offset state
     state: TableState,
 }
@@ -405,7 +420,7 @@ where
             props: TableProps::default(),
             state: TableState::default().with_selected(Some(0)),
             on_update: None,
-            on_change: None,
+            on_event: None,
         }
     }
 
@@ -414,16 +429,14 @@ where
         self
     }
 
-    fn on_change(mut self, callback: EventCallback<A>) -> Self {
-        self.on_change = Some(callback);
+    fn on_event(mut self, callback: EventCallback<A>) -> Self {
+        self.on_event = Some(callback);
         self
     }
 
     fn update(&mut self, state: &S) {
-        self.props = self
-            .on_update
-            .and_then(|on_update| TableProps::<'_, R>::from_boxed_any((on_update)(state)))
-            .unwrap_or(self.props.clone());
+        self.props =
+            TableProps::<'_, R>::from_callback(self.on_update, state).unwrap_or(self.props.clone());
 
         // TODO: Move to state reducer
         if let Some(selected) = self.state.selected() {
@@ -458,8 +471,8 @@ where
 
         self.props.selected = self.state.selected();
 
-        if let Some(on_change) = self.on_change {
-            (on_change)(&self.state, self.action_tx.clone());
+        if let Some(on_event) = self.on_event {
+            (on_event)(&self.state, self.action_tx.clone());
         }
     }
 }

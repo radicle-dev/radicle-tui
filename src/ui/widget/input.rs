@@ -63,7 +63,7 @@ pub struct TextField<S, A> {
     /// Custom update handler
     on_update: Option<UpdateCallback<S>>,
     /// Additional custom event handler
-    on_change: Option<EventCallback<A>>,
+    on_event: Option<EventCallback<A>>,
     /// Internal state
     state: TextFieldState,
 }
@@ -136,7 +136,7 @@ impl<S, A> View<S, A> for TextField<S, A> {
             action_tx,
             props: TextFieldProps::default(),
             on_update: None,
-            on_change: None,
+            on_event: None,
             state: TextFieldState {
                 text: None,
                 cursor_position: 0,
@@ -149,8 +149,8 @@ impl<S, A> View<S, A> for TextField<S, A> {
         self
     }
 
-    fn on_change(mut self, callback: EventCallback<A>) -> Self {
-        self.on_change = Some(callback);
+    fn on_event(mut self, callback: EventCallback<A>) -> Self {
+        self.on_event = Some(callback);
         self
     }
 
@@ -188,8 +188,8 @@ impl<S, A> View<S, A> for TextField<S, A> {
             _ => {}
         }
 
-        if let Some(on_change) = self.on_change {
-            (on_change)(&self.state, self.action_tx.clone());
+        if let Some(on_event) = self.on_event {
+            (on_event)(&self.state, self.action_tx.clone());
         }
     }
 }

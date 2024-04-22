@@ -67,7 +67,7 @@ pub struct Paragraph<'a, S, A> {
     /// Custom update handler
     on_update: Option<UpdateCallback<S>>,
     /// Additional custom event handler
-    on_change: Option<EventCallback<A>>,
+    on_event: Option<EventCallback<A>>,
     /// Internal state
     state: ParagraphState,
 }
@@ -155,7 +155,7 @@ impl<'a: 'static, S, A> View<S, A> for Paragraph<'a, S, A> {
             action_tx: action_tx.clone(),
             props: ParagraphProps::default(),
             on_update: None,
-            on_change: None,
+            on_event: None,
             state: ParagraphState {
                 offset: 0,
                 progress: 0,
@@ -163,8 +163,8 @@ impl<'a: 'static, S, A> View<S, A> for Paragraph<'a, S, A> {
         }
     }
 
-    fn on_change(mut self, callback: EventCallback<A>) -> Self {
-        self.on_change = Some(callback);
+    fn on_event(mut self, callback: EventCallback<A>) -> Self {
+        self.on_event = Some(callback);
         self
     }
 
@@ -174,10 +174,8 @@ impl<'a: 'static, S, A> View<S, A> for Paragraph<'a, S, A> {
     }
 
     fn update(&mut self, state: &S) {
-        self.props = self
-            .on_update
-            .and_then(|on_update| ParagraphProps::from_boxed_any((on_update)(state)))
-            .unwrap_or(self.props.clone());
+        self.props =
+            ParagraphProps::from_callback(self.on_update, state).unwrap_or(self.props.clone());
     }
 
     fn handle_key_event(&mut self, key: Key) {
@@ -206,8 +204,8 @@ impl<'a: 'static, S, A> View<S, A> for Paragraph<'a, S, A> {
             _ => {}
         }
 
-        if let Some(on_change) = self.on_change {
-            (on_change)(&self.state, self.action_tx.clone());
+        if let Some(on_event) = self.on_event {
+            (on_event)(&self.state, self.action_tx.clone());
         }
     }
 }
