@@ -297,66 +297,45 @@ impl<'a, B: Backend> BrowsePage<'a, B> {
     fn build_footer(props: &BrowsePageProps<'a>, selected: Option<usize>) -> Vec<Column<'a>> {
         let filter = PatchItemFilter::from_str(&props.search).unwrap_or_default();
 
-        let search = Line::from(
-            [
-                span::default(" Search ".to_string())
-                    .cyan()
-                    .dim()
-                    .reversed(),
-                span::default(" ".into()),
-                span::default(props.search.to_string()).gray().dim(),
-            ]
-            .to_vec(),
-        );
+        let search = Line::from(vec![
+            span::default(" Search ").cyan().dim().reversed(),
+            span::default(" "),
+            span::default(&props.search.to_string()).gray().dim(),
+        ]);
 
-        let draft = Line::from(
-            [
-                span::default(props.stats.get("Draft").unwrap_or(&0).to_string()).dim(),
-                span::default(" Draft".to_string()).dim(),
-            ]
-            .to_vec(),
-        );
+        let draft = Line::from(vec![
+            span::default(&props.stats.get("Draft").unwrap_or(&0).to_string()).dim(),
+            span::default(" Draft").dim(),
+        ]);
 
-        let open = Line::from(
-            [
-                span::positive(props.stats.get("Open").unwrap_or(&0).to_string()).dim(),
-                span::default(" Open".to_string()).dim(),
-            ]
-            .to_vec(),
-        );
+        let open = Line::from(vec![
+            span::positive(&props.stats.get("Open").unwrap_or(&0).to_string()).dim(),
+            span::default(" Open").dim(),
+        ]);
 
-        let merged = Line::from(
-            [
-                span::default(props.stats.get("Merged").unwrap_or(&0).to_string())
-                    .magenta()
-                    .dim(),
-                span::default(" Merged".to_string()).dim(),
-            ]
-            .to_vec(),
-        );
+        let merged = Line::from(vec![
+            span::default(&props.stats.get("Merged").unwrap_or(&0).to_string())
+                .magenta()
+                .dim(),
+            span::default(" Merged").dim(),
+        ]);
 
-        let archived = Line::from(
-            [
-                span::default(props.stats.get("Archived").unwrap_or(&0).to_string())
-                    .yellow()
-                    .dim(),
-                span::default(" Archived".to_string()).dim(),
-            ]
-            .to_vec(),
-        );
+        let archived = Line::from(vec![
+            span::default(&props.stats.get("Archived").unwrap_or(&0).to_string())
+                .yellow()
+                .dim(),
+            span::default(" Archived").dim(),
+        ]);
 
-        let sum = Line::from(
-            [
-                span::default("Σ ".to_string()).dim(),
-                span::default(props.patches.len().to_string()).dim(),
-            ]
-            .to_vec(),
-        );
+        let sum = Line::from(vec![
+            span::default("Σ ").dim(),
+            span::default(&props.patches.len().to_string()).dim(),
+        ]);
 
         let progress = selected
             .map(|selected| TableUtils::progress(selected, props.patches.len(), props.page_size))
             .unwrap_or_default();
-        let progress = span::default(format!("{}%", progress)).dim();
+        let progress = span::default(&format!("{}%", progress)).dim();
 
         match filter.status() {
             Some(state) => {
@@ -367,7 +346,7 @@ impl<'a, B: Backend> BrowsePage<'a, B> {
                     Status::Archived => archived,
                 };
 
-                [
+                vec![
                     Column::new(Text::from(search), Constraint::Fill(1)),
                     Column::new(
                         Text::from(block.clone()),
@@ -375,9 +354,8 @@ impl<'a, B: Backend> BrowsePage<'a, B> {
                     ),
                     Column::new(Text::from(progress), Constraint::Min(4)),
                 ]
-                .to_vec()
             }
-            None => [
+            None => vec![
                 Column::new(Text::from(search), Constraint::Fill(1)),
                 Column::new(
                     Text::from(draft.clone()),
@@ -397,8 +375,7 @@ impl<'a, B: Backend> BrowsePage<'a, B> {
                 ),
                 Column::new(Text::from(sum.clone()), Constraint::Min(sum.width() as u16)),
                 Column::new(Text::from(progress), Constraint::Min(4)),
-            ]
-            .to_vec(),
+            ],
         }
     }
 }
@@ -638,7 +615,7 @@ where
                                     [
                                         Column::new(Text::raw(""), Constraint::Fill(1)),
                                         Column::new(
-                                            span::default(format!("{}%", props.help_progress))
+                                            span::default(&format!("{}%", props.help_progress))
                                                 .dim(),
                                             Constraint::Min(4),
                                         ),
@@ -725,134 +702,89 @@ fn help_text() -> Text<'static> {
         [
             Line::from(Span::raw("Generic keybindings").cyan()),
             Line::raw(""),
-            Line::from(
-                [
-                    Span::raw(format!("{key:>10}", key = "↑,k")).gray(),
-                    Span::raw(" "),
-                    Span::raw("move cursor one line up").gray().dim(),
-                ]
-                .to_vec(),
-            ),
-            Line::from(
-                [
-                    Span::raw(format!("{key:>10}", key = "↓,j")).gray(),
-                    Span::raw(" "),
-                    Span::raw("move cursor one line down").gray().dim(),
-                ]
-                .to_vec(),
-            ),
-            Line::from(
-                [
-                    Span::raw(format!("{key:>10}", key = "PageUp")).gray(),
-                    Span::raw(" "),
-                    Span::raw("move cursor one page up").gray().dim(),
-                ]
-                .to_vec(),
-            ),
-            Line::from(
-                [
-                    Span::raw(format!("{key:>10}", key = "PageDown")).gray(),
-                    Span::raw(" "),
-                    Span::raw("move cursor one page down").gray().dim(),
-                ]
-                .to_vec(),
-            ),
-            Line::from(
-                [
-                    Span::raw(format!("{key:>10}", key = "Home")).gray(),
-                    Span::raw(" "),
-                    Span::raw("move cursor to the first line").gray().dim(),
-                ]
-                .to_vec(),
-            ),
-            Line::from(
-                [
-                    Span::raw(format!("{key:>10}", key = "End")).gray(),
-                    Span::raw(" "),
-                    Span::raw("move cursor to the last line").gray().dim(),
-                ]
-                .to_vec(),
-            ),
+            Line::from(vec![
+                Span::raw(format!("{key:>10}", key = "↑,k")).gray(),
+                Span::raw(" "),
+                Span::raw("move cursor one line up").gray().dim(),
+            ]),
+            Line::from(vec![
+                Span::raw(format!("{key:>10}", key = "↓,j")).gray(),
+                Span::raw(" "),
+                Span::raw("move cursor one line down").gray().dim(),
+            ]),
+            Line::from(vec![
+                Span::raw(format!("{key:>10}", key = "PageUp")).gray(),
+                Span::raw(" "),
+                Span::raw("move cursor one page up").gray().dim(),
+            ]),
+            Line::from(vec![
+                Span::raw(format!("{key:>10}", key = "PageDown")).gray(),
+                Span::raw(" "),
+                Span::raw("move cursor one page down").gray().dim(),
+            ]),
+            Line::from(vec![
+                Span::raw(format!("{key:>10}", key = "Home")).gray(),
+                Span::raw(" "),
+                Span::raw("move cursor to the first line").gray().dim(),
+            ]),
+            Line::from(vec![
+                Span::raw(format!("{key:>10}", key = "End")).gray(),
+                Span::raw(" "),
+                Span::raw("move cursor to the last line").gray().dim(),
+            ]),
             Line::raw(""),
             Line::from(Span::raw("Specific keybindings").cyan()),
             Line::raw(""),
-            Line::from(
-                [
-                    Span::raw(format!("{key:>10}", key = "enter")).gray(),
-                    Span::raw(" "),
-                    Span::raw("Select patch (if --mode id)").gray().dim(),
-                ]
-                .to_vec(),
-            ),
-            Line::from(
-                [
-                    Span::raw(format!("{key:>10}", key = "enter")).gray(),
-                    Span::raw(" "),
-                    Span::raw("Show patch").gray().dim(),
-                ]
-                .to_vec(),
-            ),
-            Line::from(
-                [
-                    Span::raw(format!("{key:>10}", key = "c")).gray(),
-                    Span::raw(" "),
-                    Span::raw("Checkout patch").gray().dim(),
-                ]
-                .to_vec(),
-            ),
-            Line::from(
-                [
-                    Span::raw(format!("{key:>10}", key = "d")).gray(),
-                    Span::raw(" "),
-                    Span::raw("Show patch diff").gray().dim(),
-                ]
-                .to_vec(),
-            ),
-            Line::from(
-                [
-                    Span::raw(format!("{key:>10}", key = "/")).gray(),
-                    Span::raw(" "),
-                    Span::raw("Search").gray().dim(),
-                ]
-                .to_vec(),
-            ),
-            Line::from(
-                [
-                    Span::raw(format!("{key:>10}", key = "?")).gray(),
-                    Span::raw(" "),
-                    Span::raw("Show help").gray().dim(),
-                ]
-                .to_vec(),
-            ),
-            Line::from(
-                [
-                    Span::raw(format!("{key:>10}", key = "Esc")).gray(),
-                    Span::raw(" "),
-                    Span::raw("Quit / cancel").gray().dim(),
-                ]
-                .to_vec(),
-            ),
+            Line::from(vec![
+                Span::raw(format!("{key:>10}", key = "enter")).gray(),
+                Span::raw(" "),
+                Span::raw("Select patch (if --mode id)").gray().dim(),
+            ]),
+            Line::from(vec![
+                Span::raw(format!("{key:>10}", key = "enter")).gray(),
+                Span::raw(" "),
+                Span::raw("Show patch").gray().dim(),
+            ]),
+            Line::from(vec![
+                Span::raw(format!("{key:>10}", key = "c")).gray(),
+                Span::raw(" "),
+                Span::raw("Checkout patch").gray().dim(),
+            ]),
+            Line::from(vec![
+                Span::raw(format!("{key:>10}", key = "d")).gray(),
+                Span::raw(" "),
+                Span::raw("Show patch diff").gray().dim(),
+            ]),
+            Line::from(vec![
+                Span::raw(format!("{key:>10}", key = "/")).gray(),
+                Span::raw(" "),
+                Span::raw("Search").gray().dim(),
+            ]),
+            Line::from(vec![
+                Span::raw(format!("{key:>10}", key = "?")).gray(),
+                Span::raw(" "),
+                Span::raw("Show help").gray().dim(),
+            ]),
+            Line::from(vec![
+                Span::raw(format!("{key:>10}", key = "Esc")).gray(),
+                Span::raw(" "),
+                Span::raw("Quit / cancel").gray().dim(),
+            ]),
             Line::raw(""),
             Line::from(Span::raw("Searching").cyan()),
             Line::raw(""),
-            Line::from(
-                [
-                    Span::raw(format!("{key:>10}", key = "Pattern")).gray(),
-                    Span::raw(" "),
-                    Span::raw("is:<state> | is:authored | authors:[<did>, <did>] | <search>")
-                        .gray()
-                        .dim(),
-                ]
-                .to_vec(),
-            ),
-            Line::from(
-                [
-                    Span::raw(format!("{key:>10}", key = "Example")).gray(),
-                    Span::raw(" "),
-                    Span::raw("is:open is:authored improve").gray().dim(),
-                ]
-                .to_vec(),
-            ),
+            Line::from(vec![
+                Span::raw(format!("{key:>10}", key = "Pattern")).gray(),
+                Span::raw(" "),
+                Span::raw("is:<state> | is:authored | authors:[<did>, <did>] | <search>")
+                    .gray()
+                    .dim(),
+            ]),
+            Line::from(vec![
+                Span::raw(format!("{key:>10}", key = "Example")).gray(),
+                Span::raw(" "),
+                Span::raw("is:open is:authored improve").gray().dim(),
+            ]),
             Line::raw(""),
             Line::raw(""),
         ]
