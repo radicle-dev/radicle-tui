@@ -278,55 +278,37 @@ where
 
 impl<'a, B: Backend> BrowsePage<'a, B> {
     fn build_footer(props: &BrowsePageProps<'a>, selected: Option<usize>) -> Vec<Column<'a>> {
-        let search = Line::from(
-            [
-                span::default(" Search ".to_string())
-                    .cyan()
-                    .dim()
-                    .reversed(),
-                span::default(" ".into()),
-                span::default(props.search.to_string()).gray().dim(),
-            ]
-            .to_vec(),
-        );
+        let search = Line::from(vec![
+            span::default(" Search ").cyan().dim().reversed(),
+            span::default(" ".into()),
+            span::default(&props.search).gray().dim(),
+        ]);
 
-        let open = Line::from(
-            [
-                span::positive(props.stats.get("Open").unwrap_or(&0).to_string()).dim(),
-                span::default(" Open".to_string()).dim(),
-            ]
-            .to_vec(),
-        );
-        let solved = Line::from(
-            [
-                span::default(props.stats.get("Solved").unwrap_or(&0).to_string())
-                    .magenta()
-                    .dim(),
-                span::default(" Solved".to_string()).dim(),
-            ]
-            .to_vec(),
-        );
-        let closed = Line::from(
-            [
-                span::default(props.stats.get("Closed").unwrap_or(&0).to_string())
-                    .magenta()
-                    .dim(),
-                span::default(" Closed".to_string()).dim(),
-            ]
-            .to_vec(),
-        );
-        let sum = Line::from(
-            [
-                span::default("Σ ".to_string()).dim(),
-                span::default(props.issues.len().to_string()).dim(),
-            ]
-            .to_vec(),
-        );
+        let open = Line::from(vec![
+            span::positive(&props.stats.get("Open").unwrap_or(&0).to_string()).dim(),
+            span::default(" Open").dim(),
+        ]);
+        let solved = Line::from(vec![
+            span::default(&props.stats.get("Solved").unwrap_or(&0).to_string())
+                .magenta()
+                .dim(),
+            span::default(" Solved").dim(),
+        ]);
+        let closed = Line::from(vec![
+            span::default(&props.stats.get("Closed").unwrap_or(&0).to_string())
+                .magenta()
+                .dim(),
+            span::default(" Closed").dim(),
+        ]);
+        let sum = Line::from(vec![
+            span::default("Σ ").dim(),
+            span::default(&props.issues.len().to_string()).dim(),
+        ]);
 
         let progress = selected
             .map(|selected| TableUtils::progress(selected, props.issues.len(), props.page_size))
             .unwrap_or_default();
-        let progress = span::default(format!("{}%", progress)).dim();
+        let progress = span::default(&format!("{}%", progress)).dim();
 
         match IssueItemFilter::from_str(&props.search)
             .unwrap_or_default()
@@ -606,7 +588,7 @@ where
                                     [
                                         Column::new(Text::raw(""), Constraint::Fill(1)),
                                         Column::new(
-                                            span::default(format!("{}%", props.help_progress))
+                                            span::default(&format!("{}%", props.help_progress))
                                                 .dim(),
                                             Constraint::Min(4),
                                         ),
