@@ -25,8 +25,7 @@ use tui::ui::widget::input::{TextField, TextFieldProps, TextFieldState};
 use tui::ui::widget::text::{Paragraph, ParagraphProps, ParagraphState};
 use tui::ui::widget::{self, BaseView};
 use tui::ui::widget::{
-    Column, EventCallback, Properties, Shortcuts, ShortcutsProps, Table, TableProps, TableUtils,
-    UpdateCallback, View, Widget,
+    Column, Properties, Shortcuts, ShortcutsProps, Table, TableProps, TableUtils, View, Widget,
 };
 use tui::Selection;
 
@@ -198,16 +197,6 @@ where
 
     fn base_mut(&mut self) -> &mut BaseView<State, Action> {
         &mut self.base
-    }
-
-    fn on_update(mut self, callback: UpdateCallback<State>) -> Self {
-        self.base.on_update = Some(callback);
-        self
-    }
-
-    fn on_event(mut self, callback: EventCallback<Action>) -> Self {
-        self.base.on_event = Some(callback);
-        self
     }
 
     fn update(&mut self, state: &State) {
@@ -464,16 +453,6 @@ impl<B: Backend> View<State, Action> for Search<B> {
         &mut self.base
     }
 
-    fn on_update(mut self, callback: UpdateCallback<State>) -> Self {
-        self.base.on_update = Some(callback);
-        self
-    }
-
-    fn on_event(mut self, callback: EventCallback<Action>) -> Self {
-        self.base.on_event = Some(callback);
-        self
-    }
-
     fn update(&mut self, state: &State) {
         self.input.update(state);
     }
@@ -620,16 +599,6 @@ where
 
     fn base_mut(&mut self) -> &mut BaseView<State, Action> {
         &mut self.base
-    }
-
-    fn on_update(mut self, callback: UpdateCallback<State>) -> Self {
-        self.base.on_update = Some(callback);
-        self
-    }
-
-    fn on_event(mut self, callback: EventCallback<Action>) -> Self {
-        self.base.on_event = Some(callback);
-        self
     }
 
     fn update(&mut self, state: &State) {
