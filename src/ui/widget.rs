@@ -55,7 +55,6 @@ pub trait View<S, A> {
     fn on_update(mut self, callback: UpdateCallback<S>) -> Self
     where
         Self: Sized,
-
     {
         self.base_mut().on_update = Some(callback);
         self
@@ -69,13 +68,14 @@ pub trait View<S, A> {
         Box::new(self)
     }
 
+    /// Return a mutable reference to this widgets' base view.
     fn base_mut(&mut self) -> &mut BaseView<S, A>;
 
-    /// Should handle key events and call `handle_key_event` on all children.
+    /// Should handle key events and call `handle_event` on all children.
     ///
     /// After key events have been handled, the custom event handler `on_event` should
     /// be called
-    fn handle_key_event(&mut self, key: Key);
+    fn handle_event(&mut self, key: Key);
 
     /// Should update the internal props of this and all children.
     ///
@@ -201,7 +201,6 @@ where
     fn base_mut(&mut self) -> &mut BaseView<S, A> {
         &mut self.base
     }
-
     fn update(&mut self, state: &S) {
         self.props =
             WindowProps::from_callback(self.base.on_update, state).unwrap_or(self.props.clone());
@@ -217,7 +216,7 @@ where
         }
     }
 
-    fn handle_key_event(&mut self, key: termion::event::Key) {
+    fn handle_event(&mut self, key: termion::event::Key) {
         let page = self
             .props
             .current_page
@@ -225,7 +224,7 @@ where
             .and_then(|id| self.pages.get_mut(id));
 
         if let Some(page) = page {
-            page.handle_key_event(key);
+            page.handle_event(key);
         }
     }
 }
@@ -326,7 +325,7 @@ impl<S, A> View<S, A> for Shortcuts<S, A> {
         &mut self.base
     }
 
-    fn handle_key_event(&mut self, _key: Key) {}
+    fn handle_event(&mut self, _key: Key) {}
 
     fn update(&mut self, state: &S) {
         self.props =
@@ -572,7 +571,7 @@ where
         }
     }
 
-    fn handle_key_event(&mut self, key: Key) {
+    fn handle_event(&mut self, key: Key) {
         match key {
             Key::Up | Key::Char('k') => {
                 self.prev();

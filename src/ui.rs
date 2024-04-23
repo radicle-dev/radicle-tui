@@ -97,7 +97,7 @@ impl<A> Frontend<A> {
                 // Tick to terminate the select every N milliseconds
                 _ = ticker.tick() => (),
                 Some(event) = events_rx.recv() => match event {
-                    Event::Key(key) => root.handle_key_event(key),
+                    Event::Key(key) => root.handle_event(key),
                     Event::Resize => (),
                 },
                 // Handle state updates

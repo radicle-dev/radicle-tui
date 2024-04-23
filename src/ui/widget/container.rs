@@ -101,7 +101,7 @@ impl<'a: 'static, S, A> View<S, A> for Header<'a, S, A> {
             .unwrap_or(self.props.clone());
     }
 
-    fn handle_key_event(&mut self, _key: Key) {
+    fn handle_event(&mut self, _key: Key) {
         if let Some(on_event) = self.base.on_event {
             (on_event)(&self.props, self.base.action_tx.clone());
         }
@@ -258,7 +258,7 @@ impl<'a: 'static, S, A> View<S, A> for Footer<'a, S, A> {
             .unwrap_or(self.props.clone());
     }
 
-    fn handle_key_event(&mut self, _key: Key) {
+    fn handle_event(&mut self, _key: Key) {
         if let Some(on_event) = self.base.on_event {
             (on_event)(&self.props, self.base.action_tx.clone());
         }
@@ -429,9 +429,9 @@ where
         }
     }
 
-    fn handle_key_event(&mut self, key: termion::event::Key) {
+    fn handle_event(&mut self, key: termion::event::Key) {
         if let Some(content) = &mut self.content {
-            content.handle_key_event(key);
+            content.handle_event(key);
         }
     }
 }

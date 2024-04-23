@@ -170,7 +170,7 @@ impl<'a: 'static, S, A> View<S, A> for Paragraph<'a, S, A> {
             ParagraphProps::from_callback(self.base.on_update, state).unwrap_or(self.props.clone());
     }
 
-    fn handle_key_event(&mut self, key: Key) {
+    fn handle_event(&mut self, key: Key) {
         let len = self.props.content.lines.len() + 1;
         let page_size = self.props.page_size;
 

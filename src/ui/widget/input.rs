@@ -159,7 +159,7 @@ impl<S, A> View<S, A> for TextField<S, A> {
         }
     }
 
-    fn handle_key_event(&mut self, key: Key) {
+    fn handle_event(&mut self, key: Key) {
         match key {
             Key::Char(to_insert)
                 if (key != Key::Alt('\n'))
