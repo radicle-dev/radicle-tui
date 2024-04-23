@@ -27,11 +27,17 @@ type Backend = TermionBackendExt<RawTerminal<io::Stdout>>;
 const RENDERING_TICK_RATE: Duration = Duration::from_millis(250);
 const INLINE_HEIGHT: usize = 20;
 
+/// The `Frontend` runs an applications' view concurrently. It handles
+/// terminal events as well as state updates and renders the view accordingly.
+///
+/// Once created and run with `main_loop`, the `Frontend` will wait for new messages
+/// being sent on either the terminal event, the state or the interrupt message channel.
 pub struct Frontend<A> {
     action_tx: mpsc::UnboundedSender<A>,
 }
 
 impl<A> Frontend<A> {
+    /// Create a new `Frontend` storing the sending end of a message channel.
     pub fn new() -> (Self, UnboundedSender<A>, UnboundedReceiver<A>) {
         let (action_tx, action_rx) = mpsc::unbounded_channel();
 
@@ -44,6 +50,20 @@ impl<A> Frontend<A> {
         )
     }
 
+    /// By calling `main_loop`, the `Frontend` will wait for new messages being sent
+    /// on either the terminal event, the state or the interrupt message channel.
+    /// After all, it will draw the (potentially) updated root widget.
+    ///
+    /// Terminal event messages are being sent by a thread polling `stdin` for new user input
+    /// and another thread polling UNIX signals, e.g. `SIGWINCH` when the terminal
+    /// window size is being changed. Terminal events are then passed to the root widget
+    /// of the application.
+    ///
+    /// State messages are being sent by the applications' `Store`. Received state updates
+    /// will be passed to the root widget as well.
+    ///
+    /// Interrupt messages are being sent to broadcast channel for retrieving the
+    /// application kill signal.
     pub async fn main_loop<S, W, P>(
         self,
         root: Option<W>,

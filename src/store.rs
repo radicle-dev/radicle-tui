@@ -11,15 +11,22 @@ use super::task::{Interrupted, Terminator};
 
 const STORE_TICK_RATE: Duration = Duration::from_millis(1000);
 
+/// The `State` known to the application store. It handles user-defined
+/// application messages as well as ticks.
 pub trait State<A, P>
 where
     P: Clone + Debug + Send + Sync,
 {
-    fn tick(&self);
-
+    /// Handle a user-defined application message and return an `Exit` object
+    /// in case the received message requested the application to also quit.
     fn handle_action(&mut self, action: A) -> Option<Exit<P>>;
+
+    /// Handle recurring tick.
+    fn tick(&self);
 }
 
+/// The `Store` updates the applications' state concurrently. It handles
+/// messages coming from the frontend and updates the state accordingly.
 pub struct Store<A, S, P>
 where
     S: State<A, P> + Clone + Send + Sync,
@@ -52,6 +59,10 @@ where
     S: State<A, P> + Clone + Debug + Send + Sync + 'static,
     P: Clone + Debug + Send + Sync + 'static,
 {
+    /// By calling `main_loop`, the store will wait for new messages coming
+    /// from the frontend and update the applications' state accordingly. It will
+    /// also tick with the defined `STORE_TICK_RATE`.
+    /// Updated states are then being send to the state message channel.
     pub async fn main_loop(
         self,
         mut state: S,
@@ -59,14 +70,14 @@ where
         mut action_rx: UnboundedReceiver<A>,
         mut interrupt_rx: broadcast::Receiver<Interrupted<P>>,
     ) -> anyhow::Result<Interrupted<P>> {
-        // the initial state once
+        // Send the initial state once
         self.state_tx.send(state.clone())?;
 
         let mut ticker = tokio::time::interval(STORE_TICK_RATE);
 
         let result = loop {
             tokio::select! {
-                // Handle the actions coming from the UI
+                // Handle the actions coming from the frontend
                 // and process them to do async operations
                 Some(action) = action_rx.recv() => {
                     if let Some(exit) = state.handle_action(action) {

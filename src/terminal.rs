@@ -91,6 +91,7 @@ impl<W: Write> ratatui::backend::Backend for TermionBackendExt<W> {
     }
 }
 
+/// Setup a `Terminal` with inline viewport using the `termion` backend.
 pub fn setup(height: usize) -> anyhow::Result<Terminal<Backend>> {
     let stdout = io::stdout().into_raw_mode()?;
     let options = TerminalOptions {
@@ -103,11 +104,15 @@ pub fn setup(height: usize) -> anyhow::Result<Terminal<Backend>> {
     )?)
 }
 
+/// Restore the `Terminal` on quit.
 pub fn restore(terminal: &mut Terminal<Backend>) -> anyhow::Result<()> {
     terminal.clear()?;
     Ok(())
 }
 
+/// Spawn one thread that polls `stdin` for new user input and another thread
+/// that polls UNIX signals, e.g. `SIGWINCH` when the terminal window size is
+/// being changed.
 pub fn events() -> mpsc::UnboundedReceiver<Event> {
     let (tx, rx) = mpsc::unbounded_channel();
     let events_tx = tx.clone();

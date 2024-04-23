@@ -63,9 +63,9 @@ pub trait View<S, A> {
     /// the type of `state`. These can use widgets from the library that do not know the
     /// type of `state`.
     ///
-    /// If `on_update` is set, implementators of this function should call it to
+    /// If `on_update` is set, implementations of this function should call it to
     /// construct and update the internal props. If it is not set, app widgets can construct
-    /// prosp directly via their state converters, whereas library widgets can just fallback
+    /// props directly via their state converters, whereas library widgets can just fallback
     /// to their current props.
     fn update(&mut self, state: &S);
 }
