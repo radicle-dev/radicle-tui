@@ -8,7 +8,7 @@ use ratatui::backend::Backend;
 use ratatui::layout::{Constraint, Layout, Rect};
 use ratatui::text::Text;
 
-use super::{EventCallback, Properties, UpdateCallback, View, Widget};
+use super::{BaseView, EventCallback, Properties, UpdateCallback, View, Widget};
 
 #[derive(Clone)]
 pub struct ParagraphProps<'a> {
@@ -59,15 +59,9 @@ pub struct ParagraphState {
     pub progress: usize,
 }
 
-pub struct Paragraph<'a, S, A> {
-    /// Internal properties
-    props: ParagraphProps<'a>,
-    /// Message sender
-    action_tx: UnboundedSender<A>,
-    /// Custom update handler
-    on_update: Option<UpdateCallback<S>>,
-    /// Additional custom event handler
-    on_event: Option<EventCallback<A>>,
+pub struct Paragraph<'a: 'static, S, A> {
+    /// Internal base
+    base: BaseView<S, A, ParagraphProps<'a>>,
     /// Internal state
     state: ParagraphState,
 }
@@ -78,12 +72,12 @@ impl<'a, S, A> Paragraph<'a, S, A> {
     }
 
     pub fn page_size(mut self, page_size: usize) -> Self {
-        self.props.page_size = page_size;
+        self.base.props.page_size = page_size;
         self
     }
 
     pub fn text(mut self, text: &Text<'a>) -> Self {
-        self.props.content = text.clone();
+        self.base.props.content = text.clone();
         self
     }
 
@@ -152,10 +146,12 @@ impl<'a: 'static, S, A> View<S, A> for Paragraph<'a, S, A> {
         Self: Sized,
     {
         Self {
-            action_tx: action_tx.clone(),
-            props: ParagraphProps::default(),
-            on_update: None,
-            on_event: None,
+            base: BaseView {
+                action_tx: action_tx.clone(),
+                props: ParagraphProps::default(),
+                on_update: None,
+                on_event: None,
+            },
             state: ParagraphState {
                 offset: 0,
                 progress: 0,
@@ -164,23 +160,23 @@ impl<'a: 'static, S, A> View<S, A> for Paragraph<'a, S, A> {
     }
 
     fn on_event(mut self, callback: EventCallback<A>) -> Self {
-        self.on_event = Some(callback);
+        self.base.on_event = Some(callback);
         self
     }
 
     fn on_update(mut self, callback: UpdateCallback<S>) -> Self {
-        self.on_update = Some(callback);
+        self.base.on_update = Some(callback);
         self
     }
 
     fn update(&mut self, state: &S) {
-        self.props =
-            ParagraphProps::from_callback(self.on_update, state).unwrap_or(self.props.clone());
+        self.base.props = ParagraphProps::from_callback(self.base.on_update, state)
+            .unwrap_or(self.base.props.clone());
     }
 
     fn handle_key_event(&mut self, key: Key) {
-        let len = self.props.content.lines.len() + 1;
-        let page_size = self.props.page_size;
+        let len = self.base.props.content.lines.len() + 1;
+        let page_size = self.base.props.page_size;
 
         match key {
             Key::Up | Key::Char('k') => {
@@ -204,8 +200,8 @@ impl<'a: 'static, S, A> View<S, A> for Paragraph<'a, S, A> {
             _ => {}
         }
 
-        if let Some(on_event) = self.on_event {
-            (on_event)(&self.state, self.action_tx.clone());
+        if let Some(on_event) = self.base.on_event {
+            (on_event)(&self.state, self.base.action_tx.clone());
         }
     }
 }
@@ -217,7 +213,7 @@ where
     fn render(&self, frame: &mut ratatui::Frame, area: Rect, props: Option<Box<dyn Any>>) {
         let props = props
             .and_then(ParagraphProps::from_boxed_any)
-            .unwrap_or(self.props.clone());
+            .unwrap_or(self.base.props.clone());
 
         let [content_area] = Layout::horizontal([Constraint::Min(1)])
             .horizontal_margin(1)

@@ -23,6 +23,20 @@ pub type BoxedWidget<B, S, A> = Box<dyn Widget<B, S, A>>;
 pub type UpdateCallback<S> = fn(&S) -> Box<dyn Any>;
 pub type EventCallback<A> = fn(&dyn Any, UnboundedSender<A>);
 
+pub struct BaseView<S, A, P>
+where
+    P: Properties,
+{
+    /// Internal properties
+    pub props: P,
+    /// Message sender
+    pub action_tx: UnboundedSender<A>,
+    /// Custom update handler
+    pub on_update: Option<UpdateCallback<S>>,
+    /// Additional custom event handler
+    pub on_event: Option<EventCallback<A>>,
+}
+
 /// Main trait defining a `View` behaviour.
 ///
 /// This is the first trait that you should implement to define a custom `Widget`.
@@ -138,14 +152,8 @@ pub struct Window<B, S, A, Id>
 where
     B: Backend,
 {
-    /// Internal properties
-    props: WindowProps<Id>,
-    /// Message sender
-    _action_tx: UnboundedSender<A>,
-    /// Custom update handler
-    on_update: Option<UpdateCallback<S>>,
-    /// Additional custom event handler
-    on_event: Option<EventCallback<A>>,
+    /// Internal base
+    base: BaseView<S, A, WindowProps<Id>>,
     /// All pages known
     pages: HashMap<Id, BoxedWidget<B, S, A>>,
 }
@@ -172,29 +180,32 @@ where
         Self: Sized,
     {
         Self {
-            _action_tx: action_tx.clone(),
-            props: WindowProps::default(),
+            base: BaseView {
+                action_tx: action_tx.clone(),
+                props: WindowProps::default(),
+                on_update: None,
+                on_event: None,
+            },
             pages: HashMap::new(),
-            on_update: None,
-            on_event: None,
         }
     }
 
     fn on_update(mut self, callback: UpdateCallback<S>) -> Self {
-        self.on_update = Some(callback);
+        self.base.on_update = Some(callback);
         self
     }
 
     fn on_event(mut self, callback: EventCallback<A>) -> Self {
-        self.on_event = Some(callback);
+        self.base.on_event = Some(callback);
         self
     }
 
     fn update(&mut self, state: &S) {
-        self.props =
-            WindowProps::from_callback(self.on_update, state).unwrap_or(self.props.clone());
+        self.base.props = WindowProps::from_callback(self.base.on_update, state)
+            .unwrap_or(self.base.props.clone());
 
         let page = self
+            .base
             .props
             .current_page
             .as_ref()
@@ -207,6 +218,7 @@ where
 
     fn handle_key_event(&mut self, key: termion::event::Key) {
         let page = self
+            .base
             .props
             .current_page
             .as_ref()
@@ -226,11 +238,12 @@ where
     fn render(&self, frame: &mut ratatui::Frame, _area: Rect, props: Option<Box<dyn Any>>) {
         let _props = props
             .and_then(WindowProps::from_boxed_any)
-            .unwrap_or(self.props.clone());
+            .unwrap_or(self.base.props.clone());
 
         let area = frame.size();
 
         let page = self
+            .base
             .props
             .current_page
             .as_ref()
@@ -275,26 +288,21 @@ impl Default for ShortcutsProps {
 impl Properties for ShortcutsProps {}
 
 pub struct Shortcuts<S, A> {
-    /// Internal properties
-    props: ShortcutsProps,
-    /// Message sender
-    _action_tx: UnboundedSender<A>,
-    /// Custom update handler
-    on_update: Option<UpdateCallback<S>>,
-    /// Additional custom event handler
-    on_event: Option<EventCallback<A>>,
+    /// Internal base
+    base: BaseView<S, A, ShortcutsProps>,
 }
 
 impl<S, A> Shortcuts<S, A> {
     pub fn divider(mut self, divider: char) -> Self {
-        self.props.divider = divider;
+        self.base.props.divider = divider;
         self
     }
 
     pub fn shortcuts(mut self, shortcuts: &[(&str, &str)]) -> Self {
-        self.props.shortcuts.clear();
+        self.base.props.shortcuts.clear();
         for (short, long) in shortcuts {
-            self.props
+            self.base
+                .props
                 .shortcuts
                 .push((short.to_string(), long.to_string()));
         }
@@ -305,28 +313,30 @@ impl<S, A> Shortcuts<S, A> {
 impl<S, A> View<S, A> for Shortcuts<S, A> {
     fn new(_state: &S, action_tx: UnboundedSender<A>) -> Self {
         Self {
-            _action_tx: action_tx.clone(),
-            props: ShortcutsProps::default(),
-            on_update: None,
-            on_event: None,
+            base: BaseView {
+                action_tx: action_tx.clone(),
+                props: ShortcutsProps::default(),
+                on_update: None,
+                on_event: None,
+            },
         }
     }
 
     fn on_event(mut self, callback: EventCallback<A>) -> Self {
-        self.on_event = Some(callback);
+        self.base.on_event = Some(callback);
         self
     }
 
     fn on_update(mut self, callback: UpdateCallback<S>) -> Self {
-        self.on_update = Some(callback);
+        self.base.on_update = Some(callback);
         self
     }
 
     fn handle_key_event(&mut self, _key: Key) {}
 
     fn update(&mut self, state: &S) {
-        self.props =
-            ShortcutsProps::from_callback(self.on_update, state).unwrap_or(self.props.clone());
+        self.base.props = ShortcutsProps::from_callback(self.base.on_update, state)
+            .unwrap_or(self.base.props.clone());
     }
 }
 
@@ -339,7 +349,7 @@ where
 
         let props = props
             .and_then(ShortcutsProps::from_boxed_any)
-            .unwrap_or(self.props.clone());
+            .unwrap_or(self.base.props.clone());
 
         let mut shortcuts = props.shortcuts.iter().peekable();
         let mut row = vec![];

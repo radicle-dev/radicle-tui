@@ -9,7 +9,7 @@ use ratatui::prelude::{Backend, Rect};
 use ratatui::style::Stylize;
 use ratatui::text::{Line, Span};
 
-use super::{EventCallback, Properties, UpdateCallback, View, Widget};
+use super::{BaseView, EventCallback, Properties, UpdateCallback, View, Widget};
 
 #[derive(Clone)]
 pub struct TextFieldProps {
@@ -56,14 +56,8 @@ pub struct TextFieldState {
 }
 
 pub struct TextField<S, A> {
-    /// Internal props
-    props: TextFieldProps,
-    /// Message sender
-    action_tx: UnboundedSender<A>,
-    /// Custom update handler
-    on_update: Option<UpdateCallback<S>>,
-    /// Additional custom event handler
-    on_event: Option<EventCallback<A>>,
+    /// Internal base
+    base: BaseView<S, A, TextFieldProps>,
     /// Internal state
     state: TextFieldState,
 }
@@ -133,10 +127,12 @@ impl<S, A> TextField<S, A> {
 impl<S, A> View<S, A> for TextField<S, A> {
     fn new(_state: &S, action_tx: UnboundedSender<A>) -> Self {
         Self {
-            action_tx,
-            props: TextFieldProps::default(),
-            on_update: None,
-            on_event: None,
+            base: BaseView {
+                action_tx: action_tx.clone(),
+                props: TextFieldProps::default(),
+                on_update: None,
+                on_event: None,
+            },
             state: TextFieldState {
                 text: None,
                 cursor_position: 0,
@@ -145,19 +141,19 @@ impl<S, A> View<S, A> for TextField<S, A> {
     }
 
     fn on_update(mut self, callback: UpdateCallback<S>) -> Self {
-        self.on_update = Some(callback);
+        self.base.on_update = Some(callback);
         self
     }
 
     fn on_event(mut self, callback: EventCallback<A>) -> Self {
-        self.on_event = Some(callback);
+        self.base.on_event = Some(callback);
         self
     }
 
     fn update(&mut self, state: &S) {
-        if let Some(on_update) = self.on_update {
+        if let Some(on_update) = self.base.on_update {
             if let Some(props) = (on_update)(state).downcast_ref::<TextFieldProps>() {
-                self.props = props.clone();
+                self.base.props = props.clone();
 
                 if self.state.text.is_none() {
                     self.state.cursor_position = props.text.len().saturating_sub(1);
@@ -188,8 +184,8 @@ impl<S, A> View<S, A> for TextField<S, A> {
             _ => {}
         }
 
-        if let Some(on_event) = self.on_event {
-            (on_event)(&self.state, self.action_tx.clone());
+        if let Some(on_event) = self.base.on_event {
+            (on_event)(&self.state, self.base.action_tx.clone());
         }
     }
 }
@@ -201,7 +197,7 @@ where
     fn render(&self, frame: &mut ratatui::Frame, area: Rect, props: Option<Box<dyn Any>>) {
         let props = props
             .and_then(TextFieldProps::from_boxed_any)
-            .unwrap_or(self.props.clone());
+            .unwrap_or(self.base.props.clone());
 
         let layout = Layout::vertical(Constraint::from_lengths([1, 1])).split(area);
 
