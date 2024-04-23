@@ -123,8 +123,10 @@ impl<'a> Properties for BrowsePageProps<'a> {}
 
 pub struct BrowsePage<'a, B> {
     /// Internal base
-    base: BaseView<State, Action, BrowsePageProps<'a>>,
-    /// Patches widget
+    base: BaseView<State, Action>,
+    /// Internal props
+    props: BrowsePageProps<'a>,
+    /// Notifications widget
     issues: BoxedWidget<B>,
     /// Search widget
     search: BoxedWidget<B>,
@@ -142,10 +144,10 @@ where
         Self {
             base: BaseView {
                 action_tx: action_tx.clone(),
-                props: BrowsePageProps::from(state),
                 on_update: None,
                 on_event: None,
             },
+            props: BrowsePageProps::from(state),
             issues: Container::new(state, action_tx.clone())
                 .header(
                     Header::new(state, action_tx.clone())
@@ -194,6 +196,10 @@ where
         }
     }
 
+    fn base_mut(&mut self) -> &mut BaseView<State, Action> {
+        &mut self.base
+    }
+
     fn on_update(mut self, callback: UpdateCallback<State>) -> Self {
         self.base.on_update = Some(callback);
         self
@@ -205,7 +211,7 @@ where
     }
 
     fn update(&mut self, state: &State) {
-        self.base.props = BrowsePageProps::from_callback(self.base.on_update, state)
+        self.props = BrowsePageProps::from_callback(self.base.on_update, state)
             .unwrap_or(BrowsePageProps::from(state));
 
         self.issues.update(state);
@@ -214,7 +220,7 @@ where
     }
 
     fn handle_key_event(&mut self, key: Key) {
-        if self.base.props.show_search {
+        if self.props.show_search {
             self.search.handle_key_event(key);
         } else {
             match key {
@@ -228,15 +234,14 @@ where
                     let _ = self.base.action_tx.send(Action::OpenSearch);
                 }
                 Key::Char('\n') => {
-                    let operation = match self.base.props.mode {
+                    let operation = match self.props.mode {
                         Mode::Operation => Some(IssueOperation::Show.to_string()),
                         Mode::Id => None,
                     };
 
-                    self.base
-                        .props
+                    self.props
                         .selected
-                        .and_then(|selected| self.base.props.issues.get(selected))
+                        .and_then(|selected| self.props.issues.get(selected))
                         .and_then(|issue| {
                             self.base
                                 .action_tx
@@ -251,10 +256,9 @@ where
                         });
                 }
                 Key::Char('e') => {
-                    self.base
-                        .props
+                    self.props
                         .selected
-                        .and_then(|selected| self.base.props.issues.get(selected))
+                        .and_then(|selected| self.props.issues.get(selected))
                         .and_then(|issue| {
                             self.base
                                 .action_tx
@@ -360,7 +364,7 @@ where
     fn render(&self, frame: &mut ratatui::Frame, area: Rect, props: Option<Box<dyn Any>>) {
         let props = props
             .and_then(BrowsePageProps::from_boxed_any)
-            .unwrap_or(self.base.props.clone());
+            .unwrap_or(self.props.clone());
 
         let page_size = area.height.saturating_sub(6) as usize;
 
@@ -415,7 +419,9 @@ impl Properties for SearchProps {}
 
 pub struct Search<B: Backend> {
     /// Internal base
-    base: BaseView<State, Action, SearchProps>,
+    base: BaseView<State, Action>,
+    /// Internal props
+    _props: SearchProps,
     /// Search input field
     input: BoxedWidget<B>,
 }
@@ -446,12 +452,16 @@ impl<B: Backend> View<State, Action> for Search<B> {
         Self {
             base: BaseView {
                 action_tx: action_tx.clone(),
-                props: SearchProps {},
                 on_update: None,
                 on_event: None,
             },
+            _props: SearchProps {},
             input,
         }
+    }
+
+    fn base_mut(&mut self) -> &mut BaseView<State, Action> {
+        &mut self.base
     }
 
     fn on_update(mut self, callback: UpdateCallback<State>) -> Self {
@@ -522,7 +532,9 @@ where
     B: Backend,
 {
     /// Internal base
-    base: BaseView<State, Action, HelpPageProps<'a>>,
+    base: BaseView<State, Action>,
+    /// Internal props
+    props: HelpPageProps<'a>,
     /// Content widget
     content: BoxedWidget<B>,
     /// Shortcut widget
@@ -540,10 +552,10 @@ where
         Self {
             base: BaseView {
                 action_tx: action_tx.clone(),
-                props: HelpPageProps::from(state),
                 on_update: None,
                 on_event: None,
             },
+            props: HelpPageProps::from(state),
             content: Container::new(state, action_tx.clone())
                 .header(
                     Header::new(state, action_tx.clone())
@@ -606,6 +618,10 @@ where
         }
     }
 
+    fn base_mut(&mut self) -> &mut BaseView<State, Action> {
+        &mut self.base
+    }
+
     fn on_update(mut self, callback: UpdateCallback<State>) -> Self {
         self.base.on_update = Some(callback);
         self
@@ -617,7 +633,7 @@ where
     }
 
     fn update(&mut self, state: &State) {
-        self.base.props = HelpPageProps::from_callback(self.base.on_update, state)
+        self.props = HelpPageProps::from_callback(self.base.on_update, state)
             .unwrap_or(HelpPageProps::from(state));
 
         self.content.update(state);
@@ -645,7 +661,7 @@ where
     fn render(&self, frame: &mut ratatui::Frame, area: Rect, props: Option<Box<dyn Any>>) {
         let props = props
             .and_then(HelpPageProps::from_boxed_any)
-            .unwrap_or(self.base.props.clone());
+            .unwrap_or(self.props.clone());
 
         let page_size = area.height.saturating_sub(6) as usize;
 
