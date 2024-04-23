@@ -55,24 +55,26 @@ impl<'a> Default for HeaderProps<'a> {
 impl<'a: 'static> Properties for HeaderProps<'a> {}
 
 pub struct Header<'a: 'static, S, A> {
+    /// Internal props
+    props: HeaderProps<'a>,
     /// Internal base
-    base: BaseView<S, A, HeaderProps<'a>>,
+    base: BaseView<S, A>,
 }
 
 impl<'a, S, A> Header<'a, S, A> {
     pub fn columns(mut self, columns: Vec<Column<'a>>) -> Self {
-        self.base.props.columns = columns;
+        self.props.columns = columns;
         self
     }
 
     pub fn focus(mut self, focus: bool) -> Self {
-        self.base.props.focus = focus;
+        self.props.focus = focus;
         self
     }
 
     pub fn cutoff(mut self, cutoff: usize, cutoff_after: usize) -> Self {
-        self.base.props.cutoff = cutoff;
-        self.base.props.cutoff_after = cutoff_after;
+        self.props.cutoff = cutoff;
+        self.props.cutoff_after = cutoff_after;
         self
     }
 }
@@ -82,11 +84,15 @@ impl<'a: 'static, S, A> View<S, A> for Header<'a, S, A> {
         Self {
             base: BaseView {
                 action_tx: action_tx.clone(),
-                props: HeaderProps::default(),
                 on_update: None,
                 on_event: None,
             },
+            props: HeaderProps::default(),
         }
+    }
+
+    fn base_mut(&mut self) -> &mut BaseView<S, A> {
+        &mut self.base
     }
 
     fn on_update(mut self, callback: UpdateCallback<S>) -> Self {
@@ -100,16 +106,16 @@ impl<'a: 'static, S, A> View<S, A> for Header<'a, S, A> {
     }
 
     fn update(&mut self, state: &S) {
-        self.base.props = self
+        self.props = self
             .base
             .on_update
             .and_then(|on_update| HeaderProps::from_boxed_any((on_update)(state)))
-            .unwrap_or(self.base.props.clone());
+            .unwrap_or(self.props.clone());
     }
 
     fn handle_key_event(&mut self, _key: Key) {
         if let Some(on_event) = self.base.on_event {
-            (on_event)(&self.base.props, self.base.action_tx.clone());
+            (on_event)(&self.props, self.base.action_tx.clone());
         }
     }
 }
@@ -121,7 +127,7 @@ where
     fn render(&self, frame: &mut ratatui::Frame, area: Rect, props: Option<Box<dyn Any>>) {
         let props = props
             .and_then(HeaderProps::from_boxed_any)
-            .unwrap_or(self.base.props.clone());
+            .unwrap_or(self.props.clone());
 
         let widths: Vec<Constraint> = props
             .columns
@@ -216,14 +222,10 @@ impl<'a> Default for FooterProps<'a> {
 impl<'a: 'static> Properties for FooterProps<'a> {}
 
 pub struct Footer<'a, S, A> {
-    /// Internal properties
+    /// Internal props
     props: FooterProps<'a>,
-    /// Message sender
-    action_tx: UnboundedSender<A>,
-    /// Custom update handler
-    on_update: Option<UpdateCallback<S>>,
-    /// Additional custom event handler
-    on_event: Option<EventCallback<A>>,
+    /// Internal base
+    base: BaseView<S, A>,
 }
 
 impl<'a, S, A> Footer<'a, S, A> {
@@ -247,33 +249,40 @@ impl<'a, S, A> Footer<'a, S, A> {
 impl<'a: 'static, S, A> View<S, A> for Footer<'a, S, A> {
     fn new(_state: &S, action_tx: UnboundedSender<A>) -> Self {
         Self {
-            action_tx: action_tx.clone(),
+            base: BaseView {
+                action_tx: action_tx.clone(),
+                on_update: None,
+                on_event: None,
+            },
             props: FooterProps::default(),
-            on_update: None,
-            on_event: None,
         }
     }
 
+    fn base_mut(&mut self) -> &mut BaseView<S, A> {
+        &mut self.base
+    }
+
     fn on_update(mut self, callback: UpdateCallback<S>) -> Self {
-        self.on_update = Some(callback);
+        self.base.on_update = Some(callback);
         self
     }
 
     fn on_event(mut self, callback: EventCallback<A>) -> Self {
-        self.on_event = Some(callback);
+        self.base.on_event = Some(callback);
         self
     }
 
     fn update(&mut self, state: &S) {
         self.props = self
+            .base
             .on_update
             .and_then(|on_update| FooterProps::from_boxed_any((on_update)(state)))
             .unwrap_or(self.props.clone());
     }
 
     fn handle_key_event(&mut self, _key: Key) {
-        if let Some(on_event) = self.on_event {
-            (on_event)(&self.props, self.action_tx.clone());
+        if let Some(on_event) = self.base.on_event {
+            (on_event)(&self.props, self.base.action_tx.clone());
         }
     }
 }
@@ -367,14 +376,10 @@ pub struct Container<B, S, A>
 where
     B: Backend,
 {
-    /// Internal properties
+    /// Internal base
+    base: BaseView<S, A>,
+    /// Internal props
     props: ContainerProps,
-    /// Message sender
-    _action_tx: UnboundedSender<A>,
-    /// Custom update handler
-    on_update: Option<UpdateCallback<S>>,
-    /// Additional custom event handler
-    on_event: Option<EventCallback<A>>,
     /// Container header
     header: Option<BoxedWidget<B, S, A>>,
     /// Content widget
@@ -412,29 +417,36 @@ where
         Self: Sized,
     {
         Self {
-            _action_tx: action_tx.clone(),
+            base: BaseView {
+                action_tx: action_tx.clone(),
+
+                on_update: None,
+                on_event: None,
+            },
             props: ContainerProps::default(),
             header: None,
             content: None,
             footer: None,
-            on_update: None,
-            on_event: None,
         }
     }
 
+    fn base_mut(&mut self) -> &mut BaseView<S, A> {
+        &mut self.base
+    }
+
     fn on_update(mut self, callback: UpdateCallback<S>) -> Self {
-        self.on_update = Some(callback);
+        self.base.on_update = Some(callback);
         self
     }
 
     fn on_event(mut self, callback: EventCallback<A>) -> Self {
-        self.on_event = Some(callback);
+        self.base.on_event = Some(callback);
         self
     }
 
     fn update(&mut self, state: &S) {
         self.props =
-            ContainerProps::from_callback(self.on_update, state).unwrap_or(self.props.clone());
+            ContainerProps::from_callback(self.base.on_update, state).unwrap_or(self.props.clone());
 
         if let Some(header) = &mut self.header {
             header.update(state);

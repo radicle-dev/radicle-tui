@@ -59,9 +59,11 @@ pub struct ParagraphState {
     pub progress: usize,
 }
 
-pub struct Paragraph<'a: 'static, S, A> {
+pub struct Paragraph<'a, S, A> {
     /// Internal base
-    base: BaseView<S, A, ParagraphProps<'a>>,
+    base: BaseView<S, A>,
+    /// Internal props
+    props: ParagraphProps<'a>,
     /// Internal state
     state: ParagraphState,
 }
@@ -72,12 +74,12 @@ impl<'a, S, A> Paragraph<'a, S, A> {
     }
 
     pub fn page_size(mut self, page_size: usize) -> Self {
-        self.base.props.page_size = page_size;
+        self.props.page_size = page_size;
         self
     }
 
     pub fn text(mut self, text: &Text<'a>) -> Self {
-        self.base.props.content = text.clone();
+        self.props.content = text.clone();
         self
     }
 
@@ -148,15 +150,19 @@ impl<'a: 'static, S, A> View<S, A> for Paragraph<'a, S, A> {
         Self {
             base: BaseView {
                 action_tx: action_tx.clone(),
-                props: ParagraphProps::default(),
                 on_update: None,
                 on_event: None,
             },
+            props: ParagraphProps::default(),
             state: ParagraphState {
                 offset: 0,
                 progress: 0,
             },
         }
+    }
+
+    fn base_mut(&mut self) -> &mut BaseView<S, A> {
+        &mut self.base
     }
 
     fn on_event(mut self, callback: EventCallback<A>) -> Self {
@@ -170,13 +176,13 @@ impl<'a: 'static, S, A> View<S, A> for Paragraph<'a, S, A> {
     }
 
     fn update(&mut self, state: &S) {
-        self.base.props = ParagraphProps::from_callback(self.base.on_update, state)
-            .unwrap_or(self.base.props.clone());
+        self.props =
+            ParagraphProps::from_callback(self.base.on_update, state).unwrap_or(self.props.clone());
     }
 
     fn handle_key_event(&mut self, key: Key) {
-        let len = self.base.props.content.lines.len() + 1;
-        let page_size = self.base.props.page_size;
+        let len = self.props.content.lines.len() + 1;
+        let page_size = self.props.page_size;
 
         match key {
             Key::Up | Key::Char('k') => {
@@ -213,7 +219,7 @@ where
     fn render(&self, frame: &mut ratatui::Frame, area: Rect, props: Option<Box<dyn Any>>) {
         let props = props
             .and_then(ParagraphProps::from_boxed_any)
-            .unwrap_or(self.base.props.clone());
+            .unwrap_or(self.props.clone());
 
         let [content_area] = Layout::horizontal([Constraint::Min(1)])
             .horizontal_margin(1)

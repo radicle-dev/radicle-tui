@@ -57,7 +57,9 @@ pub struct TextFieldState {
 
 pub struct TextField<S, A> {
     /// Internal base
-    base: BaseView<S, A, TextFieldProps>,
+    base: BaseView<S, A>,
+    /// Internal props
+    props: TextFieldProps,
     /// Internal state
     state: TextFieldState,
 }
@@ -129,15 +131,19 @@ impl<S, A> View<S, A> for TextField<S, A> {
         Self {
             base: BaseView {
                 action_tx: action_tx.clone(),
-                props: TextFieldProps::default(),
                 on_update: None,
                 on_event: None,
             },
+            props: TextFieldProps::default(),
             state: TextFieldState {
                 text: None,
                 cursor_position: 0,
             },
         }
+    }
+
+    fn base_mut(&mut self) -> &mut BaseView<S, A> {
+        &mut self.base
     }
 
     fn on_update(mut self, callback: UpdateCallback<S>) -> Self {
@@ -153,7 +159,7 @@ impl<S, A> View<S, A> for TextField<S, A> {
     fn update(&mut self, state: &S) {
         if let Some(on_update) = self.base.on_update {
             if let Some(props) = (on_update)(state).downcast_ref::<TextFieldProps>() {
-                self.base.props = props.clone();
+                self.props = props.clone();
 
                 if self.state.text.is_none() {
                     self.state.cursor_position = props.text.len().saturating_sub(1);
@@ -197,7 +203,7 @@ where
     fn render(&self, frame: &mut ratatui::Frame, area: Rect, props: Option<Box<dyn Any>>) {
         let props = props
             .and_then(TextFieldProps::from_boxed_any)
-            .unwrap_or(self.base.props.clone());
+            .unwrap_or(self.props.clone());
 
         let layout = Layout::vertical(Constraint::from_lengths([1, 1])).split(area);
 

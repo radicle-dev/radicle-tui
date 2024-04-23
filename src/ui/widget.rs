@@ -23,12 +23,7 @@ pub type BoxedWidget<B, S, A> = Box<dyn Widget<B, S, A>>;
 pub type UpdateCallback<S> = fn(&S) -> Box<dyn Any>;
 pub type EventCallback<A> = fn(&dyn Any, UnboundedSender<A>);
 
-pub struct BaseView<S, A, P>
-where
-    P: Properties,
-{
-    /// Internal properties
-    pub props: P,
+pub struct BaseView<S, A> {
     /// Message sender
     pub action_tx: UnboundedSender<A>,
     /// Custom update handler
@@ -64,6 +59,8 @@ pub trait View<S, A> {
     {
         Box::new(self)
     }
+
+    fn base_mut(&mut self) -> &mut BaseView<S, A>;
 
     /// Should handle key events and call `handle_key_event` on all children.
     ///
@@ -153,7 +150,9 @@ where
     B: Backend,
 {
     /// Internal base
-    base: BaseView<S, A, WindowProps<Id>>,
+    base: BaseView<S, A>,
+    /// Internal properties
+    props: WindowProps<Id>,
     /// All pages known
     pages: HashMap<Id, BoxedWidget<B, S, A>>,
 }
@@ -182,12 +181,16 @@ where
         Self {
             base: BaseView {
                 action_tx: action_tx.clone(),
-                props: WindowProps::default(),
                 on_update: None,
                 on_event: None,
             },
+            props: WindowProps::default(),
             pages: HashMap::new(),
         }
+    }
+
+    fn base_mut(&mut self) -> &mut BaseView<S, A> {
+        &mut self.base
     }
 
     fn on_update(mut self, callback: UpdateCallback<S>) -> Self {
@@ -201,11 +204,10 @@ where
     }
 
     fn update(&mut self, state: &S) {
-        self.base.props = WindowProps::from_callback(self.base.on_update, state)
-            .unwrap_or(self.base.props.clone());
+        self.props =
+            WindowProps::from_callback(self.base.on_update, state).unwrap_or(self.props.clone());
 
         let page = self
-            .base
             .props
             .current_page
             .as_ref()
@@ -218,7 +220,6 @@ where
 
     fn handle_key_event(&mut self, key: termion::event::Key) {
         let page = self
-            .base
             .props
             .current_page
             .as_ref()
@@ -238,12 +239,11 @@ where
     fn render(&self, frame: &mut ratatui::Frame, _area: Rect, props: Option<Box<dyn Any>>) {
         let _props = props
             .and_then(WindowProps::from_boxed_any)
-            .unwrap_or(self.base.props.clone());
+            .unwrap_or(self.props.clone());
 
         let area = frame.size();
 
         let page = self
-            .base
             .props
             .current_page
             .as_ref()
@@ -288,21 +288,22 @@ impl Default for ShortcutsProps {
 impl Properties for ShortcutsProps {}
 
 pub struct Shortcuts<S, A> {
+    /// Internal properties
+    props: ShortcutsProps,
     /// Internal base
-    base: BaseView<S, A, ShortcutsProps>,
+    base: BaseView<S, A>,
 }
 
 impl<S, A> Shortcuts<S, A> {
     pub fn divider(mut self, divider: char) -> Self {
-        self.base.props.divider = divider;
+        self.props.divider = divider;
         self
     }
 
     pub fn shortcuts(mut self, shortcuts: &[(&str, &str)]) -> Self {
-        self.base.props.shortcuts.clear();
+        self.props.shortcuts.clear();
         for (short, long) in shortcuts {
-            self.base
-                .props
+            self.props
                 .shortcuts
                 .push((short.to_string(), long.to_string()));
         }
@@ -315,11 +316,15 @@ impl<S, A> View<S, A> for Shortcuts<S, A> {
         Self {
             base: BaseView {
                 action_tx: action_tx.clone(),
-                props: ShortcutsProps::default(),
                 on_update: None,
                 on_event: None,
             },
+            props: ShortcutsProps::default(),
         }
+    }
+
+    fn base_mut(&mut self) -> &mut BaseView<S, A> {
+        &mut self.base
     }
 
     fn on_event(mut self, callback: EventCallback<A>) -> Self {
@@ -335,8 +340,8 @@ impl<S, A> View<S, A> for Shortcuts<S, A> {
     fn handle_key_event(&mut self, _key: Key) {}
 
     fn update(&mut self, state: &S) {
-        self.base.props = ShortcutsProps::from_callback(self.base.on_update, state)
-            .unwrap_or(self.base.props.clone());
+        self.props =
+            ShortcutsProps::from_callback(self.base.on_update, state).unwrap_or(self.props.clone());
     }
 }
 
@@ -349,7 +354,7 @@ where
 
         let props = props
             .and_then(ShortcutsProps::from_boxed_any)
-            .unwrap_or(self.base.props.clone());
+            .unwrap_or(self.props.clone());
 
         let mut shortcuts = props.shortcuts.iter().peekable();
         let mut row = vec![];
@@ -483,14 +488,10 @@ pub struct Table<'a, S, A, R>
 where
     R: ToRow,
 {
+    /// Internal base
+    base: BaseView<S, A>,
     /// Internal table properties
     props: TableProps<'a, R>,
-    /// Message sender
-    action_tx: UnboundedSender<A>,
-    /// Custom update handler
-    on_update: Option<UpdateCallback<S>>,
-    /// Additional custom event handler
-    on_event: Option<EventCallback<A>>,
     /// Internal selection and offset state
     state: TableState,
 }
@@ -556,27 +557,33 @@ where
 {
     fn new(_state: &S, action_tx: UnboundedSender<A>) -> Self {
         Self {
-            action_tx: action_tx.clone(),
+            base: BaseView {
+                action_tx: action_tx.clone(),
+                on_update: None,
+                on_event: None,
+            },
             props: TableProps::default(),
             state: TableState::default().with_selected(Some(0)),
-            on_update: None,
-            on_event: None,
         }
     }
 
+    fn base_mut(&mut self) -> &mut BaseView<S, A> {
+        &mut self.base
+    }
+
     fn on_update(mut self, callback: UpdateCallback<S>) -> Self {
-        self.on_update = Some(callback);
+        self.base.on_update = Some(callback);
         self
     }
 
     fn on_event(mut self, callback: EventCallback<A>) -> Self {
-        self.on_event = Some(callback);
+        self.base.on_event = Some(callback);
         self
     }
 
     fn update(&mut self, state: &S) {
-        self.props =
-            TableProps::<'_, R>::from_callback(self.on_update, state).unwrap_or(self.props.clone());
+        self.props = TableProps::<'_, R>::from_callback(self.base.on_update, state)
+            .unwrap_or(self.props.clone());
 
         // TODO: Move to state reducer
         if let Some(selected) = self.state.selected() {
@@ -611,8 +618,8 @@ where
 
         self.props.selected = self.state.selected();
 
-        if let Some(on_event) = self.on_event {
-            (on_event)(&self.state, self.action_tx.clone());
+        if let Some(on_event) = self.base.on_event {
+            (on_event)(&self.state, self.base.action_tx.clone());
         }
     }
 }
