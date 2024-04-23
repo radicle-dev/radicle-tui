@@ -43,14 +43,23 @@ pub trait View<S, A> {
         Self: Sized;
 
     /// Should set the optional custom event handler.
-    fn on_event(self, callback: EventCallback<A>) -> Self
+    fn on_event(mut self, callback: EventCallback<A>) -> Self
     where
-        Self: Sized;
+        Self: Sized,
+    {
+        self.base_mut().on_event = Some(callback);
+        self
+    }
 
     /// Should set the optional update handler.
-    fn on_update(self, callback: UpdateCallback<S>) -> Self
+    fn on_update(mut self, callback: UpdateCallback<S>) -> Self
     where
-        Self: Sized;
+        Self: Sized,
+
+    {
+        self.base_mut().on_update = Some(callback);
+        self
+    }
 
     /// Returns a boxed `View`
     fn to_boxed(self) -> Box<Self>
@@ -193,16 +202,6 @@ where
         &mut self.base
     }
 
-    fn on_update(mut self, callback: UpdateCallback<S>) -> Self {
-        self.base.on_update = Some(callback);
-        self
-    }
-
-    fn on_event(mut self, callback: EventCallback<A>) -> Self {
-        self.base.on_event = Some(callback);
-        self
-    }
-
     fn update(&mut self, state: &S) {
         self.props =
             WindowProps::from_callback(self.base.on_update, state).unwrap_or(self.props.clone());
@@ -325,16 +324,6 @@ impl<S, A> View<S, A> for Shortcuts<S, A> {
 
     fn base_mut(&mut self) -> &mut BaseView<S, A> {
         &mut self.base
-    }
-
-    fn on_event(mut self, callback: EventCallback<A>) -> Self {
-        self.base.on_event = Some(callback);
-        self
-    }
-
-    fn on_update(mut self, callback: UpdateCallback<S>) -> Self {
-        self.base.on_update = Some(callback);
-        self
     }
 
     fn handle_key_event(&mut self, _key: Key) {}
@@ -569,16 +558,6 @@ where
 
     fn base_mut(&mut self) -> &mut BaseView<S, A> {
         &mut self.base
-    }
-
-    fn on_update(mut self, callback: UpdateCallback<S>) -> Self {
-        self.base.on_update = Some(callback);
-        self
-    }
-
-    fn on_event(mut self, callback: EventCallback<A>) -> Self {
-        self.base.on_event = Some(callback);
-        self
     }
 
     fn update(&mut self, state: &S) {

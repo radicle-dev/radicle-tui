@@ -9,7 +9,7 @@ use ratatui::prelude::{Backend, Rect};
 use ratatui::style::Stylize;
 use ratatui::text::{Line, Span};
 
-use super::{BaseView, EventCallback, Properties, UpdateCallback, View, Widget};
+use super::{BaseView, Properties, View, Widget};
 
 #[derive(Clone)]
 pub struct TextFieldProps {
@@ -144,16 +144,6 @@ impl<S, A> View<S, A> for TextField<S, A> {
 
     fn base_mut(&mut self) -> &mut BaseView<S, A> {
         &mut self.base
-    }
-
-    fn on_update(mut self, callback: UpdateCallback<S>) -> Self {
-        self.base.on_update = Some(callback);
-        self
-    }
-
-    fn on_event(mut self, callback: EventCallback<A>) -> Self {
-        self.base.on_event = Some(callback);
-        self
     }
 
     fn update(&mut self, state: &S) {

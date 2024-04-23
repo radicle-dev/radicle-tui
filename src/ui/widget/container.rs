@@ -11,9 +11,7 @@ use ratatui::widgets::{Block, BorderType, Borders, Row};
 use crate::ui::ext::{FooterBlock, FooterBlockType, HeaderBlock};
 use crate::ui::theme::style;
 
-use super::{
-    BaseView, BoxedWidget, Column, EventCallback, Properties, UpdateCallback, View, Widget,
-};
+use super::{BaseView, BoxedWidget, Column, Properties, View, Widget};
 
 #[derive(Clone, Debug)]
 pub struct HeaderProps<'a> {
@@ -93,16 +91,6 @@ impl<'a: 'static, S, A> View<S, A> for Header<'a, S, A> {
 
     fn base_mut(&mut self) -> &mut BaseView<S, A> {
         &mut self.base
-    }
-
-    fn on_update(mut self, callback: UpdateCallback<S>) -> Self {
-        self.base.on_update = Some(callback);
-        self
-    }
-
-    fn on_event(mut self, callback: EventCallback<A>) -> Self {
-        self.base.on_event = Some(callback);
-        self
     }
 
     fn update(&mut self, state: &S) {
@@ -260,16 +248,6 @@ impl<'a: 'static, S, A> View<S, A> for Footer<'a, S, A> {
 
     fn base_mut(&mut self) -> &mut BaseView<S, A> {
         &mut self.base
-    }
-
-    fn on_update(mut self, callback: UpdateCallback<S>) -> Self {
-        self.base.on_update = Some(callback);
-        self
-    }
-
-    fn on_event(mut self, callback: EventCallback<A>) -> Self {
-        self.base.on_event = Some(callback);
-        self
     }
 
     fn update(&mut self, state: &S) {
@@ -432,16 +410,6 @@ where
 
     fn base_mut(&mut self) -> &mut BaseView<S, A> {
         &mut self.base
-    }
-
-    fn on_update(mut self, callback: UpdateCallback<S>) -> Self {
-        self.base.on_update = Some(callback);
-        self
-    }
-
-    fn on_event(mut self, callback: EventCallback<A>) -> Self {
-        self.base.on_event = Some(callback);
-        self
     }
 
     fn update(&mut self, state: &S) {
