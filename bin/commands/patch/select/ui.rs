@@ -209,9 +209,9 @@ where
         self.shortcuts.update(state);
     }
 
-    fn handle_key_event(&mut self, key: Key) {
+    fn handle_event(&mut self, key: Key) {
         if self.props.show_search {
-            self.search.handle_key_event(key);
+            self.search.handle_event(key);
         } else {
             match key {
                 Key::Esc | Key::Ctrl('c') => {
@@ -280,7 +280,7 @@ where
                         });
                 }
                 _ => {
-                    self.patches.handle_key_event(key);
+                    self.patches.handle_event(key);
                 }
             }
         }
@@ -485,7 +485,7 @@ impl<B: Backend> View<State, Action> for Search<B> {
         self.input.update(state);
     }
 
-    fn handle_key_event(&mut self, key: termion::event::Key) {
+    fn handle_event(&mut self, key: termion::event::Key) {
         match key {
             Key::Esc => {
                 let _ = self.base.action_tx.send(Action::CloseSearch);
@@ -494,7 +494,7 @@ impl<B: Backend> View<State, Action> for Search<B> {
                 let _ = self.base.action_tx.send(Action::ApplySearch);
             }
             _ => {
-                self.input.handle_key_event(key);
+                self.input.handle_event(key);
             }
         }
     }
@@ -636,7 +636,7 @@ where
         self.content.update(state);
     }
 
-    fn handle_key_event(&mut self, key: termion::event::Key) {
+    fn handle_event(&mut self, key: termion::event::Key) {
         match key {
             Key::Esc | Key::Ctrl('c') => {
                 let _ = self.base.action_tx.send(Action::Exit { selection: None });
@@ -645,7 +645,7 @@ where
                 let _ = self.base.action_tx.send(Action::LeavePage);
             }
             _ => {
-                self.content.handle_key_event(key);
+                self.content.handle_event(key);
             }
         }
     }
