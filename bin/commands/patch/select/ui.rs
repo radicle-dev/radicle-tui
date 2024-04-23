@@ -19,13 +19,13 @@ use radicle_tui as tui;
 
 use tui::ui::items::{PatchItem, PatchItemFilter};
 use tui::ui::span;
-use tui::ui::widget;
 use tui::ui::widget::container::{
     Container, ContainerProps, Footer, FooterProps, Header, HeaderProps,
 };
 use tui::ui::widget::input::{TextField, TextFieldProps, TextFieldState};
 use tui::ui::widget::text::{Paragraph, ParagraphProps, ParagraphState};
 use tui::ui::widget::TableUtils;
+use tui::ui::widget::{self, BaseView};
 use tui::ui::widget::{
     Column, EventCallback, Properties, Shortcuts, ShortcutsProps, Table, TableProps,
     UpdateCallback, View, Widget,
@@ -122,15 +122,9 @@ impl<'a> From<&State> for BrowsePageProps<'a> {
 
 impl<'a: 'static> Properties for BrowsePageProps<'a> {}
 
-pub struct BrowsePage<'a, B> {
-    /// Internal properties
-    props: BrowsePageProps<'a>,
-    /// Message sender
-    action_tx: UnboundedSender<Action>,
-    /// Custom update handler
-    on_update: Option<UpdateCallback<State>>,
-    /// Additional custom event handler
-    on_event: Option<EventCallback<Action>>,
+pub struct BrowsePage<'a: 'static, B> {
+    /// Internal base
+    base: BaseView<State, Action, BrowsePageProps<'a>>,
     /// Patches widget
     patches: BoxedWidget<B>,
     /// Search widget
@@ -147,8 +141,12 @@ where
         let props = BrowsePageProps::from(state);
 
         Self {
-            action_tx: action_tx.clone(),
-            props: props.clone(),
+            base: BaseView {
+                action_tx: action_tx.clone(),
+                props: BrowsePageProps::from(state),
+                on_update: None,
+                on_event: None,
+            },
             patches: Container::new(state, action_tx.clone())
                 .header(
                     Header::new(state, action_tx.clone())
@@ -194,23 +192,21 @@ where
                 .to_boxed(),
             search: Search::new(state, action_tx.clone()).to_boxed(),
             shortcuts: Shortcuts::new(state, action_tx.clone()).to_boxed(),
-            on_update: None,
-            on_event: None,
         }
     }
 
     fn on_update(mut self, callback: UpdateCallback<State>) -> Self {
-        self.on_update = Some(callback);
+        self.base.on_update = Some(callback);
         self
     }
 
     fn on_event(mut self, callback: EventCallback<Action>) -> Self {
-        self.on_event = Some(callback);
+        self.base.on_event = Some(callback);
         self
     }
 
     fn update(&mut self, state: &State) {
-        self.props = BrowsePageProps::from_callback(self.on_update, state)
+        self.base.props = BrowsePageProps::from_callback(self.base.on_update, state)
             .unwrap_or(BrowsePageProps::from(state));
 
         self.patches.update(state);
@@ -219,30 +215,32 @@ where
     }
 
     fn handle_key_event(&mut self, key: Key) {
-        if self.props.show_search {
+        if self.base.props.show_search {
             self.search.handle_key_event(key);
         } else {
             match key {
                 Key::Esc | Key::Ctrl('c') => {
-                    let _ = self.action_tx.send(Action::Exit { selection: None });
+                    let _ = self.base.action_tx.send(Action::Exit { selection: None });
                 }
                 Key::Char('?') => {
-                    let _ = self.action_tx.send(Action::OpenHelp);
+                    let _ = self.base.action_tx.send(Action::OpenHelp);
                 }
                 Key::Char('/') => {
-                    let _ = self.action_tx.send(Action::OpenSearch);
+                    let _ = self.base.action_tx.send(Action::OpenSearch);
                 }
                 Key::Char('\n') => {
-                    let operation = match self.props.mode {
+                    let operation = match self.base.props.mode {
                         Mode::Operation => Some(PatchOperation::Show.to_string()),
                         Mode::Id => None,
                     };
 
-                    self.props
+                    self.base
+                        .props
                         .selected
-                        .and_then(|selected| self.props.patches.get(selected))
+                        .and_then(|selected| self.base.props.patches.get(selected))
                         .and_then(|patch| {
-                            self.action_tx
+                            self.base
+                                .action_tx
                                 .send(Action::Exit {
                                     selection: Some(Selection {
                                         operation,
@@ -254,11 +252,13 @@ where
                         });
                 }
                 Key::Char('c') => {
-                    self.props
+                    self.base
+                        .props
                         .selected
-                        .and_then(|selected| self.props.patches.get(selected))
+                        .and_then(|selected| self.base.props.patches.get(selected))
                         .and_then(|patch| {
-                            self.action_tx
+                            self.base
+                                .action_tx
                                 .send(Action::Exit {
                                     selection: Some(Selection {
                                         operation: Some(PatchOperation::Checkout.to_string()),
@@ -270,11 +270,13 @@ where
                         });
                 }
                 Key::Char('d') => {
-                    self.props
+                    self.base
+                        .props
                         .selected
-                        .and_then(|selected| self.props.patches.get(selected))
+                        .and_then(|selected| self.base.props.patches.get(selected))
                         .and_then(|patch| {
-                            self.action_tx
+                            self.base
+                                .action_tx
                                 .send(Action::Exit {
                                     selection: Some(Selection {
                                         operation: Some(PatchOperation::Diff.to_string()),
@@ -387,7 +389,7 @@ where
     fn render(&self, frame: &mut ratatui::Frame, area: Rect, props: Option<Box<dyn Any>>) {
         let props = props
             .and_then(BrowsePageProps::from_boxed_any)
-            .unwrap_or(self.props.clone());
+            .unwrap_or(self.base.props.clone());
 
         let page_size = area.height.saturating_sub(6) as usize;
 
@@ -431,18 +433,18 @@ where
         );
 
         if page_size != props.page_size {
-            let _ = self.action_tx.send(Action::BrowserPageSize(page_size));
+            let _ = self.base.action_tx.send(Action::BrowserPageSize(page_size));
         }
     }
 }
 
+pub struct SearchProps {}
+
+impl Properties for SearchProps {}
+
 pub struct Search<B: Backend> {
-    /// Message sender
-    action_tx: UnboundedSender<Action>,
-    /// Custom update handler
-    on_update: Option<UpdateCallback<State>>,
-    /// Additional custom event handler
-    on_event: Option<EventCallback<Action>>,
+    /// Internal base
+    base: BaseView<State, Action, SearchProps>,
     /// Search input field
     input: BoxedWidget<B>,
 }
@@ -471,20 +473,23 @@ impl<B: Backend> View<State, Action> for Search<B> {
             })
             .to_boxed();
         Self {
-            action_tx,
+            base: BaseView {
+                action_tx: action_tx.clone(),
+                props: SearchProps {},
+                on_update: None,
+                on_event: None,
+            },
             input,
-            on_update: None,
-            on_event: None,
         }
     }
 
     fn on_update(mut self, callback: UpdateCallback<State>) -> Self {
-        self.on_update = Some(callback);
+        self.base.on_update = Some(callback);
         self
     }
 
     fn on_event(mut self, callback: EventCallback<Action>) -> Self {
-        self.on_event = Some(callback);
+        self.base.on_event = Some(callback);
         self
     }
 
@@ -495,10 +500,10 @@ impl<B: Backend> View<State, Action> for Search<B> {
     fn handle_key_event(&mut self, key: termion::event::Key) {
         match key {
             Key::Esc => {
-                let _ = self.action_tx.send(Action::CloseSearch);
+                let _ = self.base.action_tx.send(Action::CloseSearch);
             }
             Key::Char('\n') => {
-                let _ = self.action_tx.send(Action::ApplySearch);
+                let _ = self.base.action_tx.send(Action::ApplySearch);
             }
             _ => {
                 self.input.handle_key_event(key);
@@ -545,14 +550,8 @@ pub struct HelpPage<'a, B>
 where
     B: Backend,
 {
-    /// Internal properties
-    props: HelpPageProps<'a>,
-    /// Message sender
-    action_tx: UnboundedSender<Action>,
-    /// Custom update handler
-    on_update: Option<UpdateCallback<State>>,
-    /// Additional custom event handler
-    on_event: Option<EventCallback<Action>>,
+    /// Internal base
+    base: BaseView<State, Action, HelpPageProps<'a>>,
     /// Content widget
     content: BoxedWidget<B>,
     /// Shortcut widget
@@ -568,8 +567,12 @@ where
         Self: Sized,
     {
         Self {
-            action_tx: action_tx.clone(),
-            props: HelpPageProps::from(state),
+            base: BaseView {
+                action_tx: action_tx.clone(),
+                props: HelpPageProps::from(state),
+                on_update: None,
+                on_event: None,
+            },
             content: Container::new(state, action_tx.clone())
                 .header(
                     Header::new(state, action_tx.clone())
@@ -629,23 +632,21 @@ where
                 )
                 .to_boxed(),
             shortcuts: Shortcuts::new(state, action_tx.clone()).to_boxed(),
-            on_update: None,
-            on_event: None,
         }
     }
 
     fn on_update(mut self, callback: UpdateCallback<State>) -> Self {
-        self.on_update = Some(callback);
+        self.base.on_update = Some(callback);
         self
     }
 
     fn on_event(mut self, callback: EventCallback<Action>) -> Self {
-        self.on_event = Some(callback);
+        self.base.on_event = Some(callback);
         self
     }
 
     fn update(&mut self, state: &State) {
-        self.props = HelpPageProps::from_callback(self.on_update, state)
+        self.base.props = HelpPageProps::from_callback(self.base.on_update, state)
             .unwrap_or(HelpPageProps::from(state));
 
         self.content.update(state);
@@ -654,10 +655,10 @@ where
     fn handle_key_event(&mut self, key: termion::event::Key) {
         match key {
             Key::Esc | Key::Ctrl('c') => {
-                let _ = self.action_tx.send(Action::Exit { selection: None });
+                let _ = self.base.action_tx.send(Action::Exit { selection: None });
             }
             Key::Char('?') => {
-                let _ = self.action_tx.send(Action::LeavePage);
+                let _ = self.base.action_tx.send(Action::LeavePage);
             }
             _ => {
                 self.content.handle_key_event(key);
@@ -673,7 +674,7 @@ where
     fn render(&self, frame: &mut ratatui::Frame, area: Rect, props: Option<Box<dyn Any>>) {
         let props = props
             .and_then(HelpPageProps::from_boxed_any)
-            .unwrap_or(self.props.clone());
+            .unwrap_or(self.base.props.clone());
 
         let page_size = area.height.saturating_sub(6) as usize;
 
@@ -692,7 +693,7 @@ where
         );
 
         if page_size != props.page_size {
-            let _ = self.action_tx.send(Action::HelpPageSize(page_size));
+            let _ = self.base.action_tx.send(Action::HelpPageSize(page_size));
         }
     }
 }
