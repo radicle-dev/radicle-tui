@@ -13,13 +13,15 @@ const STORE_TICK_RATE: Duration = Duration::from_millis(1000);
 
 /// The `State` known to the application store. It handles user-defined
 /// application messages as well as ticks.
-pub trait State<A, P>
+pub trait State<P>
 where
     P: Clone + Debug + Send + Sync,
 {
+    type Action;
+
     /// Handle a user-defined application message and return an `Exit` object
     /// in case the received message requested the application to also quit.
-    fn handle_action(&mut self, action: A) -> Option<Exit<P>>;
+    fn handle_action(&mut self, action: Self::Action) -> Option<Exit<P>>;
 
     /// Handle recurring tick.
     fn tick(&self);
@@ -29,7 +31,7 @@ where
 /// messages coming from the frontend and updates the state accordingly.
 pub struct Store<A, S, P>
 where
-    S: State<A, P> + Clone + Send + Sync,
+    S: State<P> + Clone + Send + Sync,
     P: Clone + Debug + Send + Sync,
 {
     state_tx: UnboundedSender<S>,
@@ -38,7 +40,7 @@ where
 
 impl<A, S, P> Store<A, S, P>
 where
-    S: State<A, P> + Clone + Send + Sync,
+    S: State<P> + Clone + Send + Sync,
     P: Clone + Debug + Send + Sync,
 {
     pub fn new() -> (Self, UnboundedReceiver<S>) {
@@ -56,7 +58,7 @@ where
 
 impl<A, S, P> Store<A, S, P>
 where
-    S: State<A, P> + Clone + Debug + Send + Sync + 'static,
+    S: State<P, Action = A> + Clone + Debug + Send + Sync + 'static,
     P: Clone + Debug + Send + Sync + 'static,
 {
     /// By calling `main_loop`, the store will wait for new messages coming

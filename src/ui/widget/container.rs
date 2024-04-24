@@ -77,7 +77,10 @@ impl<'a, S, A> Header<'a, S, A> {
     }
 }
 
-impl<'a: 'static, S, A> View<S, A> for Header<'a, S, A> {
+impl<'a: 'static, S, A> View for Header<'a, S, A> {
+    type Action = A;
+    type State = S;
+
     fn new(_state: &S, action_tx: UnboundedSender<A>) -> Self {
         Self {
             base: BaseView {
@@ -108,7 +111,7 @@ impl<'a: 'static, S, A> View<S, A> for Header<'a, S, A> {
     }
 }
 
-impl<'a: 'static, B, S, A> Widget<B, S, A> for Header<'a, S, A>
+impl<'a: 'static, B, S, A> Widget<B> for Header<'a, S, A>
 where
     B: Backend,
 {
@@ -234,7 +237,10 @@ impl<'a, S, A> Footer<'a, S, A> {
     }
 }
 
-impl<'a: 'static, S, A> View<S, A> for Footer<'a, S, A> {
+impl<'a: 'static, S, A> View for Footer<'a, S, A> {
+    type Action = A;
+    type State = S;
+
     fn new(_state: &S, action_tx: UnboundedSender<A>) -> Self {
         Self {
             base: BaseView {
@@ -289,7 +295,7 @@ impl<'a, S, A> Footer<'a, S, A> {
     }
 }
 
-impl<'a: 'static, B, S, A> Widget<B, S, A> for Footer<'a, S, A>
+impl<'a: 'static, B, S, A> Widget<B> for Footer<'a, S, A>
 where
     B: Backend,
 {
@@ -386,10 +392,13 @@ where
     }
 }
 
-impl<B, S, A> View<S, A> for Container<B, S, A>
+impl<B, S, A> View for Container<B, S, A>
 where
     B: Backend,
 {
+    type Action = A;
+    type State = S;
+
     fn new(_state: &S, action_tx: UnboundedSender<A>) -> Self
     where
         Self: Sized,
@@ -436,7 +445,7 @@ where
     }
 }
 
-impl<'a: 'static, B, S, A> Widget<B, S, A> for Container<B, S, A>
+impl<'a: 'static, B, S, A> Widget<B> for Container<B, S, A>
 where
     B: Backend,
 {

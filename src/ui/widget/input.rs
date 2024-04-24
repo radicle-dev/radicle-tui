@@ -126,7 +126,10 @@ impl<S, A> TextField<S, A> {
     }
 }
 
-impl<S, A> View<S, A> for TextField<S, A> {
+impl<S, A> View for TextField<S, A> {
+    type Action = A;
+    type State = S;
+
     fn new(_state: &S, action_tx: UnboundedSender<A>) -> Self {
         Self {
             base: BaseView {
@@ -186,7 +189,7 @@ impl<S, A> View<S, A> for TextField<S, A> {
     }
 }
 
-impl<B, S, A> Widget<B, S, A> for TextField<S, A>
+impl<B, S, A> Widget<B> for TextField<S, A>
 where
     B: Backend,
 {

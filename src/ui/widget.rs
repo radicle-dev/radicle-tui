@@ -18,7 +18,7 @@ use ratatui::widgets::{Cell, Row, TableState};
 use super::theme::style;
 use super::{layout, span};
 
-pub type BoxedWidget<B, S, A> = Box<dyn Widget<B, S, A>>;
+pub type BoxedWidget<B, S, A> = Box<dyn Widget<B, State = S, Action = A>>;
 
 pub type UpdateCallback<S> = fn(&S) -> Box<dyn Any>;
 pub type EventCallback<A> = fn(&dyn Any, UnboundedSender<A>);
@@ -36,15 +36,18 @@ pub struct BaseView<S, A> {
 /// Main trait defining a `View` behaviour.
 ///
 /// This is the first trait that you should implement to define a custom `Widget`.
-pub trait View<S, A> {
+pub trait View {
+    type State;
+    type Action;
+
     /// Should return a new view with props build from state (if type is known) and a
     /// message sender set.
-    fn new(state: &S, action_tx: UnboundedSender<A>) -> Self
+    fn new(state: &Self::State, action_tx: UnboundedSender<Self::Action>) -> Self
     where
         Self: Sized;
 
     /// Should set the optional custom event handler.
-    fn on_event(mut self, callback: EventCallback<A>) -> Self
+    fn on_event(mut self, callback: EventCallback<Self::Action>) -> Self
     where
         Self: Sized,
     {
@@ -53,7 +56,7 @@ pub trait View<S, A> {
     }
 
     /// Should set the optional update handler.
-    fn on_update(mut self, callback: UpdateCallback<S>) -> Self
+    fn on_update(mut self, callback: UpdateCallback<Self::State>) -> Self
     where
         Self: Sized,
     {
@@ -70,7 +73,7 @@ pub trait View<S, A> {
     }
 
     /// Return a mutable reference to this widgets' base view.
-    fn base_mut(&mut self) -> &mut BaseView<S, A>;
+    fn base_mut(&mut self) -> &mut BaseView<Self::State, Self::Action>;
 
     /// Should handle key events and call `handle_event` on all children.
     ///
@@ -88,13 +91,13 @@ pub trait View<S, A> {
     /// construct and update the internal props. If it is not set, app widgets can construct
     /// props directly via their state converters, whereas library widgets can just fallback
     /// to their current props.
-    fn update(&mut self, state: &S);
+    fn update(&mut self, state: &Self::State);
 }
 
 /// A `Widget` is a `View` that can be rendered using a specific backend.
 ///
 /// This is the second trait that you should implement to define a custom `Widget`.
-pub trait Widget<B, S, A>: View<S, A>
+pub trait Widget<B>: View
 where
     B: Backend,
 {
@@ -179,11 +182,14 @@ where
     }
 }
 
-impl<'a: 'static, B, S, A, Id> View<S, A> for Window<B, S, A, Id>
+impl<'a: 'static, B, S, A, Id> View for Window<B, S, A, Id>
 where
     B: Backend + 'a,
     Id: Clone + Hash + Eq + PartialEq + 'a,
 {
+    type Action = A;
+    type State = S;
+
     fn new(_state: &S, action_tx: UnboundedSender<A>) -> Self
     where
         Self: Sized,
@@ -230,7 +236,7 @@ where
     }
 }
 
-impl<'a: 'static, B, S, A, Id> Widget<B, S, A> for Window<B, S, A, Id>
+impl<'a: 'static, B, S, A, Id> Widget<B> for Window<B, S, A, Id>
 where
     B: Backend + 'a,
     Id: Clone + Hash + Eq + PartialEq + 'a,
@@ -310,7 +316,10 @@ impl<S, A> Shortcuts<S, A> {
     }
 }
 
-impl<S, A> View<S, A> for Shortcuts<S, A> {
+impl<S, A> View for Shortcuts<S, A> {
+    type Action = A;
+    type State = S;
+
     fn new(_state: &S, action_tx: UnboundedSender<A>) -> Self {
         Self {
             base: BaseView {
@@ -334,7 +343,7 @@ impl<S, A> View<S, A> for Shortcuts<S, A> {
     }
 }
 
-impl<B, S, A> Widget<B, S, A> for Shortcuts<S, A>
+impl<B, S, A> Widget<B> for Shortcuts<S, A>
 where
     B: Backend,
 {
@@ -540,10 +549,13 @@ where
     }
 }
 
-impl<'a: 'static, S, A, R> View<S, A> for Table<'a, S, A, R>
+impl<'a: 'static, S, A, R> View for Table<'a, S, A, R>
 where
     R: ToRow + Clone + 'static,
 {
+    type Action = A;
+    type State = S;
+
     fn new(_state: &S, action_tx: UnboundedSender<A>) -> Self {
         Self {
             base: BaseView {
@@ -603,7 +615,7 @@ where
     }
 }
 
-impl<'a: 'static, B, S, A, R> Widget<B, S, A> for Table<'a, S, A, R>
+impl<'a: 'static, B, S, A, R> Widget<B> for Table<'a, S, A, R>
 where
     B: Backend,
     R: ToRow + Clone + Debug + 'static,

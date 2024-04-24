@@ -71,8 +71,8 @@ impl<A> Frontend<A> {
         mut interrupt_rx: broadcast::Receiver<Interrupted<P>>,
     ) -> anyhow::Result<Interrupted<P>>
     where
-        S: State<A, P>,
-        W: Widget<Backend, S, A>,
+        S: State<P>,
+        W: Widget<Backend, State = S, Action = A>,
         P: Clone + Send + Sync + Debug,
     {
         let mut ticker = tokio::time::interval(RENDERING_TICK_RATE);

@@ -142,7 +142,10 @@ impl<'a, S, A> Paragraph<'a, S, A> {
     }
 }
 
-impl<'a: 'static, S, A> View<S, A> for Paragraph<'a, S, A> {
+impl<'a: 'static, S, A> View for Paragraph<'a, S, A> {
+    type Action = A;
+    type State = S;
+
     fn new(_state: &S, action_tx: UnboundedSender<A>) -> Self
     where
         Self: Sized,
@@ -202,7 +205,7 @@ impl<'a: 'static, S, A> View<S, A> for Paragraph<'a, S, A> {
     }
 }
 
-impl<'a: 'static, B, S, A> Widget<B, S, A> for Paragraph<'a, S, A>
+impl<'a: 'static, B, S, A> Widget<B> for Paragraph<'a, S, A>
 where
     B: Backend,
 {
