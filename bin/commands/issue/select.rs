@@ -16,7 +16,7 @@ use tui::store::StateValue;
 use tui::task;
 use tui::task::Interrupted;
 use tui::ui::items::{Filter, IssueItem, IssueItemFilter};
-use tui::ui::widget::{Properties, View, Window, WindowProps};
+use tui::ui::widget::{Properties, Widget, Window, WindowProps};
 use tui::ui::Frontend;
 use tui::Exit;
 use tui::{store, PageStack};
