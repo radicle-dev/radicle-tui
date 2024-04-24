@@ -23,6 +23,7 @@ pub type BoxedWidget<B, S, A> = Box<dyn Widget<B, S, A>>;
 pub type UpdateCallback<S> = fn(&S) -> Box<dyn Any>;
 pub type EventCallback<A> = fn(&dyn Any, UnboundedSender<A>);
 
+/// A `View`s common fields.
 pub struct BaseView<S, A> {
     /// Message sender
     pub action_tx: UnboundedSender<A>,
@@ -103,7 +104,7 @@ where
     fn render(&self, frame: &mut Frame, area: Rect, props: Option<Box<dyn Any>>);
 }
 
-/// Needs to be implemented for items that are supposed to be rendering in tables.
+/// Needs to be implemented for items that are supposed to be rendered in tables.
 pub trait ToRow {
     fn to_row(&self) -> Vec<Cell>;
 }
@@ -560,8 +561,8 @@ where
     }
 
     fn update(&mut self, state: &S) {
-        self.props = TableProps::<'_, R>::from_callback(self.base.on_update, state)
-            .unwrap_or(self.props.clone());
+        self.props =
+            TableProps::from_callback(self.base.on_update, state).unwrap_or(self.props.clone());
 
         // TODO: Move to state reducer
         if let Some(selected) = self.state.selected() {
@@ -609,7 +610,7 @@ where
 {
     fn render(&self, frame: &mut ratatui::Frame, area: Rect, props: Option<Box<dyn Any>>) {
         let props = props
-            .and_then(TableProps::<'_, R>::from_boxed_any)
+            .and_then(TableProps::from_boxed_any)
             .unwrap_or(self.props.clone());
 
         let widths: Vec<Constraint> = self
