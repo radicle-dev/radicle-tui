@@ -111,10 +111,7 @@ impl<'a: 'static, S, A> View for Header<'a, S, A> {
     }
 }
 
-impl<'a: 'static, B, S, A> Widget<B> for Header<'a, S, A>
-where
-    B: Backend,
-{
+impl<'a: 'static, S, A> Widget for Header<'a, S, A> {
     fn render(&self, frame: &mut ratatui::Frame, area: Rect, props: Option<Box<dyn Any>>) {
         let props = props
             .and_then(HeaderProps::from_boxed_any)
@@ -295,10 +292,7 @@ impl<'a, S, A> Footer<'a, S, A> {
     }
 }
 
-impl<'a: 'static, B, S, A> Widget<B> for Footer<'a, S, A>
-where
-    B: Backend,
-{
+impl<'a: 'static, S, A> Widget for Footer<'a, S, A> {
     fn render(&self, frame: &mut ratatui::Frame, area: Rect, props: Option<Box<dyn Any>>) {
         let props = props
             .and_then(FooterProps::from_boxed_any)
@@ -356,46 +350,37 @@ impl ContainerProps {
 
 impl Properties for ContainerProps {}
 
-pub struct Container<B, S, A>
-where
-    B: Backend,
-{
+pub struct Container<S, A> {
     /// Internal base
     base: BaseView<S, A>,
     /// Internal props
     props: ContainerProps,
     /// Container header
-    header: Option<BoxedWidget<B, S, A>>,
+    header: Option<BoxedWidget<S, A>>,
     /// Content widget
-    content: Option<BoxedWidget<B, S, A>>,
+    content: Option<BoxedWidget<S, A>>,
     /// Container footer
-    footer: Option<BoxedWidget<B, S, A>>,
+    footer: Option<BoxedWidget<S, A>>,
 }
 
-impl<B, S, A> Container<B, S, A>
-where
-    B: Backend,
-{
-    pub fn header(mut self, header: BoxedWidget<B, S, A>) -> Self {
+impl<S, A> Container<S, A> {
+    pub fn header(mut self, header: BoxedWidget<S, A>) -> Self {
         self.header = Some(header);
         self
     }
 
-    pub fn content(mut self, content: BoxedWidget<B, S, A>) -> Self {
+    pub fn content(mut self, content: BoxedWidget<S, A>) -> Self {
         self.content = Some(content);
         self
     }
 
-    pub fn footer(mut self, footer: BoxedWidget<B, S, A>) -> Self {
+    pub fn footer(mut self, footer: BoxedWidget<S, A>) -> Self {
         self.footer = Some(footer);
         self
     }
 }
 
-impl<B, S, A> View for Container<B, S, A>
-where
-    B: Backend,
-{
+impl<S, A> View for Container<S, A> {
     type Action = A;
     type State = S;
 
@@ -445,10 +430,7 @@ where
     }
 }
 
-impl<'a: 'static, B, S, A> Widget<B> for Container<B, S, A>
-where
-    B: Backend,
-{
+impl<'a: 'static, S, A> Widget for Container<S, A> {
     fn render(&self, frame: &mut ratatui::Frame, area: Rect, props: Option<Box<dyn Any>>) {
         let props = props
             .and_then(ContainerProps::from_boxed_any)

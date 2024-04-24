@@ -4,7 +4,6 @@ use tokio::sync::mpsc::UnboundedSender;
 
 use termion::event::Key;
 
-use ratatui::backend::Backend;
 use ratatui::layout::{Constraint, Layout, Rect};
 use ratatui::text::Text;
 
@@ -205,10 +204,7 @@ impl<'a: 'static, S, A> View for Paragraph<'a, S, A> {
     }
 }
 
-impl<'a: 'static, B, S, A> Widget<B> for Paragraph<'a, S, A>
-where
-    B: Backend,
-{
+impl<'a: 'static, S, A> Widget for Paragraph<'a, S, A> {
     fn render(&self, frame: &mut ratatui::Frame, area: Rect, props: Option<Box<dyn Any>>) {
         let props = props
             .and_then(ParagraphProps::from_boxed_any)

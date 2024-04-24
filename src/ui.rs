@@ -7,10 +7,7 @@ pub mod theme;
 pub mod widget;
 
 use std::fmt::Debug;
-use std::io::{self};
 use std::time::Duration;
-
-use termion::raw::RawTerminal;
 
 use tokio::sync::broadcast;
 use tokio::sync::mpsc::{self, UnboundedReceiver, UnboundedSender};
@@ -19,10 +16,7 @@ use super::event::Event;
 use super::store::State;
 use super::task::Interrupted;
 use super::terminal;
-use super::terminal::TermionBackendExt;
 use super::ui::widget::Widget;
-
-type Backend = TermionBackendExt<RawTerminal<io::Stdout>>;
 
 const RENDERING_TICK_RATE: Duration = Duration::from_millis(250);
 const INLINE_HEIGHT: usize = 20;
@@ -72,7 +66,7 @@ impl<A> Frontend<A> {
     ) -> anyhow::Result<Interrupted<P>>
     where
         S: State<P>,
-        W: Widget<Backend, State = S, Action = A>,
+        W: Widget<State = S, Action = A>,
         P: Clone + Send + Sync + Debug,
     {
         let mut ticker = tokio::time::interval(RENDERING_TICK_RATE);

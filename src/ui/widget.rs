@@ -18,7 +18,7 @@ use ratatui::widgets::{Cell, Row, TableState};
 use super::theme::style;
 use super::{layout, span};
 
-pub type BoxedWidget<B, S, A> = Box<dyn Widget<B, State = S, Action = A>>;
+pub type BoxedWidget<S, A> = Box<dyn Widget<State = S, Action = A>>;
 
 pub type UpdateCallback<S> = fn(&S) -> Box<dyn Any>;
 pub type EventCallback<A> = fn(&dyn Any, UnboundedSender<A>);
@@ -97,10 +97,7 @@ pub trait View {
 /// A `Widget` is a `View` that can be rendered using a specific backend.
 ///
 /// This is the second trait that you should implement to define a custom `Widget`.
-pub trait Widget<B>: View
-where
-    B: Backend,
-{
+pub trait Widget: View {
     /// Renders a widget to the given frame in the given area.
     ///
     /// Optional props take precedence over the internal ones.
@@ -158,33 +155,27 @@ impl<Id> Default for WindowProps<Id> {
 
 impl<Id> Properties for WindowProps<Id> {}
 
-pub struct Window<B, S, A, Id>
-where
-    B: Backend,
-{
+pub struct Window<S, A, Id> {
     /// Internal base
     base: BaseView<S, A>,
     /// Internal properties
     props: WindowProps<Id>,
     /// All pages known
-    pages: HashMap<Id, BoxedWidget<B, S, A>>,
+    pages: HashMap<Id, BoxedWidget<S, A>>,
 }
 
-impl<B, S, A, Id> Window<B, S, A, Id>
+impl<S, A, Id> Window<S, A, Id>
 where
-    B: Backend,
     Id: Clone + Hash + Eq + PartialEq,
 {
-    pub fn page(mut self, id: Id, page: BoxedWidget<B, S, A>) -> Self {
-        // self.pages.inse
+    pub fn page(mut self, id: Id, page: BoxedWidget<S, A>) -> Self {
         self.pages.insert(id, page);
         self
     }
 }
 
-impl<'a: 'static, B, S, A, Id> View for Window<B, S, A, Id>
+impl<'a: 'static, S, A, Id> View for Window<S, A, Id>
 where
-    B: Backend + 'a,
     Id: Clone + Hash + Eq + PartialEq + 'a,
 {
     type Action = A;
@@ -236,9 +227,8 @@ where
     }
 }
 
-impl<'a: 'static, B, S, A, Id> Widget<B> for Window<B, S, A, Id>
+impl<'a: 'static, S, A, Id> Widget for Window<S, A, Id>
 where
-    B: Backend + 'a,
     Id: Clone + Hash + Eq + PartialEq + 'a,
 {
     fn render(&self, frame: &mut ratatui::Frame, _area: Rect, props: Option<Box<dyn Any>>) {
@@ -343,10 +333,7 @@ impl<S, A> View for Shortcuts<S, A> {
     }
 }
 
-impl<B, S, A> Widget<B> for Shortcuts<S, A>
-where
-    B: Backend,
-{
+impl<S, A> Widget for Shortcuts<S, A> {
     fn render(&self, frame: &mut ratatui::Frame, area: Rect, props: Option<Box<dyn Any>>) {
         use ratatui::widgets::Table;
 
@@ -615,9 +602,8 @@ where
     }
 }
 
-impl<'a: 'static, B, S, A, R> Widget<B> for Table<'a, S, A, R>
+impl<'a: 'static, S, A, R> Widget for Table<'a, S, A, R>
 where
-    B: Backend,
     R: ToRow + Clone + Debug + 'static,
 {
     fn render(&self, frame: &mut ratatui::Frame, area: Rect, props: Option<Box<dyn Any>>) {

@@ -5,7 +5,7 @@ use termion::event::Key;
 use tokio::sync::mpsc::UnboundedSender;
 
 use ratatui::layout::{Constraint, Layout};
-use ratatui::prelude::{Backend, Rect};
+use ratatui::prelude::Rect;
 use ratatui::style::Stylize;
 use ratatui::text::{Line, Span};
 
@@ -189,10 +189,7 @@ impl<S, A> View for TextField<S, A> {
     }
 }
 
-impl<B, S, A> Widget<B> for TextField<S, A>
-where
-    B: Backend,
-{
+impl<S, A> Widget for TextField<S, A> {
     fn render(&self, frame: &mut ratatui::Frame, area: Rect, props: Option<Box<dyn Any>>) {
         let props = props
             .and_then(TextFieldProps::from_boxed_any)
