@@ -11,7 +11,7 @@ use ratatui::widgets::{Block, BorderType, Borders, Row};
 use crate::ui::ext::{FooterBlock, FooterBlockType, HeaderBlock};
 use crate::ui::theme::style;
 
-use super::{BaseView, BoxedWidget, Column, Properties, View, Widget};
+use super::{BaseView, BoxedWidget, Column, Properties, Widget};
 
 #[derive(Clone, Debug)]
 pub struct HeaderProps<'a> {
@@ -77,7 +77,7 @@ impl<'a, S, A> Header<'a, S, A> {
     }
 }
 
-impl<'a: 'static, S, A> View for Header<'a, S, A> {
+impl<'a: 'static, S, A> Widget for Header<'a, S, A> {
     type Action = A;
     type State = S;
 
@@ -92,8 +92,10 @@ impl<'a: 'static, S, A> View for Header<'a, S, A> {
         }
     }
 
-    fn base_mut(&mut self) -> &mut BaseView<S, A> {
-        &mut self.base
+    fn handle_event(&mut self, _key: Key) {
+        if let Some(on_event) = self.base.on_event {
+            (on_event)(&self.props, self.base.action_tx.clone());
+        }
     }
 
     fn update(&mut self, state: &S) {
@@ -104,14 +106,6 @@ impl<'a: 'static, S, A> View for Header<'a, S, A> {
             .unwrap_or(self.props.clone());
     }
 
-    fn handle_event(&mut self, _key: Key) {
-        if let Some(on_event) = self.base.on_event {
-            (on_event)(&self.props, self.base.action_tx.clone());
-        }
-    }
-}
-
-impl<'a: 'static, S, A> Widget for Header<'a, S, A> {
     fn render(&self, frame: &mut ratatui::Frame, area: Rect, props: Option<Box<dyn Any>>) {
         let props = props
             .and_then(HeaderProps::from_boxed_any)
@@ -167,6 +161,10 @@ impl<'a: 'static, S, A> Widget for Header<'a, S, A> {
 
         frame.render_widget(block, area);
         frame.render_widget(header, header_layout[0]);
+    }
+
+    fn base_mut(&mut self) -> &mut BaseView<S, A> {
+        &mut self.base
     }
 }
 
@@ -232,43 +230,7 @@ impl<'a, S, A> Footer<'a, S, A> {
         self.props.focus = focus;
         self
     }
-}
 
-impl<'a: 'static, S, A> View for Footer<'a, S, A> {
-    type Action = A;
-    type State = S;
-
-    fn new(_state: &S, action_tx: UnboundedSender<A>) -> Self {
-        Self {
-            base: BaseView {
-                action_tx: action_tx.clone(),
-                on_update: None,
-                on_event: None,
-            },
-            props: FooterProps::default(),
-        }
-    }
-
-    fn base_mut(&mut self) -> &mut BaseView<S, A> {
-        &mut self.base
-    }
-
-    fn update(&mut self, state: &S) {
-        self.props = self
-            .base
-            .on_update
-            .and_then(|on_update| FooterProps::from_boxed_any((on_update)(state)))
-            .unwrap_or(self.props.clone());
-    }
-
-    fn handle_event(&mut self, _key: Key) {
-        if let Some(on_event) = self.base.on_event {
-            (on_event)(&self.props, self.base.action_tx.clone());
-        }
-    }
-}
-
-impl<'a, S, A> Footer<'a, S, A> {
     fn render_cell(
         &self,
         frame: &mut ratatui::Frame,
@@ -293,6 +255,34 @@ impl<'a, S, A> Footer<'a, S, A> {
 }
 
 impl<'a: 'static, S, A> Widget for Footer<'a, S, A> {
+    type Action = A;
+    type State = S;
+
+    fn new(_state: &S, action_tx: UnboundedSender<A>) -> Self {
+        Self {
+            base: BaseView {
+                action_tx: action_tx.clone(),
+                on_update: None,
+                on_event: None,
+            },
+            props: FooterProps::default(),
+        }
+    }
+
+    fn handle_event(&mut self, _key: Key) {
+        if let Some(on_event) = self.base.on_event {
+            (on_event)(&self.props, self.base.action_tx.clone());
+        }
+    }
+
+    fn update(&mut self, state: &S) {
+        self.props = self
+            .base
+            .on_update
+            .and_then(|on_update| FooterProps::from_boxed_any((on_update)(state)))
+            .unwrap_or(self.props.clone());
+    }
+
     fn render(&self, frame: &mut ratatui::Frame, area: Rect, props: Option<Box<dyn Any>>) {
         let props = props
             .and_then(FooterProps::from_boxed_any)
@@ -327,6 +317,10 @@ impl<'a: 'static, S, A> Widget for Footer<'a, S, A> {
             };
             self.render_cell(frame, *area, block_type, cell.clone(), props.focus);
         }
+    }
+
+    fn base_mut(&mut self) -> &mut BaseView<S, A> {
+        &mut self.base
     }
 }
 
@@ -380,7 +374,7 @@ impl<S, A> Container<S, A> {
     }
 }
 
-impl<S, A> View for Container<S, A> {
+impl<S, A> Widget for Container<S, A> {
     type Action = A;
     type State = S;
 
@@ -402,8 +396,10 @@ impl<S, A> View for Container<S, A> {
         }
     }
 
-    fn base_mut(&mut self) -> &mut BaseView<S, A> {
-        &mut self.base
+    fn handle_event(&mut self, key: termion::event::Key) {
+        if let Some(content) = &mut self.content {
+            content.handle_event(key);
+        }
     }
 
     fn update(&mut self, state: &S) {
@@ -423,14 +419,6 @@ impl<S, A> View for Container<S, A> {
         }
     }
 
-    fn handle_event(&mut self, key: termion::event::Key) {
-        if let Some(content) = &mut self.content {
-            content.handle_event(key);
-        }
-    }
-}
-
-impl<'a: 'static, S, A> Widget for Container<S, A> {
     fn render(&self, frame: &mut ratatui::Frame, area: Rect, props: Option<Box<dyn Any>>) {
         let props = props
             .and_then(ContainerProps::from_boxed_any)
@@ -477,5 +465,9 @@ impl<'a: 'static, S, A> Widget for Container<S, A> {
         if let Some(footer) = &self.footer {
             footer.render(frame, footer_area, None);
         }
+    }
+
+    fn base_mut(&mut self) -> &mut BaseView<S, A> {
+        &mut self.base
     }
 }

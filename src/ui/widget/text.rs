@@ -7,7 +7,7 @@ use termion::event::Key;
 use ratatui::layout::{Constraint, Layout, Rect};
 use ratatui::text::Text;
 
-use super::{BaseView, Properties, View, Widget};
+use super::{BaseView, Properties, Widget};
 
 #[derive(Clone)]
 pub struct ParagraphProps<'a> {
@@ -141,7 +141,7 @@ impl<'a, S, A> Paragraph<'a, S, A> {
     }
 }
 
-impl<'a: 'static, S, A> View for Paragraph<'a, S, A> {
+impl<'a: 'static, S, A> Widget for Paragraph<'a, S, A> {
     type Action = A;
     type State = S;
 
@@ -161,15 +161,6 @@ impl<'a: 'static, S, A> View for Paragraph<'a, S, A> {
                 progress: 0,
             },
         }
-    }
-
-    fn base_mut(&mut self) -> &mut BaseView<S, A> {
-        &mut self.base
-    }
-
-    fn update(&mut self, state: &S) {
-        self.props =
-            ParagraphProps::from_callback(self.base.on_update, state).unwrap_or(self.props.clone());
     }
 
     fn handle_event(&mut self, key: Key) {
@@ -202,9 +193,12 @@ impl<'a: 'static, S, A> View for Paragraph<'a, S, A> {
             (on_event)(&self.state, self.base.action_tx.clone());
         }
     }
-}
 
-impl<'a: 'static, S, A> Widget for Paragraph<'a, S, A> {
+    fn update(&mut self, state: &S) {
+        self.props =
+            ParagraphProps::from_callback(self.base.on_update, state).unwrap_or(self.props.clone());
+    }
+
     fn render(&self, frame: &mut ratatui::Frame, area: Rect, props: Option<Box<dyn Any>>) {
         let props = props
             .and_then(ParagraphProps::from_boxed_any)
@@ -217,5 +211,9 @@ impl<'a: 'static, S, A> Widget for Paragraph<'a, S, A> {
             .scroll((self.state.offset as u16, 0));
 
         frame.render_widget(content, content_area);
+    }
+
+    fn base_mut(&mut self) -> &mut BaseView<S, A> {
+        &mut self.base
     }
 }

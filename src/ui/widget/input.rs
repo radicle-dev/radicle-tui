@@ -9,7 +9,7 @@ use ratatui::prelude::Rect;
 use ratatui::style::Stylize;
 use ratatui::text::{Line, Span};
 
-use super::{BaseView, Properties, View, Widget};
+use super::{BaseView, Properties, Widget};
 
 #[derive(Clone)]
 pub struct TextFieldProps {
@@ -126,7 +126,7 @@ impl<S, A> TextField<S, A> {
     }
 }
 
-impl<S, A> View for TextField<S, A> {
+impl<S, A> Widget for TextField<S, A> {
     type Action = A;
     type State = S;
 
@@ -142,23 +142,6 @@ impl<S, A> View for TextField<S, A> {
                 text: None,
                 cursor_position: 0,
             },
-        }
-    }
-
-    fn base_mut(&mut self) -> &mut BaseView<S, A> {
-        &mut self.base
-    }
-
-    fn update(&mut self, state: &S) {
-        if let Some(on_update) = self.base.on_update {
-            if let Some(props) = (on_update)(state).downcast_ref::<TextFieldProps>() {
-                self.props = props.clone();
-
-                if self.state.text.is_none() {
-                    self.state.cursor_position = props.text.len().saturating_sub(1);
-                }
-                self.state.text = Some(props.text.clone());
-            }
         }
     }
 
@@ -187,9 +170,20 @@ impl<S, A> View for TextField<S, A> {
             (on_event)(&self.state, self.base.action_tx.clone());
         }
     }
-}
 
-impl<S, A> Widget for TextField<S, A> {
+    fn update(&mut self, state: &S) {
+        if let Some(on_update) = self.base.on_update {
+            if let Some(props) = (on_update)(state).downcast_ref::<TextFieldProps>() {
+                self.props = props.clone();
+
+                if self.state.text.is_none() {
+                    self.state.cursor_position = props.text.len().saturating_sub(1);
+                }
+                self.state.text = Some(props.text.clone());
+            }
+        }
+    }
+
     fn render(&self, frame: &mut ratatui::Frame, area: Rect, props: Option<Box<dyn Any>>) {
         let props = props
             .and_then(TextFieldProps::from_boxed_any)
@@ -240,5 +234,9 @@ impl<S, A> Widget for TextField<S, A> {
                 frame.set_cursor(area.x + cursor_pos, area.y)
             }
         }
+    }
+
+    fn base_mut(&mut self) -> &mut BaseView<S, A> {
+        &mut self.base
     }
 }

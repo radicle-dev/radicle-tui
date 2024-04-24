@@ -33,10 +33,10 @@ pub struct BaseView<S, A> {
     pub on_event: Option<EventCallback<A>>,
 }
 
-/// Main trait defining a `View` behaviour.
+/// Main trait defining a `Widget` behaviour.
 ///
-/// This is the first trait that you should implement to define a custom `Widget`.
-pub trait View {
+/// This is the trait that you should implement to define a custom `Widget`.
+pub trait Widget {
     type State;
     type Action;
 
@@ -45,6 +45,32 @@ pub trait View {
     fn new(state: &Self::State, action_tx: UnboundedSender<Self::Action>) -> Self
     where
         Self: Sized;
+
+    /// Should handle key events and call `handle_event` on all children.
+    ///
+    /// After key events have been handled, the custom event handler `on_event` should
+    /// be called
+    fn handle_event(&mut self, key: Key);
+
+    /// Should update the internal props of this and all children.
+    ///
+    /// Applications are usually defined by app-specific widgets that do know
+    /// the type of `state`. These can use widgets from the library that do not know the
+    /// type of `state`.
+    ///
+    /// If `on_update` is set, implementations of this function should call it to
+    /// construct and update the internal props. If it is not set, app widgets can construct
+    /// props directly via their state converters, whereas library widgets can just fallback
+    /// to their current props.
+    fn update(&mut self, state: &Self::State);
+
+    /// Renders a widget to the given frame in the given area.
+    ///
+    /// Optional props take precedence over the internal ones.
+    fn render(&self, frame: &mut Frame, area: Rect, props: Option<Box<dyn Any>>);
+
+    /// Return a mutable reference to this widgets' base view.
+    fn base_mut(&mut self) -> &mut BaseView<Self::State, Self::Action>;
 
     /// Should set the optional custom event handler.
     fn on_event(mut self, callback: EventCallback<Self::Action>) -> Self
@@ -64,44 +90,13 @@ pub trait View {
         self
     }
 
-    /// Returns a boxed `View`
+    /// Returns a boxed `Widget`
     fn to_boxed(self) -> Box<Self>
     where
         Self: Sized,
     {
         Box::new(self)
     }
-
-    /// Return a mutable reference to this widgets' base view.
-    fn base_mut(&mut self) -> &mut BaseView<Self::State, Self::Action>;
-
-    /// Should handle key events and call `handle_event` on all children.
-    ///
-    /// After key events have been handled, the custom event handler `on_event` should
-    /// be called
-    fn handle_event(&mut self, key: Key);
-
-    /// Should update the internal props of this and all children.
-    ///
-    /// Applications are usually defined by app-specific widgets that do know
-    /// the type of `state`. These can use widgets from the library that do not know the
-    /// type of `state`.
-    ///
-    /// If `on_update` is set, implementations of this function should call it to
-    /// construct and update the internal props. If it is not set, app widgets can construct
-    /// props directly via their state converters, whereas library widgets can just fallback
-    /// to their current props.
-    fn update(&mut self, state: &Self::State);
-}
-
-/// A `Widget` is a `View` that can be rendered using a specific backend.
-///
-/// This is the second trait that you should implement to define a custom `Widget`.
-pub trait Widget: View {
-    /// Renders a widget to the given frame in the given area.
-    ///
-    /// Optional props take precedence over the internal ones.
-    fn render(&self, frame: &mut Frame, area: Rect, props: Option<Box<dyn Any>>);
 }
 
 /// Needs to be implemented for items that are supposed to be rendered in tables.
@@ -174,7 +169,7 @@ where
     }
 }
 
-impl<'a: 'static, S, A, Id> View for Window<S, A, Id>
+impl<'a: 'static, S, A, Id> Widget for Window<S, A, Id>
 where
     Id: Clone + Hash + Eq + PartialEq + 'a,
 {
@@ -196,9 +191,18 @@ where
         }
     }
 
-    fn base_mut(&mut self) -> &mut BaseView<S, A> {
-        &mut self.base
+    fn handle_event(&mut self, key: termion::event::Key) {
+        let page = self
+            .props
+            .current_page
+            .as_ref()
+            .and_then(|id| self.pages.get_mut(id));
+
+        if let Some(page) = page {
+            page.handle_event(key);
+        }
     }
+
     fn update(&mut self, state: &S) {
         self.props =
             WindowProps::from_callback(self.base.on_update, state).unwrap_or(self.props.clone());
@@ -214,23 +218,6 @@ where
         }
     }
 
-    fn handle_event(&mut self, key: termion::event::Key) {
-        let page = self
-            .props
-            .current_page
-            .as_ref()
-            .and_then(|id| self.pages.get_mut(id));
-
-        if let Some(page) = page {
-            page.handle_event(key);
-        }
-    }
-}
-
-impl<'a: 'static, S, A, Id> Widget for Window<S, A, Id>
-where
-    Id: Clone + Hash + Eq + PartialEq + 'a,
-{
     fn render(&self, frame: &mut ratatui::Frame, _area: Rect, props: Option<Box<dyn Any>>) {
         let _props = props
             .and_then(WindowProps::from_boxed_any)
@@ -247,6 +234,10 @@ where
         if let Some(page) = page {
             page.render(frame, area, None);
         }
+    }
+
+    fn base_mut(&mut self) -> &mut BaseView<S, A> {
+        &mut self.base
     }
 }
 
@@ -306,7 +297,7 @@ impl<S, A> Shortcuts<S, A> {
     }
 }
 
-impl<S, A> View for Shortcuts<S, A> {
+impl<S, A> Widget for Shortcuts<S, A> {
     type Action = A;
     type State = S;
 
@@ -321,19 +312,13 @@ impl<S, A> View for Shortcuts<S, A> {
         }
     }
 
-    fn base_mut(&mut self) -> &mut BaseView<S, A> {
-        &mut self.base
-    }
-
     fn handle_event(&mut self, _key: Key) {}
 
     fn update(&mut self, state: &S) {
         self.props =
             ShortcutsProps::from_callback(self.base.on_update, state).unwrap_or(self.props.clone());
     }
-}
 
-impl<S, A> Widget for Shortcuts<S, A> {
     fn render(&self, frame: &mut ratatui::Frame, area: Rect, props: Option<Box<dyn Any>>) {
         use ratatui::widgets::Table;
 
@@ -373,6 +358,10 @@ impl<S, A> Widget for Shortcuts<S, A> {
 
         let table = Table::new([Row::new(row)], widths).column_spacing(0);
         frame.render_widget(table, area);
+    }
+
+    fn base_mut(&mut self) -> &mut BaseView<S, A> {
+        &mut self.base
     }
 }
 
@@ -536,7 +525,7 @@ where
     }
 }
 
-impl<'a: 'static, S, A, R> View for Table<'a, S, A, R>
+impl<'a: 'static, S, A, R> Widget for Table<'a, S, A, R>
 where
     R: ToRow + Clone + 'static,
 {
@@ -552,22 +541,6 @@ where
             },
             props: TableProps::default(),
             state: TableState::default().with_selected(Some(0)),
-        }
-    }
-
-    fn base_mut(&mut self) -> &mut BaseView<S, A> {
-        &mut self.base
-    }
-
-    fn update(&mut self, state: &S) {
-        self.props =
-            TableProps::from_callback(self.base.on_update, state).unwrap_or(self.props.clone());
-
-        // TODO: Move to state reducer
-        if let Some(selected) = self.state.selected() {
-            if selected > self.props.items.len() {
-                self.begin();
-            }
         }
     }
 
@@ -600,12 +573,19 @@ where
             (on_event)(&self.state, self.base.action_tx.clone());
         }
     }
-}
 
-impl<'a: 'static, S, A, R> Widget for Table<'a, S, A, R>
-where
-    R: ToRow + Clone + Debug + 'static,
-{
+    fn update(&mut self, state: &S) {
+        self.props =
+            TableProps::from_callback(self.base.on_update, state).unwrap_or(self.props.clone());
+
+        // TODO: Move to state reducer
+        if let Some(selected) = self.state.selected() {
+            if selected > self.props.items.len() {
+                self.begin();
+            }
+        }
+    }
+
     fn render(&self, frame: &mut ratatui::Frame, area: Rect, props: Option<Box<dyn Any>>) {
         let props = props
             .and_then(TableProps::from_boxed_any)
@@ -661,6 +641,10 @@ where
 
             frame.render_widget(hint, center);
         }
+    }
+
+    fn base_mut(&mut self) -> &mut BaseView<S, A> {
+        &mut self.base
     }
 }
 
