@@ -116,69 +116,6 @@ pub struct BrowsePage<'a> {
     shortcuts: BoxedWidget,
 }
 
-impl<'a> BrowsePage<'a> {
-    fn build_footer(props: &BrowsePageProps<'a>, selected: Option<usize>) -> Vec<Column<'a>> {
-        let search = Line::from(vec![
-            span::default(" Search ").cyan().dim().reversed(),
-            span::default(" "),
-            span::default(&props.search.to_string()).gray().dim(),
-        ]);
-
-        let seen = Line::from(vec![
-            span::positive(&props.stats.get("Seen").unwrap_or(&0).to_string()).dim(),
-            span::default(" Seen").dim(),
-        ]);
-        let unseen = Line::from(vec![
-            span::positive(&props.stats.get("Unseen").unwrap_or(&0).to_string())
-                .magenta()
-                .dim(),
-            span::default(" Unseen").dim(),
-        ]);
-
-        let progress = selected
-            .map(|selected| {
-                TableUtils::progress(selected, props.notifications.len(), props.page_size)
-            })
-            .unwrap_or_default();
-        let progress = span::default(&format!("{}%", progress)).dim();
-
-        match NotificationItemFilter::from_str(&props.search)
-            .unwrap_or_default()
-            .state()
-        {
-            Some(state) => {
-                let block = match state {
-                    NotificationState::Seen => seen,
-                    NotificationState::Unseen => unseen,
-                };
-
-                [
-                    Column::new(Text::from(search), Constraint::Fill(1)),
-                    Column::new(
-                        Text::from(block.clone()),
-                        Constraint::Min(block.width() as u16),
-                    ),
-                    Column::new(Text::from(progress), Constraint::Min(4)),
-                ]
-                .to_vec()
-            }
-            None => [
-                Column::new(Text::from(search), Constraint::Fill(1)),
-                Column::new(
-                    Text::from(seen.clone()),
-                    Constraint::Min(seen.width() as u16),
-                ),
-                Column::new(
-                    Text::from(unseen.clone()),
-                    Constraint::Min(unseen.width() as u16),
-                ),
-                Column::new(Text::from(progress), Constraint::Min(4)),
-            ]
-            .to_vec(),
-        }
-    }
-}
-
 impl<'a: 'static> Widget for BrowsePage<'a> {
     type Action = Action;
     type State = State;
@@ -241,7 +178,7 @@ impl<'a: 'static> Widget for BrowsePage<'a> {
                             let props = BrowsePageProps::from(state);
 
                             FooterProps::default()
-                                .columns(Self::build_footer(&props, props.selected))
+                                .columns(browse_footer(&props, props.selected))
                                 .to_boxed()
                         })
                         .to_boxed(),
@@ -614,6 +551,65 @@ impl<'a: 'static> Widget for HelpPage<'a> {
 
     fn base_mut(&mut self) -> &mut BaseView<State, Action> {
         &mut self.base
+    }
+}
+
+fn browse_footer<'a>(props: &BrowsePageProps<'a>, selected: Option<usize>) -> Vec<Column<'a>> {
+    let search = Line::from(vec![
+        span::default(" Search ").cyan().dim().reversed(),
+        span::default(" "),
+        span::default(&props.search.to_string()).gray().dim(),
+    ]);
+
+    let seen = Line::from(vec![
+        span::positive(&props.stats.get("Seen").unwrap_or(&0).to_string()).dim(),
+        span::default(" Seen").dim(),
+    ]);
+    let unseen = Line::from(vec![
+        span::positive(&props.stats.get("Unseen").unwrap_or(&0).to_string())
+            .magenta()
+            .dim(),
+        span::default(" Unseen").dim(),
+    ]);
+
+    let progress = selected
+        .map(|selected| TableUtils::progress(selected, props.notifications.len(), props.page_size))
+        .unwrap_or_default();
+    let progress = span::default(&format!("{}%", progress)).dim();
+
+    match NotificationItemFilter::from_str(&props.search)
+        .unwrap_or_default()
+        .state()
+    {
+        Some(state) => {
+            let block = match state {
+                NotificationState::Seen => seen,
+                NotificationState::Unseen => unseen,
+            };
+
+            [
+                Column::new(Text::from(search), Constraint::Fill(1)),
+                Column::new(
+                    Text::from(block.clone()),
+                    Constraint::Min(block.width() as u16),
+                ),
+                Column::new(Text::from(progress), Constraint::Min(4)),
+            ]
+            .to_vec()
+        }
+        None => [
+            Column::new(Text::from(search), Constraint::Fill(1)),
+            Column::new(
+                Text::from(seen.clone()),
+                Constraint::Min(seen.width() as u16),
+            ),
+            Column::new(
+                Text::from(unseen.clone()),
+                Constraint::Min(unseen.width() as u16),
+            ),
+            Column::new(Text::from(progress), Constraint::Min(4)),
+        ]
+        .to_vec(),
     }
 }
 
