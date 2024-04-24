@@ -15,7 +15,6 @@ use tui::cob::issue;
 use tui::store::StateValue;
 use tui::task;
 use tui::task::Interrupted;
-use tui::terminal::Backend;
 use tui::ui::items::{Filter, IssueItem, IssueItemFilter};
 use tui::ui::widget::{Properties, View, Window, WindowProps};
 use tui::ui::Frontend;
@@ -200,7 +199,7 @@ impl App {
         let (frontend, action_tx, action_rx) = Frontend::new();
         let state = State::try_from(&self.context)?;
 
-        let window: Window<Backend, State, Action, Page> = Window::new(&state, action_tx.clone())
+        let window: Window<State, Action, Page> = Window::new(&state, action_tx.clone())
             .page(
                 Page::Browse,
                 BrowsePage::new(&state, action_tx.clone()).to_boxed(),

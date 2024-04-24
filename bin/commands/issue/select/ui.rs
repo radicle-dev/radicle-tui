@@ -9,7 +9,6 @@ use tokio::sync::mpsc::UnboundedSender;
 
 use termion::event::Key;
 
-use ratatui::backend::Backend;
 use ratatui::layout::{Constraint, Layout, Rect};
 use ratatui::style::Stylize;
 use ratatui::text::{Line, Span, Text};
@@ -34,7 +33,7 @@ use crate::tui_issue::common::Mode;
 
 use super::{Action, State};
 
-type BoxedWidget<B> = widget::BoxedWidget<B, State, Action>;
+type BoxedWidget = widget::BoxedWidget<State, Action>;
 
 #[derive(Clone)]
 struct BrowsePageProps<'a> {
@@ -120,23 +119,20 @@ impl<'a> From<&State> for BrowsePageProps<'a> {
 
 impl<'a> Properties for BrowsePageProps<'a> {}
 
-pub struct BrowsePage<'a, B> {
+pub struct BrowsePage<'a> {
     /// Internal base
     base: BaseView<State, Action>,
     /// Internal props
     props: BrowsePageProps<'a>,
     /// Notifications widget
-    issues: BoxedWidget<B>,
+    issues: BoxedWidget,
     /// Search widget
-    search: BoxedWidget<B>,
+    search: BoxedWidget,
     /// Shortcut widget
-    shortcuts: BoxedWidget<B>,
+    shortcuts: BoxedWidget,
 }
 
-impl<'a: 'static, B> View for BrowsePage<'a, B>
-where
-    B: Backend + 'a,
-{
+impl<'a: 'static> View for BrowsePage<'a> {
     type Action = Action;
     type State = State;
 
@@ -272,7 +268,7 @@ where
     }
 }
 
-impl<'a, B: Backend> BrowsePage<'a, B> {
+impl<'a> BrowsePage<'a> {
     fn build_footer(props: &BrowsePageProps<'a>, selected: Option<usize>) -> Vec<Column<'a>> {
         let search = Line::from(vec![
             span::default(" Search ").cyan().dim().reversed(),
@@ -349,10 +345,7 @@ impl<'a, B: Backend> BrowsePage<'a, B> {
     }
 }
 
-impl<'a: 'static, B> Widget<B> for BrowsePage<'a, B>
-where
-    B: Backend + 'a,
-{
+impl<'a: 'static> Widget for BrowsePage<'a> {
     fn render(&self, frame: &mut ratatui::Frame, area: Rect, props: Option<Box<dyn Any>>) {
         let props = props
             .and_then(BrowsePageProps::from_boxed_any)
@@ -409,16 +402,16 @@ pub struct SearchProps {}
 
 impl Properties for SearchProps {}
 
-pub struct Search<B: Backend> {
+pub struct Search {
     /// Internal base
     base: BaseView<State, Action>,
     /// Internal props
     _props: SearchProps,
     /// Search input field
-    input: BoxedWidget<B>,
+    input: BoxedWidget,
 }
 
-impl<B: Backend> View for Search<B> {
+impl View for Search {
     type Action = Action;
     type State = State;
 
@@ -478,10 +471,7 @@ impl<B: Backend> View for Search<B> {
     }
 }
 
-impl<B> Widget<B> for Search<B>
-where
-    B: Backend,
-{
+impl Widget for Search {
     fn render(&self, frame: &mut ratatui::Frame, area: Rect, _props: Option<Box<dyn Any>>) {
         let layout = Layout::horizontal(Constraint::from_mins([0]))
             .horizontal_margin(1)
@@ -512,24 +502,18 @@ impl<'a> From<&State> for HelpPageProps<'a> {
 
 impl<'a> Properties for HelpPageProps<'a> {}
 
-pub struct HelpPage<'a, B>
-where
-    B: Backend,
-{
+pub struct HelpPage<'a> {
     /// Internal base
     base: BaseView<State, Action>,
     /// Internal props
     props: HelpPageProps<'a>,
     /// Content widget
-    content: BoxedWidget<B>,
+    content: BoxedWidget,
     /// Shortcut widget
-    shortcuts: BoxedWidget<B>,
+    shortcuts: BoxedWidget,
 }
 
-impl<'a: 'static, B> View for HelpPage<'a, B>
-where
-    B: Backend + 'a,
-{
+impl<'a: 'static> View for HelpPage<'a> {
     type Action = Action;
     type State = State;
 
@@ -632,10 +616,7 @@ where
     }
 }
 
-impl<'a: 'static, B> Widget<B> for HelpPage<'a, B>
-where
-    B: Backend + 'a,
-{
+impl<'a: 'static> Widget for HelpPage<'a> {
     fn render(&self, frame: &mut ratatui::Frame, area: Rect, props: Option<Box<dyn Any>>) {
         let props = props
             .and_then(HelpPageProps::from_boxed_any)
