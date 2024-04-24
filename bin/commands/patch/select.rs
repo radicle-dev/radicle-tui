@@ -134,8 +134,8 @@ pub enum Action {
     ScrollHelp { progress: usize },
 }
 
-impl store::State<Action, Selection> for State {
-    fn tick(&self) {}
+impl store::State<Selection> for State {
+    type Action = Action;
 
     fn handle_action(&mut self, action: Action) -> Option<Exit<Selection>> {
         match action {
@@ -190,6 +190,8 @@ impl store::State<Action, Selection> for State {
             }
         }
     }
+
+    fn tick(&self) {}
 }
 
 impl App {

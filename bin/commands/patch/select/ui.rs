@@ -134,10 +134,13 @@ pub struct BrowsePage<'a, B> {
     shortcuts: BoxedWidget<B>,
 }
 
-impl<'a: 'static, B> View<State, Action> for BrowsePage<'a, B>
+impl<'a: 'static, B> View for BrowsePage<'a, B>
 where
     B: Backend + 'a,
 {
+    type Action = Action;
+    type State = State;
+
     fn new(state: &State, action_tx: UnboundedSender<Action>) -> Self {
         let props = BrowsePageProps::from(state);
 
@@ -374,7 +377,7 @@ impl<'a, B: Backend> BrowsePage<'a, B> {
     }
 }
 
-impl<'a: 'static, B> Widget<B, State, Action> for BrowsePage<'a, B>
+impl<'a: 'static, B> Widget<B> for BrowsePage<'a, B>
 where
     B: Backend + 'a,
 {
@@ -443,7 +446,10 @@ pub struct Search<B: Backend> {
     input: BoxedWidget<B>,
 }
 
-impl<B: Backend> View<State, Action> for Search<B> {
+impl<B: Backend> View for Search<B> {
+    type Action = Action;
+    type State = State;
+
     fn new(state: &State, action_tx: UnboundedSender<Action>) -> Self
     where
         Self: Sized,
@@ -500,7 +506,7 @@ impl<B: Backend> View<State, Action> for Search<B> {
     }
 }
 
-impl<B> Widget<B, State, Action> for Search<B>
+impl<B> Widget<B> for Search<B>
 where
     B: Backend,
 {
@@ -548,10 +554,13 @@ where
     shortcuts: BoxedWidget<B>,
 }
 
-impl<'a: 'static, B> View<State, Action> for HelpPage<'a, B>
+impl<'a: 'static, B> View for HelpPage<'a, B>
 where
     B: Backend + 'a,
 {
+    type Action = Action;
+    type State = State;
+
     fn new(state: &State, action_tx: UnboundedSender<Action>) -> Self
     where
         Self: Sized,
@@ -651,7 +660,7 @@ where
     }
 }
 
-impl<'a: 'static, B> Widget<B, State, Action> for HelpPage<'a, B>
+impl<'a: 'static, B> Widget<B> for HelpPage<'a, B>
 where
     B: Backend + 'a,
 {
