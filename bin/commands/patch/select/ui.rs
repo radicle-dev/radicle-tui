@@ -131,93 +131,6 @@ pub struct BrowsePage<'a> {
     shortcuts: BoxedWidget,
 }
 
-impl<'a> BrowsePage<'a> {
-    fn build_footer(props: &BrowsePageProps<'a>, selected: Option<usize>) -> Vec<Column<'a>> {
-        let filter = PatchItemFilter::from_str(&props.search).unwrap_or_default();
-
-        let search = Line::from(vec![
-            span::default(" Search ").cyan().dim().reversed(),
-            span::default(" "),
-            span::default(&props.search.to_string()).gray().dim(),
-        ]);
-
-        let draft = Line::from(vec![
-            span::default(&props.stats.get("Draft").unwrap_or(&0).to_string()).dim(),
-            span::default(" Draft").dim(),
-        ]);
-
-        let open = Line::from(vec![
-            span::positive(&props.stats.get("Open").unwrap_or(&0).to_string()).dim(),
-            span::default(" Open").dim(),
-        ]);
-
-        let merged = Line::from(vec![
-            span::default(&props.stats.get("Merged").unwrap_or(&0).to_string())
-                .magenta()
-                .dim(),
-            span::default(" Merged").dim(),
-        ]);
-
-        let archived = Line::from(vec![
-            span::default(&props.stats.get("Archived").unwrap_or(&0).to_string())
-                .yellow()
-                .dim(),
-            span::default(" Archived").dim(),
-        ]);
-
-        let sum = Line::from(vec![
-            span::default("Σ ").dim(),
-            span::default(&props.patches.len().to_string()).dim(),
-        ]);
-
-        let progress = selected
-            .map(|selected| TableUtils::progress(selected, props.patches.len(), props.page_size))
-            .unwrap_or_default();
-        let progress = span::default(&format!("{}%", progress)).dim();
-
-        match filter.status() {
-            Some(state) => {
-                let block = match state {
-                    Status::Draft => draft,
-                    Status::Open => open,
-                    Status::Merged => merged,
-                    Status::Archived => archived,
-                };
-
-                vec![
-                    Column::new(Text::from(search), Constraint::Fill(1)),
-                    Column::new(
-                        Text::from(block.clone()),
-                        Constraint::Min(block.width() as u16),
-                    ),
-                    Column::new(Text::from(progress), Constraint::Min(4)),
-                ]
-            }
-            None => vec![
-                Column::new(Text::from(search), Constraint::Fill(1)),
-                Column::new(
-                    Text::from(draft.clone()),
-                    Constraint::Min(draft.width() as u16),
-                ),
-                Column::new(
-                    Text::from(open.clone()),
-                    Constraint::Min(open.width() as u16),
-                ),
-                Column::new(
-                    Text::from(merged.clone()),
-                    Constraint::Min(merged.width() as u16),
-                ),
-                Column::new(
-                    Text::from(archived.clone()),
-                    Constraint::Min(archived.width() as u16),
-                ),
-                Column::new(Text::from(sum.clone()), Constraint::Min(sum.width() as u16)),
-                Column::new(Text::from(progress), Constraint::Min(4)),
-            ],
-        }
-    }
-}
-
 impl<'a: 'static> Widget for BrowsePage<'a> {
     type Action = Action;
     type State = State;
@@ -269,7 +182,7 @@ impl<'a: 'static> Widget for BrowsePage<'a> {
                             let props = BrowsePageProps::from(state);
 
                             FooterProps::default()
-                                .columns(Self::build_footer(&props, props.selected))
+                                .columns(browse_footer(&props, props.selected))
                                 .to_boxed()
                         })
                         .to_boxed(),
@@ -661,6 +574,91 @@ impl<'a: 'static> Widget for HelpPage<'a> {
 
     fn base_mut(&mut self) -> &mut BaseView<State, Action> {
         &mut self.base
+    }
+}
+
+fn browse_footer<'a>(props: &BrowsePageProps<'a>, selected: Option<usize>) -> Vec<Column<'a>> {
+    let filter = PatchItemFilter::from_str(&props.search).unwrap_or_default();
+
+    let search = Line::from(vec![
+        span::default(" Search ").cyan().dim().reversed(),
+        span::default(" "),
+        span::default(&props.search.to_string()).gray().dim(),
+    ]);
+
+    let draft = Line::from(vec![
+        span::default(&props.stats.get("Draft").unwrap_or(&0).to_string()).dim(),
+        span::default(" Draft").dim(),
+    ]);
+
+    let open = Line::from(vec![
+        span::positive(&props.stats.get("Open").unwrap_or(&0).to_string()).dim(),
+        span::default(" Open").dim(),
+    ]);
+
+    let merged = Line::from(vec![
+        span::default(&props.stats.get("Merged").unwrap_or(&0).to_string())
+            .magenta()
+            .dim(),
+        span::default(" Merged").dim(),
+    ]);
+
+    let archived = Line::from(vec![
+        span::default(&props.stats.get("Archived").unwrap_or(&0).to_string())
+            .yellow()
+            .dim(),
+        span::default(" Archived").dim(),
+    ]);
+
+    let sum = Line::from(vec![
+        span::default("Σ ").dim(),
+        span::default(&props.patches.len().to_string()).dim(),
+    ]);
+
+    let progress = selected
+        .map(|selected| TableUtils::progress(selected, props.patches.len(), props.page_size))
+        .unwrap_or_default();
+    let progress = span::default(&format!("{}%", progress)).dim();
+
+    match filter.status() {
+        Some(state) => {
+            let block = match state {
+                Status::Draft => draft,
+                Status::Open => open,
+                Status::Merged => merged,
+                Status::Archived => archived,
+            };
+
+            vec![
+                Column::new(Text::from(search), Constraint::Fill(1)),
+                Column::new(
+                    Text::from(block.clone()),
+                    Constraint::Min(block.width() as u16),
+                ),
+                Column::new(Text::from(progress), Constraint::Min(4)),
+            ]
+        }
+        None => vec![
+            Column::new(Text::from(search), Constraint::Fill(1)),
+            Column::new(
+                Text::from(draft.clone()),
+                Constraint::Min(draft.width() as u16),
+            ),
+            Column::new(
+                Text::from(open.clone()),
+                Constraint::Min(open.width() as u16),
+            ),
+            Column::new(
+                Text::from(merged.clone()),
+                Constraint::Min(merged.width() as u16),
+            ),
+            Column::new(
+                Text::from(archived.clone()),
+                Constraint::Min(archived.width() as u16),
+            ),
+            Column::new(Text::from(sum.clone()), Constraint::Min(sum.width() as u16)),
+            Column::new(Text::from(progress), Constraint::Min(4)),
+        ],
     }
 }
 
