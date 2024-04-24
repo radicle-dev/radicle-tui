@@ -21,9 +21,7 @@ use tui::ui::widget::container::{
 use tui::ui::widget::input::{TextField, TextFieldProps, TextFieldState};
 use tui::ui::widget::text::{Paragraph, ParagraphProps, ParagraphState};
 use tui::ui::widget::{self, BaseView, TableUtils};
-use tui::ui::widget::{
-    Column, Properties, Shortcuts, ShortcutsProps, Table, TableProps, View, Widget,
-};
+use tui::ui::widget::{Column, Properties, Shortcuts, ShortcutsProps, Table, TableProps, Widget};
 use tui::Selection;
 
 use crate::tui_inbox::common::{InboxOperation, Mode, RepositoryMode, SelectionMode};
@@ -118,7 +116,70 @@ pub struct BrowsePage<'a> {
     shortcuts: BoxedWidget,
 }
 
-impl<'a: 'static> View for BrowsePage<'a> {
+impl<'a> BrowsePage<'a> {
+    fn build_footer(props: &BrowsePageProps<'a>, selected: Option<usize>) -> Vec<Column<'a>> {
+        let search = Line::from(vec![
+            span::default(" Search ").cyan().dim().reversed(),
+            span::default(" "),
+            span::default(&props.search.to_string()).gray().dim(),
+        ]);
+
+        let seen = Line::from(vec![
+            span::positive(&props.stats.get("Seen").unwrap_or(&0).to_string()).dim(),
+            span::default(" Seen").dim(),
+        ]);
+        let unseen = Line::from(vec![
+            span::positive(&props.stats.get("Unseen").unwrap_or(&0).to_string())
+                .magenta()
+                .dim(),
+            span::default(" Unseen").dim(),
+        ]);
+
+        let progress = selected
+            .map(|selected| {
+                TableUtils::progress(selected, props.notifications.len(), props.page_size)
+            })
+            .unwrap_or_default();
+        let progress = span::default(&format!("{}%", progress)).dim();
+
+        match NotificationItemFilter::from_str(&props.search)
+            .unwrap_or_default()
+            .state()
+        {
+            Some(state) => {
+                let block = match state {
+                    NotificationState::Seen => seen,
+                    NotificationState::Unseen => unseen,
+                };
+
+                [
+                    Column::new(Text::from(search), Constraint::Fill(1)),
+                    Column::new(
+                        Text::from(block.clone()),
+                        Constraint::Min(block.width() as u16),
+                    ),
+                    Column::new(Text::from(progress), Constraint::Min(4)),
+                ]
+                .to_vec()
+            }
+            None => [
+                Column::new(Text::from(search), Constraint::Fill(1)),
+                Column::new(
+                    Text::from(seen.clone()),
+                    Constraint::Min(seen.width() as u16),
+                ),
+                Column::new(
+                    Text::from(unseen.clone()),
+                    Constraint::Min(unseen.width() as u16),
+                ),
+                Column::new(Text::from(progress), Constraint::Min(4)),
+            ]
+            .to_vec(),
+        }
+    }
+}
+
+impl<'a: 'static> Widget for BrowsePage<'a> {
     type Action = Action;
     type State = State;
 
@@ -191,19 +252,6 @@ impl<'a: 'static> View for BrowsePage<'a> {
         }
     }
 
-    fn base_mut(&mut self) -> &mut BaseView<State, Action> {
-        &mut self.base
-    }
-
-    fn update(&mut self, state: &State) {
-        self.props = BrowsePageProps::from_callback(self.base.on_update, state)
-            .unwrap_or(BrowsePageProps::from(state));
-
-        self.notifications.update(state);
-        self.search.update(state);
-        self.shortcuts.update(state);
-    }
-
     fn handle_event(&mut self, key: Key) {
         if self.props.show_search {
             self.search.handle_event(key);
@@ -261,72 +309,16 @@ impl<'a: 'static> View for BrowsePage<'a> {
             }
         }
     }
-}
 
-impl<'a> BrowsePage<'a> {
-    fn build_footer(props: &BrowsePageProps<'a>, selected: Option<usize>) -> Vec<Column<'a>> {
-        let search = Line::from(vec![
-            span::default(" Search ").cyan().dim().reversed(),
-            span::default(" "),
-            span::default(&props.search.to_string()).gray().dim(),
-        ]);
+    fn update(&mut self, state: &State) {
+        self.props = BrowsePageProps::from_callback(self.base.on_update, state)
+            .unwrap_or(BrowsePageProps::from(state));
 
-        let seen = Line::from(vec![
-            span::positive(&props.stats.get("Seen").unwrap_or(&0).to_string()).dim(),
-            span::default(" Seen").dim(),
-        ]);
-        let unseen = Line::from(vec![
-            span::positive(&props.stats.get("Unseen").unwrap_or(&0).to_string())
-                .magenta()
-                .dim(),
-            span::default(" Unseen").dim(),
-        ]);
-
-        let progress = selected
-            .map(|selected| {
-                TableUtils::progress(selected, props.notifications.len(), props.page_size)
-            })
-            .unwrap_or_default();
-        let progress = span::default(&format!("{}%", progress)).dim();
-
-        match NotificationItemFilter::from_str(&props.search)
-            .unwrap_or_default()
-            .state()
-        {
-            Some(state) => {
-                let block = match state {
-                    NotificationState::Seen => seen,
-                    NotificationState::Unseen => unseen,
-                };
-
-                [
-                    Column::new(Text::from(search), Constraint::Fill(1)),
-                    Column::new(
-                        Text::from(block.clone()),
-                        Constraint::Min(block.width() as u16),
-                    ),
-                    Column::new(Text::from(progress), Constraint::Min(4)),
-                ]
-                .to_vec()
-            }
-            None => [
-                Column::new(Text::from(search), Constraint::Fill(1)),
-                Column::new(
-                    Text::from(seen.clone()),
-                    Constraint::Min(seen.width() as u16),
-                ),
-                Column::new(
-                    Text::from(unseen.clone()),
-                    Constraint::Min(unseen.width() as u16),
-                ),
-                Column::new(Text::from(progress), Constraint::Min(4)),
-            ]
-            .to_vec(),
-        }
+        self.notifications.update(state);
+        self.search.update(state);
+        self.shortcuts.update(state);
     }
-}
 
-impl<'a: 'static> Widget for BrowsePage<'a> {
     fn render(&self, frame: &mut ratatui::Frame, area: Rect, props: Option<Box<dyn Any>>) {
         let props = props
             .and_then(BrowsePageProps::from_boxed_any)
@@ -377,6 +369,10 @@ impl<'a: 'static> Widget for BrowsePage<'a> {
             let _ = self.base.action_tx.send(Action::BrowserPageSize(page_size));
         }
     }
+
+    fn base_mut(&mut self) -> &mut BaseView<State, Action> {
+        &mut self.base
+    }
 }
 
 pub struct SearchProps {}
@@ -392,7 +388,7 @@ pub struct Search {
     input: BoxedWidget,
 }
 
-impl View for Search {
+impl Widget for Search {
     type Action = Action;
     type State = State;
 
@@ -429,14 +425,6 @@ impl View for Search {
         }
     }
 
-    fn base_mut(&mut self) -> &mut BaseView<State, Action> {
-        &mut self.base
-    }
-
-    fn update(&mut self, state: &State) {
-        self.input.update(state);
-    }
-
     fn handle_event(&mut self, key: termion::event::Key) {
         match key {
             Key::Esc => {
@@ -450,15 +438,21 @@ impl View for Search {
             }
         }
     }
-}
 
-impl Widget for Search {
+    fn update(&mut self, state: &State) {
+        self.input.update(state);
+    }
+
     fn render(&self, frame: &mut ratatui::Frame, area: Rect, _props: Option<Box<dyn Any>>) {
         let layout = Layout::horizontal(Constraint::from_mins([0]))
             .horizontal_margin(1)
             .split(area);
 
         self.input.render(frame, layout[0], None);
+    }
+
+    fn base_mut(&mut self) -> &mut BaseView<State, Action> {
+        &mut self.base
     }
 }
 
@@ -494,7 +488,7 @@ pub struct HelpPage<'a> {
     shortcuts: BoxedWidget,
 }
 
-impl<'a: 'static> View for HelpPage<'a> {
+impl<'a: 'static> Widget for HelpPage<'a> {
     type Action = Action;
     type State = State;
 
@@ -571,17 +565,6 @@ impl<'a: 'static> View for HelpPage<'a> {
         }
     }
 
-    fn base_mut(&mut self) -> &mut BaseView<State, Action> {
-        &mut self.base
-    }
-
-    fn update(&mut self, state: &State) {
-        self.props = HelpPageProps::from_callback(self.base.on_update, state)
-            .unwrap_or(HelpPageProps::from(state));
-
-        self.content.update(state);
-    }
-
     fn handle_event(&mut self, key: termion::event::Key) {
         match key {
             Key::Esc | Key::Ctrl('c') => {
@@ -595,9 +578,14 @@ impl<'a: 'static> View for HelpPage<'a> {
             }
         }
     }
-}
 
-impl<'a: 'static> Widget for HelpPage<'a> {
+    fn update(&mut self, state: &State) {
+        self.props = HelpPageProps::from_callback(self.base.on_update, state)
+            .unwrap_or(HelpPageProps::from(state));
+
+        self.content.update(state);
+    }
+
     fn render(&self, frame: &mut ratatui::Frame, area: Rect, props: Option<Box<dyn Any>>) {
         let props = props
             .and_then(HelpPageProps::from_boxed_any)
@@ -622,6 +610,10 @@ impl<'a: 'static> Widget for HelpPage<'a> {
         if page_size != props.page_size {
             let _ = self.base.action_tx.send(Action::HelpPageSize(page_size));
         }
+    }
+
+    fn base_mut(&mut self) -> &mut BaseView<State, Action> {
+        &mut self.base
     }
 }
 
