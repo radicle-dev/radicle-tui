@@ -18,7 +18,6 @@ use tui::cob::inbox::{self};
 use tui::store;
 use tui::store::StateValue;
 use tui::task::{self, Interrupted};
-use tui::terminal::Backend;
 use tui::ui::items::{Filter, NotificationItem, NotificationItemFilter};
 use tui::ui::widget::{Properties, View, Window, WindowProps};
 use tui::ui::Frontend;
@@ -281,7 +280,7 @@ impl App {
         let (frontend, action_tx, action_rx) = Frontend::new();
         let state = State::try_from(&self.context)?;
 
-        let window: Window<Backend, State, Action, Page> = Window::new(&state, action_tx.clone())
+        let window: Window<State, Action, Page> = Window::new(&state, action_tx.clone())
             .page(
                 Page::Browse,
                 BrowsePage::new(&state, action_tx.clone()).to_boxed(),
