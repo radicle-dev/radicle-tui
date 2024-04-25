@@ -11,8 +11,8 @@ use radicle_tui as tui;
 
 use tui::cob::inbox::{self};
 
-use crate::terminal;
-use crate::terminal::args::{Args, Error, Help};
+use radicle_cli::terminal;
+use radicle_cli::terminal::{Args, Error, Help};
 
 use self::common::{Mode, RepositoryMode, SelectionMode};
 
@@ -139,7 +139,7 @@ impl Args for Options {
 }
 
 #[tokio::main]
-pub async fn run(options: Options, _ctx: impl terminal::Context) -> anyhow::Result<()> {
+pub async fn run(options: Options, ctx: impl terminal::Context) -> anyhow::Result<()> {
     use radicle::storage::ReadStorage;
     use tui::log;
 
@@ -148,7 +148,7 @@ pub async fn run(options: Options, _ctx: impl terminal::Context) -> anyhow::Resu
 
     match options.op {
         Operation::Select { opts } => {
-            let profile = terminal::profile()?;
+            let profile = ctx.profile()?;
             let repository = profile.storage.repository(rid).unwrap();
 
             log::enable(&profile, "inbox", "select")?;
