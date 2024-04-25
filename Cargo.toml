@@ -19,7 +19,8 @@ libc = { version = "^0.2" }
 log = { version = "0.4.19" }
 nom = { version = "^7.1.0" }
 radicle = { version = "0.9.0" }
-radicle-term = { version = "0.9.0", package = "radicle-term" }
+radicle-term = { version = "0.9.0" }
+radicle-cli = { version = "0.9.0" }
 radicle-surf = { version = "0.18.0" }
 ratatui = { version = "0.26.1", default-features = false, features = ["all-widgets", "termion"] }
 simple-logging = { version = "2.0.2" }

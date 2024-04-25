@@ -1,5 +1,4 @@
 mod commands;
-mod terminal;
 
 use std::ffi::OsString;
 use std::io;
@@ -9,6 +8,8 @@ use std::{iter, process};
 use anyhow::anyhow;
 
 use radicle::version::Version;
+
+use radicle_cli::terminal;
 use radicle_term as term;
 
 use commands::*;
