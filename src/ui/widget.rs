@@ -21,7 +21,7 @@ use super::{layout, span};
 pub type BoxedWidget<S, A> = Box<dyn Widget<State = S, Action = A>>;
 
 pub type UpdateCallback<S> = fn(&S) -> Box<dyn Any>;
-pub type EventCallback<A> = fn(&dyn Any, UnboundedSender<A>);
+pub type EventCallback<A> = fn(Box<dyn Any>, UnboundedSender<A>);
 
 /// A `View`s common fields.
 pub struct BaseView<S, A> {
@@ -127,6 +127,22 @@ pub trait Properties {
         callback
             .map(|callback| (callback)(state))
             .and_then(|props| Self::from_boxed_any(props))
+    }
+}
+
+pub trait WidgetState {
+    fn to_boxed_any(self) -> Box<dyn Any>
+    where
+        Self: Sized + Clone + 'static,
+    {
+        Box::new(self)
+    }
+
+    fn from_boxed_any(any: Box<dyn Any>) -> Option<Self>
+    where
+        Self: Sized + Clone + 'static,
+    {
+        any.downcast_ref::<Self>().cloned()
     }
 }
 
@@ -457,6 +473,7 @@ where
 }
 
 impl<'a: 'static, R> Properties for TableProps<'a, R> where R: ToRow + 'static {}
+impl WidgetState for TableState {}
 
 pub struct Table<'a, S, A, R>
 where
@@ -570,7 +587,10 @@ where
         self.props.selected = self.state.selected();
 
         if let Some(on_event) = self.base.on_event {
-            (on_event)(&self.state, self.base.action_tx.clone());
+            (on_event)(
+                self.state.clone().to_boxed_any(),
+                self.base.action_tx.clone(),
+            );
         }
     }
 

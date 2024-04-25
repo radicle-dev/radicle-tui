@@ -92,11 +92,7 @@ impl<'a: 'static, S, A> Widget for Header<'a, S, A> {
         }
     }
 
-    fn handle_event(&mut self, _key: Key) {
-        if let Some(on_event) = self.base.on_event {
-            (on_event)(&self.props, self.base.action_tx.clone());
-        }
-    }
+    fn handle_event(&mut self, _key: Key) {}
 
     fn update(&mut self, state: &S) {
         self.props = self
@@ -269,11 +265,7 @@ impl<'a: 'static, S, A> Widget for Footer<'a, S, A> {
         }
     }
 
-    fn handle_event(&mut self, _key: Key) {
-        if let Some(on_event) = self.base.on_event {
-            (on_event)(&self.props, self.base.action_tx.clone());
-        }
-    }
+    fn handle_event(&mut self, _key: Key) {}
 
     fn update(&mut self, state: &S) {
         self.props = self

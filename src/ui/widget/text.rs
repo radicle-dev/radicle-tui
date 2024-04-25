@@ -7,7 +7,7 @@ use termion::event::Key;
 use ratatui::layout::{Constraint, Layout, Rect};
 use ratatui::text::Text;
 
-use super::{BaseView, Properties, Widget};
+use super::{BaseView, Properties, Widget, WidgetState};
 
 #[derive(Clone)]
 pub struct ParagraphProps<'a> {
@@ -51,12 +51,15 @@ impl<'a> Default for ParagraphProps<'a> {
 
 impl<'a: 'static> Properties for ParagraphProps<'a> {}
 
+#[derive(Clone)]
 pub struct ParagraphState {
     /// Internal offset
     pub offset: usize,
     /// Internal progress
     pub progress: usize,
 }
+
+impl WidgetState for ParagraphState {}
 
 pub struct Paragraph<'a, S, A> {
     /// Internal base
@@ -190,7 +193,10 @@ impl<'a: 'static, S, A> Widget for Paragraph<'a, S, A> {
         }
 
         if let Some(on_event) = self.base.on_event {
-            (on_event)(&self.state, self.base.action_tx.clone());
+            (on_event)(
+                self.state.clone().to_boxed_any(),
+                self.base.action_tx.clone(),
+            );
         }
     }
 

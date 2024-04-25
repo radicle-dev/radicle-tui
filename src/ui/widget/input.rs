@@ -9,7 +9,7 @@ use ratatui::prelude::Rect;
 use ratatui::style::Stylize;
 use ratatui::text::{Line, Span};
 
-use super::{BaseView, Properties, Widget};
+use super::{BaseView, Properties, Widget, WidgetState};
 
 #[derive(Clone)]
 pub struct TextFieldProps {
@@ -50,10 +50,14 @@ impl Default for TextFieldProps {
 }
 
 impl Properties for TextFieldProps {}
+
+#[derive(Clone)]
 pub struct TextFieldState {
     pub text: Option<String>,
     pub cursor_position: usize,
 }
+
+impl WidgetState for TextFieldState {}
 
 pub struct TextField<S, A> {
     /// Internal base
@@ -167,7 +171,10 @@ impl<S, A> Widget for TextField<S, A> {
         }
 
         if let Some(on_event) = self.base.on_event {
-            (on_event)(&self.state, self.base.action_tx.clone());
+            (on_event)(
+                self.state.clone().to_boxed_any(),
+                self.base.action_tx.clone(),
+            );
         }
     }
 
