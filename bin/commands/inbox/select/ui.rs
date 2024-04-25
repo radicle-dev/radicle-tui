@@ -20,7 +20,7 @@ use tui::ui::widget::container::{
 };
 use tui::ui::widget::input::{TextField, TextFieldProps, TextFieldState};
 use tui::ui::widget::text::{Paragraph, ParagraphProps, ParagraphState};
-use tui::ui::widget::{self, BaseView, TableUtils};
+use tui::ui::widget::{self, BaseView, TableUtils, WidgetState};
 use tui::ui::widget::{Column, Properties, Shortcuts, ShortcutsProps, Table, TableProps, Widget};
 use tui::Selection;
 
@@ -151,11 +151,11 @@ impl<'a: 'static> Widget for BrowsePage<'a> {
                 )
                 .content(Box::<Table<State, Action, NotificationItem>>::new(
                     Table::new(state, action_tx.clone())
-                        .on_event(|state, action_tx| {
-                            state.downcast_ref::<TableState>().and_then(|state| {
+                        .on_event(|table, action_tx| {
+                            TableState::from_boxed_any(table).and_then(|table| {
                                 action_tx
                                     .send(Action::Select {
-                                        selected: state.selected(),
+                                        selected: table.selected(),
                                     })
                                     .ok()
                             });
@@ -334,11 +334,11 @@ impl Widget for Search {
         Self: Sized,
     {
         let input = TextField::new(state, action_tx.clone())
-            .on_event(|state, action_tx| {
-                state.downcast_ref::<TextFieldState>().and_then(|state| {
+            .on_event(|field, action_tx| {
+                TextFieldState::from_boxed_any(field).and_then(|field| {
                     action_tx
                         .send(Action::UpdateSearch {
-                            value: state.text.clone().unwrap_or_default(),
+                            value: field.text.clone().unwrap_or_default(),
                         })
                         .ok()
                 });
@@ -464,11 +464,11 @@ impl<'a: 'static> Widget for HelpPage<'a> {
                                 .focus(props.focus)
                                 .to_boxed()
                         })
-                        .on_event(|state, action_tx| {
-                            state.downcast_ref::<ParagraphState>().and_then(|state| {
+                        .on_event(|paragraph, action_tx| {
+                            ParagraphState::from_boxed_any(paragraph).and_then(|paragraph| {
                                 action_tx
                                     .send(Action::ScrollHelp {
-                                        progress: state.progress,
+                                        progress: paragraph.progress,
                                     })
                                     .ok()
                             });
