@@ -14,8 +14,8 @@ use radicle_tui as tui;
 use tui::cob::patch::{self, Filter};
 use tui::log;
 
-use crate::terminal;
-use crate::terminal::args::{Args, Error, Help};
+use radicle_cli::terminal;
+use radicle_cli::terminal::args::{Args, Error, Help};
 
 pub const HELP: Help = Help {
     name: "patch",
@@ -145,7 +145,7 @@ impl Args for Options {
 }
 
 #[tokio::main]
-pub async fn run(options: Options, _ctx: impl terminal::Context) -> anyhow::Result<()> {
+pub async fn run(options: Options, ctx: impl terminal::Context) -> anyhow::Result<()> {
     use radicle::storage::ReadStorage;
 
     let (_, rid) = radicle::rad::cwd()
@@ -153,7 +153,7 @@ pub async fn run(options: Options, _ctx: impl terminal::Context) -> anyhow::Resu
 
     match options.op {
         Operation::Select { opts } => {
-            let profile = terminal::profile()?;
+            let profile = ctx.profile()?;
             let rid = options.repo.unwrap_or(rid);
             let repository = profile.storage.repository(rid).unwrap();
 
