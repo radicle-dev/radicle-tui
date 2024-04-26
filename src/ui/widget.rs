@@ -7,6 +7,7 @@ use std::cmp;
 use std::collections::HashMap;
 use std::fmt::Debug;
 use std::hash::Hash;
+use std::sync::Arc;
 
 use tokio::sync::mpsc::UnboundedSender;
 
@@ -15,6 +16,7 @@ use termion::event::Key;
 use ratatui::prelude::*;
 use ratatui::widgets::{Cell, Row, TableState};
 
+use super::items::{Filter, ItemView};
 use super::theme::style;
 use super::{layout, span};
 
@@ -404,11 +406,12 @@ impl<'a> Column<'a> {
 }
 
 #[derive(Clone, Debug)]
-pub struct TableProps<'a, R, const W: usize>
+pub struct TableProps<'a, R, F, const W: usize>
 where
     R: ToRow<W>,
+    F: Filter<R>,
 {
-    pub items: Vec<R>,
+    pub items: Option<Arc<ItemView<R, F>>>,
     pub selected: Option<usize>,
     pub focus: bool,
     pub columns: Vec<Column<'a>>,
@@ -418,13 +421,14 @@ where
     pub page_size: usize,
 }
 
-impl<'a, R, const W: usize> Default for TableProps<'a, R, W>
+impl<'a, R, F, const W: usize> Default for TableProps<'a, R, F, W>
 where
     R: ToRow<W>,
+    F: Filter<R>,
 {
     fn default() -> Self {
         Self {
-            items: vec![],
+            items: None,
             focus: false,
             columns: vec![],
             has_footer: false,
@@ -436,12 +440,13 @@ where
     }
 }
 
-impl<'a, R, const W: usize> TableProps<'a, R, W>
+impl<'a, R, F, const W: usize> TableProps<'a, R, F, W>
 where
     R: ToRow<W>,
+    F: Filter<R>,
 {
-    pub fn items(mut self, items: Vec<R>) -> Self {
-        self.items = items;
+    pub fn items(mut self, items: Arc<ItemView<R, F>>) -> Self {
+        self.items = Some(items);
         self
     }
 
@@ -472,24 +477,31 @@ where
     }
 }
 
-impl<'a: 'static, R, const W: usize> Properties for TableProps<'a, R, W> where R: ToRow<W> + 'static {}
+impl<'a: 'static, R, F, const W: usize> Properties for TableProps<'a, R, F, W>
+where
+    R: ToRow<W> + 'static,
+    F: Filter<R>,
+{
+}
 impl WidgetState for TableState {}
 
-pub struct Table<'a, S, A, R, const W: usize>
+pub struct Table<'a, S, A, R, F, const W: usize>
 where
     R: ToRow<W>,
+    F: Filter<R>,
 {
     /// Internal base
     base: BaseView<S, A>,
     /// Internal table properties
-    props: TableProps<'a, R, W>,
+    props: TableProps<'a, R, F, W>,
     /// Internal selection and offset state
     state: TableState,
 }
 
-impl<'a, S, A, R, const W: usize> Table<'a, S, A, R, W>
+impl<'a, S, A, R, F, const W: usize> Table<'a, S, A, R, F, W>
 where
     R: ToRow<W>,
+    F: Filter<R>,
 {
     fn prev(&mut self) -> Option<usize> {
         let selected = self
@@ -542,9 +554,10 @@ where
     }
 }
 
-impl<'a: 'static, S, A, R, const W: usize> Widget for Table<'a, S, A, R, W>
+impl<'a: 'static, S, A, R, F, const W: usize> Widget for Table<'a, S, A, R, F, W>
 where
     R: ToRow<W> + Clone + 'static,
+    F: Filter<R> + Clone + 'static,
 {
     type Action = A;
     type State = S;
@@ -562,24 +575,31 @@ where
     }
 
     fn handle_event(&mut self, key: Key) {
+        let items: Vec<&R> = self
+            .props
+            .items
+            .as_ref()
+            .and_then(|view| Some(view.list().collect::<Vec<_>>()))
+            .unwrap_or(vec![]);
+
         match key {
             Key::Up | Key::Char('k') => {
                 self.prev();
             }
             Key::Down | Key::Char('j') => {
-                self.next(self.props.items.len());
+                self.next(items.len());
             }
             Key::PageUp => {
                 self.prev_page(self.props.page_size);
             }
             Key::PageDown => {
-                self.next_page(self.props.items.len(), self.props.page_size);
+                self.next_page(items.len(), self.props.page_size);
             }
             Key::Home => {
                 self.begin();
             }
             Key::End => {
-                self.end(self.props.items.len());
+                self.end(items.len());
             }
             _ => {}
         }
@@ -600,7 +620,14 @@ where
 
         // TODO: Move to state reducer
         if let Some(selected) = self.state.selected() {
-            if selected > self.props.items.len() {
+            let items: Vec<&R> = self
+                .props
+                .items
+                .as_ref()
+                .and_then(|view| Some(view.list().collect::<Vec<_>>()))
+                .unwrap_or(vec![]);
+
+            if selected > items.len() {
                 self.begin();
             }
         }
@@ -608,8 +635,15 @@ where
 
     fn render(&self, frame: &mut ratatui::Frame, area: Rect, props: Option<&dyn Any>) {
         let props = props
-            .and_then(|props| props.downcast_ref::<TableProps<R, W>>())
+            .and_then(|props| props.downcast_ref::<TableProps<R, F, W>>())
             .unwrap_or(&self.props);
+
+        let items: Vec<&R> = self
+            .props
+            .items
+            .as_ref()
+            .and_then(|view| Some(view.list().collect::<Vec<_>>()))
+            .unwrap_or(vec![]);
 
         let widths: Vec<Constraint> = self
             .props
@@ -624,9 +658,8 @@ where
             widths.iter().collect::<Vec<_>>()
         };
 
-        if !props.items.is_empty() {
-            let rows = props
-                .items
+        if !items.is_empty() {
+            let rows = items
                 .iter()
                 .map(|item| {
                     let mut cells = vec![];

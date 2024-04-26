@@ -1,6 +1,7 @@
 use std::any::Any;
 use std::collections::HashMap;
 use std::str::FromStr;
+use std::sync::Arc;
 use std::vec;
 
 use radicle::issue::{self, CloseReason};
@@ -15,7 +16,7 @@ use ratatui::text::{Line, Span, Text};
 
 use radicle_tui as tui;
 
-use tui::ui::items::{IssueItem, IssueItemFilter};
+use tui::ui::items::{IssueItem, IssueItemFilter, ItemView};
 use tui::ui::span;
 use tui::ui::widget::container::{
     Container, ContainerProps, Footer, FooterProps, Header, HeaderProps,
@@ -38,7 +39,7 @@ type BoxedWidget = widget::BoxedWidget<State, Action>;
 #[derive(Clone)]
 struct BrowsePageProps<'a> {
     mode: Mode,
-    issues: Vec<IssueItem>,
+    issues: Arc<ItemView<IssueItem, IssueItemFilter>>,
     selected: Option<usize>,
     search: String,
     stats: HashMap<String, usize>,
@@ -55,13 +56,13 @@ impl<'a> From<&State> for BrowsePageProps<'a> {
     fn from(state: &State) -> Self {
         use radicle::issue::State;
 
-        let issues = state.browser.issues();
+        let issues = state.browser.items.list();
 
         let mut open = 0;
         let mut other = 0;
         let mut solved = 0;
 
-        for issue in &issues {
+        for issue in issues {
             match issue.state {
                 State::Open => open += 1,
                 State::Closed {
@@ -84,7 +85,7 @@ impl<'a> From<&State> for BrowsePageProps<'a> {
 
         Self {
             mode: state.mode.clone(),
-            issues,
+            issues: state.browser.items.clone(),
             search: state.browser.search.read(),
             columns: [
                 Column::new(" ● ", Constraint::Length(3)),
@@ -154,29 +155,31 @@ impl<'a: 'static> Widget for BrowsePage<'a> {
                         .focus(props.focus)
                         .to_boxed(),
                 )
-                .content(Box::<Table<State, Action, IssueItem, 8>>::new(
-                    Table::new(state, action_tx.clone())
-                        .on_event(|table, action_tx| {
-                            TableState::from_boxed_any(table).and_then(|table| {
-                                action_tx
-                                    .send(Action::Select {
-                                        selected: table.selected(),
-                                    })
-                                    .ok()
-                            });
-                        })
-                        .on_update(|state| {
-                            let props = BrowsePageProps::from(state);
+                .content(
+                    Box::<Table<State, Action, IssueItem, IssueItemFilter, 8>>::new(
+                        Table::new(state, action_tx.clone())
+                            .on_event(|table, action_tx| {
+                                TableState::from_boxed_any(table).and_then(|table| {
+                                    action_tx
+                                        .send(Action::Select {
+                                            selected: table.selected(),
+                                        })
+                                        .ok()
+                                });
+                            })
+                            .on_update(|state| {
+                                let props = BrowsePageProps::from(state);
 
-                            TableProps::default()
-                                .columns(props.columns)
-                                .items(state.browser.issues())
-                                .footer(!state.browser.show_search)
-                                .page_size(state.browser.page_size)
-                                .cutoff(props.cutoff, props.cutoff_after)
-                                .to_boxed()
-                        }),
-                ))
+                                TableProps::default()
+                                    .columns(props.columns)
+                                    .items(state.browser.items.clone())
+                                    .footer(!state.browser.show_search)
+                                    .page_size(state.browser.page_size)
+                                    .cutoff(props.cutoff, props.cutoff_after)
+                                    .to_boxed()
+                            }),
+                    ),
+                )
                 .footer(
                     Footer::new(state, action_tx.clone())
                         .on_update(|state| {
@@ -213,10 +216,11 @@ impl<'a: 'static> Widget for BrowsePage<'a> {
                         Mode::Operation => Some(IssueOperation::Show.to_string()),
                         Mode::Id => None,
                     };
+                    let issues = self.props.issues.list().collect::<Vec<_>>();
 
                     self.props
                         .selected
-                        .and_then(|selected| self.props.issues.get(selected))
+                        .and_then(|selected| issues.get(selected))
                         .and_then(|issue| {
                             self.base
                                 .action_tx
@@ -231,9 +235,11 @@ impl<'a: 'static> Widget for BrowsePage<'a> {
                         });
                 }
                 Key::Char('e') => {
+                    let issues = self.props.issues.list().collect::<Vec<_>>();
+
                     self.props
                         .selected
-                        .and_then(|selected| self.props.issues.get(selected))
+                        .and_then(|selected| issues.get(selected))
                         .and_then(|issue| {
                             self.base
                                 .action_tx
@@ -546,6 +552,8 @@ impl<'a: 'static> Widget for HelpPage<'a> {
 }
 
 fn browse_footer<'a>(props: &BrowsePageProps<'a>, selected: Option<usize>) -> Vec<Column<'a>> {
+    let issues = &props.issues.list().collect::<Vec<_>>();
+
     let search = Line::from(vec![
         span::default(" Search ").cyan().dim().reversed(),
         span::default(" "),
@@ -568,13 +576,14 @@ fn browse_footer<'a>(props: &BrowsePageProps<'a>, selected: Option<usize>) -> Ve
             .dim(),
         span::default(" Closed").dim(),
     ]);
+
     let sum = Line::from(vec![
         span::default("Σ ").dim(),
-        span::default(&props.issues.len().to_string()).dim(),
+        span::default(&issues.len().to_string()).dim(),
     ]);
 
     let progress = selected
-        .map(|selected| TableUtils::progress(selected, props.issues.len(), props.page_size))
+        .map(|selected| TableUtils::progress(selected, issues.len(), props.page_size))
         .unwrap_or_default();
     let progress = span::default(&format!("{}%", progress)).dim();
 

@@ -1,6 +1,7 @@
 use std::any::Any;
 use std::collections::HashMap;
 use std::str::FromStr;
+use std::sync::Arc;
 
 use ratatui::widgets::TableState;
 use tokio::sync::mpsc::UnboundedSender;
@@ -13,7 +14,7 @@ use ratatui::text::{Line, Span, Text};
 
 use radicle_tui as tui;
 
-use tui::ui::items::{NotificationItem, NotificationItemFilter, NotificationState};
+use tui::ui::items::{ItemView, NotificationItem, NotificationItemFilter, NotificationState};
 use tui::ui::span;
 use tui::ui::widget::container::{
     Container, ContainerProps, Footer, FooterProps, Header, HeaderProps,
@@ -32,7 +33,7 @@ type BoxedWidget = widget::BoxedWidget<State, Action>;
 
 #[derive(Clone)]
 struct BrowsePageProps<'a> {
-    notifications: Vec<NotificationItem>,
+    notifications: Arc<ItemView<NotificationItem, NotificationItemFilter>>,
     selected: Option<usize>,
     mode: Mode,
     stats: HashMap<String, usize>,
@@ -51,10 +52,10 @@ impl<'a> From<&State> for BrowsePageProps<'a> {
         let mut seen = 0;
         let mut unseen = 0;
 
-        let notifications = state.browser.notifications();
+        let notifications = state.browser.items.list();
 
         // Compute statistics
-        for notification in &notifications {
+        for notification in notifications {
             if notification.seen {
                 seen += 1;
             } else {
@@ -65,7 +66,7 @@ impl<'a> From<&State> for BrowsePageProps<'a> {
         let stats = HashMap::from([("Seen".to_string(), seen), ("Unseen".to_string(), unseen)]);
 
         Self {
-            notifications,
+            notifications: state.browser.items.clone(),
             mode: state.mode.clone(),
             stats,
             columns: [
@@ -149,7 +150,9 @@ impl<'a: 'static> Widget for BrowsePage<'a> {
                         .focus(props.focus)
                         .to_boxed(),
                 )
-                .content(Box::<Table<State, Action, NotificationItem, 9>>::new(
+                .content(Box::<
+                    Table<State, Action, NotificationItem, NotificationItemFilter, 9>,
+                >::new(
                     Table::new(state, action_tx.clone())
                         .on_event(|table, action_tx| {
                             TableState::from_boxed_any(table).and_then(|table| {
@@ -165,7 +168,7 @@ impl<'a: 'static> Widget for BrowsePage<'a> {
 
                             TableProps::default()
                                 .columns(props.columns)
-                                .items(state.browser.notifications())
+                                .items(state.browser.items.clone())
                                 .footer(!state.browser.show_search)
                                 .page_size(state.browser.page_size)
                                 .cutoff(props.cutoff, props.cutoff_after)
@@ -190,6 +193,8 @@ impl<'a: 'static> Widget for BrowsePage<'a> {
     }
 
     fn handle_event(&mut self, key: Key) {
+        let notifications = self.props.notifications.list().collect::<Vec<_>>();
+
         if self.props.show_search {
             self.search.handle_event(key);
         } else {
@@ -206,7 +211,7 @@ impl<'a: 'static> Widget for BrowsePage<'a> {
                 Key::Char('\n') => {
                     self.props
                         .selected
-                        .and_then(|selected| self.props.notifications.get(selected))
+                        .and_then(|selected| notifications.get(selected))
                         .and_then(|notif| {
                             let selection = match self.props.mode.selection() {
                                 SelectionMode::Operation => Selection::default()
@@ -226,7 +231,7 @@ impl<'a: 'static> Widget for BrowsePage<'a> {
                 Key::Char('c') => {
                     self.props
                         .selected
-                        .and_then(|selected| self.props.notifications.get(selected))
+                        .and_then(|selected| notifications.get(selected))
                         .and_then(|notif| {
                             self.base
                                 .action_tx
@@ -557,7 +562,13 @@ fn browse_footer<'a>(props: &BrowsePageProps<'a>, selected: Option<usize>) -> Ve
     ]);
 
     let progress = selected
-        .map(|selected| TableUtils::progress(selected, props.notifications.len(), props.page_size))
+        .map(|selected| {
+            TableUtils::progress(
+                selected,
+                props.notifications.list().collect::<Vec<_>>().len(),
+                props.page_size,
+            )
+        })
         .unwrap_or_default();
     let progress = span::default(&format!("{}%", progress)).dim();
 

@@ -2,6 +2,7 @@
 mod ui;
 
 use std::str::FromStr;
+use std::sync::Arc;
 
 use anyhow::Result;
 
@@ -15,7 +16,7 @@ use tui::cob::issue;
 use tui::store::StateValue;
 use tui::task;
 use tui::task::Interrupted;
-use tui::ui::items::{Filter, IssueItem, IssueItemFilter};
+use tui::ui::items::{IssueItem, IssueItemFilter, ItemView};
 use tui::ui::widget::{Properties, Widget, Window, WindowProps};
 use tui::ui::Frontend;
 use tui::Exit;
@@ -46,7 +47,7 @@ pub enum Page {
 
 #[derive(Clone, Debug)]
 pub struct BrowserState {
-    items: Vec<IssueItem>,
+    items: Arc<ItemView<IssueItem, IssueItemFilter>>,
     selected: Option<usize>,
     filter: IssueItemFilter,
     search: store::StateValue<String>,
@@ -54,15 +55,15 @@ pub struct BrowserState {
     show_search: bool,
 }
 
-impl BrowserState {
-    pub fn issues(&self) -> Vec<IssueItem> {
-        self.items
-            .iter()
-            .filter(|patch| self.filter.matches(patch))
-            .cloned()
-            .collect()
-    }
-}
+// impl BrowserState {
+//     pub fn issues(&self) -> Vec<IssueItem> {
+//         self.items
+//             .iter()
+//             .filter(|patch| self.filter.matches(patch))
+//             .cloned()
+//             .collect()
+//     }
+// }
 
 #[derive(Clone, Debug)]
 pub struct HelpState {
@@ -95,11 +96,13 @@ impl TryFrom<&Context> for State {
         }
         items.sort_by(|a, b| b.timestamp.cmp(&a.timestamp));
 
+        let view = ItemView::new(items).filter(filter.clone());
+
         Ok(Self {
             mode: context.mode.clone(),
             pages: PageStack::new(vec![Page::Browse]),
             browser: BrowserState {
-                items,
+                items: Arc::new(view),
                 selected: Some(0),
                 filter,
                 search,

@@ -951,3 +951,42 @@ mod tests {
         Ok(())
     }
 }
+
+#[derive(Debug)]
+pub struct ItemView<R, F>
+where
+    F: Filter<R>,
+{
+    items: Vec<R>,
+    filter: Option<F>,
+}
+
+impl<R, F> ItemView<R, F>
+where
+    F: Filter<R>,
+{
+    pub fn new(items: Vec<R>) -> Self {
+        Self {
+            items,
+            filter: None,
+        }
+    }
+
+    pub fn filter(mut self, filter: F) -> Self {
+        self.filter = Some(filter);
+        self
+    }
+
+    pub fn list(&self) -> impl Iterator<Item = &R> {
+        self.items.iter().filter(|item| match &self.filter {
+            Some(filter) => filter.matches(item),
+            None => true,
+        })
+    }
+}
+
+// impl<R, F> Iterator for ItemView<R, F> where F: Filter<R> {
+//     fn next(&mut self) -> Option<Self::Item> {
+//         self.items.next()
+//     }
+// }
