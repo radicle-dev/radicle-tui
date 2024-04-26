@@ -1,6 +1,7 @@
 use std::any::Any;
 use std::collections::HashMap;
 use std::str::FromStr;
+use std::sync::Arc;
 use std::vec;
 
 use ratatui::widgets::TableState;
@@ -16,7 +17,7 @@ use radicle::patch::{self, Status};
 
 use radicle_tui as tui;
 
-use tui::ui::items::{PatchItem, PatchItemFilter};
+use tui::ui::items::{ItemView, PatchItem, PatchItemFilter};
 use tui::ui::span;
 use tui::ui::widget::container::{
     Container, ContainerProps, Footer, FooterProps, Header, HeaderProps,
@@ -38,7 +39,7 @@ type BoxedWidget = widget::BoxedWidget<State, Action>;
 #[derive(Clone)]
 pub struct BrowsePageProps<'a> {
     mode: Mode,
-    patches: Vec<PatchItem>,
+    patches: Arc<ItemView<PatchItem, PatchItemFilter>>,
     selected: Option<usize>,
     search: String,
     stats: HashMap<String, usize>,
@@ -58,9 +59,9 @@ impl<'a> From<&State> for BrowsePageProps<'a> {
         let mut archived = 0;
         let mut merged = 0;
 
-        let patches = state.browser.patches();
+        let patches = state.browser.patches.all().collect::<Vec<_>>();
 
-        for patch in &patches {
+        for patch in patches {
             match patch.state {
                 patch::State::Draft => draft += 1,
                 patch::State::Open { conflicts: _ } => open += 1,
@@ -81,7 +82,7 @@ impl<'a> From<&State> for BrowsePageProps<'a> {
 
         Self {
             mode: state.mode.clone(),
-            patches,
+            patches: state.browser.patches.clone(),
             search: state.browser.search.read(),
             columns: [
                 Column::new(" ● ", Constraint::Length(3)),
@@ -153,29 +154,31 @@ impl<'a: 'static> Widget for BrowsePage<'a> {
                         .focus(props.focus)
                         .to_boxed(),
                 )
-                .content(Box::<Table<State, Action, PatchItem>>::new(
-                    Table::new(state, action_tx.clone())
-                        .on_event(|table, action_tx| {
-                            TableState::from_boxed_any(table).and_then(|table| {
-                                action_tx
-                                    .send(Action::Select {
-                                        selected: table.selected(),
-                                    })
-                                    .ok()
-                            });
-                        })
-                        .on_update(|state| {
-                            let props = BrowsePageProps::from(state);
+                .content(
+                    Box::<Table<State, Action, PatchItem, PatchItemFilter>>::new(
+                        Table::new(state, action_tx.clone())
+                            .on_event(|table, action_tx| {
+                                TableState::from_boxed_any(table).and_then(|table| {
+                                    action_tx
+                                        .send(Action::Select {
+                                            selected: table.selected(),
+                                        })
+                                        .ok()
+                                });
+                            })
+                            .on_update(|state| {
+                                let props = BrowsePageProps::from(state);
 
-                            TableProps::default()
-                                .columns(props.columns)
-                                .items(state.browser.patches())
-                                .footer(!state.browser.show_search)
-                                .page_size(state.browser.page_size)
-                                .cutoff(props.cutoff, props.cutoff_after)
-                                .to_boxed()
-                        }),
-                ))
+                                TableProps::default()
+                                    .columns(props.columns)
+                                    .items(state.browser.patches.clone())
+                                    .footer(!state.browser.show_search)
+                                    .page_size(state.browser.page_size)
+                                    .cutoff(props.cutoff, props.cutoff_after)
+                                    .to_boxed()
+                            }),
+                    ),
+                )
                 .footer(
                     Footer::new(state, action_tx.clone())
                         .on_update(|state| {
@@ -212,10 +215,10 @@ impl<'a: 'static> Widget for BrowsePage<'a> {
                         Mode::Operation => Some(PatchOperation::Show.to_string()),
                         Mode::Id => None,
                     };
-
+                    let patches = self.props.patches.all().collect::<Vec<_>>();
                     self.props
                         .selected
-                        .and_then(|selected| self.props.patches.get(selected))
+                        .and_then(|selected| patches.get(selected))
                         .and_then(|patch| {
                             self.base
                                 .action_tx
@@ -230,9 +233,10 @@ impl<'a: 'static> Widget for BrowsePage<'a> {
                         });
                 }
                 Key::Char('c') => {
+                    let patches = self.props.patches.all().collect::<Vec<_>>();
                     self.props
                         .selected
-                        .and_then(|selected| self.props.patches.get(selected))
+                        .and_then(|selected| patches.get(selected))
                         .and_then(|patch| {
                             self.base
                                 .action_tx
@@ -247,9 +251,10 @@ impl<'a: 'static> Widget for BrowsePage<'a> {
                         });
                 }
                 Key::Char('d') => {
+                    let patches = self.props.patches.all().collect::<Vec<_>>();
                     self.props
                         .selected
-                        .and_then(|selected| self.props.patches.get(selected))
+                        .and_then(|selected| patches.get(selected))
                         .and_then(|patch| {
                             self.base
                                 .action_tx
@@ -610,13 +615,15 @@ fn browse_footer<'a>(props: &BrowsePageProps<'a>, selected: Option<usize>) -> Ve
         span::default(" Archived").dim(),
     ]);
 
+    let len = props.patches.all().collect::<Vec<_>>().len();
+
     let sum = Line::from(vec![
         span::default("Σ ").dim(),
-        span::default(&props.patches.len().to_string()).dim(),
+        span::default(&len.to_string()).dim(),
     ]);
 
     let progress = selected
-        .map(|selected| TableUtils::progress(selected, props.patches.len(), props.page_size))
+        .map(|selected| TableUtils::progress(selected, len, props.page_size))
         .unwrap_or_default();
     let progress = span::default(&format!("{}%", progress)).dim();
 

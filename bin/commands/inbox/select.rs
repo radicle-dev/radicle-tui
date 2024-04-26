@@ -2,6 +2,7 @@
 mod ui;
 
 use std::str::FromStr;
+use std::sync::Arc;
 
 use anyhow::Result;
 
@@ -18,6 +19,7 @@ use tui::cob::inbox::{self};
 use tui::store;
 use tui::store::StateValue;
 use tui::task::{self, Interrupted};
+use tui::ui::items::ItemView;
 use tui::ui::items::{Filter, NotificationItem, NotificationItemFilter};
 use tui::ui::widget::{Properties, Widget, Window, WindowProps};
 use tui::ui::Frontend;
@@ -52,7 +54,7 @@ pub enum Page {
 
 #[derive(Clone, Debug)]
 pub struct BrowserState {
-    items: Vec<NotificationItem>,
+    items: Arc<ItemView<NotificationItem, NotificationItemFilter>>,
     selected: Option<usize>,
     filter: NotificationItemFilter,
     search: store::StateValue<String>,
@@ -60,15 +62,15 @@ pub struct BrowserState {
     show_search: bool,
 }
 
-impl BrowserState {
-    pub fn notifications(&self) -> Vec<NotificationItem> {
-        self.items
-            .iter()
-            .filter(|patch| self.filter.matches(patch))
-            .cloned()
-            .collect()
-    }
-}
+// impl BrowserState {
+//     pub fn notifications(&self) -> Vec<NotificationItem> {
+//         self.items
+//             .iter()
+//             .filter(|patch| self.filter.matches(patch))
+//             .cloned()
+//             .collect()
+//     }
+// }
 
 #[derive(Clone, Debug)]
 pub struct HelpState {
@@ -175,12 +177,15 @@ impl TryFrom<&Context> for State {
             notifications.sort_by(|a, b| a.project.cmp(&b.project));
         }
 
+        let mut view = ItemView::new(notifications);
+        view.filter(filter.clone());
+
         Ok(Self {
             mode: context.mode.clone(),
             project,
             pages: PageStack::new(vec![Page::Browse]),
             browser: BrowserState {
-                items: notifications,
+                items: Arc::new(view),
                 selected: Some(0),
                 filter,
                 search,

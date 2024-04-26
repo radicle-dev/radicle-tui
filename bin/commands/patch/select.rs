@@ -2,6 +2,7 @@
 mod ui;
 
 use std::str::FromStr;
+use std::sync::Arc;
 
 use anyhow::Result;
 
@@ -15,6 +16,7 @@ use tui::cob::patch;
 use tui::store;
 use tui::task;
 use tui::task::Interrupted;
+use tui::ui::items::ItemView;
 use tui::ui::items::{Filter, PatchItem, PatchItemFilter};
 use tui::ui::widget::Properties;
 use tui::ui::widget::Widget;
@@ -51,23 +53,22 @@ pub enum Page {
 
 #[derive(Clone, Debug)]
 pub struct BrowserState {
-    items: Vec<PatchItem>,
+    patches: Arc<ItemView<PatchItem, PatchItemFilter>>,
     selected: Option<usize>,
-    filter: PatchItemFilter,
     search: store::StateValue<String>,
     page_size: usize,
     show_search: bool,
 }
 
-impl BrowserState {
-    pub fn patches(&self) -> Vec<PatchItem> {
-        self.items
-            .iter()
-            .filter(|patch| self.filter.matches(patch))
-            .cloned()
-            .collect()
-    }
-}
+// impl BrowserState {
+//     pub fn patches(&self) -> Vec<PatchItem> {
+//         self.items
+//             .iter()
+//             .filter(|patch| self.filter.matches(patch))
+//             .cloned()
+//             .collect()
+//     }
+// }
 
 #[derive(Clone, Debug)]
 pub struct HelpState {
@@ -100,13 +101,24 @@ impl TryFrom<&Context> for State {
         }
         items.sort_by(|a, b| b.timestamp.cmp(&a.timestamp));
 
+        items.extend(items.clone());
+        items.extend(items.clone());
+        items.extend(items.clone());
+        items.extend(items.clone());
+        items.extend(items.clone());
+        // items.extend(items.clone());
+
+        let mut view = ItemView::new(items);
+        view.filter(filter);
+
         Ok(Self {
             mode: context.mode.clone(),
             pages: PageStack::new(vec![Page::Browse]),
             browser: BrowserState {
-                items,
+                // items,
                 selected: Some(0),
-                filter,
+                // filter,
+                patches: Arc::new(view),
                 search,
                 show_search: false,
                 page_size: 1,
@@ -157,8 +169,10 @@ impl store::State<Selection> for State {
             }
             Action::UpdateSearch { value } => {
                 self.browser.search.write(value);
-                self.browser.filter =
-                    PatchItemFilter::from_str(&self.browser.search.read()).unwrap_or_default();
+                // self.browser.patches = self.browser.patches.clone();
+                // self.browser.patches.filter(
+                //     PatchItemFilter::from_str(&self.browser.search.read()).unwrap_or_default(),
+                // );
 
                 None
             }
@@ -170,8 +184,9 @@ impl store::State<Selection> for State {
             Action::CloseSearch => {
                 self.browser.search.reset();
                 self.browser.show_search = false;
-                self.browser.filter =
-                    PatchItemFilter::from_str(&self.browser.search.read()).unwrap_or_default();
+                // self.browser.patches.filter(
+                //     PatchItemFilter::from_str(&self.browser.search.read()).unwrap_or_default(),
+                // );
 
                 None
             }

@@ -959,3 +959,30 @@ mod tests {
         Ok(())
     }
 }
+
+#[derive(Debug)]
+pub struct ItemView<R, F>
+where
+    F: Filter<R>,
+{
+    items: Vec<R>,
+    filter: Option<F>,
+}
+
+impl<R, F> ItemView<R, F>
+where
+    F: Filter<R>,
+{
+    pub fn new(items: Vec<R>) -> Self {
+        Self {
+            items,
+            filter: None,
+        }
+    }
+
+    pub fn filter(&mut self, filter: F) {}
+
+    pub fn all(&self) -> impl Iterator<Item = &R> {
+        self.items.iter()
+    }
+}
