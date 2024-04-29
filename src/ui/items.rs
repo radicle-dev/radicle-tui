@@ -32,6 +32,7 @@ pub trait Filter<T> {
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct AuthorItem {
     pub nid: Option<NodeId>,
+    pub human_nid: Option<String>,
     pub alias: Option<Alias>,
     pub you: bool,
 }
@@ -43,8 +44,14 @@ impl AuthorItem {
             None => None,
         };
         let you = nid.map(|nid| nid == *profile.id()).unwrap_or_default();
+        let human_nid = nid.map(|nid| format::did(&Did::from(nid)));
 
-        Self { nid, alias, you }
+        Self {
+            nid,
+            human_nid,
+            alias,
+            you,
+        }
     }
 }
 
@@ -276,8 +283,8 @@ impl ToRow<9> for NotificationItem {
                     span::alias(alias)
                 }
             }
-            None => match self.author.nid {
-                Some(nid) => span::alias(&format::did(&Did::from(nid))).dim(),
+            None => match &self.author.human_nid {
+                Some(nid) => span::alias(nid).dim(),
                 None => span::blank(),
             },
         };
@@ -468,19 +475,11 @@ impl IssueItem {
             id,
             state: *issue.state(),
             title: issue.title().into(),
-            author: AuthorItem {
-                nid: Some(*issue.author().id),
-                alias: profile.aliases().alias(&issue.author().id),
-                you: *issue.author().id == *profile.did(),
-            },
+            author: AuthorItem::new(Some(*issue.author().id), profile),
             labels: issue.labels().cloned().collect(),
             assignees: issue
                 .assignees()
-                .map(|did| AuthorItem {
-                    nid: Some(**did),
-                    alias: profile.aliases().alias(did),
-                    you: *did == profile.did(),
-                })
+                .map(|did| AuthorItem::new(Some(**did), profile))
                 .collect::<Vec<_>>(),
             timestamp: issue.timestamp(),
         })
@@ -503,14 +502,14 @@ impl ToRow<8> for IssueItem {
                     span::alias(alias)
                 }
             }
-            None => match self.author.nid {
-                Some(nid) => span::alias(&format::did(&Did::from(nid))).dim(),
-                None => span::alias(""),
+            None => match &self.author.human_nid {
+                Some(nid) => span::alias(nid).dim(),
+                None => span::blank(),
             },
         };
-        let did = match self.author.nid {
-            Some(nid) => span::alias(&format::did(&Did::from(nid))).dim(),
-            None => span::alias(""),
+        let did = match &self.author.human_nid {
+            Some(nid) => span::alias(nid).dim(),
+            None => span::blank(),
         };
         let labels = span::labels(&format::labels(&self.labels));
         let assignees = self
@@ -725,11 +724,7 @@ impl PatchItem {
             id,
             state: patch.state().clone(),
             title: patch.title().into(),
-            author: AuthorItem {
-                nid: Some(*patch.author().id),
-                alias: profile.aliases().alias(&patch.author().id),
-                you: *patch.author().id == *profile.did(),
-            },
+            author: AuthorItem::new(Some(*patch.author().id), profile),
             head: revision.head(),
             added: stats.insertions() as u16,
             removed: stats.deletions() as u16,
@@ -754,13 +749,13 @@ impl ToRow<9> for PatchItem {
                     span::alias(alias)
                 }
             }
-            None => match self.author.nid {
-                Some(nid) => span::alias(&format::did(&Did::from(nid))).dim(),
+            None => match &self.author.human_nid {
+                Some(nid) => span::alias(nid).dim(),
                 None => span::blank(),
             },
         };
-        let did = match self.author.nid {
-            Some(nid) => span::alias(&format::did(&Did::from(nid))).dim(),
+        let did = match &self.author.human_nid {
+            Some(nid) => span::alias(nid).dim(),
             None => span::blank(),
         };
 
