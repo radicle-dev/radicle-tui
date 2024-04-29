@@ -205,10 +205,10 @@ impl<'a: 'static, S, A> Widget for Paragraph<'a, S, A> {
             ParagraphProps::from_callback(self.base.on_update, state).unwrap_or(self.props.clone());
     }
 
-    fn render(&self, frame: &mut ratatui::Frame, area: Rect, props: Option<Box<dyn Any>>) {
+    fn render(&self, frame: &mut ratatui::Frame, area: Rect, props: Option<&dyn Any>) {
         let props = props
-            .and_then(ParagraphProps::from_boxed_any)
-            .unwrap_or(self.props.clone());
+            .and_then(|props| props.downcast_ref::<ParagraphProps>())
+            .unwrap_or(&self.props);
 
         let [content_area] = Layout::horizontal([Constraint::Min(1)])
             .horizontal_margin(1)

@@ -102,10 +102,10 @@ impl<'a: 'static, S, A> Widget for Header<'a, S, A> {
             .unwrap_or(self.props.clone());
     }
 
-    fn render(&self, frame: &mut ratatui::Frame, area: Rect, props: Option<Box<dyn Any>>) {
+    fn render(&self, frame: &mut ratatui::Frame, area: Rect, props: Option<&dyn Any>) {
         let props = props
-            .and_then(HeaderProps::from_boxed_any)
-            .unwrap_or(self.props.clone());
+            .and_then(|props| props.downcast_ref::<HeaderProps>())
+            .unwrap_or(&self.props);
 
         let widths: Vec<Constraint> = props
             .columns
@@ -275,10 +275,10 @@ impl<'a: 'static, S, A> Widget for Footer<'a, S, A> {
             .unwrap_or(self.props.clone());
     }
 
-    fn render(&self, frame: &mut ratatui::Frame, area: Rect, props: Option<Box<dyn Any>>) {
+    fn render(&self, frame: &mut ratatui::Frame, area: Rect, props: Option<&dyn Any>) {
         let props = props
-            .and_then(FooterProps::from_boxed_any)
-            .unwrap_or(self.props.clone());
+            .and_then(|props| props.downcast_ref::<FooterProps>())
+            .unwrap_or(&self.props);
 
         let widths = props
             .columns
@@ -411,10 +411,10 @@ impl<S, A> Widget for Container<S, A> {
         }
     }
 
-    fn render(&self, frame: &mut ratatui::Frame, area: Rect, props: Option<Box<dyn Any>>) {
+    fn render(&self, frame: &mut ratatui::Frame, area: Rect, props: Option<&dyn Any>) {
         let props = props
-            .and_then(ContainerProps::from_boxed_any)
-            .unwrap_or(self.props.clone());
+            .and_then(|props| props.downcast_ref::<ContainerProps>())
+            .unwrap_or(&self.props);
 
         let header_h = if self.header.is_some() { 3 } else { 0 };
         let footer_h = if self.footer.is_some() && !props.hide_footer {

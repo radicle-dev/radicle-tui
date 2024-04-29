@@ -67,7 +67,7 @@ pub trait Widget {
     /// Renders a widget to the given frame in the given area.
     ///
     /// Optional props take precedence over the internal ones.
-    fn render(&self, frame: &mut Frame, area: Rect, props: Option<Box<dyn Any>>);
+    fn render(&self, frame: &mut Frame, area: Rect, props: Option<&dyn Any>);
 
     /// Return a mutable reference to this widgets' base view.
     fn base_mut(&mut self) -> &mut BaseView<Self::State, Self::Action>;
@@ -234,10 +234,10 @@ where
         }
     }
 
-    fn render(&self, frame: &mut ratatui::Frame, _area: Rect, props: Option<Box<dyn Any>>) {
+    fn render(&self, frame: &mut ratatui::Frame, _area: Rect, props: Option<&dyn Any>) {
         let _props = props
-            .and_then(WindowProps::from_boxed_any)
-            .unwrap_or(self.props.clone());
+            .and_then(|props| props.downcast_ref::<WindowProps<Id>>())
+            .unwrap_or(&self.props);
 
         let area = frame.size();
 
@@ -335,12 +335,12 @@ impl<S, A> Widget for Shortcuts<S, A> {
             ShortcutsProps::from_callback(self.base.on_update, state).unwrap_or(self.props.clone());
     }
 
-    fn render(&self, frame: &mut ratatui::Frame, area: Rect, props: Option<Box<dyn Any>>) {
+    fn render(&self, frame: &mut ratatui::Frame, area: Rect, props: Option<&dyn Any>) {
         use ratatui::widgets::Table;
 
         let props = props
-            .and_then(ShortcutsProps::from_boxed_any)
-            .unwrap_or(self.props.clone());
+            .and_then(|props| props.downcast_ref::<ShortcutsProps>())
+            .unwrap_or(&self.props);
 
         let mut shortcuts = props.shortcuts.iter().peekable();
         let mut row = vec![];
@@ -606,10 +606,10 @@ where
         }
     }
 
-    fn render(&self, frame: &mut ratatui::Frame, area: Rect, props: Option<Box<dyn Any>>) {
+    fn render(&self, frame: &mut ratatui::Frame, area: Rect, props: Option<&dyn Any>) {
         let props = props
-            .and_then(TableProps::from_boxed_any)
-            .unwrap_or(self.props.clone());
+            .and_then(|props| props.downcast_ref::<TableProps<R, W>>())
+            .unwrap_or(&self.props);
 
         let widths: Vec<Constraint> = self
             .props

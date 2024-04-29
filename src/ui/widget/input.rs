@@ -191,10 +191,10 @@ impl<S, A> Widget for TextField<S, A> {
         }
     }
 
-    fn render(&self, frame: &mut ratatui::Frame, area: Rect, props: Option<Box<dyn Any>>) {
+    fn render(&self, frame: &mut ratatui::Frame, area: Rect, props: Option<&dyn Any>) {
         let props = props
-            .and_then(TextFieldProps::from_boxed_any)
-            .unwrap_or(self.props.clone());
+            .and_then(|props| props.downcast_ref::<TextFieldProps>())
+            .unwrap_or(&self.props);
 
         let layout = Layout::vertical(Constraint::from_lengths([1, 1])).split(area);
 
