@@ -149,7 +149,7 @@ impl<'a: 'static> Widget for BrowsePage<'a> {
                         .focus(props.focus)
                         .to_boxed(),
                 )
-                .content(Box::<Table<State, Action, NotificationItem>>::new(
+                .content(Box::<Table<State, Action, NotificationItem, 9>>::new(
                     Table::new(state, action_tx.clone())
                         .on_event(|table, action_tx| {
                             TableState::from_boxed_any(table).and_then(|table| {
