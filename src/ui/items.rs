@@ -213,8 +213,8 @@ impl NotificationItem {
     }
 }
 
-impl ToRow for NotificationItem {
-    fn to_row(&self) -> Vec<Cell> {
+impl ToRow<9> for NotificationItem {
+    fn to_row(&self) -> [Cell; 9] {
         let (type_name, summary, status, kind_id) = match &self.kind {
             NotificationKindItem::Branch {
                 name,
@@ -294,7 +294,6 @@ impl ToRow for NotificationItem {
             author.into(),
             timestamp.into(),
         ]
-        .to_vec()
     }
 }
 
@@ -488,8 +487,8 @@ impl IssueItem {
     }
 }
 
-impl ToRow for IssueItem {
-    fn to_row(&self) -> Vec<Cell> {
+impl ToRow<8> for IssueItem {
+    fn to_row(&self) -> [Cell; 8] {
         let (state, state_color) = format::issue_state(&self.state);
 
         let state = span::default(&state).style(Style::default().fg(state_color));
@@ -532,7 +531,6 @@ impl ToRow for IssueItem {
             assignees.into(),
             opened.into(),
         ]
-        .to_vec()
     }
 }
 
@@ -740,8 +738,8 @@ impl PatchItem {
     }
 }
 
-impl ToRow for PatchItem {
-    fn to_row(&self) -> Vec<Cell> {
+impl ToRow<9> for PatchItem {
+    fn to_row(&self) -> [Cell; 9] {
         let (state, color) = format::patch_state(&self.state);
 
         let state = span::default(&state).style(Style::default().fg(color));
@@ -782,7 +780,6 @@ impl ToRow for PatchItem {
             removed.into(),
             updated.into(),
         ]
-        .to_vec()
     }
 }
 

@@ -100,8 +100,8 @@ pub trait Widget {
 }
 
 /// Needs to be implemented for items that are supposed to be rendered in tables.
-pub trait ToRow {
-    fn to_row(&self) -> Vec<Cell>;
+pub trait ToRow<const W: usize> {
+    fn to_row(&self) -> [Cell; W];
 }
 
 /// Common trait for view properties.
@@ -404,9 +404,9 @@ impl<'a> Column<'a> {
 }
 
 #[derive(Clone, Debug)]
-pub struct TableProps<'a, R>
+pub struct TableProps<'a, R, const W: usize>
 where
-    R: ToRow,
+    R: ToRow<W>,
 {
     pub items: Vec<R>,
     pub selected: Option<usize>,
@@ -418,9 +418,9 @@ where
     pub page_size: usize,
 }
 
-impl<'a, R> Default for TableProps<'a, R>
+impl<'a, R, const W: usize> Default for TableProps<'a, R, W>
 where
-    R: ToRow,
+    R: ToRow<W>,
 {
     fn default() -> Self {
         Self {
@@ -436,9 +436,9 @@ where
     }
 }
 
-impl<'a, R> TableProps<'a, R>
+impl<'a, R, const W: usize> TableProps<'a, R, W>
 where
-    R: ToRow,
+    R: ToRow<W>,
 {
     pub fn items(mut self, items: Vec<R>) -> Self {
         self.items = items;
@@ -472,24 +472,24 @@ where
     }
 }
 
-impl<'a: 'static, R> Properties for TableProps<'a, R> where R: ToRow + 'static {}
+impl<'a: 'static, R, const W: usize> Properties for TableProps<'a, R, W> where R: ToRow<W> + 'static {}
 impl WidgetState for TableState {}
 
-pub struct Table<'a, S, A, R>
+pub struct Table<'a, S, A, R, const W: usize>
 where
-    R: ToRow,
+    R: ToRow<W>,
 {
     /// Internal base
     base: BaseView<S, A>,
     /// Internal table properties
-    props: TableProps<'a, R>,
+    props: TableProps<'a, R, W>,
     /// Internal selection and offset state
     state: TableState,
 }
 
-impl<'a, S, A, R> Table<'a, S, A, R>
+impl<'a, S, A, R, const W: usize> Table<'a, S, A, R, W>
 where
-    R: ToRow,
+    R: ToRow<W>,
 {
     fn prev(&mut self) -> Option<usize> {
         let selected = self
@@ -542,9 +542,9 @@ where
     }
 }
 
-impl<'a: 'static, S, A, R> Widget for Table<'a, S, A, R>
+impl<'a: 'static, S, A, R, const W: usize> Widget for Table<'a, S, A, R, W>
 where
-    R: ToRow + Clone + 'static,
+    R: ToRow<W> + Clone + 'static,
 {
     type Action = A;
     type State = S;
