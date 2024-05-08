@@ -37,8 +37,10 @@ pub struct BaseView<S, A> {
 /// They can be passed to a widgets' `render` function.
 #[derive(Clone, Default)]
 pub struct RenderProps {
-    /// Area of the render props
+    /// Area of the render props.
     pub area: Rect,
+    /// Layout to be rendered in.
+    pub layout: Layout,
     /// Focus of the render props.
     pub focus: bool,
 }
@@ -49,11 +51,21 @@ impl RenderProps {
         self.focus = focus;
         self
     }
+
+    /// Sets the layout of these render props.
+    pub fn layout(mut self, layout: Layout) -> Self {
+        self.layout = layout;
+        self
+    }
 }
 
 impl From<Rect> for RenderProps {
     fn from(area: Rect) -> Self {
-        Self { area, focus: false }
+        Self {
+            area,
+            layout: Layout::default(),
+            focus: false,
+        }
     }
 }
 
