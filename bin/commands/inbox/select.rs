@@ -45,6 +45,49 @@ pub struct App {
 }
 
 #[derive(Clone, Debug, Eq, PartialEq, Hash)]
+pub struct Section {
+    show: bool,
+    focus: bool,
+}
+
+impl Default for Section {
+    fn default() -> Self {
+        Self {
+            show: true,
+            focus: false,
+        }
+    }
+}
+
+impl Section {
+    pub fn focus(mut self) -> Self {
+        self.focus = true;
+        self
+    }
+
+    pub fn blur(mut self, focus: bool) -> Self {
+        self.focus = focus;
+        self
+    }
+
+    pub fn show(mut self) -> Self {
+        self.show = true;
+        self
+    }
+
+    pub fn hide(mut self) -> Self {
+        self.show = false;
+        self
+    }
+}
+
+#[derive(Clone, Debug, Eq, PartialEq, Hash)]
+pub enum BrowserSection {
+    List(Section),
+    Search(Section),
+}
+
+#[derive(Clone, Debug, Eq, PartialEq, Hash)]
 pub enum Page {
     Browse,
     Help,
@@ -58,6 +101,7 @@ pub struct BrowserState {
     search: store::StateValue<String>,
     page_size: usize,
     show_search: bool,
+    // sections: Vec<BrowserSection>,
 }
 
 impl BrowserState {
@@ -185,6 +229,10 @@ impl TryFrom<&Context> for State {
                 filter,
                 search,
                 show_search: false,
+                // sections: vec![
+                //     BrowserSection::List(Section::default().focus()),
+                //     BrowserSection::Search(Section::default().hide()),
+                // ],
                 page_size: 1,
             },
             help: HelpState {

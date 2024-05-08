@@ -97,3 +97,23 @@ impl<T> PageStack<T> {
         }
     }
 }
+
+pub struct SectionList<T> {
+    sections: Vec<T>,
+    current: usize,
+}
+
+impl<T> SectionList<T> {
+    pub fn focus_next(&mut self) {}
+
+    pub fn focus_previous(&mut self) {}
+
+    pub fn active(&self) -> Result<&T> {
+        match self.sections.last() {
+            Some(section) => Ok(section),
+            None => Err(anyhow::anyhow!(
+                "Could not peek active section. Seaction list is empty."
+            )),
+        }
+    }
+}

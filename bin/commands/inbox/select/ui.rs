@@ -6,7 +6,7 @@ use tokio::sync::mpsc::UnboundedSender;
 
 use termion::event::Key;
 
-use ratatui::layout::{Constraint, Layout, Rect};
+use ratatui::layout::{self, Constraint, Layout, Rect};
 use ratatui::style::Stylize;
 use ratatui::text::{Line, Span, Text};
 
@@ -19,7 +19,9 @@ use tui::ui::widget::container::{
 };
 use tui::ui::widget::input::{TextField, TextFieldProps, TextFieldState};
 use tui::ui::widget::text::{Paragraph, ParagraphProps, ParagraphState};
-use tui::ui::widget::{self, BaseView, RenderProps, TableUtils, WidgetState};
+use tui::ui::widget::{
+    self, BaseView, RenderProps, SectionGroup, SectionGroupProps, TableUtils, WidgetState,
+};
 use tui::ui::widget::{Column, Properties, Shortcuts, ShortcutsProps, Table, TableProps, Widget};
 use tui::Selection;
 
@@ -158,10 +160,8 @@ impl<'a: 'static> Widget for Browser<'a> {
                 .footer(
                     Footer::new(state, action_tx.clone())
                         .on_update(|state| {
-                            let props = BrowserProps::from(state);
-
                             FooterProps::default()
-                                .columns(browse_footer(&props, props.selected))
+                                .columns(browse_footer(&BrowserProps::from(state)))
                                 .to_boxed()
                         })
                         .to_boxed(),
@@ -256,8 +256,8 @@ pub struct BrowsePage<'a> {
     base: BaseView<State, Action>,
     /// Internal props
     props: BrowsePageProps<'a>,
-    /// Notifications widget
-    browser: BoxedWidget,
+    /// Sections widget
+    sections: BoxedWidget,
     /// Shortcut widget
     shortcuts: BoxedWidget,
 }
@@ -276,7 +276,14 @@ impl<'a: 'static> Widget for BrowsePage<'a> {
                 on_event: None,
             },
             props: props.clone(),
-            browser: Browser::new(state, action_tx.clone()).to_boxed(),
+            sections: SectionGroup::new(state, action_tx.clone())
+                .section(Browser::new(state, action_tx.clone()).to_boxed())
+                .on_update(|_| {
+                    SectionGroupProps::default()
+                        .layout(Layout::vertical([Constraint::Min(1)]))
+                        .to_boxed()
+                })
+                .to_boxed(),
             shortcuts: Shortcuts::new(state, action_tx.clone())
                 .on_update(|state| {
                     ShortcutsProps::default()
@@ -288,7 +295,7 @@ impl<'a: 'static> Widget for BrowsePage<'a> {
     }
 
     fn handle_event(&mut self, key: Key) {
-        self.browser.handle_event(key);
+        self.sections.handle_event(key);
 
         if self.props.global_keys {
             match key {
@@ -347,7 +354,7 @@ impl<'a: 'static> Widget for BrowsePage<'a> {
         self.props = BrowsePageProps::from_callback(self.base.on_update, state)
             .unwrap_or(BrowsePageProps::from(state));
 
-        self.browser.update(state);
+        self.sections.update(state);
         self.shortcuts.update(state);
     }
 
@@ -357,8 +364,7 @@ impl<'a: 'static> Widget for BrowsePage<'a> {
         let [content_area, shortcuts_area] =
             Layout::vertical([Constraint::Min(1), Constraint::Length(1)]).areas(area);
 
-        self.browser
-            .render(frame, content_area, Some(RenderProps::focused()));
+        self.sections.render(frame, content_area, None);
         self.shortcuts.render(frame, shortcuts_area, None);
 
         if page_size != self.props.page_size {
@@ -601,7 +607,7 @@ impl<'a: 'static> Widget for HelpPage<'a> {
     }
 }
 
-fn browse_footer<'a>(props: &BrowserProps<'a>, selected: Option<usize>) -> Vec<Column<'a>> {
+fn browse_footer<'a>(props: &BrowserProps<'a>) -> Vec<Column<'a>> {
     let search = Line::from(vec![
         span::default(" Search ").cyan().dim().reversed(),
         span::default(" "),
@@ -619,7 +625,8 @@ fn browse_footer<'a>(props: &BrowserProps<'a>, selected: Option<usize>) -> Vec<C
         span::default(" Unseen").dim(),
     ]);
 
-    let progress = selected
+    let progress = props
+        .selected
         .map(|selected| TableUtils::progress(selected, props.notifications.len(), props.page_size))
         .unwrap_or_default();
     let progress = span::default(&format!("{}%", progress)).dim();
