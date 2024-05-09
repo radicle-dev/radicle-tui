@@ -34,8 +34,30 @@ pub struct BaseView<S, A> {
 }
 
 /// General properties that are used to render a `Widget`.
+#[derive(Clone, Default)]
 pub struct RenderProps {
-    focus: bool,
+    /// If a `Widget` has focus
+    pub focus: bool,
+}
+
+impl RenderProps {
+    pub fn focused() -> Self {
+        Self { focus: true }
+    }
+
+    pub fn blurred() -> Self {
+        Self { focus: false }
+    }
+
+    pub fn focus(mut self) -> Self {
+        self.focus = true;
+        self
+    }
+
+    pub fn blur(mut self) -> Self {
+        self.focus = false;
+        self
+    }
 }
 
 /// Main trait defining a `Widget` behaviour.
@@ -249,7 +271,7 @@ where
             .and_then(|id| self.pages.get(id));
 
         if let Some(page) = page {
-            page.render(frame, area, None);
+            page.render(frame, area, Some(RenderProps { focus: true }));
         }
     }
 
@@ -408,7 +430,6 @@ where
 {
     pub items: Vec<R>,
     pub selected: Option<usize>,
-    pub focus: bool,
     pub columns: Vec<Column<'a>>,
     pub has_footer: bool,
     pub cutoff: usize,
@@ -423,7 +444,6 @@ where
     fn default() -> Self {
         Self {
             items: vec![],
-            focus: false,
             columns: vec![],
             has_footer: false,
             cutoff: usize::MAX,

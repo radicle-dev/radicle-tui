@@ -10,7 +10,6 @@ use super::{BaseView, Properties, RenderProps, Widget, WidgetState};
 #[derive(Clone)]
 pub struct ParagraphProps<'a> {
     pub content: Text<'a>,
-    pub focus: bool,
     pub has_header: bool,
     pub has_footer: bool,
     pub page_size: usize,
@@ -27,18 +26,12 @@ impl<'a> ParagraphProps<'a> {
         self.content = text.clone();
         self
     }
-
-    pub fn focus(mut self, focus: bool) -> Self {
-        self.focus = focus;
-        self
-    }
 }
 
 impl<'a> Default for ParagraphProps<'a> {
     fn default() -> Self {
         Self {
             content: Text::raw(""),
-            focus: false,
             has_header: false,
             has_footer: false,
             page_size: 1,

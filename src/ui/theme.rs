@@ -43,7 +43,7 @@ pub mod style {
 
     pub fn border(focus: bool) -> Style {
         if focus {
-            Style::default().fg(Color::Indexed(239))
+            Style::default().fg(Color::Indexed(238))
         } else {
             Style::default().fg(Color::Indexed(236))
         }

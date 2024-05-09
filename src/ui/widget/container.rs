@@ -17,17 +17,11 @@ pub struct HeaderProps<'a> {
     pub columns: Vec<Column<'a>>,
     pub cutoff: usize,
     pub cutoff_after: usize,
-    pub focus: bool,
 }
 
 impl<'a> HeaderProps<'a> {
     pub fn columns(mut self, columns: Vec<Column<'a>>) -> Self {
         self.columns = columns;
-        self
-    }
-
-    pub fn focus(mut self, focus: bool) -> Self {
-        self.focus = focus;
         self
     }
 
@@ -44,7 +38,6 @@ impl<'a> Default for HeaderProps<'a> {
             columns: vec![],
             cutoff: usize::MAX,
             cutoff_after: usize::MAX,
-            focus: false,
         }
     }
 }
@@ -61,11 +54,6 @@ pub struct Header<'a: 'static, S, A> {
 impl<'a, S, A> Header<'a, S, A> {
     pub fn columns(mut self, columns: Vec<Column<'a>>) -> Self {
         self.props.columns = columns;
-        self
-    }
-
-    pub fn focus(mut self, focus: bool) -> Self {
-        self.props.focus = focus;
         self
     }
 
@@ -101,7 +89,7 @@ impl<'a: 'static, S, A> Widget for Header<'a, S, A> {
             .unwrap_or(self.props.clone());
     }
 
-    fn render(&self, frame: &mut ratatui::Frame, area: Rect, _props: Option<RenderProps>) {
+    fn render(&self, frame: &mut ratatui::Frame, area: Rect, props: Option<RenderProps>) {
         let widths: Vec<Constraint> = self
             .props
             .columns
@@ -136,10 +124,12 @@ impl<'a: 'static, S, A> Widget for Header<'a, S, A> {
             widths.iter().collect::<Vec<_>>()
         };
 
+        let focus = props.map(|props| props.focus).unwrap_or(false);
+
         // Render header
         let block = HeaderBlock::default()
             .borders(Borders::ALL)
-            .border_style(style::border(self.props.focus))
+            .border_style(style::border(focus))
             .border_type(BorderType::Rounded);
 
         let header_layout = Layout::default()
@@ -169,7 +159,6 @@ pub struct FooterProps<'a> {
     pub columns: Vec<Column<'a>>,
     pub cutoff: usize,
     pub cutoff_after: usize,
-    pub focus: bool,
 }
 
 impl<'a> FooterProps<'a> {
@@ -183,11 +172,6 @@ impl<'a> FooterProps<'a> {
         self.cutoff_after = cutoff_after;
         self
     }
-
-    pub fn focus(mut self, focus: bool) -> Self {
-        self.focus = focus;
-        self
-    }
 }
 
 impl<'a> Default for FooterProps<'a> {
@@ -196,7 +180,6 @@ impl<'a> Default for FooterProps<'a> {
             columns: vec![],
             cutoff: usize::MAX,
             cutoff_after: usize::MAX,
-            focus: false,
         }
     }
 }
@@ -219,11 +202,6 @@ impl<'a, S, A> Footer<'a, S, A> {
     pub fn cutoff(mut self, cutoff: usize, cutoff_after: usize) -> Self {
         self.props.cutoff = cutoff;
         self.props.cutoff_after = cutoff_after;
-        self
-    }
-
-    pub fn focus(mut self, focus: bool) -> Self {
-        self.props.focus = focus;
         self
     }
 
@@ -275,7 +253,7 @@ impl<'a: 'static, S, A> Widget for Footer<'a, S, A> {
             .unwrap_or(self.props.clone());
     }
 
-    fn render(&self, frame: &mut ratatui::Frame, area: Rect, _props: Option<RenderProps>) {
+    fn render(&self, frame: &mut ratatui::Frame, area: Rect, props: Option<RenderProps>) {
         let widths = self
             .props
             .columns
@@ -298,6 +276,8 @@ impl<'a: 'static, S, A> Widget for Footer<'a, S, A> {
         let last = cells.len().saturating_sub(1);
         let len = cells.len();
 
+        let focus = props.as_ref().map(|props| props.focus).unwrap_or_default();
+
         for (i, (cell, area)) in cells.into_iter().enumerate() {
             let block_type = match i {
                 0 if len == 1 => FooterBlockType::Single,
@@ -305,7 +285,7 @@ impl<'a: 'static, S, A> Widget for Footer<'a, S, A> {
                 _ if i == last => FooterBlockType::End,
                 _ => FooterBlockType::Repeat,
             };
-            self.render_cell(frame, *area, block_type, cell.clone(), self.props.focus);
+            self.render_cell(frame, *area, block_type, cell.clone(), focus);
         }
     }
 
@@ -316,18 +296,12 @@ impl<'a: 'static, S, A> Widget for Footer<'a, S, A> {
 
 #[derive(Clone, Default)]
 pub struct ContainerProps {
-    focus: bool,
     hide_footer: bool,
 }
 
 impl ContainerProps {
     pub fn hide_footer(mut self, hide: bool) -> Self {
         self.hide_footer = hide;
-        self
-    }
-
-    pub fn focus(mut self, focus: bool) -> Self {
-        self.focus = focus;
         self
     }
 }
@@ -409,7 +383,7 @@ impl<S, A> Widget for Container<S, A> {
         }
     }
 
-    fn render(&self, frame: &mut ratatui::Frame, area: Rect, _props: Option<RenderProps>) {
+    fn render(&self, frame: &mut ratatui::Frame, area: Rect, props: Option<RenderProps>) {
         let header_h = if self.header.is_some() { 3 } else { 0 };
         let footer_h = if self.footer.is_some() && !self.props.hide_footer {
             3
@@ -434,22 +408,24 @@ impl<S, A> Widget for Container<S, A> {
             (true, true) => Borders::LEFT | Borders::RIGHT,
         };
 
+        let focus = props.as_ref().map(|props| props.focus).unwrap_or_default();
+
         let block = Block::default()
-            .border_style(style::border(self.props.focus))
+            .border_style(style::border(focus))
             .border_type(BorderType::Rounded)
             .borders(borders);
         frame.render_widget(block.clone(), content_area);
 
         if let Some(header) = &self.header {
-            header.render(frame, header_area, None);
+            header.render(frame, header_area, props.clone());
         }
 
         if let Some(content) = &self.content {
-            content.render(frame, block.inner(content_area), None);
+            content.render(frame, block.inner(content_area), props.clone());
         }
 
         if let Some(footer) = &self.footer {
-            footer.render(frame, footer_area, None);
+            footer.render(frame, footer_area, props);
         }
     }
 
