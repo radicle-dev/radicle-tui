@@ -1,4 +1,3 @@
-use std::any::Any;
 use std::fmt::Debug;
 
 use tokio::sync::mpsc::UnboundedSender;
@@ -11,7 +10,7 @@ use ratatui::widgets::{Block, BorderType, Borders, Row};
 use crate::ui::ext::{FooterBlock, FooterBlockType, HeaderBlock};
 use crate::ui::theme::style;
 
-use super::{BaseView, BoxedWidget, Column, Properties, Widget};
+use super::{BaseView, BoxedWidget, Column, Properties, RenderProps, Widget};
 
 #[derive(Clone, Debug)]
 pub struct HeaderProps<'a> {
@@ -102,12 +101,9 @@ impl<'a: 'static, S, A> Widget for Header<'a, S, A> {
             .unwrap_or(self.props.clone());
     }
 
-    fn render(&self, frame: &mut ratatui::Frame, area: Rect, props: Option<&dyn Any>) {
-        let props = props
-            .and_then(|props| props.downcast_ref::<HeaderProps>())
-            .unwrap_or(&self.props);
-
-        let widths: Vec<Constraint> = props
+    fn render(&self, frame: &mut ratatui::Frame, area: Rect, _props: Option<RenderProps>) {
+        let widths: Vec<Constraint> = self
+            .props
             .columns
             .iter()
             .filter_map(|column| {
@@ -118,7 +114,8 @@ impl<'a: 'static, S, A> Widget for Header<'a, S, A> {
                 }
             })
             .collect();
-        let cells = props
+        let cells = self
+            .props
             .columns
             .iter()
             .filter_map(|column| {
@@ -130,8 +127,11 @@ impl<'a: 'static, S, A> Widget for Header<'a, S, A> {
             })
             .collect::<Vec<_>>();
 
-        let widths = if area.width < props.cutoff as u16 {
-            widths.iter().take(props.cutoff_after).collect::<Vec<_>>()
+        let widths = if area.width < self.props.cutoff as u16 {
+            widths
+                .iter()
+                .take(self.props.cutoff_after)
+                .collect::<Vec<_>>()
         } else {
             widths.iter().collect::<Vec<_>>()
         };
@@ -139,7 +139,7 @@ impl<'a: 'static, S, A> Widget for Header<'a, S, A> {
         // Render header
         let block = HeaderBlock::default()
             .borders(Borders::ALL)
-            .border_style(style::border(props.focus))
+            .border_style(style::border(self.props.focus))
             .border_type(BorderType::Rounded);
 
         let header_layout = Layout::default()
@@ -275,12 +275,9 @@ impl<'a: 'static, S, A> Widget for Footer<'a, S, A> {
             .unwrap_or(self.props.clone());
     }
 
-    fn render(&self, frame: &mut ratatui::Frame, area: Rect, props: Option<&dyn Any>) {
-        let props = props
-            .and_then(|props| props.downcast_ref::<FooterProps>())
-            .unwrap_or(&self.props);
-
-        let widths = props
+    fn render(&self, frame: &mut ratatui::Frame, area: Rect, _props: Option<RenderProps>) {
+        let widths = self
+            .props
             .columns
             .iter()
             .map(|c| match c.width {
@@ -290,7 +287,8 @@ impl<'a: 'static, S, A> Widget for Footer<'a, S, A> {
             .collect::<Vec<_>>();
 
         let layout = Layout::horizontal(widths).split(area);
-        let cells = props
+        let cells = self
+            .props
             .columns
             .iter()
             .map(|c| c.text.clone())
@@ -307,7 +305,7 @@ impl<'a: 'static, S, A> Widget for Footer<'a, S, A> {
                 _ if i == last => FooterBlockType::End,
                 _ => FooterBlockType::Repeat,
             };
-            self.render_cell(frame, *area, block_type, cell.clone(), props.focus);
+            self.render_cell(frame, *area, block_type, cell.clone(), self.props.focus);
         }
     }
 
@@ -411,13 +409,9 @@ impl<S, A> Widget for Container<S, A> {
         }
     }
 
-    fn render(&self, frame: &mut ratatui::Frame, area: Rect, props: Option<&dyn Any>) {
-        let props = props
-            .and_then(|props| props.downcast_ref::<ContainerProps>())
-            .unwrap_or(&self.props);
-
+    fn render(&self, frame: &mut ratatui::Frame, area: Rect, _props: Option<RenderProps>) {
         let header_h = if self.header.is_some() { 3 } else { 0 };
-        let footer_h = if self.footer.is_some() && !props.hide_footer {
+        let footer_h = if self.footer.is_some() && !self.props.hide_footer {
             3
         } else {
             0
@@ -432,7 +426,7 @@ impl<S, A> Widget for Container<S, A> {
 
         let borders = match (
             self.header.is_some(),
-            (self.footer.is_some() && !props.hide_footer),
+            (self.footer.is_some() && !self.props.hide_footer),
         ) {
             (false, false) => Borders::ALL,
             (true, false) => Borders::BOTTOM | Borders::LEFT | Borders::RIGHT,
@@ -441,7 +435,7 @@ impl<S, A> Widget for Container<S, A> {
         };
 
         let block = Block::default()
-            .border_style(style::border(props.focus))
+            .border_style(style::border(self.props.focus))
             .border_type(BorderType::Rounded)
             .borders(borders);
         frame.render_widget(block.clone(), content_area);

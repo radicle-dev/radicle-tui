@@ -1,5 +1,3 @@
-use std::any::Any;
-
 use tokio::sync::mpsc::UnboundedSender;
 
 use termion::event::Key;
@@ -7,7 +5,7 @@ use termion::event::Key;
 use ratatui::layout::{Constraint, Layout, Rect};
 use ratatui::text::Text;
 
-use super::{BaseView, Properties, Widget, WidgetState};
+use super::{BaseView, Properties, RenderProps, Widget, WidgetState};
 
 #[derive(Clone)]
 pub struct ParagraphProps<'a> {
@@ -205,15 +203,11 @@ impl<'a: 'static, S, A> Widget for Paragraph<'a, S, A> {
             ParagraphProps::from_callback(self.base.on_update, state).unwrap_or(self.props.clone());
     }
 
-    fn render(&self, frame: &mut ratatui::Frame, area: Rect, props: Option<&dyn Any>) {
-        let props = props
-            .and_then(|props| props.downcast_ref::<ParagraphProps>())
-            .unwrap_or(&self.props);
-
+    fn render(&self, frame: &mut ratatui::Frame, area: Rect, _props: Option<RenderProps>) {
         let [content_area] = Layout::horizontal([Constraint::Min(1)])
             .horizontal_margin(1)
             .areas(area);
-        let content = ratatui::widgets::Paragraph::new(props.content.clone())
+        let content = ratatui::widgets::Paragraph::new(self.props.content.clone())
             .scroll((self.state.offset as u16, 0));
 
         frame.render_widget(content, content_area);
