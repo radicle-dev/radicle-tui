@@ -33,6 +33,11 @@ pub struct BaseView<S, A> {
     pub on_event: Option<EventCallback<A>>,
 }
 
+/// General properties that are used to render a `Widget`.
+pub struct RenderProps {
+    focus: bool,
+}
+
 /// Main trait defining a `Widget` behaviour.
 ///
 /// This is the trait that you should implement to define a custom `Widget`.
@@ -66,8 +71,8 @@ pub trait Widget {
 
     /// Renders a widget to the given frame in the given area.
     ///
-    /// Optional props take precedence over the internal ones.
-    fn render(&self, frame: &mut Frame, area: Rect, props: Option<&dyn Any>);
+    /// Optional render props can be given.
+    fn render(&self, frame: &mut Frame, area: Rect, props: Option<RenderProps>);
 
     /// Return a mutable reference to this widgets' base view.
     fn base_mut(&mut self) -> &mut BaseView<Self::State, Self::Action>;
@@ -234,11 +239,7 @@ where
         }
     }
 
-    fn render(&self, frame: &mut ratatui::Frame, _area: Rect, props: Option<&dyn Any>) {
-        let _props = props
-            .and_then(|props| props.downcast_ref::<WindowProps<Id>>())
-            .unwrap_or(&self.props);
-
+    fn render(&self, frame: &mut ratatui::Frame, _area: Rect, _props: Option<RenderProps>) {
         let area = frame.size();
 
         let page = self
@@ -335,21 +336,18 @@ impl<S, A> Widget for Shortcuts<S, A> {
             ShortcutsProps::from_callback(self.base.on_update, state).unwrap_or(self.props.clone());
     }
 
-    fn render(&self, frame: &mut ratatui::Frame, area: Rect, props: Option<&dyn Any>) {
+    fn render(&self, frame: &mut ratatui::Frame, area: Rect, _props: Option<RenderProps>) {
         use ratatui::widgets::Table;
 
-        let props = props
-            .and_then(|props| props.downcast_ref::<ShortcutsProps>())
-            .unwrap_or(&self.props);
-
-        let mut shortcuts = props.shortcuts.iter().peekable();
+        let mut shortcuts = self.props.shortcuts.iter().peekable();
         let mut row = vec![];
 
         while let Some(shortcut) = shortcuts.next() {
             let short = Text::from(shortcut.0.clone()).style(style::gray());
             let long = Text::from(shortcut.1.clone()).style(style::gray().dim());
             let spacer = Text::from(String::new());
-            let divider = Text::from(format!(" {} ", props.divider)).style(style::gray().dim());
+            let divider =
+                Text::from(format!(" {} ", self.props.divider)).style(style::gray().dim());
 
             row.push((shortcut.0.chars().count(), short));
             row.push((1, spacer));
@@ -606,11 +604,7 @@ where
         }
     }
 
-    fn render(&self, frame: &mut ratatui::Frame, area: Rect, props: Option<&dyn Any>) {
-        let props = props
-            .and_then(|props| props.downcast_ref::<TableProps<R, W>>())
-            .unwrap_or(&self.props);
-
+    fn render(&self, frame: &mut ratatui::Frame, area: Rect, _props: Option<RenderProps>) {
         let widths: Vec<Constraint> = self
             .props
             .columns
@@ -618,19 +612,23 @@ where
             .filter_map(|c| if !c.skip { Some(c.width) } else { None })
             .collect();
 
-        let widths = if area.width < props.cutoff as u16 {
-            widths.iter().take(props.cutoff_after).collect::<Vec<_>>()
+        let widths = if area.width < self.props.cutoff as u16 {
+            widths
+                .iter()
+                .take(self.props.cutoff_after)
+                .collect::<Vec<_>>()
         } else {
             widths.iter().collect::<Vec<_>>()
         };
 
-        if !props.items.is_empty() {
-            let rows = props
+        if !self.props.items.is_empty() {
+            let rows = self
+                .props
                 .items
                 .iter()
                 .map(|item| {
                     let mut cells = vec![];
-                    let mut it = props.columns.iter();
+                    let mut it = self.props.columns.iter();
 
                     for cell in item.to_row() {
                         if let Some(col) = it.next() {

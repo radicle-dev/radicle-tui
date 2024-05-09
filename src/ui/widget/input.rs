@@ -1,5 +1,3 @@
-use std::any::Any;
-
 use termion::event::Key;
 
 use tokio::sync::mpsc::UnboundedSender;
@@ -9,7 +7,7 @@ use ratatui::prelude::Rect;
 use ratatui::style::Stylize;
 use ratatui::text::{Line, Span};
 
-use super::{BaseView, Properties, Widget, WidgetState};
+use super::{BaseView, Properties, RenderProps, Widget, WidgetState};
 
 #[derive(Clone)]
 pub struct TextFieldProps {
@@ -191,20 +189,16 @@ impl<S, A> Widget for TextField<S, A> {
         }
     }
 
-    fn render(&self, frame: &mut ratatui::Frame, area: Rect, props: Option<&dyn Any>) {
-        let props = props
-            .and_then(|props| props.downcast_ref::<TextFieldProps>())
-            .unwrap_or(&self.props);
-
+    fn render(&self, frame: &mut ratatui::Frame, area: Rect, _props: Option<RenderProps>) {
         let layout = Layout::vertical(Constraint::from_lengths([1, 1])).split(area);
 
         let text = self.state.text.clone().unwrap_or_default();
         let input = text.as_str();
-        let label = format!(" {} ", props.title);
+        let label = format!(" {} ", self.props.title);
         let overline = String::from("▔").repeat(area.width as usize);
         let cursor_pos = self.state.cursor_position as u16;
 
-        if props.inline_label {
+        if self.props.inline_label {
             let top_layout = Layout::horizontal([
                 Constraint::Length(label.chars().count() as u16),
                 Constraint::Length(1),
@@ -221,7 +215,7 @@ impl<S, A> Widget for TextField<S, A> {
             frame.render_widget(input, top_layout[2]);
             frame.render_widget(overline, layout[1]);
 
-            if props.show_cursor {
+            if self.props.show_cursor {
                 frame.set_cursor(top_layout[2].x + cursor_pos, top_layout[2].y)
             }
         } else {
@@ -237,7 +231,7 @@ impl<S, A> Widget for TextField<S, A> {
             frame.render_widget(top, layout[0]);
             frame.render_widget(bottom, layout[1]);
 
-            if props.show_cursor {
+            if self.props.show_cursor {
                 frame.set_cursor(area.x + cursor_pos, area.y)
             }
         }
