@@ -1,4 +1,3 @@
-use std::any::Any;
 use std::collections::HashMap;
 use std::str::FromStr;
 
@@ -20,7 +19,7 @@ use tui::ui::widget::container::{
 };
 use tui::ui::widget::input::{TextField, TextFieldProps, TextFieldState};
 use tui::ui::widget::text::{Paragraph, ParagraphProps, ParagraphState};
-use tui::ui::widget::{self, BaseView, TableUtils, WidgetState};
+use tui::ui::widget::{self, BaseView, RenderProps, TableUtils, WidgetState};
 use tui::ui::widget::{Column, Properties, Shortcuts, ShortcutsProps, Table, TableProps, Widget};
 use tui::Selection;
 
@@ -39,7 +38,6 @@ struct BrowsePageProps<'a> {
     columns: Vec<Column<'a>>,
     cutoff: usize,
     cutoff_after: usize,
-    focus: bool,
     page_size: usize,
     search: String,
     show_search: bool,
@@ -83,7 +81,6 @@ impl<'a> From<&State> for BrowsePageProps<'a> {
             .to_vec(),
             cutoff: 200,
             cutoff_after: 5,
-            focus: false,
             search: state.browser.search.read(),
             page_size: state.browser.page_size,
             show_search: state.browser.show_search,
@@ -146,7 +143,6 @@ impl<'a: 'static> Widget for BrowsePage<'a> {
                             .to_vec(),
                         )
                         .cutoff(props.cutoff, props.cutoff_after)
-                        .focus(props.focus)
                         .to_boxed(),
                 )
                 .content(Box::<Table<State, Action, NotificationItem, 9>>::new(
@@ -183,9 +179,20 @@ impl<'a: 'static> Widget for BrowsePage<'a> {
                         })
                         .to_boxed(),
                 )
+                .on_update(|state| {
+                    ContainerProps::default()
+                        .hide_footer(BrowsePageProps::from(state).show_search)
+                        .to_boxed()
+                })
                 .to_boxed(),
             search: Search::new(state, action_tx.clone()).to_boxed(),
-            shortcuts: Shortcuts::new(state, action_tx.clone()).to_boxed(),
+            shortcuts: Shortcuts::new(state, action_tx.clone())
+                .on_update(|state| {
+                    ShortcutsProps::default()
+                        .shortcuts(&BrowsePageProps::from(state).shortcuts)
+                        .to_boxed()
+                })
+                .to_boxed(),
         }
     }
 
@@ -256,41 +263,28 @@ impl<'a: 'static> Widget for BrowsePage<'a> {
         self.shortcuts.update(state);
     }
 
-    fn render(&self, frame: &mut ratatui::Frame, area: Rect, props: Option<&dyn Any>) {
-        let props = props
-            .and_then(|props| props.downcast_ref::<BrowsePageProps>())
-            .unwrap_or(&self.props);
-
+    fn render(&self, frame: &mut ratatui::Frame, area: Rect, _props: Option<RenderProps>) {
         let page_size = area.height.saturating_sub(6) as usize;
 
         let [content_area, shortcuts_area] =
             Layout::vertical([Constraint::Min(1), Constraint::Length(1)]).areas(area);
 
-        if props.show_search {
+        if self.props.show_search {
             let [table_area, search_area] =
                 Layout::vertical([Constraint::Min(1), Constraint::Length(2)]).areas(content_area);
 
-            self.notifications.render(
-                frame,
-                table_area,
-                Some(&ContainerProps::default().hide_footer(props.show_search)),
-            );
-            self.search.render(frame, search_area, None);
+            self.notifications
+                .render(frame, table_area, Some(RenderProps::default()));
+            self.search
+                .render(frame, search_area, Some(RenderProps::focused()));
         } else {
-            self.notifications.render(
-                frame,
-                content_area,
-                Some(&ContainerProps::default().hide_footer(props.show_search)),
-            );
+            self.notifications
+                .render(frame, content_area, Some(RenderProps::focused()));
         }
 
-        self.shortcuts.render(
-            frame,
-            shortcuts_area,
-            Some(&ShortcutsProps::default().shortcuts(&props.shortcuts)),
-        );
+        self.shortcuts.render(frame, shortcuts_area, None);
 
-        if page_size != props.page_size {
+        if page_size != self.props.page_size {
             let _ = self.base.action_tx.send(Action::BrowserPageSize(page_size));
         }
     }
@@ -368,7 +362,7 @@ impl Widget for Search {
         self.input.update(state);
     }
 
-    fn render(&self, frame: &mut ratatui::Frame, area: Rect, _props: Option<&dyn Any>) {
+    fn render(&self, frame: &mut ratatui::Frame, area: Rect, _props: Option<RenderProps>) {
         let layout = Layout::horizontal(Constraint::from_mins([0]))
             .horizontal_margin(1)
             .split(area);
@@ -383,7 +377,6 @@ impl Widget for Search {
 
 #[derive(Clone)]
 struct HelpPageProps<'a> {
-    focus: bool,
     page_size: usize,
     help_progress: usize,
     shortcuts: Vec<(&'a str, &'a str)>,
@@ -392,7 +385,6 @@ struct HelpPageProps<'a> {
 impl<'a> From<&State> for HelpPageProps<'a> {
     fn from(state: &State) -> Self {
         Self {
-            focus: false,
             page_size: state.help.page_size,
             help_progress: state.help.progress,
             shortcuts: vec![("?", "close")],
@@ -431,12 +423,9 @@ impl<'a: 'static> Widget for HelpPage<'a> {
             content: Container::new(state, action_tx.clone())
                 .header(
                     Header::new(state, action_tx.clone())
-                        .on_update(|state| {
-                            let props = HelpPageProps::from(state);
-
+                        .on_update(|_| {
                             HeaderProps::default()
                                 .columns([Column::new(" Help ", Constraint::Fill(1))].to_vec())
-                                .focus(props.focus)
                                 .to_boxed()
                         })
                         .to_boxed(),
@@ -449,7 +438,6 @@ impl<'a: 'static> Widget for HelpPage<'a> {
                             ParagraphProps::default()
                                 .text(&help_text())
                                 .page_size(props.page_size)
-                                .focus(props.focus)
                                 .to_boxed()
                         })
                         .on_event(|paragraph, action_tx| {
@@ -480,13 +468,18 @@ impl<'a: 'static> Widget for HelpPage<'a> {
                                     ]
                                     .to_vec(),
                                 )
-                                .focus(props.focus)
                                 .to_boxed()
                         })
                         .to_boxed(),
                 )
                 .to_boxed(),
-            shortcuts: Shortcuts::new(state, action_tx.clone()).to_boxed(),
+            shortcuts: Shortcuts::new(state, action_tx.clone())
+                .on_update(|state| {
+                    ShortcutsProps::default()
+                        .shortcuts(&HelpPageProps::from(state).shortcuts)
+                        .to_boxed()
+                })
+                .to_boxed(),
         }
     }
 
@@ -509,26 +502,19 @@ impl<'a: 'static> Widget for HelpPage<'a> {
             .unwrap_or(HelpPageProps::from(state));
 
         self.content.update(state);
+        self.shortcuts.update(state);
     }
 
-    fn render(&self, frame: &mut ratatui::Frame, area: Rect, props: Option<&dyn Any>) {
-        let props = props
-            .and_then(|props| props.downcast_ref::<HelpPageProps>())
-            .unwrap_or(&self.props);
-
+    fn render(&self, frame: &mut ratatui::Frame, area: Rect, props: Option<RenderProps>) {
         let page_size = area.height.saturating_sub(6) as usize;
 
         let [content_area, shortcuts_area] =
             Layout::vertical([Constraint::Min(1), Constraint::Length(1)]).areas(area);
 
-        self.content.render(frame, content_area, None);
-        self.shortcuts.render(
-            frame,
-            shortcuts_area,
-            Some(&ShortcutsProps::default().shortcuts(&props.shortcuts)),
-        );
+        self.content.render(frame, content_area, props);
+        self.shortcuts.render(frame, shortcuts_area, None);
 
-        if page_size != props.page_size {
+        if page_size != self.props.page_size {
             let _ = self.base.action_tx.send(Action::HelpPageSize(page_size));
         }
     }
