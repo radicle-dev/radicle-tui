@@ -25,7 +25,7 @@ use tui::Exit;
 
 use tui::PageStack;
 
-use self::ui::BrowsePage;
+use self::ui::BrowserPage;
 use self::ui::HelpPage;
 
 use super::common::{Mode, RepositoryMode};
@@ -283,7 +283,7 @@ impl App {
         let window: Window<State, Action, Page> = Window::new(&state, action_tx.clone())
             .page(
                 Page::Browse,
-                BrowsePage::new(&state, action_tx.clone()).to_boxed(),
+                BrowserPage::new(&state, action_tx.clone()).to_boxed(),
             )
             .page(
                 Page::Help,
