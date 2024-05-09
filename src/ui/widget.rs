@@ -276,7 +276,7 @@ where
             .and_then(|id| self.pages.get(id));
 
         if let Some(page) = page {
-            page.render(frame, area, None);
+            page.render(frame, area, Some(RenderProps { focus: true }));
         }
     }
 
@@ -435,7 +435,6 @@ where
 {
     pub items: Vec<R>,
     pub selected: Option<usize>,
-    pub focus: bool,
     pub columns: Vec<Column<'a>>,
     pub has_footer: bool,
     pub cutoff: usize,
@@ -450,7 +449,6 @@ where
     fn default() -> Self {
         Self {
             items: vec![],
-            focus: false,
             columns: vec![],
             has_footer: false,
             cutoff: usize::MAX,
