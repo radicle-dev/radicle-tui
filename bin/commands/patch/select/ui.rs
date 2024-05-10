@@ -7,7 +7,7 @@ use tokio::sync::mpsc::UnboundedSender;
 
 use termion::event::Key;
 
-use ratatui::layout::{Constraint, Layout, Rect};
+use ratatui::layout::{Constraint, Layout};
 use ratatui::style::Stylize;
 use ratatui::text::{Line, Span, Text};
 
@@ -286,26 +286,26 @@ impl<'a: 'static> Widget for BrowsePage<'a> {
         self.shortcuts.update(state);
     }
 
-    fn render(&self, frame: &mut ratatui::Frame, area: Rect, _props: Option<RenderProps>) {
-        let page_size = area.height.saturating_sub(6) as usize;
+    fn render(&self, frame: &mut ratatui::Frame, props: RenderProps) {
+        let page_size = props.area.height.saturating_sub(6) as usize;
 
         let [content_area, shortcuts_area] =
-            Layout::vertical([Constraint::Min(1), Constraint::Length(1)]).areas(area);
+            Layout::vertical([Constraint::Min(1), Constraint::Length(1)]).areas(props.area);
 
         if self.props.show_search {
             let [table_area, search_area] =
                 Layout::vertical([Constraint::Min(1), Constraint::Length(2)]).areas(content_area);
 
-            self.patches
-                .render(frame, table_area, Some(RenderProps::default()));
+            self.patches.render(frame, RenderProps::from(table_area));
             self.search
-                .render(frame, search_area, Some(RenderProps::focused()));
+                .render(frame, RenderProps::from(search_area).focus(true));
         } else {
             self.patches
-                .render(frame, content_area, Some(RenderProps::focused()));
+                .render(frame, RenderProps::from(content_area).focus(true));
         }
 
-        self.shortcuts.render(frame, shortcuts_area, None);
+        self.shortcuts
+            .render(frame, RenderProps::from(shortcuts_area));
 
         if page_size != self.props.page_size {
             let _ = self.base.action_tx.send(Action::BrowserPageSize(page_size));
@@ -385,12 +385,12 @@ impl Widget for Search {
         self.input.update(state);
     }
 
-    fn render(&self, frame: &mut ratatui::Frame, area: Rect, _props: Option<RenderProps>) {
+    fn render(&self, frame: &mut ratatui::Frame, props: RenderProps) {
         let layout = Layout::horizontal(Constraint::from_mins([0]))
             .horizontal_margin(1)
-            .split(area);
+            .split(props.area);
 
-        self.input.render(frame, layout[0], None);
+        self.input.render(frame, RenderProps::from(layout[0]));
     }
 
     fn base_mut(&mut self) -> &mut BaseView<State, Action> {
@@ -527,14 +527,16 @@ impl<'a: 'static> Widget for HelpPage<'a> {
         self.content.update(state);
     }
 
-    fn render(&self, frame: &mut ratatui::Frame, area: Rect, _props: Option<RenderProps>) {
-        let page_size = area.height.saturating_sub(6) as usize;
+    fn render(&self, frame: &mut ratatui::Frame, props: RenderProps) {
+        let page_size = props.area.height.saturating_sub(6) as usize;
 
         let [content_area, shortcuts_area] =
-            Layout::vertical([Constraint::Min(1), Constraint::Length(1)]).areas(area);
+            Layout::vertical([Constraint::Min(1), Constraint::Length(1)]).areas(props.area);
 
-        self.content.render(frame, content_area, None);
-        self.shortcuts.render(frame, shortcuts_area, None);
+        self.content
+            .render(frame, RenderProps::from(content_area).focus(true));
+        self.shortcuts
+            .render(frame, RenderProps::from(shortcuts_area));
 
         if page_size != self.props.page_size {
             let _ = self.base.action_tx.send(Action::HelpPageSize(page_size));
