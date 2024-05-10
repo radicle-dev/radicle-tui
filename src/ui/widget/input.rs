@@ -3,7 +3,6 @@ use termion::event::Key;
 use tokio::sync::mpsc::UnboundedSender;
 
 use ratatui::layout::{Constraint, Layout};
-use ratatui::prelude::Rect;
 use ratatui::style::Stylize;
 use ratatui::text::{Line, Span};
 
@@ -189,7 +188,8 @@ impl<S, A> Widget for TextField<S, A> {
         }
     }
 
-    fn render(&self, frame: &mut ratatui::Frame, area: Rect, _props: Option<RenderProps>) {
+    fn render(&self, frame: &mut ratatui::Frame, props: RenderProps) {
+        let area = props.area;
         let layout = Layout::vertical(Constraint::from_lengths([1, 1])).split(area);
 
         let text = self.state.text.clone().unwrap_or_default();

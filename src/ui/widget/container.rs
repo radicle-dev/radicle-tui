@@ -89,7 +89,7 @@ impl<'a: 'static, S, A> Widget for Header<'a, S, A> {
             .unwrap_or(self.props.clone());
     }
 
-    fn render(&self, frame: &mut ratatui::Frame, area: Rect, props: Option<RenderProps>) {
+    fn render(&self, frame: &mut ratatui::Frame, props: RenderProps) {
         let widths: Vec<Constraint> = self
             .props
             .columns
@@ -115,7 +115,7 @@ impl<'a: 'static, S, A> Widget for Header<'a, S, A> {
             })
             .collect::<Vec<_>>();
 
-        let widths = if area.width < self.props.cutoff as u16 {
+        let widths = if props.area.width < self.props.cutoff as u16 {
             widths
                 .iter()
                 .take(self.props.cutoff_after)
@@ -124,12 +124,10 @@ impl<'a: 'static, S, A> Widget for Header<'a, S, A> {
             widths.iter().collect::<Vec<_>>()
         };
 
-        let focus = props.map(|props| props.focus).unwrap_or(false);
-
         // Render header
         let block = HeaderBlock::default()
             .borders(Borders::ALL)
-            .border_style(style::border(focus))
+            .border_style(style::border(props.focus))
             .border_type(BorderType::Rounded);
 
         let header_layout = Layout::default()
@@ -137,7 +135,7 @@ impl<'a: 'static, S, A> Widget for Header<'a, S, A> {
             .constraints(vec![Constraint::Min(1)])
             .vertical_margin(1)
             .horizontal_margin(1)
-            .split(area);
+            .split(props.area);
 
         let header = Row::new(cells).style(style::reset().bold());
         let header = ratatui::widgets::Table::default()
@@ -145,7 +143,7 @@ impl<'a: 'static, S, A> Widget for Header<'a, S, A> {
             .header(header)
             .widths(widths.clone());
 
-        frame.render_widget(block, area);
+        frame.render_widget(block, props.area);
         frame.render_widget(header, header_layout[0]);
     }
 
@@ -253,7 +251,7 @@ impl<'a: 'static, S, A> Widget for Footer<'a, S, A> {
             .unwrap_or(self.props.clone());
     }
 
-    fn render(&self, frame: &mut ratatui::Frame, area: Rect, props: Option<RenderProps>) {
+    fn render(&self, frame: &mut ratatui::Frame, props: RenderProps) {
         let widths = self
             .props
             .columns
@@ -264,7 +262,7 @@ impl<'a: 'static, S, A> Widget for Footer<'a, S, A> {
             })
             .collect::<Vec<_>>();
 
-        let layout = Layout::horizontal(widths).split(area);
+        let layout = Layout::horizontal(widths).split(props.area);
         let cells = self
             .props
             .columns
@@ -276,8 +274,6 @@ impl<'a: 'static, S, A> Widget for Footer<'a, S, A> {
         let last = cells.len().saturating_sub(1);
         let len = cells.len();
 
-        let focus = props.as_ref().map(|props| props.focus).unwrap_or_default();
-
         for (i, (cell, area)) in cells.into_iter().enumerate() {
             let block_type = match i {
                 0 if len == 1 => FooterBlockType::Single,
@@ -285,7 +281,7 @@ impl<'a: 'static, S, A> Widget for Footer<'a, S, A> {
                 _ if i == last => FooterBlockType::End,
                 _ => FooterBlockType::Repeat,
             };
-            self.render_cell(frame, *area, block_type, cell.clone(), focus);
+            self.render_cell(frame, *area, block_type, cell.clone(), props.focus);
         }
     }
 
@@ -383,7 +379,7 @@ impl<S, A> Widget for Container<S, A> {
         }
     }
 
-    fn render(&self, frame: &mut ratatui::Frame, area: Rect, props: Option<RenderProps>) {
+    fn render(&self, frame: &mut ratatui::Frame, props: RenderProps) {
         let header_h = if self.header.is_some() { 3 } else { 0 };
         let footer_h = if self.footer.is_some() && !self.props.hide_footer {
             3
@@ -396,7 +392,7 @@ impl<S, A> Widget for Container<S, A> {
             Constraint::Min(1),
             Constraint::Length(footer_h),
         ])
-        .areas(area);
+        .areas(props.area);
 
         let borders = match (
             self.header.is_some(),
@@ -408,24 +404,25 @@ impl<S, A> Widget for Container<S, A> {
             (true, true) => Borders::LEFT | Borders::RIGHT,
         };
 
-        let focus = props.as_ref().map(|props| props.focus).unwrap_or_default();
-
         let block = Block::default()
-            .border_style(style::border(focus))
+            .border_style(style::border(props.focus))
             .border_type(BorderType::Rounded)
             .borders(borders);
         frame.render_widget(block.clone(), content_area);
 
         if let Some(header) = &self.header {
-            header.render(frame, header_area, props.clone());
+            header.render(frame, RenderProps::from(header_area).focus(props.focus));
         }
 
         if let Some(content) = &self.content {
-            content.render(frame, block.inner(content_area), props.clone());
+            content.render(
+                frame,
+                RenderProps::from(block.inner(content_area)).focus(props.focus),
+            );
         }
 
         if let Some(footer) = &self.footer {
-            footer.render(frame, footer_area, props);
+            footer.render(frame, RenderProps::from(footer_area).focus(props.focus));
         }
     }
 

@@ -37,31 +37,23 @@ pub struct BaseView<S, A> {
 /// They can be passed to a widgets' `render` function.
 #[derive(Clone, Default)]
 pub struct RenderProps {
+    /// Area of the render props
+    pub area: Rect,
     /// Focus of the render props.
     pub focus: bool,
 }
 
 impl RenderProps {
-    /// Creates render props with focus.
-    pub fn focused() -> Self {
-        Self { focus: true }
-    }
-
-    /// Creates render props with no focus.
-    pub fn blurred() -> Self {
-        Self { focus: false }
-    }
-
     /// Sets the focus of these render props.
-    pub fn focus(mut self) -> Self {
-        self.focus = true;
+    pub fn focus(mut self, focus: bool) -> Self {
+        self.focus = focus;
         self
     }
+}
 
-    /// Removes the focus from these render props.
-    pub fn blur(mut self) -> Self {
-        self.focus = false;
-        self
+impl From<Rect> for RenderProps {
+    fn from(area: Rect) -> Self {
+        Self { area, focus: false }
     }
 }
 
@@ -99,7 +91,7 @@ pub trait Widget {
     /// Renders a widget to the given frame in the given area.
     ///
     /// Optional render props can be given.
-    fn render(&self, frame: &mut Frame, area: Rect, props: Option<RenderProps>);
+    fn render(&self, frame: &mut Frame, props: RenderProps);
 
     /// Return a mutable reference to this widgets' base view.
     fn base_mut(&mut self) -> &mut BaseView<Self::State, Self::Action>;
@@ -266,7 +258,7 @@ where
         }
     }
 
-    fn render(&self, frame: &mut ratatui::Frame, _area: Rect, _props: Option<RenderProps>) {
+    fn render(&self, frame: &mut ratatui::Frame, _props: RenderProps) {
         let area = frame.size();
 
         let page = self
@@ -276,7 +268,7 @@ where
             .and_then(|id| self.pages.get(id));
 
         if let Some(page) = page {
-            page.render(frame, area, Some(RenderProps { focus: true }));
+            page.render(frame, RenderProps::from(area).focus(true));
         }
     }
 
@@ -363,7 +355,7 @@ impl<S, A> Widget for Shortcuts<S, A> {
             ShortcutsProps::from_callback(self.base.on_update, state).unwrap_or(self.props.clone());
     }
 
-    fn render(&self, frame: &mut ratatui::Frame, area: Rect, _props: Option<RenderProps>) {
+    fn render(&self, frame: &mut ratatui::Frame, props: RenderProps) {
         use ratatui::widgets::Table;
 
         let mut shortcuts = self.props.shortcuts.iter().peekable();
@@ -398,7 +390,7 @@ impl<S, A> Widget for Shortcuts<S, A> {
             .collect();
 
         let table = Table::new([Row::new(row)], widths).column_spacing(0);
-        frame.render_widget(table, area);
+        frame.render_widget(table, props.area);
     }
 
     fn base_mut(&mut self) -> &mut BaseView<S, A> {
@@ -629,7 +621,7 @@ where
         }
     }
 
-    fn render(&self, frame: &mut ratatui::Frame, area: Rect, _props: Option<RenderProps>) {
+    fn render(&self, frame: &mut ratatui::Frame, props: RenderProps) {
         let widths: Vec<Constraint> = self
             .props
             .columns
@@ -637,7 +629,7 @@ where
             .filter_map(|c| if !c.skip { Some(c.width) } else { None })
             .collect();
 
-        let widths = if area.width < self.props.cutoff as u16 {
+        let widths = if props.area.width < self.props.cutoff as u16 {
             widths
                 .iter()
                 .take(self.props.cutoff_after)
@@ -674,9 +666,9 @@ where
                 .column_spacing(1)
                 .highlight_style(style::highlight());
 
-            frame.render_stateful_widget(rows, area, &mut self.state.clone());
+            frame.render_stateful_widget(rows, props.area, &mut self.state.clone());
         } else {
-            let center = layout::centered_rect(area, 50, 10);
+            let center = layout::centered_rect(props.area, 50, 10);
             let hint = Text::from(span::default("Nothing to show"))
                 .centered()
                 .light_magenta()

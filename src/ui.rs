@@ -12,6 +12,8 @@ use std::time::Duration;
 use tokio::sync::broadcast;
 use tokio::sync::mpsc::{self, UnboundedReceiver, UnboundedSender};
 
+use crate::ui::widget::RenderProps;
+
 use super::event::Event;
 use super::store::State;
 use super::task::Interrupted;
@@ -106,7 +108,7 @@ impl<A> Frontend<A> {
                     break Ok(interrupted);
                 }
             }
-            terminal.draw(|frame| root.render(frame, frame.size(), None))?;
+            terminal.draw(|frame| root.render(frame, RenderProps::from(frame.size())))?;
         };
 
         terminal::restore(&mut terminal)?;
