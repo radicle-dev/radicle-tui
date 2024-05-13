@@ -1,5 +1,6 @@
 pub mod container;
 pub mod input;
+pub mod page;
 pub mod text;
 
 use std::any::Any;
