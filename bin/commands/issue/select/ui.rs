@@ -24,7 +24,7 @@ use tui::ui::widget::input::{TextField, TextFieldProps, TextFieldState};
 use tui::ui::widget::list::{Table, TableProps, TableUtils};
 use tui::ui::widget::text::{Paragraph, ParagraphProps, ParagraphState};
 use tui::ui::widget::window::{Shortcuts, ShortcutsProps};
-use tui::ui::widget::{BaseView, Properties, RenderProps, Widget, WidgetState};
+use tui::ui::widget::{BaseView, BoxedAny, Properties, RenderProps, Widget};
 
 use tui::Selection;
 
@@ -116,6 +116,7 @@ impl<'a> From<&State> for BrowsePageProps<'a> {
 }
 
 impl<'a> Properties for BrowsePageProps<'a> {}
+impl<'a> BoxedAny for BrowsePageProps<'a> {}
 
 pub struct BrowsePage<'a> {
     /// Internal base
@@ -401,6 +402,7 @@ impl<'a> From<&State> for HelpPageProps<'a> {
 }
 
 impl<'a> Properties for HelpPageProps<'a> {}
+impl<'a> BoxedAny for HelpPageProps<'a> {}
 
 pub struct HelpPage<'a> {
     /// Internal base
