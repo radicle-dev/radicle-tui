@@ -16,10 +16,8 @@ use tui::store;
 use tui::task;
 use tui::task::Interrupted;
 use tui::ui::items::{Filter, PatchItem, PatchItemFilter};
-use tui::ui::widget::Properties;
-use tui::ui::widget::Widget;
-use tui::ui::widget::Window;
-use tui::ui::widget::WindowProps;
+use tui::ui::widget::window::{Window, WindowProps};
+use tui::ui::widget::{Properties, Widget};
 use tui::ui::Frontend;
 use tui::Exit;
 

@@ -16,13 +16,15 @@ use tui::ui::items::{NotificationItem, NotificationItemFilter, NotificationState
 use tui::ui::span;
 use tui::ui::widget;
 use tui::ui::widget::container::{
-    Container, ContainerProps, Footer, FooterProps, Header, HeaderProps,
+    Column, Container, ContainerProps, Footer, FooterProps, Header, HeaderProps, SectionGroup,
+    SectionGroupProps,
 };
 use tui::ui::widget::input::{TextField, TextFieldProps, TextFieldState};
-use tui::ui::widget::page::{SectionGroup, SectionGroupProps};
+use tui::ui::widget::list::{Table, TableProps, TableUtils};
 use tui::ui::widget::text::{Paragraph, ParagraphProps, ParagraphState};
-use tui::ui::widget::{BaseView, RenderProps, TableUtils, WidgetState};
-use tui::ui::widget::{Column, Properties, Shortcuts, ShortcutsProps, Table, TableProps, Widget};
+use tui::ui::widget::window::{Shortcuts, ShortcutsProps};
+use tui::ui::widget::{BaseView, Properties, RenderProps, Widget, WidgetState};
+
 use tui::Selection;
 
 use crate::tui_inbox::common::{InboxOperation, Mode, RepositoryMode, SelectionMode};

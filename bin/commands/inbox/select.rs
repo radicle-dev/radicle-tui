@@ -17,9 +17,11 @@ use radicle_tui as tui;
 use tui::cob::inbox::{self};
 use tui::store;
 use tui::store::StateValue;
-use tui::task::{self, Interrupted};
+use tui::task;
+use tui::task::Interrupted;
 use tui::ui::items::{Filter, NotificationItem, NotificationItemFilter};
-use tui::ui::widget::{Properties, Widget, Window, WindowProps};
+use tui::ui::widget::window::{Window, WindowProps};
+use tui::ui::widget::{Properties, Widget};
 use tui::ui::Frontend;
 use tui::Exit;
 
