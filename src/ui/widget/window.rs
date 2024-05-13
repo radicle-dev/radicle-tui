@@ -12,7 +12,7 @@ use ratatui::widgets::Row;
 
 use crate::ui::theme::style;
 
-use super::{BaseView, BoxedWidget, Properties, RenderProps, Widget};
+use super::{BaseView, BoxedAny, BoxedWidget, Properties, RenderProps, Widget};
 
 #[derive(Clone)]
 pub struct WindowProps<Id> {
@@ -33,6 +33,7 @@ impl<Id> Default for WindowProps<Id> {
 }
 
 impl<Id> Properties for WindowProps<Id> {}
+impl<Id> BoxedAny for WindowProps<Id> {}
 
 pub struct Window<S, A, Id> {
     /// Internal base
@@ -152,6 +153,7 @@ impl Default for ShortcutsProps {
 }
 
 impl Properties for ShortcutsProps {}
+impl BoxedAny for ShortcutsProps {}
 
 pub struct Shortcuts<S, A> {
     /// Internal properties

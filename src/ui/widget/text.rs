@@ -5,7 +5,7 @@ use termion::event::Key;
 use ratatui::layout::{Constraint, Layout};
 use ratatui::text::Text;
 
-use super::{BaseView, Properties, RenderProps, Widget, WidgetState};
+use super::{BaseView, BoxedAny, Properties, RenderProps, Widget};
 
 #[derive(Clone)]
 pub struct ParagraphProps<'a> {
@@ -41,6 +41,7 @@ impl<'a> Default for ParagraphProps<'a> {
 }
 
 impl<'a: 'static> Properties for ParagraphProps<'a> {}
+impl<'a: 'static> BoxedAny for ParagraphProps<'a> {}
 
 #[derive(Clone)]
 pub struct ParagraphState {
@@ -50,7 +51,7 @@ pub struct ParagraphState {
     pub progress: usize,
 }
 
-impl WidgetState for ParagraphState {}
+impl BoxedAny for ParagraphState {}
 
 pub struct Paragraph<'a, S, A> {
     /// Internal base

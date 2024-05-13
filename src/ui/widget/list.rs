@@ -13,7 +13,8 @@ use ratatui::widgets::TableState;
 use crate::ui::theme::style;
 use crate::ui::{layout, span};
 
-use super::{container::Column, BaseView, Properties, RenderProps, ToRow, Widget, WidgetState};
+use super::BoxedAny;
+use super::{container::Column, BaseView, Properties, RenderProps, ToRow, Widget};
 
 #[derive(Clone, Debug)]
 pub struct TableProps<'a, R, const W: usize>
@@ -83,7 +84,9 @@ where
 }
 
 impl<'a: 'static, R, const W: usize> Properties for TableProps<'a, R, W> where R: ToRow<W> + 'static {}
-impl WidgetState for TableState {}
+impl<'a: 'static, R, const W: usize> BoxedAny for TableProps<'a, R, W> where R: ToRow<W> + 'static {}
+
+impl BoxedAny for TableState {}
 
 pub struct Table<'a, S, A, R, const W: usize>
 where

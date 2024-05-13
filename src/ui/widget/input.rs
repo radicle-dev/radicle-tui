@@ -6,7 +6,7 @@ use ratatui::layout::{Constraint, Layout};
 use ratatui::style::Stylize;
 use ratatui::text::{Line, Span};
 
-use super::{BaseView, Properties, RenderProps, Widget, WidgetState};
+use super::{BaseView, BoxedAny, Properties, RenderProps, Widget};
 
 #[derive(Clone)]
 pub struct TextFieldProps {
@@ -54,7 +54,7 @@ pub struct TextFieldState {
     pub cursor_position: usize,
 }
 
-impl WidgetState for TextFieldState {}
+impl BoxedAny for TextFieldState {}
 
 pub struct TextField<S, A> {
     /// Internal base

@@ -144,16 +144,9 @@ pub trait Properties {
         Box::new(self)
     }
 
-    fn from_boxed_any(any: Box<dyn Any>) -> Option<Self>
-    where
-        Self: Sized + Clone + 'static,
-    {
-        any.downcast_ref::<Self>().cloned()
-    }
-
     fn from_callback<S>(callback: Option<UpdateCallback<S>>, state: &S) -> Option<Self>
     where
-        Self: Sized + Clone + 'static,
+        Self: Sized + Clone + 'static + BoxedAny,
     {
         callback
             .map(|callback| (callback)(state))
@@ -161,18 +154,19 @@ pub trait Properties {
     }
 }
 
-pub trait WidgetState {
-    fn to_boxed_any(self) -> Box<dyn Any>
-    where
-        Self: Sized + Clone + 'static,
-    {
-        Box::new(self)
-    }
-
+/// Provide default implementations for conversions to and from `Box<dyn Any>`.
+pub trait BoxedAny {
     fn from_boxed_any(any: Box<dyn Any>) -> Option<Self>
     where
         Self: Sized + Clone + 'static,
     {
         any.downcast_ref::<Self>().cloned()
+    }
+
+    fn to_boxed_any(self) -> Box<dyn Any>
+    where
+        Self: Sized + Clone + 'static,
+    {
+        Box::new(self)
     }
 }

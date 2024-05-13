@@ -10,7 +10,7 @@ use ratatui::widgets::{Block, BorderType, Borders, Row};
 use crate::ui::ext::{FooterBlock, FooterBlockType, HeaderBlock};
 use crate::ui::theme::style;
 
-use super::{BaseView, BoxedWidget, Properties, RenderProps, Widget, WidgetState};
+use super::{BaseView, BoxedAny, BoxedWidget, Properties, RenderProps, Widget};
 
 #[derive(Clone, Debug)]
 pub struct Column<'a> {
@@ -65,6 +65,7 @@ impl<'a> Default for HeaderProps<'a> {
 }
 
 impl<'a: 'static> Properties for HeaderProps<'a> {}
+impl<'a: 'static> BoxedAny for HeaderProps<'a> {}
 
 pub struct Header<'a: 'static, S, A> {
     /// Internal props
@@ -205,6 +206,7 @@ impl<'a> Default for FooterProps<'a> {
 }
 
 impl<'a: 'static> Properties for FooterProps<'a> {}
+impl<'a: 'static> BoxedAny for FooterProps<'a> {}
 
 pub struct Footer<'a, S, A> {
     /// Internal props
@@ -325,6 +327,7 @@ impl ContainerProps {
 }
 
 impl Properties for ContainerProps {}
+impl BoxedAny for ContainerProps {}
 
 pub struct Container<S, A> {
     /// Internal base
@@ -459,7 +462,7 @@ pub struct SectionGroupState {
     focus: Option<usize>,
 }
 
-impl WidgetState for SectionGroupState {}
+impl BoxedAny for SectionGroupState {}
 
 #[derive(Clone, Default)]
 pub struct SectionGroupProps {
@@ -475,6 +478,7 @@ impl SectionGroupProps {
 }
 
 impl Properties for SectionGroupProps {}
+impl BoxedAny for SectionGroupProps {}
 
 pub struct SectionGroup<S, A> {
     /// Internal base
