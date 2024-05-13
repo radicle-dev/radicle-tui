@@ -14,12 +14,14 @@ use radicle_tui as tui;
 
 use tui::ui::items::{NotificationItem, NotificationItemFilter, NotificationState};
 use tui::ui::span;
+use tui::ui::widget;
 use tui::ui::widget::container::{
     Container, ContainerProps, Footer, FooterProps, Header, HeaderProps,
 };
 use tui::ui::widget::input::{TextField, TextFieldProps, TextFieldState};
+use tui::ui::widget::page::{SectionGroup, SectionGroupProps};
 use tui::ui::widget::text::{Paragraph, ParagraphProps, ParagraphState};
-use tui::ui::widget::{self, BaseView, RenderProps, TableUtils, WidgetState};
+use tui::ui::widget::{BaseView, RenderProps, TableUtils, WidgetState};
 use tui::ui::widget::{Column, Properties, Shortcuts, ShortcutsProps, Table, TableProps, Widget};
 use tui::Selection;
 
@@ -171,10 +173,8 @@ impl<'a: 'static> Widget for Browser<'a> {
                 .footer(
                     Footer::new(state, action_tx.clone())
                         .on_update(|state| {
-                            let props = BrowserProps::from(state);
-
                             FooterProps::default()
-                                .columns(browse_footer(&props, props.selected))
+                                .columns(browse_footer(&BrowserProps::from(state)))
                                 .to_boxed()
                         })
                         .to_boxed(),
@@ -255,10 +255,9 @@ impl<'a: 'static> Widget for Browser<'a> {
             self.notifications
                 .render(frame, RenderProps::from(table_area));
             self.search
-                .render(frame, RenderProps::from(search_area).focus(true));
+                .render(frame, RenderProps::from(search_area).focus(props.focus));
         } else {
-            self.notifications
-                .render(frame, RenderProps::from(props.area));
+            self.notifications.render(frame, props);
         }
     }
 
@@ -272,7 +271,7 @@ struct BrowserPageProps<'a> {
     /// Current page size (height of table content).
     page_size: usize,
     /// If this pages' keys should be handled (`false` if search is shown).
-    global_keys: bool,
+    handle_keys: bool,
     /// This pages' shortcuts.
     shortcuts: Vec<(&'a str, &'a str)>,
 }
@@ -281,7 +280,7 @@ impl<'a> From<&State> for BrowserPageProps<'a> {
     fn from(state: &State) -> Self {
         Self {
             page_size: state.browser.page_size,
-            global_keys: !state.browser.show_search,
+            handle_keys: !state.browser.show_search,
             shortcuts: if state.browser.show_search {
                 vec![("esc", "cancel"), ("enter", "apply")]
             } else {
@@ -306,8 +305,8 @@ pub struct BrowserPage<'a> {
     base: BaseView<State, Action>,
     /// Internal props
     props: BrowserPageProps<'a>,
-    /// Notifications widget
-    browser: BoxedWidget,
+    /// Sections widget
+    sections: BoxedWidget,
     /// Shortcut widget
     shortcuts: BoxedWidget,
 }
@@ -326,7 +325,15 @@ impl<'a: 'static> Widget for BrowserPage<'a> {
                 on_event: None,
             },
             props: props.clone(),
-            browser: Browser::new(state, action_tx.clone()).to_boxed(),
+            sections: SectionGroup::new(state, action_tx.clone())
+                .section(Browser::new(state, action_tx.clone()).to_boxed())
+                .on_update(|state| {
+                    let props = BrowserPageProps::from(state);
+                    SectionGroupProps::default()
+                        .handle_keys(props.handle_keys)
+                        .to_boxed()
+                })
+                .to_boxed(),
             shortcuts: Shortcuts::new(state, action_tx.clone())
                 .on_update(|state| {
                     ShortcutsProps::default()
@@ -338,9 +345,9 @@ impl<'a: 'static> Widget for BrowserPage<'a> {
     }
 
     fn handle_event(&mut self, key: Key) {
-        self.browser.handle_event(key);
+        self.sections.handle_event(key);
 
-        if self.props.global_keys {
+        if self.props.handle_keys {
             match key {
                 Key::Esc | Key::Ctrl('c') => {
                     let _ = self.base.action_tx.send(Action::Exit { selection: None });
@@ -357,7 +364,7 @@ impl<'a: 'static> Widget for BrowserPage<'a> {
         self.props = BrowserPageProps::from_callback(self.base.on_update, state)
             .unwrap_or(BrowserPageProps::from(state));
 
-        self.browser.update(state);
+        self.sections.update(state);
         self.shortcuts.update(state);
     }
 
@@ -367,8 +374,12 @@ impl<'a: 'static> Widget for BrowserPage<'a> {
         let [content_area, shortcuts_area] =
             Layout::vertical([Constraint::Min(1), Constraint::Length(1)]).areas(props.area);
 
-        self.browser
-            .render(frame, RenderProps::from(content_area).focus(true));
+        self.sections.render(
+            frame,
+            RenderProps::from(content_area)
+                .layout(Layout::horizontal([Constraint::Min(1)]))
+                .focus(true),
+        );
         self.shortcuts
             .render(frame, RenderProps::from(shortcuts_area));
 
@@ -617,7 +628,7 @@ impl<'a: 'static> Widget for HelpPage<'a> {
     }
 }
 
-fn browse_footer<'a>(props: &BrowserProps<'a>, selected: Option<usize>) -> Vec<Column<'a>> {
+fn browse_footer<'a>(props: &BrowserProps<'a>) -> Vec<Column<'a>> {
     let search = Line::from(vec![
         span::default(" Search ").cyan().dim().reversed(),
         span::default(" "),
@@ -635,7 +646,8 @@ fn browse_footer<'a>(props: &BrowserProps<'a>, selected: Option<usize>) -> Vec<C
         span::default(" Unseen").dim(),
     ]);
 
-    let progress = selected
+    let progress = props
+        .selected
         .map(|selected| TableUtils::progress(selected, props.notifications.len(), props.page_size))
         .unwrap_or_default();
     let progress = span::default(&format!("{}%", progress)).dim();
