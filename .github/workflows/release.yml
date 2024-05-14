@@ -66,7 +66,7 @@ jobs:
             ~/.cargo/git
             target
           key: cargo-${{ matrix.target }}-${{ hashFiles('**/Cargo.lock') }}
-      - uses: dtolnay/rust-toolchain@1.74
+      - uses: dtolnay/rust-toolchain@1.77
       - name: Build release binaries
         run: |
           rustup target add "${{ matrix.target }}"
