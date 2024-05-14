@@ -22,7 +22,7 @@ use tui::ui::Frontend;
 use tui::Exit;
 use tui::{store, PageStack};
 
-use self::ui::{BrowsePage, HelpPage};
+use self::ui::{BrowserPage, HelpPage};
 
 use super::common::Mode;
 
@@ -203,7 +203,7 @@ impl App {
         let window: Window<State, Action, Page> = Window::new(&state, action_tx.clone())
             .page(
                 Page::Browse,
-                BrowsePage::new(&state, action_tx.clone()).to_boxed(),
+                BrowserPage::new(&state, action_tx.clone()).to_boxed(),
             )
             .page(
                 Page::Help,

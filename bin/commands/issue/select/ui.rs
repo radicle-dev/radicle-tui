@@ -18,7 +18,8 @@ use tui::ui::items::{IssueItem, IssueItemFilter};
 use tui::ui::span;
 use tui::ui::widget;
 use tui::ui::widget::container::{
-    Column, Container, ContainerProps, Footer, FooterProps, Header, HeaderProps,
+    Column, Container, ContainerProps, Footer, FooterProps, Header, HeaderProps, SectionGroup,
+    SectionGroupProps,
 };
 use tui::ui::widget::input::{TextField, TextFieldProps, TextFieldState};
 use tui::ui::widget::list::{Table, TableProps, TableUtils};
@@ -36,21 +37,32 @@ use super::{Action, State};
 type BoxedWidget = widget::BoxedWidget<State, Action>;
 
 #[derive(Clone)]
-struct BrowsePageProps<'a> {
+struct BrowserProps<'a> {
+    /// Application mode: openation and id or id only.
     mode: Mode,
+    /// Filtered issues.
     issues: Vec<IssueItem>,
+    /// Current (selected) table index
     selected: Option<usize>,
-    search: String,
+    /// Issue statistics.
     stats: HashMap<String, usize>,
+    /// Header columns
+    header: Vec<Column<'a>>,
+    /// Table columns
     columns: Vec<Column<'a>>,
+    /// Max. width, before columns are cut-off.
     cutoff: usize,
+    /// Column index that marks where to cut.
     cutoff_after: usize,
+    /// Current page size (height of table content).
     page_size: usize,
+    /// If search widget should be shown.
     show_search: bool,
-    shortcuts: Vec<(&'a str, &'a str)>,
+    /// Current search string.
+    search: String,
 }
 
-impl<'a> From<&State> for BrowsePageProps<'a> {
+impl<'a> From<&State> for BrowserProps<'a> {
     fn from(state: &State) -> Self {
         use radicle::issue::State;
 
@@ -84,7 +96,19 @@ impl<'a> From<&State> for BrowsePageProps<'a> {
         Self {
             mode: state.mode.clone(),
             issues,
-            search: state.browser.search.read(),
+            selected: state.browser.selected,
+            stats,
+            header: [
+                Column::new(" ● ", Constraint::Length(3)),
+                Column::new("ID", Constraint::Length(8)),
+                Column::new("Title", Constraint::Fill(5)),
+                Column::new("Author", Constraint::Length(16)),
+                Column::new("", Constraint::Length(16)),
+                Column::new("Labels", Constraint::Fill(1)),
+                Column::new("Assignees", Constraint::Fill(1)),
+                Column::new("Opened", Constraint::Length(16)),
+            ]
+            .to_vec(),
             columns: [
                 Column::new(" ● ", Constraint::Length(3)),
                 Column::new("ID", Constraint::Length(8)),
@@ -98,45 +122,33 @@ impl<'a> From<&State> for BrowsePageProps<'a> {
             .to_vec(),
             cutoff: 200,
             cutoff_after: 5,
-            stats,
             page_size: state.browser.page_size,
+            search: state.browser.search.read(),
             show_search: state.browser.show_search,
-            selected: state.browser.selected,
-            shortcuts: match state.mode {
-                Mode::Id => vec![("enter", "select"), ("/", "search")],
-                Mode::Operation => vec![
-                    ("enter", "show"),
-                    ("e", "edit"),
-                    ("/", "search"),
-                    ("?", "help"),
-                ],
-            },
         }
     }
 }
 
-impl<'a> Properties for BrowsePageProps<'a> {}
-impl<'a> BoxedAny for BrowsePageProps<'a> {}
+impl<'a> Properties for BrowserProps<'a> {}
+impl<'a> BoxedAny for BrowserProps<'a> {}
 
-pub struct BrowsePage<'a> {
+pub struct Browser<'a> {
     /// Internal base
     base: BaseView<State, Action>,
     /// Internal props
-    props: BrowsePageProps<'a>,
+    props: BrowserProps<'a>,
     /// Notifications widget
     issues: BoxedWidget,
     /// Search widget
     search: BoxedWidget,
-    /// Shortcut widget
-    shortcuts: BoxedWidget,
 }
 
-impl<'a: 'static> Widget for BrowsePage<'a> {
+impl<'a: 'static> Widget for Browser<'a> {
     type Action = Action;
     type State = State;
 
     fn new(state: &State, action_tx: UnboundedSender<Action>) -> Self {
-        let props = BrowsePageProps::from(state);
+        let props = BrowserProps::from(state);
 
         Self {
             base: BaseView {
@@ -144,11 +156,11 @@ impl<'a: 'static> Widget for BrowsePage<'a> {
                 on_update: None,
                 on_event: None,
             },
-            props: BrowsePageProps::from(state),
+            props: BrowserProps::from(state),
             issues: Container::new(state, action_tx.clone())
                 .header(
                     Header::new(state, action_tx.clone())
-                        .columns(props.columns.clone())
+                        .columns(props.header.clone())
                         .cutoff(props.cutoff, props.cutoff_after)
                         .to_boxed(),
                 )
@@ -164,7 +176,7 @@ impl<'a: 'static> Widget for BrowsePage<'a> {
                             });
                         })
                         .on_update(|state| {
-                            let props = BrowsePageProps::from(state);
+                            let props = BrowserProps::from(state);
 
                             TableProps::default()
                                 .columns(props.columns)
@@ -178,7 +190,7 @@ impl<'a: 'static> Widget for BrowsePage<'a> {
                 .footer(
                     Footer::new(state, action_tx.clone())
                         .on_update(|state| {
-                            let props = BrowsePageProps::from(state);
+                            let props = BrowserProps::from(state);
 
                             FooterProps::default()
                                 .columns(browse_footer(&props, props.selected))
@@ -188,18 +200,11 @@ impl<'a: 'static> Widget for BrowsePage<'a> {
                 )
                 .on_update(|state| {
                     ContainerProps::default()
-                        .hide_footer(BrowsePageProps::from(state).show_search)
+                        .hide_footer(BrowserProps::from(state).show_search)
                         .to_boxed()
                 })
                 .to_boxed(),
             search: Search::new(state, action_tx.clone()).to_boxed(),
-            shortcuts: Shortcuts::new(state, action_tx.clone())
-                .on_update(|state| {
-                    ShortcutsProps::default()
-                        .shortcuts(&BrowsePageProps::from(state).shortcuts)
-                        .to_boxed()
-                })
-                .to_boxed(),
         }
     }
 
@@ -208,12 +213,6 @@ impl<'a: 'static> Widget for BrowsePage<'a> {
             self.search.handle_event(key);
         } else {
             match key {
-                Key::Esc | Key::Ctrl('c') => {
-                    let _ = self.base.action_tx.send(Action::Exit { selection: None });
-                }
-                Key::Char('?') => {
-                    let _ = self.base.action_tx.send(Action::OpenHelp);
-                }
                 Key::Char('/') => {
                     let _ = self.base.action_tx.send(Action::OpenSearch);
                 }
@@ -264,11 +263,131 @@ impl<'a: 'static> Widget for BrowsePage<'a> {
     }
 
     fn update(&mut self, state: &State) {
-        self.props = BrowsePageProps::from_callback(self.base.on_update, state)
-            .unwrap_or(BrowsePageProps::from(state));
+        self.props = BrowserProps::from_callback(self.base.on_update, state)
+            .unwrap_or(BrowserProps::from(state));
 
         self.issues.update(state);
         self.search.update(state);
+    }
+
+    fn render(&self, frame: &mut ratatui::Frame, props: RenderProps) {
+        if self.props.show_search {
+            let [table_area, search_area] =
+                Layout::vertical([Constraint::Min(1), Constraint::Length(2)]).areas(props.area);
+
+            self.issues.render(frame, RenderProps::from(table_area));
+            self.search
+                .render(frame, RenderProps::from(search_area).focus(props.focus));
+        } else {
+            self.issues.render(frame, props);
+        }
+    }
+
+    fn base_mut(&mut self) -> &mut BaseView<State, Action> {
+        &mut self.base
+    }
+}
+
+#[derive(Clone)]
+struct BrowserPageProps<'a> {
+    /// Current page size (height of table content).
+    page_size: usize,
+    /// If this pages' keys should be handled (`false` if search is shown).
+    handle_keys: bool,
+    /// This pages' shortcuts.
+    shortcuts: Vec<(&'a str, &'a str)>,
+}
+
+impl<'a> From<&State> for BrowserPageProps<'a> {
+    fn from(state: &State) -> Self {
+        Self {
+            page_size: state.browser.page_size,
+            handle_keys: !state.browser.show_search,
+            shortcuts: if state.browser.show_search {
+                vec![("esc", "cancel"), ("enter", "apply")]
+            } else {
+                match state.mode {
+                    Mode::Id => vec![("enter", "select"), ("/", "search")],
+                    Mode::Operation => vec![
+                        ("enter", "show"),
+                        ("e", "edit"),
+                        ("/", "search"),
+                        ("?", "help"),
+                    ],
+                }
+            },
+        }
+    }
+}
+
+impl<'a> Properties for BrowserPageProps<'a> {}
+impl<'a> BoxedAny for BrowserPageProps<'a> {}
+
+pub struct BrowserPage<'a> {
+    /// Internal base
+    base: BaseView<State, Action>,
+    /// Internal props
+    props: BrowserPageProps<'a>,
+    /// Sections widget
+    sections: BoxedWidget,
+    /// Shortcut widget
+    shortcuts: BoxedWidget,
+}
+
+impl<'a: 'static> Widget for BrowserPage<'a> {
+    type Action = Action;
+    type State = State;
+
+    fn new(state: &State, action_tx: UnboundedSender<Action>) -> Self {
+        let props = BrowserPageProps::from(state);
+
+        Self {
+            base: BaseView {
+                action_tx: action_tx.clone(),
+                on_update: None,
+                on_event: None,
+            },
+            props: props.clone(),
+            sections: SectionGroup::new(state, action_tx.clone())
+                .section(Browser::new(state, action_tx.clone()).to_boxed())
+                .on_update(|state| {
+                    let props = BrowserPageProps::from(state);
+                    SectionGroupProps::default()
+                        .handle_keys(props.handle_keys)
+                        .to_boxed()
+                })
+                .to_boxed(),
+            shortcuts: Shortcuts::new(state, action_tx.clone())
+                .on_update(|state| {
+                    ShortcutsProps::default()
+                        .shortcuts(&BrowserPageProps::from(state).shortcuts)
+                        .to_boxed()
+                })
+                .to_boxed(),
+        }
+    }
+
+    fn handle_event(&mut self, key: Key) {
+        self.sections.handle_event(key);
+
+        if self.props.handle_keys {
+            match key {
+                Key::Esc | Key::Ctrl('c') => {
+                    let _ = self.base.action_tx.send(Action::Exit { selection: None });
+                }
+                Key::Char('?') => {
+                    let _ = self.base.action_tx.send(Action::OpenHelp);
+                }
+                _ => {}
+            }
+        }
+    }
+
+    fn update(&mut self, state: &State) {
+        self.props = BrowserPageProps::from_callback(self.base.on_update, state)
+            .unwrap_or(BrowserPageProps::from(state));
+
+        self.sections.update(state);
         self.shortcuts.update(state);
     }
 
@@ -278,18 +397,12 @@ impl<'a: 'static> Widget for BrowsePage<'a> {
         let [content_area, shortcuts_area] =
             Layout::vertical([Constraint::Min(1), Constraint::Length(1)]).areas(props.area);
 
-        if self.props.show_search {
-            let [table_area, search_area] =
-                Layout::vertical([Constraint::Min(1), Constraint::Length(2)]).areas(content_area);
-
-            self.issues.render(frame, RenderProps::from(table_area));
-            self.search
-                .render(frame, RenderProps::from(search_area).focus(true));
-        } else {
-            self.issues
-                .render(frame, RenderProps::from(content_area).focus(true));
-        }
-
+        self.sections.render(
+            frame,
+            RenderProps::from(content_area)
+                .layout(Layout::horizontal([Constraint::Min(1)]))
+                .focus(true),
+        );
         self.shortcuts
             .render(frame, RenderProps::from(shortcuts_area));
 
@@ -536,7 +649,7 @@ impl<'a: 'static> Widget for HelpPage<'a> {
     }
 }
 
-fn browse_footer<'a>(props: &BrowsePageProps<'a>, selected: Option<usize>) -> Vec<Column<'a>> {
+fn browse_footer<'a>(props: &BrowserProps<'a>, selected: Option<usize>) -> Vec<Column<'a>> {
     let search = Line::from(vec![
         span::default(" Search ").cyan().dim().reversed(),
         span::default(" "),
