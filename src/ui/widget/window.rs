@@ -12,7 +12,7 @@ use ratatui::widgets::Row;
 
 use crate::ui::theme::style;
 
-use super::{BaseView, BoxedAny, BoxedWidget, Properties, RenderProps, Widget};
+use super::{WidgetBase, BoxedAny, BoxedWidget, Properties, RenderProps, Widget};
 
 #[derive(Clone)]
 pub struct WindowProps<Id> {
@@ -37,7 +37,7 @@ impl<Id> BoxedAny for WindowProps<Id> {}
 
 pub struct Window<S, A, Id> {
     /// Internal base
-    base: BaseView<S, A>,
+    base: WidgetBase<S, A>,
     /// Internal properties
     props: WindowProps<Id>,
     /// All pages known
@@ -66,7 +66,7 @@ where
         Self: Sized,
     {
         Self {
-            base: BaseView {
+            base: WidgetBase {
                 action_tx: action_tx.clone(),
                 on_update: None,
                 on_event: None,
@@ -117,7 +117,7 @@ where
         }
     }
 
-    fn base_mut(&mut self) -> &mut BaseView<S, A> {
+    fn base_mut(&mut self) -> &mut WidgetBase<S, A> {
         &mut self.base
     }
 }
@@ -159,7 +159,7 @@ pub struct Shortcuts<S, A> {
     /// Internal properties
     props: ShortcutsProps,
     /// Internal base
-    base: BaseView<S, A>,
+    base: WidgetBase<S, A>,
 }
 
 impl<S, A> Shortcuts<S, A> {
@@ -185,7 +185,7 @@ impl<S, A> Widget for Shortcuts<S, A> {
 
     fn new(_state: &S, action_tx: UnboundedSender<A>) -> Self {
         Self {
-            base: BaseView {
+            base: WidgetBase {
                 action_tx: action_tx.clone(),
                 on_update: None,
                 on_event: None,
@@ -239,7 +239,7 @@ impl<S, A> Widget for Shortcuts<S, A> {
         frame.render_widget(table, props.area);
     }
 
-    fn base_mut(&mut self) -> &mut BaseView<S, A> {
+    fn base_mut(&mut self) -> &mut WidgetBase<S, A> {
         &mut self.base
     }
 }

@@ -6,7 +6,7 @@ use ratatui::layout::{Constraint, Layout};
 use ratatui::style::Stylize;
 use ratatui::text::{Line, Span};
 
-use super::{BaseView, BoxedAny, Properties, RenderProps, Widget};
+use super::{WidgetBase, BoxedAny, Properties, RenderProps, Widget};
 
 #[derive(Clone)]
 pub struct TextFieldProps {
@@ -58,7 +58,7 @@ impl BoxedAny for TextFieldState {}
 
 pub struct TextField<S, A> {
     /// Internal base
-    base: BaseView<S, A>,
+    base: WidgetBase<S, A>,
     /// Internal props
     props: TextFieldProps,
     /// Internal state
@@ -137,7 +137,7 @@ impl<S: 'static, A: 'static> Widget for TextField<S, A> {
 
     fn new(_state: &S, action_tx: UnboundedSender<A>) -> Self {
         Self {
-            base: BaseView {
+            base: WidgetBase {
                 action_tx: action_tx.clone(),
                 on_update: None,
                 on_event: None,
@@ -238,7 +238,11 @@ impl<S: 'static, A: 'static> Widget for TextField<S, A> {
         }
     }
 
-    fn base_mut(&mut self) -> &mut BaseView<S, A> {
+    fn base(&self) -> &WidgetBase<S, A> {
+        &self.base
+    }
+
+    fn base_mut(&mut self) -> &mut WidgetBase<S, A> {
         &mut self.base
     }
 }

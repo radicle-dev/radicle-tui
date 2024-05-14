@@ -24,7 +24,7 @@ use tui::ui::widget::input::{TextField, TextFieldProps};
 use tui::ui::widget::list::{Table, TableProps, TableUtils};
 use tui::ui::widget::text::{Paragraph, ParagraphProps};
 use tui::ui::widget::window::{Shortcuts, ShortcutsProps};
-use tui::ui::widget::{BaseView, BoxedAny, Properties, RenderProps, Widget};
+use tui::ui::widget::{BoxedAny, Properties, RenderProps, Widget, WidgetBase};
 
 use tui::Selection;
 
@@ -133,7 +133,7 @@ impl<'a> BoxedAny for BrowserProps<'a> {}
 
 pub struct Browser<'a> {
     /// Internal base
-    base: BaseView<State, Action>,
+    base: WidgetBase<State, Action>,
     /// Internal props
     props: BrowserProps<'a>,
     /// Notifications widget
@@ -150,7 +150,7 @@ impl<'a: 'static> Widget for Browser<'a> {
         let props = BrowserProps::from(state);
 
         Self {
-            base: BaseView {
+            base: WidgetBase {
                 action_tx: action_tx.clone(),
                 on_update: None,
                 on_event: None,
@@ -169,8 +169,11 @@ impl<'a: 'static> Widget for Browser<'a> {
                             table
                                 .downcast_mut::<Table<State, Action, IssueItem, 8>>()
                                 .and_then(|table| {
-                                    let selected = table.selected();
-                                    table.base_mut().send(Action::Select { selected }).ok()
+                                    table
+                                        .emit(Action::Select {
+                                            selected: table.selected(),
+                                        })
+                                        .ok()
                                 });
                         })
                         .on_update(|state| {
@@ -279,7 +282,11 @@ impl<'a: 'static> Widget for Browser<'a> {
         }
     }
 
-    fn base_mut(&mut self) -> &mut BaseView<State, Action> {
+    fn base(&self) -> &WidgetBase<State, Action> {
+        &self.base
+    }
+
+    fn base_mut(&mut self) -> &mut WidgetBase<State, Action> {
         &mut self.base
     }
 }
@@ -321,7 +328,7 @@ impl<'a> BoxedAny for BrowserPageProps<'a> {}
 
 pub struct BrowserPage<'a> {
     /// Internal base
-    base: BaseView<State, Action>,
+    base: WidgetBase<State, Action>,
     /// Internal props
     props: BrowserPageProps<'a>,
     /// Sections widget
@@ -338,7 +345,7 @@ impl<'a: 'static> Widget for BrowserPage<'a> {
         let props = BrowserPageProps::from(state);
 
         Self {
-            base: BaseView {
+            base: WidgetBase {
                 action_tx: action_tx.clone(),
                 on_update: None,
                 on_event: None,
@@ -407,7 +414,11 @@ impl<'a: 'static> Widget for BrowserPage<'a> {
         }
     }
 
-    fn base_mut(&mut self) -> &mut BaseView<State, Action> {
+    fn base(&self) -> &WidgetBase<S, A> {
+        &self.base
+    }
+
+    fn base_mut(&mut self) -> &mut WidgetBase<State, Action> {
         &mut self.base
     }
 }
@@ -418,7 +429,7 @@ impl Properties for SearchProps {}
 
 pub struct Search {
     /// Internal base
-    base: BaseView<State, Action>,
+    base: WidgetBase<State, Action>,
     /// Internal props
     _props: SearchProps,
     /// Search input field
@@ -433,34 +444,33 @@ impl Widget for Search {
     where
         Self: Sized,
     {
-        let input = TextField::new(state, action_tx.clone())
-            .on_event(|field| {
-                field
-                    .downcast_mut::<TextField<State, Action>>()
-                    .and_then(|field| {
-                        let text = field.text().unwrap_or(&String::new()).to_string();
-                        field
-                            .base_mut()
-                            .send(Action::UpdateSearch { value: text })
-                            .ok()
-                    });
-            })
-            .on_update(|state| {
-                TextFieldProps::default()
-                    .text(&state.browser.search.read().to_string())
-                    .title("Search")
-                    .inline(true)
-                    .to_boxed()
-            })
-            .to_boxed();
         Self {
-            base: BaseView {
+            base: WidgetBase {
                 action_tx: action_tx.clone(),
                 on_update: None,
                 on_event: None,
             },
             _props: SearchProps {},
-            input,
+            input: TextField::new(state, action_tx.clone())
+                .on_event(|widget| {
+                    widget
+                        .downcast_mut::<TextField<State, Action>>()
+                        .and_then(|field| {
+                            field
+                                .emit(Action::UpdateSearch {
+                                    value: field.text().unwrap_or_default(),
+                                })
+                                .ok()
+                        });
+                })
+                .on_update(|state| {
+                    TextFieldProps::default()
+                        .text(&state.browser.search.read().to_string())
+                        .title("Search")
+                        .inline(true)
+                        .to_boxed()
+                })
+                .to_boxed(),
         }
     }
 
@@ -490,7 +500,11 @@ impl Widget for Search {
         self.input.render(frame, RenderProps::from(layout[0]));
     }
 
-    fn base_mut(&mut self) -> &mut BaseView<State, Action> {
+    fn base(&self) -> &WidgetBase<S, A> {
+        &self.base
+    }
+
+    fn base_mut(&mut self) -> &mut WidgetBase<State, Action> {
         &mut self.base
     }
 }
@@ -517,7 +531,7 @@ impl<'a> BoxedAny for HelpPageProps<'a> {}
 
 pub struct HelpPage<'a> {
     /// Internal base
-    base: BaseView<State, Action>,
+    base: WidgetBase<State, Action>,
     /// Internal props
     props: HelpPageProps<'a>,
     /// Content widget
@@ -535,7 +549,7 @@ impl<'a: 'static> Widget for HelpPage<'a> {
         Self: Sized,
     {
         Self {
-            base: BaseView {
+            base: WidgetBase {
                 action_tx: action_tx.clone(),
                 on_update: None,
                 on_event: None,
@@ -644,7 +658,11 @@ impl<'a: 'static> Widget for HelpPage<'a> {
         }
     }
 
-    fn base_mut(&mut self) -> &mut BaseView<State, Action> {
+    fn base(&self) -> &WidgetBase<State, Action> {
+        &self.base
+    }
+
+    fn base_mut(&mut self) -> &mut WidgetBase<State, Action> {
         &mut self.base
     }
 }

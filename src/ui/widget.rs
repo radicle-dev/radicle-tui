@@ -20,7 +20,7 @@ pub type UpdateCallback<S> = fn(&S) -> Box<dyn Any>;
 pub type EventCallback = fn(&mut dyn Any);
 
 /// A `View`s common fields.
-pub struct BaseView<S, A> {
+pub struct WidgetBase<S, A> {
     /// Message sender
     pub action_tx: UnboundedSender<A>,
     /// Custom update handler
@@ -29,7 +29,7 @@ pub struct BaseView<S, A> {
     pub on_event: Option<EventCallback>,
 }
 
-impl<S, A> BaseView<S, A> {
+impl<S, A> WidgetBase<S, A> {
     pub fn send(&self, action: A) -> Result<(), SendError<A>> {
         self.action_tx.send(action)
     }
@@ -107,8 +107,14 @@ pub trait Widget {
     /// Optional render props can be given.
     fn render(&self, frame: &mut Frame, props: RenderProps);
 
+    fn emit(&self, action: Self::Action) -> Result<(), SendError<Self::Action>> {
+        self.base().send(action)
+    }
+
     /// Return a mutable reference to this widgets' base view.
-    fn base_mut(&mut self) -> &mut BaseView<Self::State, Self::Action>;
+    fn base(&self) -> &WidgetBase<Self::State, Self::Action>;
+
+    fn base_mut(&mut self) -> &mut WidgetBase<Self::State, Self::Action>;
 
     /// Should set the optional custom event handler.
     fn on_event(mut self, callback: EventCallback) -> Self
