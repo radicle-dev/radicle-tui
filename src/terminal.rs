@@ -95,7 +95,8 @@ impl<W: Write> ratatui::backend::Backend for TermionBackendExt<W> {
 pub fn setup(height: usize) -> anyhow::Result<Terminal<Backend>> {
     let stdout = io::stdout().into_raw_mode()?;
     let options = TerminalOptions {
-        viewport: Viewport::Inline(height as u16),
+        // viewport: Viewport::Inline(height as u16),
+        viewport: Viewport::Fullscreen,
     };
 
     Ok(Terminal::with_options(
