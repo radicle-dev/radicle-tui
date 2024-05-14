@@ -2,7 +2,11 @@
 
 _Radicle terminal user interfaces_
 
-## Installation
+## Interfaces
+
+The Radicle terminal interfaces are designed to be modular and to integrate well with the existing Radicle CLI. Right now, they are meant to be called from other programs that will collect and process their output.
+
+### Installation
 
 **Requirements**
 
@@ -10,83 +14,59 @@ _Radicle terminal user interfaces_
 - Git 2.34 or later
 - OpenSSH 9.1 or later with `ssh-agent`
 
-### 📦 From source
+#### From source
 
 > Requires the Rust toolchain.
 
 You can install the binary from source, by running the following
 commands from inside this repository:
 
-    cargo install --path . --force --locked
+```
+cargo install --path . --force --locked
+```
 
 Or directly from our seed node:
 
-    cargo install --force --locked --git https://seed.radicle.xyz/z39mP9rQAaGmERfUMPULfPUi473tY.git
+```
+cargo install --force --locked --git https://seed.radicle.xyz/z39mP9rQAaGmERfUMPULfPUi473tY.git
+```
 
 This will install `rad-tui`. You can execute it by running `rad-tui`. All available commands can be shown by running `rad-tui --help`.
 
-## Interfaces
-
-The Radicle terminal interfaces are designed to be modular and to integrate well with the existing Radicle CLI. Right now, they are meant to be called from other programs that will collect and process their output.
-
 ### Usage
 
-#### Patches
+Select a patch, an issue or a notification and an operation:
 
-Select a patch and an operation:
-
-    $ rad-tui patch select
-    { "operation": "show", "ids": ["546443226b300484a97a2b2d7c7000af6e8169ba"], args:[] }
-
-
+```
+$ rad-tui <patch | issue | inbox> select
+```
 Same as above:
 
-    $ rad-tui patch select --mode operation
-    { "operation": "show", "ids": ["546443226b300484a97a2b2d7c7000af6e8169ba"], args:[] }
+```
+$ rad-tui <patch | issue | inbox> select --mode operation
+```
 
-Select a patch only and return its id:
+Select a patch, an issue or a notification only and return its id:
 
-    $ rad-tui patch select --mode id
-    { "operation": "null", "ids": ["546443226b300484a97a2b2d7c7000af6e8169ba"], args:[] }
+```
+$ rad-tui <patch | issue | inbox> select --mode id
+```
 
-#### Issues
+### Output
 
-Select an issue and an operation:
+All interfaces return a JSON object that reflects the choices made by the user, e.g.: 
 
-    $ rad-tui issue select
-    { "operation": "show", "ids": ["12f019e3f9f52d88b470a3d7fb922452ebaca39e"], args:[] }
+```
+{ "operation": "show", "ids": ["546443226b300484a97a2b2d7c7000af6e8169ba"], args:[] }
+```
 
+## Library
 
-Same as above:
+The library portion of this crate is a framework for creating TUIs built on top of [ratatui](https://ratatui.rs). It is the base for the interfaces mentioned above.
 
-    $ rad-tui issue select --mode operation
-    { "operation": "show", "ids": ["12f019e3f9f52d88b470a3d7fb922452ebaca39e"], args:[] }
+### Design
 
-
-Select an issue only and return its id:
-
-    $ rad-tui issue select --mode id
-    { "operation": "null", "ids": ["12f019e3f9f52d88b470a3d7fb922452ebaca39e"], args:[] }
-
-
-#### Inbox
-
-Select a notification and an operation:
-
-    $ rad-tui inbox select
-    { "operation": "show", "ids": ["1"], args:[] }
-
-
-Same as above:
-
-    $ rad-tui inbox select --mode operation
-    { "operation": "show", "ids": ["1"], args:[] }
-
-
-Select a notification only and return its id:
-
-    $ rad-tui inbox select --mode id
-    { "operation": "null", "ids": ["1"], args:[] }
+The framework was inspired by the Flux application pattern and took some ideas from [rust-chat-server](https://github.com/Yengas/rust-chat-server)
 
 
 ## License
