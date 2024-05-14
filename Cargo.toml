@@ -1,5 +1,8 @@
 [package]
 name = "radicle-tui"
+description = "Radicle terminal user interfaces"
+repository = "https://app.radicle.xyz/nodes/seed.radicle.xyz/rad:z39mP9rQAaGmERfUMPULfPUi473tY"
+homepage = "https://radicle.xyz"
 license = "MIT OR Apache-2.0"
 version = "0.3.0"
 authors = ["Erik Kundt <erik@zirkular.io>"]
