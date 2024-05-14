@@ -49,7 +49,7 @@ impl Default for TextFieldProps {
 impl Properties for TextFieldProps {}
 
 #[derive(Clone)]
-pub struct TextFieldState {
+struct TextFieldState {
     pub text: Option<String>,
     pub cursor_position: usize,
 }
@@ -66,6 +66,10 @@ pub struct TextField<S, A> {
 }
 
 impl<S, A> TextField<S, A> {
+    pub fn text(&self) -> Option<&String> {
+        self.state.text.as_ref()
+    }
+
     fn move_cursor_left(&mut self) {
         let cursor_moved_left = self.state.cursor_position.saturating_sub(1);
         self.state.cursor_position = self.clamp_cursor(cursor_moved_left);
@@ -127,7 +131,7 @@ impl<S, A> TextField<S, A> {
     }
 }
 
-impl<S, A> Widget for TextField<S, A> {
+impl<S: 'static, A: 'static> Widget for TextField<S, A> {
     type Action = A;
     type State = S;
 
@@ -168,10 +172,7 @@ impl<S, A> Widget for TextField<S, A> {
         }
 
         if let Some(on_event) = self.base.on_event {
-            (on_event)(
-                self.state.clone().to_boxed_any(),
-                self.base.action_tx.clone(),
-            );
+            (on_event)(self);
         }
     }
 
@@ -241,3 +242,5 @@ impl<S, A> Widget for TextField<S, A> {
         &mut self.base
     }
 }
+
+impl<S, A> BoxedAny for TextField<S, A> {}

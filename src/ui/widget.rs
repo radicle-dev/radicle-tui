@@ -16,7 +16,8 @@ use ratatui::widgets::Cell;
 pub type BoxedWidget<S, A> = Box<dyn Widget<State = S, Action = A>>;
 
 pub type UpdateCallback<S> = fn(&S) -> Box<dyn Any>;
-pub type EventCallback<A> = fn(Box<dyn Any>, UnboundedSender<A>);
+// pub type EventCallback<S, A> = fn(&dyn Widget<State = S, Action = A>, UnboundedSender<A>);
+pub type EventCallback = fn(&mut dyn Any);
 
 /// A `View`s common fields.
 pub struct BaseView<S, A> {
@@ -25,7 +26,7 @@ pub struct BaseView<S, A> {
     /// Custom update handler
     pub on_update: Option<UpdateCallback<S>>,
     /// Additional custom event handler
-    pub on_event: Option<EventCallback<A>>,
+    pub on_event: Option<EventCallback>,
 }
 
 /// General properties that specify how a `Widget` is rendered.
@@ -104,7 +105,7 @@ pub trait Widget {
     fn base_mut(&mut self) -> &mut BaseView<Self::State, Self::Action>;
 
     /// Should set the optional custom event handler.
-    fn on_event(mut self, callback: EventCallback<Self::Action>) -> Self
+    fn on_event(mut self, callback: EventCallback) -> Self
     where
         Self: Sized,
     {

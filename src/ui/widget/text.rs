@@ -44,7 +44,7 @@ impl<'a: 'static> Properties for ParagraphProps<'a> {}
 impl<'a: 'static> BoxedAny for ParagraphProps<'a> {}
 
 #[derive(Clone)]
-pub struct ParagraphState {
+struct ParagraphState {
     /// Internal offset
     pub offset: usize,
     /// Internal progress
@@ -136,7 +136,7 @@ impl<'a, S, A> Paragraph<'a, S, A> {
     }
 }
 
-impl<'a: 'static, S, A> Widget for Paragraph<'a, S, A> {
+impl<'a: 'static, S: 'static, A: 'static> Widget for Paragraph<'a, S, A> {
     type Action = A;
     type State = S;
 
@@ -185,10 +185,7 @@ impl<'a: 'static, S, A> Widget for Paragraph<'a, S, A> {
         }
 
         if let Some(on_event) = self.base.on_event {
-            (on_event)(
-                self.state.clone().to_boxed_any(),
-                self.base.action_tx.clone(),
-            );
+            (on_event)(self);
         }
     }
 
