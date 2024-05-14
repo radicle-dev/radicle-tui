@@ -1,7 +1,6 @@
 use std::collections::HashMap;
 use std::str::FromStr;
 
-use ratatui::widgets::TableState;
 use tokio::sync::mpsc::UnboundedSender;
 
 use termion::event::Key;
@@ -19,9 +18,9 @@ use tui::ui::widget::container::{
     Column, Container, ContainerProps, Footer, FooterProps, Header, HeaderProps, SectionGroup,
     SectionGroupProps,
 };
-use tui::ui::widget::input::{TextField, TextFieldProps, TextFieldState};
+use tui::ui::widget::input::{TextField, TextFieldProps};
 use tui::ui::widget::list::{Table, TableProps, TableUtils};
-use tui::ui::widget::text::{Paragraph, ParagraphProps, ParagraphState};
+use tui::ui::widget::text::{Paragraph, ParagraphProps};
 use tui::ui::widget::window::{Shortcuts, ShortcutsProps};
 use tui::ui::widget::{BaseView, BoxedAny, Properties, RenderProps, Widget};
 
@@ -152,14 +151,13 @@ impl<'a: 'static> Widget for Browser<'a> {
                 )
                 .content(Box::<Table<State, Action, NotificationItem, 9>>::new(
                     Table::new(state, action_tx.clone())
-                        .on_event(|table, action_tx| {
-                            TableState::from_boxed_any(table).and_then(|table| {
-                                action_tx
-                                    .send(Action::Select {
-                                        selected: table.selected(),
-                                    })
-                                    .ok()
-                            });
+                        .on_event(|table| {
+                            table
+                                .downcast_mut::<Table<State, Action, NotificationItem, 9>>()
+                                .and_then(|table| {
+                                    let selected = table.selected();
+                                    table.base_mut().send(Action::Select { selected }).ok()
+                                });
                         })
                         .on_update(|state| {
                             let props = BrowserProps::from(state);
@@ -198,7 +196,7 @@ impl<'a: 'static> Widget for Browser<'a> {
         } else {
             match key {
                 Key::Char('/') => {
-                    let _ = self.base.action_tx.send(Action::OpenSearch);
+                    let _ = self.base.send(Action::OpenSearch);
                 }
                 Key::Char('\n') => {
                     self.props
@@ -213,7 +211,6 @@ impl<'a: 'static> Widget for Browser<'a> {
                             };
 
                             self.base
-                                .action_tx
                                 .send(Action::Exit {
                                     selection: Some(selection),
                                 })
@@ -226,7 +223,6 @@ impl<'a: 'static> Widget for Browser<'a> {
                         .and_then(|selected| self.props.notifications.get(selected))
                         .and_then(|notif| {
                             self.base
-                                .action_tx
                                 .send(Action::Exit {
                                     selection: Some(
                                         Selection::default()
@@ -354,10 +350,10 @@ impl<'a: 'static> Widget for BrowserPage<'a> {
         if self.props.handle_keys {
             match key {
                 Key::Esc | Key::Ctrl('c') => {
-                    let _ = self.base.action_tx.send(Action::Exit { selection: None });
+                    let _ = self.base.send(Action::Exit { selection: None });
                 }
                 Key::Char('?') => {
-                    let _ = self.base.action_tx.send(Action::OpenHelp);
+                    let _ = self.base.send(Action::OpenHelp);
                 }
                 _ => {}
             }
@@ -388,7 +384,7 @@ impl<'a: 'static> Widget for BrowserPage<'a> {
             .render(frame, RenderProps::from(shortcuts_area));
 
         if page_size != self.props.page_size {
-            let _ = self.base.action_tx.send(Action::BrowserPageSize(page_size));
+            let _ = self.base.send(Action::BrowserPageSize(page_size));
         }
     }
 
@@ -419,14 +415,16 @@ impl Widget for Search {
         Self: Sized,
     {
         let input = TextField::new(state, action_tx.clone())
-            .on_event(|field, action_tx| {
-                TextFieldState::from_boxed_any(field).and_then(|field| {
-                    action_tx
-                        .send(Action::UpdateSearch {
-                            value: field.text.clone().unwrap_or_default(),
-                        })
-                        .ok()
-                });
+            .on_event(|field| {
+                field
+                    .downcast_mut::<TextField<State, Action>>()
+                    .and_then(|field| {
+                        let text = field.text().unwrap_or(&String::new()).to_string();
+                        field
+                            .base_mut()
+                            .send(Action::UpdateSearch { value: text })
+                            .ok()
+                    });
             })
             .on_update(|state| {
                 TextFieldProps::default()
@@ -450,10 +448,10 @@ impl Widget for Search {
     fn handle_event(&mut self, key: termion::event::Key) {
         match key {
             Key::Esc => {
-                let _ = self.base.action_tx.send(Action::CloseSearch);
+                let _ = self.base.send(Action::CloseSearch);
             }
             Key::Char('\n') => {
-                let _ = self.base.action_tx.send(Action::ApplySearch);
+                let _ = self.base.send(Action::ApplySearch);
             }
             _ => {
                 self.input.handle_event(key);
@@ -539,6 +537,17 @@ impl<'a: 'static> Widget for HelpPage<'a> {
                 )
                 .content(
                     Paragraph::new(state, action_tx.clone())
+                        .on_event(|paragraph| {
+                            paragraph
+                                .downcast_mut::<Paragraph<'_, State, Action>>()
+                                .and_then(|paragraph| {
+                                    let progress = paragraph.progress();
+                                    paragraph
+                                        .base_mut()
+                                        .send(Action::ScrollHelp { progress })
+                                        .ok()
+                                });
+                        })
                         .on_update(|state| {
                             let props = HelpPageProps::from(state);
 
@@ -546,15 +555,6 @@ impl<'a: 'static> Widget for HelpPage<'a> {
                                 .text(&help_text())
                                 .page_size(props.page_size)
                                 .to_boxed()
-                        })
-                        .on_event(|paragraph, action_tx| {
-                            ParagraphState::from_boxed_any(paragraph).and_then(|paragraph| {
-                                action_tx
-                                    .send(Action::ScrollHelp {
-                                        progress: paragraph.progress,
-                                    })
-                                    .ok()
-                            });
                         })
                         .to_boxed(),
                 )
@@ -593,10 +593,10 @@ impl<'a: 'static> Widget for HelpPage<'a> {
     fn handle_event(&mut self, key: termion::event::Key) {
         match key {
             Key::Esc | Key::Ctrl('c') => {
-                let _ = self.base.action_tx.send(Action::Exit { selection: None });
+                let _ = self.base.send(Action::Exit { selection: None });
             }
             Key::Char('?') => {
-                let _ = self.base.action_tx.send(Action::LeavePage);
+                let _ = self.base.send(Action::LeavePage);
             }
             _ => {
                 self.content.handle_event(key);
@@ -624,7 +624,7 @@ impl<'a: 'static> Widget for HelpPage<'a> {
             .render(frame, RenderProps::from(shortcuts_area));
 
         if page_size != self.props.page_size {
-            let _ = self.base.action_tx.send(Action::HelpPageSize(page_size));
+            let _ = self.base.send(Action::HelpPageSize(page_size));
         }
     }
 
