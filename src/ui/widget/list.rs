@@ -104,6 +104,10 @@ impl<'a, S, A, R, const W: usize> Table<'a, S, A, R, W>
 where
     R: ToRow<W>,
 {
+    pub fn selected(&self) -> Option<usize> {
+        self.state.selected()
+    }
+
     fn prev(&mut self) -> Option<usize> {
         let selected = self
             .state
@@ -155,7 +159,7 @@ where
     }
 }
 
-impl<'a: 'static, S, A, R, const W: usize> Widget for Table<'a, S, A, R, W>
+impl<'a: 'static, S: 'static, A: 'static, R, const W: usize> Widget for Table<'a, S, A, R, W>
 where
     R: ToRow<W> + Clone + 'static,
 {
@@ -200,10 +204,7 @@ where
         self.props.selected = self.state.selected();
 
         if let Some(on_event) = self.base.on_event {
-            (on_event)(
-                self.state.clone().to_boxed_any(),
-                self.base.action_tx.clone(),
-            );
+            (on_event)(self);
         }
     }
 

@@ -516,7 +516,7 @@ impl<S, A> SectionGroup<S, A> {
     }
 }
 
-impl<S, A> Widget for SectionGroup<S, A> {
+impl<S: 'static, A: 'static> Widget for SectionGroup<S, A> {
     type State = S;
     type Action = A;
 
@@ -555,10 +555,7 @@ impl<S, A> Widget for SectionGroup<S, A> {
         }
 
         if let Some(on_event) = self.base.on_event {
-            (on_event)(
-                self.state.clone().to_boxed_any(),
-                self.base.action_tx.clone(),
-            );
+            (on_event)(self);
         }
     }
 
