@@ -13,12 +13,10 @@ use radicle_tui as tui;
 
 use tui::cob::patch;
 use tui::store;
-use tui::task;
-use tui::task::Interrupted;
 use tui::ui::items::{Filter, PatchItem, PatchItemFilter};
 use tui::ui::widget::window::{Window, WindowProps};
 use tui::ui::widget::{Properties, Widget};
-use tui::ui::Frontend;
+use tui::Channel;
 use tui::Exit;
 
 use tui::PageStack;
@@ -197,19 +195,16 @@ impl App {
     }
 
     pub async fn run(&self) -> Result<Option<Selection>> {
-        let (terminator, mut interrupt_rx) = task::create_termination();
-        let (store, state_rx) = store::Store::<Action, State, Selection>::new();
-        let (frontend, action_tx, action_rx) = Frontend::<Action>::new();
+        let channel = Channel::default();
         let state = State::try_from(&self.context)?;
-
-        let window: Window<State, Action, Page> = Window::new(&state, action_tx.clone())
+        let window: Window<State, Action, Page> = Window::new(&state, channel.tx.clone())
             .page(
                 Page::Browse,
-                BrowserPage::new(&state, action_tx.clone()).to_boxed(),
+                BrowserPage::new(&state, channel.tx.clone()).to_boxed(),
             )
             .page(
                 Page::Help,
-                HelpPage::new(&state, action_tx.clone()).to_boxed(),
+                HelpPage::new(&state, channel.tx.clone()).to_boxed(),
             )
             .on_update(|state| {
                 WindowProps::default()
@@ -217,18 +212,6 @@ impl App {
                     .to_boxed()
             });
 
-        tokio::try_join!(
-            store.main_loop(state, terminator, action_rx, interrupt_rx.resubscribe()),
-            frontend.main_loop(Some(window), state_rx, interrupt_rx.resubscribe()),
-        )?;
-
-        if let Ok(reason) = interrupt_rx.recv().await {
-            match reason {
-                Interrupted::User { payload } => Ok(payload),
-                Interrupted::OsSignal => anyhow::bail!("exited because of an os sig int"),
-            }
-        } else {
-            anyhow::bail!("exited because of an unexpected error");
-        }
+        tui::run(channel, state, window).await
     }
 }
