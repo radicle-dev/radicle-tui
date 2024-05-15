@@ -5,7 +5,7 @@ use termion::event::Key;
 use ratatui::layout::{Constraint, Layout};
 use ratatui::text::Text;
 
-use super::{BaseView, BoxedAny, Properties, RenderProps, Widget};
+use super::{BoxedAny, Properties, RenderProps, Widget, WidgetBase};
 
 #[derive(Clone)]
 pub struct ParagraphProps<'a> {
@@ -55,7 +55,7 @@ impl BoxedAny for ParagraphState {}
 
 pub struct Paragraph<'a, S, A> {
     /// Internal base
-    base: BaseView<S, A>,
+    base: WidgetBase<S, A>,
     /// Internal props
     props: ParagraphProps<'a>,
     /// Internal state
@@ -145,11 +145,7 @@ impl<'a: 'static, S: 'static, A: 'static> Widget for Paragraph<'a, S, A> {
         Self: Sized,
     {
         Self {
-            base: BaseView {
-                action_tx: action_tx.clone(),
-                on_update: None,
-                on_event: None,
-            },
+            base: WidgetBase::new(action_tx.clone()),
             props: ParagraphProps::default(),
             state: ParagraphState {
                 offset: 0,
@@ -204,7 +200,11 @@ impl<'a: 'static, S: 'static, A: 'static> Widget for Paragraph<'a, S, A> {
         frame.render_widget(content, content_area);
     }
 
-    fn base_mut(&mut self) -> &mut BaseView<S, A> {
+    fn base(&self) -> &WidgetBase<S, A> {
+        &self.base
+    }
+
+    fn base_mut(&mut self) -> &mut WidgetBase<S, A> {
         &mut self.base
     }
 }

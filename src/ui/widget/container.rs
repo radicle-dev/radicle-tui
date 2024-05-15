@@ -10,7 +10,7 @@ use ratatui::widgets::{Block, BorderType, Borders, Row};
 use crate::ui::ext::{FooterBlock, FooterBlockType, HeaderBlock};
 use crate::ui::theme::style;
 
-use super::{BaseView, BoxedAny, BoxedWidget, Properties, RenderProps, Widget};
+use super::{BoxedAny, BoxedWidget, Properties, RenderProps, Widget, WidgetBase};
 
 #[derive(Clone, Debug)]
 pub struct Column<'a> {
@@ -71,7 +71,7 @@ pub struct Header<'a: 'static, S, A> {
     /// Internal props
     props: HeaderProps<'a>,
     /// Internal base
-    base: BaseView<S, A>,
+    base: WidgetBase<S, A>,
 }
 
 impl<'a, S, A> Header<'a, S, A> {
@@ -93,11 +93,7 @@ impl<'a: 'static, S, A> Widget for Header<'a, S, A> {
 
     fn new(_state: &S, action_tx: UnboundedSender<A>) -> Self {
         Self {
-            base: BaseView {
-                action_tx: action_tx.clone(),
-                on_update: None,
-                on_event: None,
-            },
+            base: WidgetBase::new(action_tx.clone()),
             props: HeaderProps::default(),
         }
     }
@@ -170,7 +166,11 @@ impl<'a: 'static, S, A> Widget for Header<'a, S, A> {
         frame.render_widget(header, header_layout[0]);
     }
 
-    fn base_mut(&mut self) -> &mut BaseView<S, A> {
+    fn base(&self) -> &WidgetBase<S, A> {
+        &self.base
+    }
+
+    fn base_mut(&mut self) -> &mut WidgetBase<S, A> {
         &mut self.base
     }
 }
@@ -212,7 +212,7 @@ pub struct Footer<'a, S, A> {
     /// Internal props
     props: FooterProps<'a>,
     /// Internal base
-    base: BaseView<S, A>,
+    base: WidgetBase<S, A>,
 }
 
 impl<'a, S, A> Footer<'a, S, A> {
@@ -256,11 +256,7 @@ impl<'a: 'static, S, A> Widget for Footer<'a, S, A> {
 
     fn new(_state: &S, action_tx: UnboundedSender<A>) -> Self {
         Self {
-            base: BaseView {
-                action_tx: action_tx.clone(),
-                on_update: None,
-                on_event: None,
-            },
+            base: WidgetBase::new(action_tx.clone()),
             props: FooterProps::default(),
         }
     }
@@ -309,7 +305,11 @@ impl<'a: 'static, S, A> Widget for Footer<'a, S, A> {
         }
     }
 
-    fn base_mut(&mut self) -> &mut BaseView<S, A> {
+    fn base(&self) -> &WidgetBase<S, A> {
+        &self.base
+    }
+
+    fn base_mut(&mut self) -> &mut WidgetBase<S, A> {
         &mut self.base
     }
 }
@@ -331,7 +331,7 @@ impl BoxedAny for ContainerProps {}
 
 pub struct Container<S, A> {
     /// Internal base
-    base: BaseView<S, A>,
+    base: WidgetBase<S, A>,
     /// Internal props
     props: ContainerProps,
     /// Container header
@@ -368,12 +368,7 @@ impl<S, A> Widget for Container<S, A> {
         Self: Sized,
     {
         Self {
-            base: BaseView {
-                action_tx: action_tx.clone(),
-
-                on_update: None,
-                on_event: None,
-            },
+            base: WidgetBase::new(action_tx.clone()),
             props: ContainerProps::default(),
             header: None,
             content: None,
@@ -451,7 +446,11 @@ impl<S, A> Widget for Container<S, A> {
         }
     }
 
-    fn base_mut(&mut self) -> &mut BaseView<S, A> {
+    fn base(&self) -> &WidgetBase<S, A> {
+        &self.base
+    }
+
+    fn base_mut(&mut self) -> &mut WidgetBase<S, A> {
         &mut self.base
     }
 }
@@ -482,7 +481,7 @@ impl BoxedAny for SectionGroupProps {}
 
 pub struct SectionGroup<S, A> {
     /// Internal base
-    base: BaseView<S, A>,
+    base: WidgetBase<S, A>,
     /// Internal table properties
     props: SectionGroupProps,
     /// All sections
@@ -522,11 +521,7 @@ impl<S: 'static, A: 'static> Widget for SectionGroup<S, A> {
 
     fn new(_state: &S, action_tx: UnboundedSender<A>) -> Self {
         Self {
-            base: BaseView {
-                action_tx: action_tx.clone(),
-                on_update: None,
-                on_event: None,
-            },
+            base: WidgetBase::new(action_tx.clone()),
             props: SectionGroupProps::default(),
             sections: vec![],
             state: SectionGroupState { focus: Some(0) },
@@ -584,7 +579,11 @@ impl<S: 'static, A: 'static> Widget for SectionGroup<S, A> {
         }
     }
 
-    fn base_mut(&mut self) -> &mut BaseView<S, A> {
+    fn base(&self) -> &WidgetBase<S, A> {
+        &self.base
+    }
+
+    fn base_mut(&mut self) -> &mut WidgetBase<S, A> {
         &mut self.base
     }
 }

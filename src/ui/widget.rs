@@ -19,8 +19,9 @@ pub type BoxedWidget<S, A> = Box<dyn Widget<State = S, Action = A>>;
 pub type UpdateCallback<S> = fn(&S) -> Box<dyn Any>;
 pub type EventCallback = fn(&mut dyn Any);
 
-/// A `View`s common fields.
-pub struct BaseView<S, A> {
+/// A `WidgetBase` provides common functionality to a `Widget`. It's used to store
+/// event and update callbacks as well sending messages to the UI's message channel.
+pub struct WidgetBase<S, A> {
     /// Message sender
     pub action_tx: UnboundedSender<A>,
     /// Custom update handler
@@ -29,7 +30,17 @@ pub struct BaseView<S, A> {
     pub on_event: Option<EventCallback>,
 }
 
-impl<S, A> BaseView<S, A> {
+impl<S, A> WidgetBase<S, A> {
+    /// Create a new `WidgetBase` with no callbacks set.
+    pub fn new(action_tx: UnboundedSender<A>) -> Self {
+        Self {
+            action_tx: action_tx.clone(),
+            on_update: None,
+            on_event: None,
+        }
+    }
+
+    /// Send a message to the internal channel.
     pub fn send(&self, action: A) -> Result<(), SendError<A>> {
         self.action_tx.send(action)
     }
@@ -107,8 +118,16 @@ pub trait Widget {
     /// Optional render props can be given.
     fn render(&self, frame: &mut Frame, props: RenderProps);
 
-    /// Return a mutable reference to this widgets' base view.
-    fn base_mut(&mut self) -> &mut BaseView<Self::State, Self::Action>;
+    /// Return a reference to this widgets' base.
+    fn base(&self) -> &WidgetBase<Self::State, Self::Action>;
+
+    /// Return a mutable reference to this widgets' base.
+    fn base_mut(&mut self) -> &mut WidgetBase<Self::State, Self::Action>;
+
+    /// Send a message to the widgets' base channel.
+    fn send(&self, action: Self::Action) -> Result<(), SendError<Self::Action>> {
+        self.base().send(action)
+    }
 
     /// Should set the optional custom event handler.
     fn on_event(mut self, callback: EventCallback) -> Self
@@ -134,13 +153,6 @@ pub trait Widget {
         Self: Sized,
     {
         Box::new(self)
-    }
-
-    fn downcast_ref(any: &dyn Any) -> Option<&Self>
-    where
-        Self: Sized + 'static,
-    {
-        any.downcast_ref::<Self>()
     }
 }
 

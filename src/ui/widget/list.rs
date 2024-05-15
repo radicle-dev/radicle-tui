@@ -14,7 +14,7 @@ use crate::ui::theme::style;
 use crate::ui::{layout, span};
 
 use super::BoxedAny;
-use super::{container::Column, BaseView, Properties, RenderProps, ToRow, Widget};
+use super::{container::Column, Properties, RenderProps, ToRow, Widget, WidgetBase};
 
 #[derive(Clone, Debug)]
 pub struct TableProps<'a, R, const W: usize>
@@ -93,7 +93,7 @@ where
     R: ToRow<W>,
 {
     /// Internal base
-    base: BaseView<S, A>,
+    base: WidgetBase<S, A>,
     /// Internal table properties
     props: TableProps<'a, R, W>,
     /// Internal selection and offset state
@@ -168,11 +168,7 @@ where
 
     fn new(_state: &S, action_tx: UnboundedSender<A>) -> Self {
         Self {
-            base: BaseView {
-                action_tx: action_tx.clone(),
-                on_update: None,
-                on_event: None,
-            },
+            base: WidgetBase::new(action_tx.clone()),
             props: TableProps::default(),
             state: TableState::default().with_selected(Some(0)),
         }
@@ -277,7 +273,11 @@ where
         }
     }
 
-    fn base_mut(&mut self) -> &mut BaseView<S, A> {
+    fn base(&self) -> &WidgetBase<S, A> {
+        &self.base
+    }
+
+    fn base_mut(&mut self) -> &mut WidgetBase<S, A> {
         &mut self.base
     }
 }
