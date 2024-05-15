@@ -8,9 +8,15 @@ pub mod task;
 pub mod terminal;
 pub mod ui;
 
+use std::fmt::Debug;
+
 use anyhow::Result;
 
 use serde::ser::{Serialize, SerializeStruct, Serializer};
+use store::State;
+use task::Interrupted;
+use tokio::sync::mpsc::{self, UnboundedReceiver, UnboundedSender};
+use ui::{widget::Widget, Frontend};
 
 /// An optional return value.
 #[derive(Clone, Debug)]
@@ -95,5 +101,47 @@ impl<T> PageStack<T> {
                 "Could not peek active page. Page stack is empty."
             )),
         }
+    }
+}
+
+/// A multi-producer, single-consumer message channel.
+pub struct Channel<A> {
+    pub tx: UnboundedSender<A>,
+    pub rx: UnboundedReceiver<A>,
+}
+
+impl<A> Default for Channel<A> {
+    fn default() -> Self {
+        let (tx, rx) = mpsc::unbounded_channel();
+        Self { tx: tx.clone(), rx }
+    }
+}
+
+/// Initialize a `Store` with the `State` given and a `Frontend` with the `Widget` given,
+/// and run their main loops concurrently. Connect them to the `Channel` and also to
+/// an interrupt broadcast channel also initialized in this function.
+pub async fn run<S, A, W, P>(channel: Channel<A>, state: S, root: W) -> Result<Option<P>>
+where
+    S: State<P, Action = A> + Clone + Debug + Send + Sync + 'static,
+    W: Widget<State = S, Action = A>,
+    P: Clone + Debug + Send + Sync + 'static,
+{
+    let (terminator, mut interrupt_rx) = task::create_termination();
+
+    let (store, state_rx) = store::Store::<A, S, P>::new();
+    let frontend = Frontend::<A>::new(channel.tx.clone());
+
+    tokio::try_join!(
+        store.main_loop(state, terminator, channel.rx, interrupt_rx.resubscribe()),
+        frontend.main_loop(Some(root), state_rx, interrupt_rx.resubscribe()),
+    )?;
+
+    if let Ok(reason) = interrupt_rx.recv().await {
+        match reason {
+            Interrupted::User { payload } => Ok(payload),
+            Interrupted::OsSignal => anyhow::bail!("exited because of an os sig int"),
+        }
+    } else {
+        anyhow::bail!("exited because of an unexpected error");
     }
 }

@@ -10,7 +10,8 @@ use std::fmt::Debug;
 use std::time::Duration;
 
 use tokio::sync::broadcast;
-use tokio::sync::mpsc::{self, UnboundedReceiver, UnboundedSender};
+use tokio::sync::mpsc;
+use tokio::sync::mpsc::UnboundedReceiver;
 
 use crate::ui::widget::RenderProps;
 
@@ -34,16 +35,10 @@ pub struct Frontend<A> {
 
 impl<A> Frontend<A> {
     /// Create a new `Frontend` storing the sending end of a message channel.
-    pub fn new() -> (Self, UnboundedSender<A>, UnboundedReceiver<A>) {
-        let (action_tx, action_rx) = mpsc::unbounded_channel();
-
-        (
-            Self {
-                action_tx: action_tx.clone(),
-            },
-            action_tx,
-            action_rx,
-        )
+    pub fn new(action_tx: mpsc::UnboundedSender<A>) -> Self {
+        Self {
+            action_tx: action_tx.clone(),
+        }
     }
 
     /// By calling `main_loop`, the `Frontend` will wait for new messages being sent
@@ -115,4 +110,12 @@ impl<A> Frontend<A> {
 
         result
     }
+
+    // pub fn action_tx(&self) -> UnboundedSender<A> {
+    //     self.action_tx.clone()
+    // }
+
+    // pub fn action_rx(&self) -> UnboundedReceiver<A> {
+    //     self.action_rx.clone()
+    // }
 }
