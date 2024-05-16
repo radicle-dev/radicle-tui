@@ -218,6 +218,6 @@ impl App {
                     .to_boxed()
             });
 
-        tui::run(channel, state, window).await
+        tui::run(channel, state, window.to_boxed()).await
     }
 }

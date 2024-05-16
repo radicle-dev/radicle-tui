@@ -161,7 +161,7 @@ impl<'a: 'static> Widget for Browser<'a> {
                 )
                 .content(Box::<Table<State, Message, IssueItem, 8>>::new(
                     Table::new(state, tx.clone())
-                        .on_event(|table| {
+                        .on_event(|table, _| {
                             table
                                 .downcast_mut::<Table<State, Message, IssueItem, 8>>()
                                 .and_then(|table| {
@@ -441,7 +441,7 @@ impl Widget for Search {
             base: WidgetBase::new(tx.clone()),
             _props: SearchProps {},
             input: TextField::new(state, tx.clone())
-                .on_event(|widget| {
+                .on_event(|widget, _| {
                     widget
                         .downcast_mut::<TextField<State, Message>>()
                         .and_then(|field| {
@@ -552,7 +552,7 @@ impl<'a: 'static> Widget for HelpPage<'a> {
                 )
                 .content(
                     Paragraph::new(state, tx.clone())
-                        .on_event(|paragraph| {
+                        .on_event(|paragraph, _| {
                             paragraph
                                 .downcast_mut::<Paragraph<'_, State, Message>>()
                                 .and_then(|paragraph| {
