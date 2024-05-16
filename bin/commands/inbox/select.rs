@@ -195,7 +195,7 @@ impl TryFrom<&Context> for State {
     }
 }
 
-pub enum Action {
+pub enum Message {
     Exit { selection: Option<Selection> },
     Select { selected: Option<usize> },
     BrowserPageSize(usize),
@@ -210,42 +210,42 @@ pub enum Action {
 }
 
 impl store::State<Selection> for State {
-    type Action = Action;
+    type Message = Message;
 
     fn tick(&self) {}
 
-    fn handle_action(&mut self, action: Action) -> Option<Exit<Selection>> {
-        match action {
-            Action::Exit { selection } => Some(Exit { value: selection }),
-            Action::Select { selected } => {
+    fn update(&mut self, message: Message) -> Option<Exit<Selection>> {
+        match message {
+            Message::Exit { selection } => Some(Exit { value: selection }),
+            Message::Select { selected } => {
                 self.browser.selected = selected;
                 None
             }
-            Action::BrowserPageSize(size) => {
+            Message::BrowserPageSize(size) => {
                 self.browser.page_size = size;
                 None
             }
-            Action::HelpPageSize(size) => {
+            Message::HelpPageSize(size) => {
                 self.help.page_size = size;
                 None
             }
-            Action::OpenSearch => {
+            Message::OpenSearch => {
                 self.browser.show_search = true;
                 None
             }
-            Action::UpdateSearch { value } => {
+            Message::UpdateSearch { value } => {
                 self.browser.search.write(value);
                 self.browser.filter = NotificationItemFilter::from_str(&self.browser.search.read())
                     .unwrap_or_default();
 
                 None
             }
-            Action::ApplySearch => {
+            Message::ApplySearch => {
                 self.browser.search.apply();
                 self.browser.show_search = false;
                 None
             }
-            Action::CloseSearch => {
+            Message::CloseSearch => {
                 self.browser.search.reset();
                 self.browser.show_search = false;
                 self.browser.filter = NotificationItemFilter::from_str(&self.browser.search.read())
@@ -253,15 +253,15 @@ impl store::State<Selection> for State {
 
                 None
             }
-            Action::OpenHelp => {
+            Message::OpenHelp => {
                 self.pages.push(Page::Help);
                 None
             }
-            Action::LeavePage => {
+            Message::LeavePage => {
                 self.pages.pop();
                 None
             }
-            Action::ScrollHelp { progress } => {
+            Message::ScrollHelp { progress } => {
                 self.help.progress = progress;
                 None
             }
@@ -277,7 +277,7 @@ impl App {
     pub async fn run(&self) -> Result<Option<Selection>> {
         let channel = Channel::default();
         let state = State::try_from(&self.context)?;
-        let window: Window<State, Action, Page> = Window::new(&state, channel.tx.clone())
+        let window: Window<State, Message, Page> = Window::new(&state, channel.tx.clone())
             .page(
                 Page::Browse,
                 BrowserPage::new(&state, channel.tx.clone()).to_boxed(),

@@ -28,9 +28,9 @@ use tui::Selection;
 
 use crate::tui_inbox::common::{InboxOperation, Mode, RepositoryMode, SelectionMode};
 
-use super::{Action, State};
+use super::{Message, State};
 
-type BoxedWidget = widget::BoxedWidget<State, Action>;
+type BoxedWidget = widget::BoxedWidget<State, Message>;
 
 #[derive(Clone)]
 pub struct BrowserProps<'a> {
@@ -113,7 +113,7 @@ impl<'a> BoxedAny for BrowserProps<'a> {}
 
 pub struct Browser<'a> {
     /// Internal base
-    base: WidgetBase<State, Action>,
+    base: WidgetBase<State, Message>,
     /// Internal props
     props: BrowserProps<'a>,
     /// Notification widget
@@ -123,18 +123,18 @@ pub struct Browser<'a> {
 }
 
 impl<'a: 'static> Widget for Browser<'a> {
-    type Action = Action;
+    type Message = Message;
     type State = State;
 
-    fn new(state: &State, action_tx: UnboundedSender<Action>) -> Self {
+    fn new(state: &State, tx: UnboundedSender<Message>) -> Self {
         let props = BrowserProps::from(state);
 
         Self {
-            base: WidgetBase::new(action_tx.clone()),
+            base: WidgetBase::new(tx.clone()),
             props: props.clone(),
-            notifications: Container::new(state, action_tx.clone())
+            notifications: Container::new(state, tx.clone())
                 .header(
-                    Header::new(state, action_tx.clone())
+                    Header::new(state, tx.clone())
                         .columns(
                             [
                                 Column::new("", Constraint::Length(0)),
@@ -145,14 +145,14 @@ impl<'a: 'static> Widget for Browser<'a> {
                         .cutoff(props.cutoff, props.cutoff_after)
                         .to_boxed(),
                 )
-                .content(Box::<Table<State, Action, NotificationItem, 9>>::new(
-                    Table::new(state, action_tx.clone())
+                .content(Box::<Table<State, Message, NotificationItem, 9>>::new(
+                    Table::new(state, tx.clone())
                         .on_event(|table| {
                             table
-                                .downcast_mut::<Table<State, Action, NotificationItem, 9>>()
+                                .downcast_mut::<Table<State, Message, NotificationItem, 9>>()
                                 .and_then(|table| {
                                     table
-                                        .send(Action::Select {
+                                        .send(Message::Select {
                                             selected: table.selected(),
                                         })
                                         .ok()
@@ -171,7 +171,7 @@ impl<'a: 'static> Widget for Browser<'a> {
                         }),
                 ))
                 .footer(
-                    Footer::new(state, action_tx.clone())
+                    Footer::new(state, tx.clone())
                         .on_update(|state| {
                             FooterProps::default()
                                 .columns(browse_footer(&BrowserProps::from(state)))
@@ -185,7 +185,7 @@ impl<'a: 'static> Widget for Browser<'a> {
                         .to_boxed()
                 })
                 .to_boxed(),
-            search: Search::new(state, action_tx.clone()).to_boxed(),
+            search: Search::new(state, tx.clone()).to_boxed(),
         }
     }
 
@@ -195,7 +195,7 @@ impl<'a: 'static> Widget for Browser<'a> {
         } else {
             match key {
                 Key::Char('/') => {
-                    let _ = self.send(Action::OpenSearch);
+                    let _ = self.send(Message::OpenSearch);
                 }
                 Key::Char('\n') => {
                     self.props
@@ -210,7 +210,7 @@ impl<'a: 'static> Widget for Browser<'a> {
                             };
 
                             self.base
-                                .send(Action::Exit {
+                                .send(Message::Exit {
                                     selection: Some(selection),
                                 })
                                 .ok()
@@ -222,7 +222,7 @@ impl<'a: 'static> Widget for Browser<'a> {
                         .and_then(|selected| self.props.notifications.get(selected))
                         .and_then(|notif| {
                             self.base
-                                .send(Action::Exit {
+                                .send(Message::Exit {
                                     selection: Some(
                                         Selection::default()
                                             .with_operation(InboxOperation::Clear.to_string())
@@ -259,11 +259,11 @@ impl<'a: 'static> Widget for Browser<'a> {
         }
     }
 
-    fn base(&self) -> &WidgetBase<State, Action> {
+    fn base(&self) -> &WidgetBase<State, Message> {
         &self.base
     }
 
-    fn base_mut(&mut self) -> &mut WidgetBase<State, Action> {
+    fn base_mut(&mut self) -> &mut WidgetBase<State, Message> {
         &mut self.base
     }
 }
@@ -305,7 +305,7 @@ impl<'a> BoxedAny for BrowserPageProps<'a> {}
 
 pub struct BrowserPage<'a> {
     /// Internal base
-    base: WidgetBase<State, Action>,
+    base: WidgetBase<State, Message>,
     /// Internal props
     props: BrowserPageProps<'a>,
     /// Sections widget
@@ -315,17 +315,17 @@ pub struct BrowserPage<'a> {
 }
 
 impl<'a: 'static> Widget for BrowserPage<'a> {
-    type Action = Action;
+    type Message = Message;
     type State = State;
 
-    fn new(state: &State, action_tx: UnboundedSender<Action>) -> Self {
+    fn new(state: &State, tx: UnboundedSender<Message>) -> Self {
         let props = BrowserPageProps::from(state);
 
         Self {
-            base: WidgetBase::new(action_tx.clone()),
+            base: WidgetBase::new(tx.clone()),
             props: props.clone(),
-            sections: SectionGroup::new(state, action_tx.clone())
-                .section(Browser::new(state, action_tx.clone()).to_boxed())
+            sections: SectionGroup::new(state, tx.clone())
+                .section(Browser::new(state, tx.clone()).to_boxed())
                 .on_update(|state| {
                     let props = BrowserPageProps::from(state);
                     SectionGroupProps::default()
@@ -333,7 +333,7 @@ impl<'a: 'static> Widget for BrowserPage<'a> {
                         .to_boxed()
                 })
                 .to_boxed(),
-            shortcuts: Shortcuts::new(state, action_tx.clone())
+            shortcuts: Shortcuts::new(state, tx.clone())
                 .on_update(|state| {
                     ShortcutsProps::default()
                         .shortcuts(&BrowserPageProps::from(state).shortcuts)
@@ -349,10 +349,10 @@ impl<'a: 'static> Widget for BrowserPage<'a> {
         if self.props.handle_keys {
             match key {
                 Key::Esc | Key::Ctrl('c') => {
-                    let _ = self.send(Action::Exit { selection: None });
+                    let _ = self.send(Message::Exit { selection: None });
                 }
                 Key::Char('?') => {
-                    let _ = self.send(Action::OpenHelp);
+                    let _ = self.send(Message::OpenHelp);
                 }
                 _ => {}
             }
@@ -383,15 +383,15 @@ impl<'a: 'static> Widget for BrowserPage<'a> {
             .render(frame, RenderProps::from(shortcuts_area));
 
         if page_size != self.props.page_size {
-            let _ = self.send(Action::BrowserPageSize(page_size));
+            let _ = self.send(Message::BrowserPageSize(page_size));
         }
     }
 
-    fn base(&self) -> &WidgetBase<State, Action> {
+    fn base(&self) -> &WidgetBase<State, Message> {
         &self.base
     }
 
-    fn base_mut(&mut self) -> &mut WidgetBase<State, Action> {
+    fn base_mut(&mut self) -> &mut WidgetBase<State, Message> {
         &mut self.base
     }
 }
@@ -402,7 +402,7 @@ impl Properties for SearchProps {}
 
 pub struct Search {
     /// Internal base
-    base: WidgetBase<State, Action>,
+    base: WidgetBase<State, Message>,
     /// Internal props
     _props: SearchProps,
     /// Search input field
@@ -410,23 +410,23 @@ pub struct Search {
 }
 
 impl Widget for Search {
-    type Action = Action;
+    type Message = Message;
     type State = State;
 
-    fn new(state: &State, action_tx: UnboundedSender<Action>) -> Self
+    fn new(state: &State, tx: UnboundedSender<Message>) -> Self
     where
         Self: Sized,
     {
         Self {
-            base: WidgetBase::new(action_tx.clone()),
+            base: WidgetBase::new(tx.clone()),
             _props: SearchProps {},
-            input: TextField::new(state, action_tx.clone())
+            input: TextField::new(state, tx.clone())
                 .on_event(|widget| {
                     widget
-                        .downcast_mut::<TextField<State, Action>>()
+                        .downcast_mut::<TextField<State, Message>>()
                         .and_then(|field| {
                             field
-                                .send(Action::UpdateSearch {
+                                .send(Message::UpdateSearch {
                                     value: field.text().unwrap_or(&String::new()).to_string(),
                                 })
                                 .ok()
@@ -446,10 +446,10 @@ impl Widget for Search {
     fn handle_event(&mut self, key: termion::event::Key) {
         match key {
             Key::Esc => {
-                let _ = self.send(Action::CloseSearch);
+                let _ = self.send(Message::CloseSearch);
             }
             Key::Char('\n') => {
-                let _ = self.send(Action::ApplySearch);
+                let _ = self.send(Message::ApplySearch);
             }
             _ => {
                 self.input.handle_event(key);
@@ -469,11 +469,11 @@ impl Widget for Search {
         self.input.render(frame, RenderProps::from(layout[0]));
     }
 
-    fn base(&self) -> &WidgetBase<State, Action> {
+    fn base(&self) -> &WidgetBase<State, Message> {
         &self.base
     }
 
-    fn base_mut(&mut self) -> &mut WidgetBase<State, Action> {
+    fn base_mut(&mut self) -> &mut WidgetBase<State, Message> {
         &mut self.base
     }
 }
@@ -503,7 +503,7 @@ impl<'a> BoxedAny for HelpPageProps<'a> {}
 
 pub struct HelpPage<'a> {
     /// Internal base
-    base: WidgetBase<State, Action>,
+    base: WidgetBase<State, Message>,
     /// Internal props
     props: HelpPageProps<'a>,
     /// Content widget
@@ -513,19 +513,19 @@ pub struct HelpPage<'a> {
 }
 
 impl<'a: 'static> Widget for HelpPage<'a> {
-    type Action = Action;
+    type Message = Message;
     type State = State;
 
-    fn new(state: &State, action_tx: UnboundedSender<Action>) -> Self
+    fn new(state: &State, tx: UnboundedSender<Message>) -> Self
     where
         Self: Sized,
     {
         Self {
-            base: WidgetBase::new(action_tx.clone()),
+            base: WidgetBase::new(tx.clone()),
             props: HelpPageProps::from(state),
-            content: Container::new(state, action_tx.clone())
+            content: Container::new(state, tx.clone())
                 .header(
-                    Header::new(state, action_tx.clone())
+                    Header::new(state, tx.clone())
                         .on_update(|_| {
                             HeaderProps::default()
                                 .columns([Column::new(" Help ", Constraint::Fill(1))].to_vec())
@@ -534,13 +534,13 @@ impl<'a: 'static> Widget for HelpPage<'a> {
                         .to_boxed(),
                 )
                 .content(
-                    Paragraph::new(state, action_tx.clone())
+                    Paragraph::new(state, tx.clone())
                         .on_event(|paragraph| {
                             paragraph
-                                .downcast_mut::<Paragraph<'_, State, Action>>()
+                                .downcast_mut::<Paragraph<'_, State, Message>>()
                                 .and_then(|paragraph| {
                                     paragraph
-                                        .send(Action::ScrollHelp {
+                                        .send(Message::ScrollHelp {
                                             progress: paragraph.progress(),
                                         })
                                         .ok()
@@ -557,7 +557,7 @@ impl<'a: 'static> Widget for HelpPage<'a> {
                         .to_boxed(),
                 )
                 .footer(
-                    Footer::new(state, action_tx.clone())
+                    Footer::new(state, tx.clone())
                         .on_update(|state| {
                             let props = HelpPageProps::from(state);
 
@@ -578,7 +578,7 @@ impl<'a: 'static> Widget for HelpPage<'a> {
                         .to_boxed(),
                 )
                 .to_boxed(),
-            shortcuts: Shortcuts::new(state, action_tx.clone())
+            shortcuts: Shortcuts::new(state, tx.clone())
                 .on_update(|state| {
                     ShortcutsProps::default()
                         .shortcuts(&HelpPageProps::from(state).shortcuts)
@@ -591,10 +591,10 @@ impl<'a: 'static> Widget for HelpPage<'a> {
     fn handle_event(&mut self, key: termion::event::Key) {
         match key {
             Key::Esc | Key::Ctrl('c') => {
-                let _ = self.send(Action::Exit { selection: None });
+                let _ = self.send(Message::Exit { selection: None });
             }
             Key::Char('?') => {
-                let _ = self.send(Action::LeavePage);
+                let _ = self.send(Message::LeavePage);
             }
             _ => {
                 self.content.handle_event(key);
@@ -622,15 +622,15 @@ impl<'a: 'static> Widget for HelpPage<'a> {
             .render(frame, RenderProps::from(shortcuts_area));
 
         if page_size != self.props.page_size {
-            let _ = self.send(Action::HelpPageSize(page_size));
+            let _ = self.send(Message::HelpPageSize(page_size));
         }
     }
 
-    fn base(&self) -> &WidgetBase<State, Action> {
+    fn base(&self) -> &WidgetBase<State, Message> {
         &self.base
     }
 
-    fn base_mut(&mut self) -> &mut WidgetBase<State, Action> {
+    fn base_mut(&mut self) -> &mut WidgetBase<State, Message> {
         &mut self.base
     }
 }
