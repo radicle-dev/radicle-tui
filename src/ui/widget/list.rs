@@ -88,19 +88,19 @@ impl<'a: 'static, R, const W: usize> BoxedAny for TableProps<'a, R, W> where R: 
 
 impl BoxedAny for TableState {}
 
-pub struct Table<'a, S, A, R, const W: usize>
+pub struct Table<'a, S, M, R, const W: usize>
 where
     R: ToRow<W>,
 {
     /// Internal base
-    base: WidgetBase<S, A>,
+    base: WidgetBase<S, M>,
     /// Internal table properties
     props: TableProps<'a, R, W>,
     /// Internal selection and offset state
     state: TableState,
 }
 
-impl<'a, S, A, R, const W: usize> Table<'a, S, A, R, W>
+impl<'a, S, M, R, const W: usize> Table<'a, S, M, R, W>
 where
     R: ToRow<W>,
 {
@@ -159,16 +159,16 @@ where
     }
 }
 
-impl<'a: 'static, S: 'static, A: 'static, R, const W: usize> Widget for Table<'a, S, A, R, W>
+impl<'a: 'static, S: 'a, M: 'a, R, const W: usize> Widget for Table<'a, S, M, R, W>
 where
     R: ToRow<W> + Clone + 'static,
 {
-    type Action = A;
+    type Message = M;
     type State = S;
 
-    fn new(_state: &S, action_tx: UnboundedSender<A>) -> Self {
+    fn new(_state: &S, tx: UnboundedSender<M>) -> Self {
         Self {
-            base: WidgetBase::new(action_tx.clone()),
+            base: WidgetBase::new(tx.clone()),
             props: TableProps::default(),
             state: TableState::default().with_selected(Some(0)),
         }
@@ -273,11 +273,11 @@ where
         }
     }
 
-    fn base(&self) -> &WidgetBase<S, A> {
+    fn base(&self) -> &WidgetBase<S, M> {
         &self.base
     }
 
-    fn base_mut(&mut self) -> &mut WidgetBase<S, A> {
+    fn base_mut(&mut self) -> &mut WidgetBase<S, M> {
         &mut self.base
     }
 }

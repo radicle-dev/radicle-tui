@@ -17,11 +17,11 @@ pub trait State<P>
 where
     P: Clone + Debug + Send + Sync,
 {
-    type Action;
+    type Message;
 
     /// Handle a user-defined application message and return an `Exit` object
     /// in case the received message requested the application to also quit.
-    fn handle_action(&mut self, action: Self::Action) -> Option<Exit<P>>;
+    fn update(&mut self, message: Self::Message) -> Option<Exit<P>>;
 
     /// Handle recurring tick.
     fn tick(&self);
@@ -29,16 +29,16 @@ where
 
 /// The `Store` updates the applications' state concurrently. It handles
 /// messages coming from the frontend and updates the state accordingly.
-pub struct Store<A, S, P>
+pub struct Store<S, M, P>
 where
     S: State<P> + Clone + Send + Sync,
     P: Clone + Debug + Send + Sync,
 {
     state_tx: UnboundedSender<S>,
-    _phantom: PhantomData<(A, P)>,
+    _phantom: PhantomData<(M, P)>,
 }
 
-impl<A, S, P> Store<A, S, P>
+impl<S, M, P> Store<S, M, P>
 where
     S: State<P> + Clone + Send + Sync,
     P: Clone + Debug + Send + Sync,
@@ -56,9 +56,9 @@ where
     }
 }
 
-impl<A, S, P> Store<A, S, P>
+impl<S, M, P> Store<S, M, P>
 where
-    S: State<P, Action = A> + Clone + Debug + Send + Sync + 'static,
+    S: State<P, Message = M> + Clone + Debug + Send + Sync + 'static,
     P: Clone + Debug + Send + Sync + 'static,
 {
     /// By calling `main_loop`, the store will wait for new messages coming
@@ -69,7 +69,7 @@ where
         self,
         mut state: S,
         mut terminator: Terminator<P>,
-        mut action_rx: UnboundedReceiver<A>,
+        mut message_rx: UnboundedReceiver<M>,
         mut interrupt_rx: broadcast::Receiver<Interrupted<P>>,
     ) -> anyhow::Result<Interrupted<P>> {
         // Send the initial state once
@@ -79,10 +79,10 @@ where
 
         let result = loop {
             tokio::select! {
-                // Handle the actions coming from the frontend
+                // Handle the messages coming from the frontend
                 // and process them to do async operations
-                Some(action) = action_rx.recv() => {
-                    if let Some(exit) = state.handle_action(action) {
+                Some(message) = message_rx.recv() => {
+                    if let Some(exit) = state.update(message) {
                         let interrupted = Interrupted::User { payload: exit.value };
                         let _ = terminator.terminate(interrupted.clone());
 

@@ -105,9 +105,9 @@ impl<T> PageStack<T> {
 }
 
 /// A multi-producer, single-consumer message channel.
-pub struct Channel<A> {
-    pub tx: UnboundedSender<A>,
-    pub rx: UnboundedReceiver<A>,
+pub struct Channel<M> {
+    pub tx: UnboundedSender<M>,
+    pub rx: UnboundedReceiver<M>,
 }
 
 impl<A> Default for Channel<A> {
@@ -120,16 +120,16 @@ impl<A> Default for Channel<A> {
 /// Initialize a `Store` with the `State` given and a `Frontend` with the `Widget` given,
 /// and run their main loops concurrently. Connect them to the `Channel` and also to
 /// an interrupt broadcast channel also initialized in this function.
-pub async fn run<S, A, W, P>(channel: Channel<A>, state: S, root: W) -> Result<Option<P>>
+pub async fn run<S, M, W, P>(channel: Channel<M>, state: S, root: W) -> Result<Option<P>>
 where
-    S: State<P, Action = A> + Clone + Debug + Send + Sync + 'static,
-    W: Widget<State = S, Action = A>,
+    S: State<P, Message = M> + Clone + Debug + Send + Sync + 'static,
+    W: Widget<State = S, Message = M>,
     P: Clone + Debug + Send + Sync + 'static,
 {
     let (terminator, mut interrupt_rx) = task::create_termination();
 
-    let (store, state_rx) = store::Store::<A, S, P>::new();
-    let frontend = Frontend::<A>::new(channel.tx.clone());
+    let (store, state_rx) = store::Store::<S, M, P>::new();
+    let frontend = Frontend::<M>::new(channel.tx.clone());
 
     tokio::try_join!(
         store.main_loop(state, terminator, channel.rx, interrupt_rx.resubscribe()),

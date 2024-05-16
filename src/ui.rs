@@ -29,16 +29,14 @@ const INLINE_HEIGHT: usize = 20;
 ///
 /// Once created and run with `main_loop`, the `Frontend` will wait for new messages
 /// being sent on either the terminal event, the state or the interrupt message channel.
-pub struct Frontend<A> {
-    action_tx: mpsc::UnboundedSender<A>,
+pub struct Frontend<M> {
+    tx: mpsc::UnboundedSender<M>,
 }
 
-impl<A> Frontend<A> {
+impl<M> Frontend<M> {
     /// Create a new `Frontend` storing the sending end of a message channel.
-    pub fn new(action_tx: mpsc::UnboundedSender<A>) -> Self {
-        Self {
-            action_tx: action_tx.clone(),
-        }
+    pub fn new(tx: mpsc::UnboundedSender<M>) -> Self {
+        Self { tx: tx.clone() }
     }
 
     /// By calling `main_loop`, the `Frontend` will wait for new messages being sent
@@ -63,7 +61,7 @@ impl<A> Frontend<A> {
     ) -> anyhow::Result<Interrupted<P>>
     where
         S: State<P>,
-        W: Widget<State = S, Action = A>,
+        W: Widget<State = S, Message = M>,
         P: Clone + Send + Sync + Debug,
     {
         let mut ticker = tokio::time::interval(RENDERING_TICK_RATE);
@@ -79,7 +77,7 @@ impl<A> Frontend<A> {
                     root.update(&state);
                     root
                 }
-                None => W::new(&state, self.action_tx.clone()),
+                None => W::new(&state, self.tx.clone()),
             }
         };
 
@@ -110,12 +108,4 @@ impl<A> Frontend<A> {
 
         result
     }
-
-    // pub fn action_tx(&self) -> UnboundedSender<A> {
-    //     self.action_tx.clone()
-    // }
-
-    // pub fn action_rx(&self) -> UnboundedReceiver<A> {
-    //     self.action_rx.clone()
-    // }
 }

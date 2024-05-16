@@ -67,11 +67,11 @@ impl<'a> Default for HeaderProps<'a> {
 impl<'a: 'static> Properties for HeaderProps<'a> {}
 impl<'a: 'static> BoxedAny for HeaderProps<'a> {}
 
-pub struct Header<'a: 'static, S, A> {
+pub struct Header<'a: 'static, S, M> {
     /// Internal props
     props: HeaderProps<'a>,
     /// Internal base
-    base: WidgetBase<S, A>,
+    base: WidgetBase<S, M>,
 }
 
 impl<'a, S, A> Header<'a, S, A> {
@@ -87,13 +87,13 @@ impl<'a, S, A> Header<'a, S, A> {
     }
 }
 
-impl<'a: 'static, S, A> Widget for Header<'a, S, A> {
-    type Action = A;
+impl<'a: 'static, S, M> Widget for Header<'a, S, M> {
+    type Message = M;
     type State = S;
 
-    fn new(_state: &S, action_tx: UnboundedSender<A>) -> Self {
+    fn new(_state: &S, tx: UnboundedSender<M>) -> Self {
         Self {
-            base: WidgetBase::new(action_tx.clone()),
+            base: WidgetBase::new(tx.clone()),
             props: HeaderProps::default(),
         }
     }
@@ -166,11 +166,11 @@ impl<'a: 'static, S, A> Widget for Header<'a, S, A> {
         frame.render_widget(header, header_layout[0]);
     }
 
-    fn base(&self) -> &WidgetBase<S, A> {
+    fn base(&self) -> &WidgetBase<S, M> {
         &self.base
     }
 
-    fn base_mut(&mut self) -> &mut WidgetBase<S, A> {
+    fn base_mut(&mut self) -> &mut WidgetBase<S, M> {
         &mut self.base
     }
 }
@@ -208,14 +208,14 @@ impl<'a> Default for FooterProps<'a> {
 impl<'a: 'static> Properties for FooterProps<'a> {}
 impl<'a: 'static> BoxedAny for FooterProps<'a> {}
 
-pub struct Footer<'a, S, A> {
+pub struct Footer<'a, S, M> {
     /// Internal props
     props: FooterProps<'a>,
     /// Internal base
-    base: WidgetBase<S, A>,
+    base: WidgetBase<S, M>,
 }
 
-impl<'a, S, A> Footer<'a, S, A> {
+impl<'a, S, M> Footer<'a, S, M> {
     pub fn columns(mut self, columns: Vec<Column<'a>>) -> Self {
         self.props.columns = columns;
         self
@@ -250,13 +250,13 @@ impl<'a, S, A> Footer<'a, S, A> {
     }
 }
 
-impl<'a: 'static, S, A> Widget for Footer<'a, S, A> {
-    type Action = A;
+impl<'a: 'static, S, M> Widget for Footer<'a, S, M> {
+    type Message = M;
     type State = S;
 
-    fn new(_state: &S, action_tx: UnboundedSender<A>) -> Self {
+    fn new(_state: &S, tx: UnboundedSender<M>) -> Self {
         Self {
-            base: WidgetBase::new(action_tx.clone()),
+            base: WidgetBase::new(tx.clone()),
             props: FooterProps::default(),
         }
     }
@@ -305,11 +305,11 @@ impl<'a: 'static, S, A> Widget for Footer<'a, S, A> {
         }
     }
 
-    fn base(&self) -> &WidgetBase<S, A> {
+    fn base(&self) -> &WidgetBase<S, M> {
         &self.base
     }
 
-    fn base_mut(&mut self) -> &mut WidgetBase<S, A> {
+    fn base_mut(&mut self) -> &mut WidgetBase<S, M> {
         &mut self.base
     }
 }
@@ -329,46 +329,46 @@ impl ContainerProps {
 impl Properties for ContainerProps {}
 impl BoxedAny for ContainerProps {}
 
-pub struct Container<S, A> {
+pub struct Container<S, M> {
     /// Internal base
-    base: WidgetBase<S, A>,
+    base: WidgetBase<S, M>,
     /// Internal props
     props: ContainerProps,
     /// Container header
-    header: Option<BoxedWidget<S, A>>,
+    header: Option<BoxedWidget<S, M>>,
     /// Content widget
-    content: Option<BoxedWidget<S, A>>,
+    content: Option<BoxedWidget<S, M>>,
     /// Container footer
-    footer: Option<BoxedWidget<S, A>>,
+    footer: Option<BoxedWidget<S, M>>,
 }
 
-impl<S, A> Container<S, A> {
-    pub fn header(mut self, header: BoxedWidget<S, A>) -> Self {
+impl<S, M> Container<S, M> {
+    pub fn header(mut self, header: BoxedWidget<S, M>) -> Self {
         self.header = Some(header);
         self
     }
 
-    pub fn content(mut self, content: BoxedWidget<S, A>) -> Self {
+    pub fn content(mut self, content: BoxedWidget<S, M>) -> Self {
         self.content = Some(content);
         self
     }
 
-    pub fn footer(mut self, footer: BoxedWidget<S, A>) -> Self {
+    pub fn footer(mut self, footer: BoxedWidget<S, M>) -> Self {
         self.footer = Some(footer);
         self
     }
 }
 
-impl<S, A> Widget for Container<S, A> {
-    type Action = A;
+impl<S, M> Widget for Container<S, M> {
+    type Message = M;
     type State = S;
 
-    fn new(_state: &S, action_tx: UnboundedSender<A>) -> Self
+    fn new(_state: &S, tx: UnboundedSender<M>) -> Self
     where
         Self: Sized,
     {
         Self {
-            base: WidgetBase::new(action_tx.clone()),
+            base: WidgetBase::new(tx.clone()),
             props: ContainerProps::default(),
             header: None,
             content: None,
@@ -446,11 +446,11 @@ impl<S, A> Widget for Container<S, A> {
         }
     }
 
-    fn base(&self) -> &WidgetBase<S, A> {
+    fn base(&self) -> &WidgetBase<S, M> {
         &self.base
     }
 
-    fn base_mut(&mut self) -> &mut WidgetBase<S, A> {
+    fn base_mut(&mut self) -> &mut WidgetBase<S, M> {
         &mut self.base
     }
 }
@@ -479,19 +479,19 @@ impl SectionGroupProps {
 impl Properties for SectionGroupProps {}
 impl BoxedAny for SectionGroupProps {}
 
-pub struct SectionGroup<S, A> {
+pub struct SectionGroup<S, M> {
     /// Internal base
-    base: WidgetBase<S, A>,
+    base: WidgetBase<S, M>,
     /// Internal table properties
     props: SectionGroupProps,
     /// All sections
-    sections: Vec<BoxedWidget<S, A>>,
+    sections: Vec<BoxedWidget<S, M>>,
     /// Internal selection and offset state
     state: SectionGroupState,
 }
 
-impl<S, A> SectionGroup<S, A> {
-    pub fn section(mut self, section: BoxedWidget<S, A>) -> Self {
+impl<S, M> SectionGroup<S, M> {
+    pub fn section(mut self, section: BoxedWidget<S, M>) -> Self {
         self.sections.push(section);
         self
     }
@@ -515,13 +515,17 @@ impl<S, A> SectionGroup<S, A> {
     }
 }
 
-impl<S: 'static, A: 'static> Widget for SectionGroup<S, A> {
+impl<S, M> Widget for SectionGroup<S, M>
+where
+    S: 'static,
+    M: 'static,
+{
     type State = S;
-    type Action = A;
+    type Message = M;
 
-    fn new(_state: &S, action_tx: UnboundedSender<A>) -> Self {
+    fn new(_state: &S, tx: UnboundedSender<M>) -> Self {
         Self {
-            base: WidgetBase::new(action_tx.clone()),
+            base: WidgetBase::new(tx.clone()),
             props: SectionGroupProps::default(),
             sections: vec![],
             state: SectionGroupState { focus: Some(0) },
@@ -579,11 +583,11 @@ impl<S: 'static, A: 'static> Widget for SectionGroup<S, A> {
         }
     }
 
-    fn base(&self) -> &WidgetBase<S, A> {
+    fn base(&self) -> &WidgetBase<S, M> {
         &self.base
     }
 
-    fn base_mut(&mut self) -> &mut WidgetBase<S, A> {
+    fn base_mut(&mut self) -> &mut WidgetBase<S, M> {
         &mut self.base
     }
 }

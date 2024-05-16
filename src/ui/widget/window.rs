@@ -35,38 +35,39 @@ impl<Id> Default for WindowProps<Id> {
 impl<Id> Properties for WindowProps<Id> {}
 impl<Id> BoxedAny for WindowProps<Id> {}
 
-pub struct Window<S, A, Id> {
+pub struct Window<S, M, Id> {
     /// Internal base
-    base: WidgetBase<S, A>,
+    base: WidgetBase<S, M>,
     /// Internal properties
     props: WindowProps<Id>,
     /// All pages known
-    pages: HashMap<Id, BoxedWidget<S, A>>,
+    pages: HashMap<Id, BoxedWidget<S, M>>,
 }
 
-impl<S, A, Id> Window<S, A, Id>
+impl<S, M, Id> Window<S, M, Id>
 where
     Id: Clone + Hash + Eq + PartialEq,
 {
-    pub fn page(mut self, id: Id, page: BoxedWidget<S, A>) -> Self {
+    pub fn page(mut self, id: Id, page: BoxedWidget<S, M>) -> Self {
         self.pages.insert(id, page);
         self
     }
 }
 
-impl<'a: 'static, S, A, Id> Widget for Window<S, A, Id>
+impl<'a, S, M, Id> Widget for Window<S, M, Id>
 where
-    Id: Clone + Hash + Eq + PartialEq + 'a,
+    'a: 'static,
+    Id: Clone + Hash + Eq + PartialEq + 'static,
 {
-    type Action = A;
+    type Message = M;
     type State = S;
 
-    fn new(_state: &S, action_tx: UnboundedSender<A>) -> Self
+    fn new(_state: &S, tx: UnboundedSender<M>) -> Self
     where
         Self: Sized,
     {
         Self {
-            base: WidgetBase::new(action_tx.clone()),
+            base: WidgetBase::new(tx.clone()),
             props: WindowProps::default(),
             pages: HashMap::new(),
         }
@@ -113,11 +114,11 @@ where
         }
     }
 
-    fn base(&self) -> &WidgetBase<S, A> {
+    fn base(&self) -> &WidgetBase<S, M> {
         &self.base
     }
 
-    fn base_mut(&mut self) -> &mut WidgetBase<S, A> {
+    fn base_mut(&mut self) -> &mut WidgetBase<S, M> {
         &mut self.base
     }
 }
@@ -155,14 +156,14 @@ impl Default for ShortcutsProps {
 impl Properties for ShortcutsProps {}
 impl BoxedAny for ShortcutsProps {}
 
-pub struct Shortcuts<S, A> {
+pub struct Shortcuts<S, M> {
     /// Internal properties
     props: ShortcutsProps,
     /// Internal base
-    base: WidgetBase<S, A>,
+    base: WidgetBase<S, M>,
 }
 
-impl<S, A> Shortcuts<S, A> {
+impl<S, M> Shortcuts<S, M> {
     pub fn divider(mut self, divider: char) -> Self {
         self.props.divider = divider;
         self
@@ -179,13 +180,13 @@ impl<S, A> Shortcuts<S, A> {
     }
 }
 
-impl<S, A> Widget for Shortcuts<S, A> {
-    type Action = A;
+impl<S, M> Widget for Shortcuts<S, M> {
+    type Message = M;
     type State = S;
 
-    fn new(_state: &S, action_tx: UnboundedSender<A>) -> Self {
+    fn new(_state: &S, tx: UnboundedSender<M>) -> Self {
         Self {
-            base: WidgetBase::new(action_tx.clone()),
+            base: WidgetBase::new(tx.clone()),
             props: ShortcutsProps::default(),
         }
     }
@@ -235,11 +236,11 @@ impl<S, A> Widget for Shortcuts<S, A> {
         frame.render_widget(table, props.area);
     }
 
-    fn base(&self) -> &WidgetBase<S, A> {
+    fn base(&self) -> &WidgetBase<S, M> {
         &self.base
     }
 
-    fn base_mut(&mut self) -> &mut WidgetBase<S, A> {
+    fn base_mut(&mut self) -> &mut WidgetBase<S, M> {
         &mut self.base
     }
 }

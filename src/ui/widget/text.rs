@@ -53,16 +53,16 @@ struct ParagraphState {
 
 impl BoxedAny for ParagraphState {}
 
-pub struct Paragraph<'a, S, A> {
+pub struct Paragraph<'a, S, M> {
     /// Internal base
-    base: WidgetBase<S, A>,
+    base: WidgetBase<S, M>,
     /// Internal props
     props: ParagraphProps<'a>,
     /// Internal state
     state: ParagraphState,
 }
 
-impl<'a, S, A> Paragraph<'a, S, A> {
+impl<'a, S, M> Paragraph<'a, S, M> {
     pub fn scroll(&self) -> (u16, u16) {
         (self.state.offset as u16, 0)
     }
@@ -136,16 +136,21 @@ impl<'a, S, A> Paragraph<'a, S, A> {
     }
 }
 
-impl<'a: 'static, S: 'static, A: 'static> Widget for Paragraph<'a, S, A> {
-    type Action = A;
+impl<'a, S, M> Widget for Paragraph<'a, S, M>
+where
+    'a: 'static,
+    S: 'static,
+    M: 'static,
+{
+    type Message = M;
     type State = S;
 
-    fn new(_state: &S, action_tx: UnboundedSender<A>) -> Self
+    fn new(_state: &S, tx: UnboundedSender<M>) -> Self
     where
         Self: Sized,
     {
         Self {
-            base: WidgetBase::new(action_tx.clone()),
+            base: WidgetBase::new(tx.clone()),
             props: ParagraphProps::default(),
             state: ParagraphState {
                 offset: 0,
@@ -200,11 +205,11 @@ impl<'a: 'static, S: 'static, A: 'static> Widget for Paragraph<'a, S, A> {
         frame.render_widget(content, content_area);
     }
 
-    fn base(&self) -> &WidgetBase<S, A> {
+    fn base(&self) -> &WidgetBase<S, M> {
         &self.base
     }
 
-    fn base_mut(&mut self) -> &mut WidgetBase<S, A> {
+    fn base_mut(&mut self) -> &mut WidgetBase<S, M> {
         &mut self.base
     }
 }

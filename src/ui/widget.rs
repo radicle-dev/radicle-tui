@@ -14,35 +14,35 @@ use termion::event::Key;
 use ratatui::prelude::*;
 use ratatui::widgets::Cell;
 
-pub type BoxedWidget<S, A> = Box<dyn Widget<State = S, Action = A>>;
+pub type BoxedWidget<S, M> = Box<dyn Widget<State = S, Message = M>>;
 
 pub type UpdateCallback<S> = fn(&S) -> Box<dyn Any>;
 pub type EventCallback = fn(&mut dyn Any);
 
 /// A `WidgetBase` provides common functionality to a `Widget`. It's used to store
 /// event and update callbacks as well sending messages to the UI's message channel.
-pub struct WidgetBase<S, A> {
+pub struct WidgetBase<S, M> {
     /// Message sender
-    pub action_tx: UnboundedSender<A>,
+    pub tx: UnboundedSender<M>,
     /// Custom update handler
     pub on_update: Option<UpdateCallback<S>>,
     /// Additional custom event handler
     pub on_event: Option<EventCallback>,
 }
 
-impl<S, A> WidgetBase<S, A> {
+impl<S, M> WidgetBase<S, M> {
     /// Create a new `WidgetBase` with no callbacks set.
-    pub fn new(action_tx: UnboundedSender<A>) -> Self {
+    pub fn new(tx: UnboundedSender<M>) -> Self {
         Self {
-            action_tx: action_tx.clone(),
+            tx: tx.clone(),
             on_update: None,
             on_event: None,
         }
     }
 
     /// Send a message to the internal channel.
-    pub fn send(&self, action: A) -> Result<(), SendError<A>> {
-        self.action_tx.send(action)
+    pub fn send(&self, message: M) -> Result<(), SendError<M>> {
+        self.tx.send(message)
     }
 }
 
@@ -87,11 +87,11 @@ impl From<Rect> for RenderProps {
 /// This is the trait that you should implement to define a custom `Widget`.
 pub trait Widget {
     type State;
-    type Action;
+    type Message;
 
     /// Should return a new view with props build from state (if type is known) and a
     /// message sender set.
-    fn new(state: &Self::State, action_tx: UnboundedSender<Self::Action>) -> Self
+    fn new(state: &Self::State, tx: UnboundedSender<Self::Message>) -> Self
     where
         Self: Sized;
 
@@ -119,14 +119,14 @@ pub trait Widget {
     fn render(&self, frame: &mut Frame, props: RenderProps);
 
     /// Return a reference to this widgets' base.
-    fn base(&self) -> &WidgetBase<Self::State, Self::Action>;
+    fn base(&self) -> &WidgetBase<Self::State, Self::Message>;
 
     /// Return a mutable reference to this widgets' base.
-    fn base_mut(&mut self) -> &mut WidgetBase<Self::State, Self::Action>;
+    fn base_mut(&mut self) -> &mut WidgetBase<Self::State, Self::Message>;
 
     /// Send a message to the widgets' base channel.
-    fn send(&self, action: Self::Action) -> Result<(), SendError<Self::Action>> {
-        self.base().send(action)
+    fn send(&self, message: Self::Message) -> Result<(), SendError<Self::Message>> {
+        self.base().send(message)
     }
 
     /// Should set the optional custom event handler.

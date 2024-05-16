@@ -56,16 +56,16 @@ struct TextFieldState {
 
 impl BoxedAny for TextFieldState {}
 
-pub struct TextField<S, A> {
+pub struct TextField<S, M> {
     /// Internal base
-    base: WidgetBase<S, A>,
+    base: WidgetBase<S, M>,
     /// Internal props
     props: TextFieldProps,
     /// Internal state
     state: TextFieldState,
 }
 
-impl<S, A> TextField<S, A> {
+impl<S, M> TextField<S, M> {
     pub fn text(&self) -> Option<&String> {
         self.state.text.as_ref()
     }
@@ -131,13 +131,17 @@ impl<S, A> TextField<S, A> {
     }
 }
 
-impl<S: 'static, A: 'static> Widget for TextField<S, A> {
-    type Action = A;
+impl<S, M> Widget for TextField<S, M>
+where
+    S: 'static,
+    M: 'static,
+{
+    type Message = M;
     type State = S;
 
-    fn new(_state: &S, action_tx: UnboundedSender<A>) -> Self {
+    fn new(_state: &S, tx: UnboundedSender<M>) -> Self {
         Self {
-            base: WidgetBase::new(action_tx.clone()),
+            base: WidgetBase::new(tx.clone()),
             props: TextFieldProps::default(),
             state: TextFieldState {
                 text: None,
@@ -234,13 +238,13 @@ impl<S: 'static, A: 'static> Widget for TextField<S, A> {
         }
     }
 
-    fn base(&self) -> &WidgetBase<S, A> {
+    fn base(&self) -> &WidgetBase<S, M> {
         &self.base
     }
 
-    fn base_mut(&mut self) -> &mut WidgetBase<S, A> {
+    fn base_mut(&mut self) -> &mut WidgetBase<S, M> {
         &mut self.base
     }
 }
 
-impl<S, A> BoxedAny for TextField<S, A> {}
+impl<S, M> BoxedAny for TextField<S, M> {}
