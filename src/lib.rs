@@ -120,7 +120,7 @@ impl<A> Default for Channel<A> {
 /// Initialize a `Store` with the `State` given and a `Frontend` with the `Widget` given,
 /// and run their main loops concurrently. Connect them to the `Channel` and also to
 /// an interrupt broadcast channel also initialized in this function.
-pub async fn run<S, M, W, P>(channel: Channel<M>, state: S, root: W) -> Result<Option<P>>
+pub async fn run<S, M, W, P>(channel: Channel<M>, state: S, root: Box<W>) -> Result<Option<P>>
 where
     S: State<P, Message = M> + Clone + Debug + Send + Sync + 'static,
     W: Widget<State = S, Message = M>,
@@ -133,7 +133,7 @@ where
 
     tokio::try_join!(
         store.main_loop(state, terminator, channel.rx, interrupt_rx.resubscribe()),
-        frontend.main_loop(Some(root), state_rx, interrupt_rx.resubscribe()),
+        frontend.main_loop(Some(*root), state_rx, interrupt_rx.resubscribe()),
     )?;
 
     if let Ok(reason) = interrupt_rx.recv().await {
