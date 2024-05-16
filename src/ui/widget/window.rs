@@ -57,6 +57,8 @@ where
 impl<'a, S, M, Id> Widget for Window<S, M, Id>
 where
     'a: 'static,
+    S: 'static,
+    M: 'static,
     Id: Clone + Hash + Eq + PartialEq + 'static,
 {
     type Message = M;
@@ -82,6 +84,10 @@ where
 
         if let Some(page) = page {
             page.handle_event(key);
+        }
+
+        if let Some(on_event) = self.base.on_event {
+            (on_event)(self, key);
         }
     }
 

@@ -198,7 +198,7 @@ where
         }
 
         if let Some(on_event) = self.base.on_event {
-            (on_event)(self);
+            (on_event)(self, key);
         }
     }
 

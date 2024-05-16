@@ -17,7 +17,7 @@ use ratatui::widgets::Cell;
 pub type BoxedWidget<S, M> = Box<dyn Widget<State = S, Message = M>>;
 
 pub type UpdateCallback<S> = fn(&S) -> Box<dyn Any>;
-pub type EventCallback = fn(&mut dyn Any);
+pub type EventCallback = fn(&mut dyn Any, Key);
 
 /// A `WidgetBase` provides common functionality to a `Widget`. It's used to store
 /// event and update callbacks as well sending messages to the UI's message channel.
