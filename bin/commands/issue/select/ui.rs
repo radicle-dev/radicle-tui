@@ -178,6 +178,7 @@ impl<'a: 'static> Widget for Browser<'a> {
                             TableProps::default()
                                 .columns(props.columns)
                                 .items(state.browser.issues())
+                                .selected(state.browser.selected)
                                 .footer(!state.browser.show_search)
                                 .page_size(state.browser.page_size)
                                 .cutoff(props.cutoff, props.cutoff_after)

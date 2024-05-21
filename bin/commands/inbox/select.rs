@@ -238,6 +238,12 @@ impl store::State<Selection> for State {
                 self.browser.filter = NotificationItemFilter::from_str(&self.browser.search.read())
                     .unwrap_or_default();
 
+                if let Some(selected) = self.browser.selected {
+                    if selected > self.browser.notifications().len() {
+                        self.browser.selected = Some(0);
+                    }
+                }
+
                 None
             }
             Message::ApplySearch => {
