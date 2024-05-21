@@ -197,8 +197,6 @@ where
             _ => {}
         }
 
-        self.props.selected = self.state.selected();
-
         if let Some(on_event) = self.base.on_event {
             (on_event)(self);
         }
@@ -208,11 +206,8 @@ where
         self.props =
             TableProps::from_callback(self.base.on_update, state).unwrap_or(self.props.clone());
 
-        // TODO: Move to state reducer
-        if let Some(selected) = self.state.selected() {
-            if selected > self.props.items.len() {
-                self.begin();
-            }
+        if self.props.selected != self.state.selected() {
+            self.state.select(self.props.selected);
         }
     }
 
