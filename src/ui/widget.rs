@@ -6,48 +6,70 @@ pub mod window;
 
 use std::any::Any;
 
-use tokio::sync::mpsc::error::SendError;
 use tokio::sync::mpsc::UnboundedSender;
 
 use termion::event::Key;
 
 use ratatui::prelude::*;
-use ratatui::widgets::Cell;
 
-pub type BoxedWidget<S, M> = Box<dyn Widget<State = S, Message = M>>;
+pub type BoxedView<S, M> = Box<dyn View<State = S, Message = M>>;
+pub type UpdateCallback<S> = fn(&S) -> ViewProps;
+pub type EventCallback<M> = fn(Option<&ViewState>, Key) -> Option<M>;
 
-pub type UpdateCallback<S> = fn(&S) -> Box<dyn Any>;
-pub type EventCallback = fn(&mut dyn Any, Key);
-
-/// A `WidgetBase` provides common functionality to a `Widget`. It's used to store
-/// event and update callbacks as well sending messages to the UI's message channel.
-pub struct WidgetBase<S, M> {
-    /// Message sender
-    pub tx: UnboundedSender<M>,
-    /// Custom update handler
-    pub on_update: Option<UpdateCallback<S>>,
-    /// Additional custom event handler
-    pub on_event: Option<EventCallback>,
+/// `ViewProps` are properties of a `View`. They define a `View`s data, configuration etc.
+/// Since the framework itself does not know the concrete type of `View`, it also does not
+/// know the concrete type of a `View`s properties.
+/// Hence, view properties are stored inside a `Box<dyn Any>` and downcasted to the concrete
+/// type when needed.
+pub struct ViewProps {
+    inner: Box<dyn Any>,
 }
 
-impl<S, M> WidgetBase<S, M> {
-    /// Create a new `WidgetBase` with no callbacks set.
-    pub fn new(tx: UnboundedSender<M>) -> Self {
+impl ViewProps {
+    pub fn new(inner: &'static dyn Any) -> Self {
         Self {
-            tx: tx.clone(),
-            on_update: None,
-            on_event: None,
+            inner: Box::new(inner),
         }
     }
 
-    /// Send a message to the internal channel.
-    pub fn send(&self, message: M) -> Result<(), SendError<M>> {
-        self.tx.send(message)
+    pub fn inner<T>(self) -> Option<T>
+    where
+        T: Clone + 'static,
+    {
+        self.inner.downcast::<T>().ok().map(|inner| *inner)
     }
 }
 
-/// General properties that specify how a `Widget` is rendered.
-/// They can be passed to a widgets' `render` function.
+impl From<Box<dyn Any>> for ViewProps {
+    fn from(props: Box<dyn Any>) -> Self {
+        ViewProps { inner: props }
+    }
+}
+
+/// A `ViewState` is the representation of a `View`s internal state. e.g. current
+/// table selection or contents of a text field.
+pub enum ViewState {
+    USize(usize),
+    String(String),
+}
+
+impl ViewState {
+    pub fn unwrap_usize(&self) -> Option<usize> {
+        match self {
+            ViewState::USize(value) => Some(*value),
+            _ => None,
+        }
+    }
+
+    pub fn unwrap_string(&self) -> Option<String> {
+        match self {
+            ViewState::String(value) => Some(value.clone()),
+            _ => None,
+        }
+    }
+}
+
+/// General properties that specify how a `View` is rendered.
 #[derive(Clone, Default)]
 pub struct RenderProps {
     /// Area of the render props.
@@ -82,27 +104,67 @@ impl From<Rect> for RenderProps {
     }
 }
 
-/// Main trait defining a `Widget` behaviour.
-///
-/// This is the trait that you should implement to define a custom `Widget`.
-pub trait Widget {
+/// Main trait defining a `View` behaviour, which needs be implemented in order to
+/// build a custom widget. A `View` operates on an application state and can emit
+/// application messages. It's usually is accompanied by a definition of view-specific
+/// properties, which are being built from the application state by the framework.
+pub trait View {
     type State;
     type Message;
 
-    /// Should return a new view with props build from state (if type is known) and a
-    /// message sender set.
-    fn new(state: &Self::State, tx: UnboundedSender<Self::Message>) -> Self
-    where
-        Self: Sized;
-
     /// Should handle key events and call `handle_event` on all children.
-    ///
-    /// After key events have been handled, the custom event handler `on_event` should
-    /// be called
-    fn handle_event(&mut self, key: Key);
+    fn handle_event(&mut self, key: Key) -> Option<Self::Message>;
 
     /// Should update the internal props of this and all children.
-    ///
+    fn update(&mut self, state: &Self::State, props: Option<ViewProps>);
+
+    /// Should render the view using the given `RenderProps`.
+    fn render(&self, frame: &mut Frame, props: RenderProps);
+
+    /// Should return the internal state.
+    fn view_state(&self) -> Option<ViewState> {
+        None
+    }
+}
+
+/// A `View` needs to wrapped into a `Widget` before being able to use with the
+/// framework. A `Widget` enhances a `View` with event and update callbacks and takes
+/// care of calling them before / after calling into the `View`.
+pub struct Widget<S, M> {
+    view: BoxedView<S, M>,
+    sender: UnboundedSender<M>,
+    on_update: Option<UpdateCallback<S>>,
+    on_event: Option<EventCallback<M>>,
+}
+
+impl<S: 'static, M: 'static> Widget<S, M> {
+    pub fn new<V>(view: V, sender: UnboundedSender<M>) -> Self
+    where
+        Self: Sized,
+        V: View<State = S, Message = M> + 'static,
+    {
+        Self {
+            view: Box::new(view),
+            sender: sender.clone(),
+            on_update: None,
+            on_event: None,
+        }
+    }
+
+    /// Calls `handle_event` on the wrapped view as well as the `on_event` callback.
+    /// Sends any message returned by either the view or the callback.
+    pub fn handle_event(&mut self, key: Key) {
+        if let Some(message) = self.view.handle_event(key) {
+            let _ = self.sender.send(message);
+        }
+
+        if let Some(on_event) = self.on_event {
+            if let Some(message) = (on_event)(self.view.view_state().as_ref(), key) {
+                let _ = self.sender.send(message);
+            }
+        }
+    }
+
     /// Applications are usually defined by app-specific widgets that do know
     /// the type of `state`. These can use widgets from the library that do not know the
     /// type of `state`.
@@ -111,88 +173,58 @@ pub trait Widget {
     /// construct and update the internal props. If it is not set, app widgets can construct
     /// props directly via their state converters, whereas library widgets can just fallback
     /// to their current props.
-    fn update(&mut self, state: &Self::State);
-
-    /// Renders a widget to the given frame in the given area.
-    ///
-    /// Optional render props can be given.
-    fn render(&self, frame: &mut Frame, props: RenderProps);
-
-    /// Return a reference to this widgets' base.
-    fn base(&self) -> &WidgetBase<Self::State, Self::Message>;
-
-    /// Return a mutable reference to this widgets' base.
-    fn base_mut(&mut self) -> &mut WidgetBase<Self::State, Self::Message>;
-
-    /// Send a message to the widgets' base channel.
-    fn send(&self, message: Self::Message) -> Result<(), SendError<Self::Message>> {
-        self.base().send(message)
+    pub fn update(&mut self, state: &S) {
+        let props = self.on_update.map(|on_update| (on_update)(state));
+        self.view.update(state, props);
     }
 
-    /// Should set the optional custom event handler.
-    fn on_event(mut self, callback: EventCallback) -> Self
+    /// Renders the wrapped view.
+    pub fn render(&self, frame: &mut Frame, props: RenderProps) {
+        self.view.render(frame, props);
+    }
+
+    /// Sets the optional custom event handler.
+    pub fn on_event(mut self, callback: EventCallback<M>) -> Self
     where
         Self: Sized,
     {
-        self.base_mut().on_event = Some(callback);
+        self.on_event = Some(callback);
         self
     }
 
-    /// Should set the optional update handler.
-    fn on_update(mut self, callback: UpdateCallback<Self::State>) -> Self
+    /// Sets the optional update handler.
+    pub fn on_update(mut self, callback: UpdateCallback<S>) -> Self
     where
         Self: Sized,
     {
-        self.base_mut().on_update = Some(callback);
+        self.on_update = Some(callback);
         self
     }
 
-    /// Returns a boxed `Widget`
-    fn to_boxed(self) -> Box<Self>
-    where
-        Self: Sized,
-    {
-        Box::new(self)
+    /// Sends a message to the widgets' message channel.
+    pub fn send(&self, message: M) {
+        let _ = self.sender.send(message);
     }
 }
 
-/// Needs to be implemented for items that are supposed to be rendered in tables.
-pub trait ToRow<const W: usize> {
-    fn to_row(&self) -> [Cell; W];
+/// A `View` needs to be wrapped into a `Widget` in order to be used with the framework.
+/// `ToWidget` provides a blanket implementation for all `View`s.
+pub trait ToWidget<S, M> {
+    fn to_widget(self, tx: UnboundedSender<M>) -> Widget<S, M>
+    where
+        Self: Sized + 'static;
 }
 
-/// Common trait for widget properties.
-pub trait Properties {
-    fn to_boxed(self) -> Box<Self>
+impl<T, S, M> ToWidget<S, M> for T
+where
+    T: View<State = S, Message = M>,
+    S: 'static,
+    M: 'static,
+{
+    fn to_widget(self, tx: UnboundedSender<M>) -> Widget<S, M>
     where
-        Self: Sized,
+        Self: Sized + 'static,
     {
-        Box::new(self)
-    }
-
-    fn from_callback<S>(callback: Option<UpdateCallback<S>>, state: &S) -> Option<Self>
-    where
-        Self: Sized + Clone + 'static + BoxedAny,
-    {
-        callback
-            .map(|callback| (callback)(state))
-            .and_then(|props| Self::from_boxed_any(props))
-    }
-}
-
-/// Provide default implementations for conversions to and from `Box<dyn Any>`.
-pub trait BoxedAny {
-    fn from_boxed_any(any: Box<dyn Any>) -> Option<Self>
-    where
-        Self: Sized + Clone + 'static,
-    {
-        any.downcast_ref::<Self>().cloned()
-    }
-
-    fn to_boxed_any(self) -> Box<dyn Any>
-    where
-        Self: Sized + Clone + 'static,
-    {
-        Box::new(self)
+        Widget::new(self, tx)
     }
 }

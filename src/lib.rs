@@ -8,15 +8,19 @@ pub mod task;
 pub mod terminal;
 pub mod ui;
 
+use std::any::Any;
 use std::fmt::Debug;
+
+use tokio::sync::mpsc::{self, UnboundedReceiver, UnboundedSender};
+
+use serde::ser::{Serialize, SerializeStruct, Serializer};
 
 use anyhow::Result;
 
-use serde::ser::{Serialize, SerializeStruct, Serializer};
 use store::State;
 use task::Interrupted;
-use tokio::sync::mpsc::{self, UnboundedReceiver, UnboundedSender};
-use ui::{widget::Widget, Frontend};
+use ui::widget::Widget;
+use ui::Frontend;
 
 /// An optional return value.
 #[derive(Clone, Debug)]
@@ -74,6 +78,36 @@ where
     }
 }
 
+/// Provide implementations for conversions to and from `Box<dyn Any>`.
+pub trait BoxedAny {
+    fn from_boxed_any(any: Box<dyn Any>) -> Option<Self>
+    where
+        Self: Sized + Clone + 'static;
+
+    fn to_boxed_any(self) -> Box<dyn Any>
+    where
+        Self: Sized + Clone + 'static;
+}
+
+impl<T> BoxedAny for T
+where
+    T: Sized + Clone + 'static,
+{
+    fn from_boxed_any(any: Box<dyn Any>) -> Option<Self>
+    where
+        Self: Sized + Clone + 'static,
+    {
+        any.downcast::<Self>().ok().map(|b| *b)
+    }
+
+    fn to_boxed_any(self) -> Box<dyn Any>
+    where
+        Self: Sized + Clone + 'static,
+    {
+        Box::new(self)
+    }
+}
+
 /// A 'PageStack' for applications. Page identifier can be pushed to and
 /// popped from the stack.
 #[derive(Clone, Default, Debug)]
@@ -120,20 +154,20 @@ impl<A> Default for Channel<A> {
 /// Initialize a `Store` with the `State` given and a `Frontend` with the `Widget` given,
 /// and run their main loops concurrently. Connect them to the `Channel` and also to
 /// an interrupt broadcast channel also initialized in this function.
-pub async fn run<S, M, W, P>(channel: Channel<M>, state: S, root: Box<W>) -> Result<Option<P>>
+pub async fn run<S, M, P>(channel: Channel<M>, state: S, root: Widget<S, M>) -> Result<Option<P>>
 where
     S: State<P, Message = M> + Clone + Debug + Send + Sync + 'static,
-    W: Widget<State = S, Message = M>,
+    M: 'static,
     P: Clone + Debug + Send + Sync + 'static,
 {
     let (terminator, mut interrupt_rx) = task::create_termination();
 
     let (store, state_rx) = store::Store::<S, M, P>::new();
-    let frontend = Frontend::<M>::new(channel.tx.clone());
+    let frontend = Frontend::default();
 
     tokio::try_join!(
         store.main_loop(state, terminator, channel.rx, interrupt_rx.resubscribe()),
-        frontend.main_loop(Some(*root), state_rx, interrupt_rx.resubscribe()),
+        frontend.main_loop(root, state_rx, interrupt_rx.resubscribe()),
     )?;
 
     if let Ok(reason) = interrupt_rx.recv().await {

@@ -19,7 +19,7 @@ use tui::store;
 use tui::store::StateValue;
 use tui::ui::items::{Filter, NotificationItem, NotificationItemFilter};
 use tui::ui::widget::window::{Window, WindowProps};
-use tui::ui::widget::{Properties, Widget};
+use tui::ui::widget::{Properties, View};
 use tui::Channel;
 use tui::Exit;
 

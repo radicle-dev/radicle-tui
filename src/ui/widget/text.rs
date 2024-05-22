@@ -1,11 +1,11 @@
-use tokio::sync::mpsc::UnboundedSender;
+use std::marker::PhantomData;
 
 use termion::event::Key;
 
 use ratatui::layout::{Constraint, Layout};
 use ratatui::text::Text;
 
-use super::{BoxedAny, Properties, RenderProps, Widget, WidgetBase};
+use super::{RenderProps, View, ViewProps, ViewState};
 
 #[derive(Clone)]
 pub struct ParagraphProps<'a> {
@@ -40,9 +40,6 @@ impl<'a> Default for ParagraphProps<'a> {
     }
 }
 
-impl<'a: 'static> Properties for ParagraphProps<'a> {}
-impl<'a: 'static> BoxedAny for ParagraphProps<'a> {}
-
 #[derive(Clone)]
 struct ParagraphState {
     /// Internal offset
@@ -51,15 +48,26 @@ struct ParagraphState {
     pub progress: usize,
 }
 
-impl BoxedAny for ParagraphState {}
-
 pub struct Paragraph<'a, S, M> {
-    /// Internal base
-    base: WidgetBase<S, M>,
     /// Internal props
     props: ParagraphProps<'a>,
     /// Internal state
     state: ParagraphState,
+    /// Phantom
+    phantom: PhantomData<(S, M)>,
+}
+
+impl<'a, S, M> Default for Paragraph<'a, S, M> {
+    fn default() -> Self {
+        Self {
+            props: ParagraphProps::default(),
+            state: ParagraphState {
+                offset: 0,
+                progress: 0,
+            },
+            phantom: PhantomData,
+        }
+    }
 }
 
 impl<'a, S, M> Paragraph<'a, S, M> {
@@ -118,10 +126,6 @@ impl<'a, S, M> Paragraph<'a, S, M> {
         self.scroll()
     }
 
-    pub fn progress(&self) -> usize {
-        self.state.progress
-    }
-
     fn scroll_percent(offset: usize, len: usize, height: usize) -> usize {
         if height >= len {
             100
@@ -136,7 +140,7 @@ impl<'a, S, M> Paragraph<'a, S, M> {
     }
 }
 
-impl<'a, S, M> Widget for Paragraph<'a, S, M>
+impl<'a, S, M> View for Paragraph<'a, S, M>
 where
     'a: 'static,
     S: 'static,
@@ -145,21 +149,7 @@ where
     type Message = M;
     type State = S;
 
-    fn new(_state: &S, tx: UnboundedSender<M>) -> Self
-    where
-        Self: Sized,
-    {
-        Self {
-            base: WidgetBase::new(tx.clone()),
-            props: ParagraphProps::default(),
-            state: ParagraphState {
-                offset: 0,
-                progress: 0,
-            },
-        }
-    }
-
-    fn handle_event(&mut self, key: Key) {
+    fn handle_event(&mut self, key: Key) -> Option<Self::Message> {
         let len = self.props.content.lines.len() + 1;
         let page_size = self.props.page_size;
 
@@ -185,14 +175,13 @@ where
             _ => {}
         }
 
-        if let Some(on_event) = self.base.on_event {
-            (on_event)(self, key);
-        }
+        None
     }
 
-    fn update(&mut self, state: &S) {
-        self.props =
-            ParagraphProps::from_callback(self.base.on_update, state).unwrap_or(self.props.clone());
+    fn update(&mut self, _state: &Self::State, props: Option<ViewProps>) {
+        if let Some(props) = props.and_then(|props| props.inner::<ParagraphProps>()) {
+            self.props = props;
+        }
     }
 
     fn render(&self, frame: &mut ratatui::Frame, props: RenderProps) {
@@ -205,11 +194,7 @@ where
         frame.render_widget(content, content_area);
     }
 
-    fn base(&self) -> &WidgetBase<S, M> {
-        &self.base
-    }
-
-    fn base_mut(&mut self) -> &mut WidgetBase<S, M> {
-        &mut self.base
+    fn view_state(&self) -> Option<ViewState> {
+        Some(ViewState::USize(self.state.progress))
     }
 }

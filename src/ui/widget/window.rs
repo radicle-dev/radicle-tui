@@ -1,7 +1,5 @@
-use std::collections::HashMap;
 use std::hash::Hash;
-
-use tokio::sync::mpsc::UnboundedSender;
+use std::{collections::HashMap, marker::PhantomData};
 
 use termion::event::Key;
 
@@ -12,7 +10,7 @@ use ratatui::widgets::Row;
 
 use crate::ui::theme::style;
 
-use super::{BoxedAny, BoxedWidget, Properties, RenderProps, Widget, WidgetBase};
+use super::{RenderProps, View, ViewProps, Widget};
 
 #[derive(Clone)]
 pub struct WindowProps<Id> {
@@ -32,29 +30,33 @@ impl<Id> Default for WindowProps<Id> {
     }
 }
 
-impl<Id> Properties for WindowProps<Id> {}
-impl<Id> BoxedAny for WindowProps<Id> {}
-
 pub struct Window<S, M, Id> {
-    /// Internal base
-    base: WidgetBase<S, M>,
     /// Internal properties
     props: WindowProps<Id>,
     /// All pages known
-    pages: HashMap<Id, BoxedWidget<S, M>>,
+    pages: HashMap<Id, Widget<S, M>>,
+}
+
+impl<S, M, Id> Default for Window<S, M, Id> {
+    fn default() -> Self {
+        Self {
+            props: WindowProps::default(),
+            pages: HashMap::new(),
+        }
+    }
 }
 
 impl<S, M, Id> Window<S, M, Id>
 where
     Id: Clone + Hash + Eq + PartialEq,
 {
-    pub fn page(mut self, id: Id, page: BoxedWidget<S, M>) -> Self {
+    pub fn page(mut self, id: Id, page: Widget<S, M>) -> Self {
         self.pages.insert(id, page);
         self
     }
 }
 
-impl<'a, S, M, Id> Widget for Window<S, M, Id>
+impl<'a, S, M, Id> View for Window<S, M, Id>
 where
     'a: 'static,
     S: 'static,
@@ -64,18 +66,7 @@ where
     type Message = M;
     type State = S;
 
-    fn new(_state: &S, tx: UnboundedSender<M>) -> Self
-    where
-        Self: Sized,
-    {
-        Self {
-            base: WidgetBase::new(tx.clone()),
-            props: WindowProps::default(),
-            pages: HashMap::new(),
-        }
-    }
-
-    fn handle_event(&mut self, key: termion::event::Key) {
+    fn handle_event(&mut self, key: termion::event::Key) -> Option<Self::Message> {
         let page = self
             .props
             .current_page
@@ -86,14 +77,13 @@ where
             page.handle_event(key);
         }
 
-        if let Some(on_event) = self.base.on_event {
-            (on_event)(self, key);
-        }
+        None
     }
 
-    fn update(&mut self, state: &S) {
-        self.props =
-            WindowProps::from_callback(self.base.on_update, state).unwrap_or(self.props.clone());
+    fn update(&mut self, state: &Self::State, props: Option<ViewProps>) {
+        if let Some(props) = props.and_then(|props| props.inner::<WindowProps<Id>>()) {
+            self.props = props;
+        }
 
         let page = self
             .props
@@ -118,14 +108,6 @@ where
         if let Some(page) = page {
             page.render(frame, RenderProps::from(area).focus(true));
         }
-    }
-
-    fn base(&self) -> &WidgetBase<S, M> {
-        &self.base
-    }
-
-    fn base_mut(&mut self) -> &mut WidgetBase<S, M> {
-        &mut self.base
     }
 }
 
@@ -159,14 +141,11 @@ impl Default for ShortcutsProps {
     }
 }
 
-impl Properties for ShortcutsProps {}
-impl BoxedAny for ShortcutsProps {}
-
 pub struct Shortcuts<S, M> {
-    /// Internal properties
+    /// Internal props
     props: ShortcutsProps,
-    /// Internal base
-    base: WidgetBase<S, M>,
+    /// Phantom
+    phantom: PhantomData<(S, M)>,
 }
 
 impl<S, M> Shortcuts<S, M> {
@@ -186,22 +165,27 @@ impl<S, M> Shortcuts<S, M> {
     }
 }
 
-impl<S, M> Widget for Shortcuts<S, M> {
+impl<S, M> Default for Shortcuts<S, M> {
+    fn default() -> Self {
+        Self {
+            props: ShortcutsProps::default(),
+            phantom: PhantomData,
+        }
+    }
+}
+
+impl<S, M> View for Shortcuts<S, M> {
     type Message = M;
     type State = S;
 
-    fn new(_state: &S, tx: UnboundedSender<M>) -> Self {
-        Self {
-            base: WidgetBase::new(tx.clone()),
-            props: ShortcutsProps::default(),
-        }
+    fn handle_event(&mut self, _key: Key) -> Option<Self::Message> {
+        None
     }
 
-    fn handle_event(&mut self, _key: Key) {}
-
-    fn update(&mut self, state: &S) {
-        self.props =
-            ShortcutsProps::from_callback(self.base.on_update, state).unwrap_or(self.props.clone());
+    fn update(&mut self, _state: &Self::State, props: Option<ViewProps>) {
+        if let Some(props) = props.and_then(|props| props.inner::<ShortcutsProps>()) {
+            self.props = props;
+        }
     }
 
     fn render(&self, frame: &mut ratatui::Frame, props: RenderProps) {
@@ -240,13 +224,5 @@ impl<S, M> Widget for Shortcuts<S, M> {
 
         let table = Table::new([Row::new(row)], widths).column_spacing(0);
         frame.render_widget(table, props.area);
-    }
-
-    fn base(&self) -> &WidgetBase<S, M> {
-        &self.base
-    }
-
-    fn base_mut(&mut self) -> &mut WidgetBase<S, M> {
-        &mut self.base
     }
 }
