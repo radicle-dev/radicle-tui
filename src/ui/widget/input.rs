@@ -1,12 +1,12 @@
-use termion::event::Key;
+use std::marker::PhantomData;
 
-use tokio::sync::mpsc::UnboundedSender;
+use termion::event::Key;
 
 use ratatui::layout::{Constraint, Layout};
 use ratatui::style::Stylize;
 use ratatui::text::{Line, Span};
 
-use super::{BoxedAny, Properties, RenderProps, Widget, WidgetBase};
+use super::{RenderProps, View, ViewProps, ViewState};
 
 #[derive(Clone)]
 pub struct TextFieldProps {
@@ -46,30 +46,35 @@ impl Default for TextFieldProps {
     }
 }
 
-impl Properties for TextFieldProps {}
-
 #[derive(Clone)]
 struct TextFieldState {
     pub text: Option<String>,
     pub cursor_position: usize,
 }
 
-impl BoxedAny for TextFieldState {}
-
 pub struct TextField<S, M> {
-    /// Internal base
-    base: WidgetBase<S, M>,
     /// Internal props
     props: TextFieldProps,
     /// Internal state
     state: TextFieldState,
+    /// Phantom
+    phantom: PhantomData<(S, M)>,
+}
+
+impl<S, M> Default for TextField<S, M> {
+    fn default() -> Self {
+        Self {
+            props: TextFieldProps::default(),
+            state: TextFieldState {
+                text: None,
+                cursor_position: 0,
+            },
+            phantom: PhantomData,
+        }
+    }
 }
 
 impl<S, M> TextField<S, M> {
-    pub fn text(&self) -> Option<&String> {
-        self.state.text.as_ref()
-    }
-
     fn move_cursor_left(&mut self) {
         let cursor_moved_left = self.state.cursor_position.saturating_sub(1);
         self.state.cursor_position = self.clamp_cursor(cursor_moved_left);
@@ -131,7 +136,7 @@ impl<S, M> TextField<S, M> {
     }
 }
 
-impl<S, M> Widget for TextField<S, M>
+impl<S, M> View for TextField<S, M>
 where
     S: 'static,
     M: 'static,
@@ -139,18 +144,7 @@ where
     type Message = M;
     type State = S;
 
-    fn new(_state: &S, tx: UnboundedSender<M>) -> Self {
-        Self {
-            base: WidgetBase::new(tx.clone()),
-            props: TextFieldProps::default(),
-            state: TextFieldState {
-                text: None,
-                cursor_position: 0,
-            },
-        }
-    }
-
-    fn handle_event(&mut self, key: Key) {
+    fn handle_event(&mut self, key: Key) -> Option<Self::Message> {
         match key {
             Key::Char(to_insert)
                 if (key != Key::Alt('\n'))
@@ -171,21 +165,17 @@ where
             _ => {}
         }
 
-        if let Some(on_event) = self.base.on_event {
-            (on_event)(self, key);
-        }
+        None
     }
 
-    fn update(&mut self, state: &S) {
-        if let Some(on_update) = self.base.on_update {
-            if let Some(props) = (on_update)(state).downcast_ref::<TextFieldProps>() {
-                self.props = props.clone();
+    fn update(&mut self, _state: &Self::State, props: Option<ViewProps>) {
+        if let Some(props) = props.and_then(|props| props.inner::<TextFieldProps>()) {
+            self.props = props;
 
-                if self.state.text.is_none() {
-                    self.state.cursor_position = props.text.len().saturating_sub(1);
-                }
-                self.state.text = Some(props.text.clone());
+            if self.state.text.is_none() {
+                self.state.cursor_position = self.props.text.len().saturating_sub(1);
             }
+            self.state.text = Some(self.props.text.clone());
         }
     }
 
@@ -238,13 +228,10 @@ where
         }
     }
 
-    fn base(&self) -> &WidgetBase<S, M> {
-        &self.base
-    }
-
-    fn base_mut(&mut self) -> &mut WidgetBase<S, M> {
-        &mut self.base
+    fn view_state(&self) -> Option<ViewState> {
+        self.state
+            .text
+            .as_ref()
+            .map(|text| ViewState::String(text.to_string()))
     }
 }
-
-impl<S, M> BoxedAny for TextField<S, M> {}

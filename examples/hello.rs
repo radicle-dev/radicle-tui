@@ -5,8 +5,8 @@ use radicle_tui as tui;
 use termion::event::Key;
 use tui::store;
 use tui::ui::widget::text::{Paragraph, ParagraphProps};
-use tui::ui::widget::{Properties, Widget};
-use tui::{Channel, Exit};
+use tui::ui::widget::ToWidget;
+use tui::{BoxedAny, Channel, Exit};
 
 #[derive(Clone, Debug)]
 struct State {
@@ -41,22 +41,19 @@ pub async fn main() -> Result<()> {
         welcome: "Hello TUI".to_string(),
     };
 
-    let welcome = Paragraph::new(&state, channel.tx.clone())
-        .on_update(|state| {
+    let welcome = Paragraph::default()
+        .to_widget(channel.tx.clone())
+        .on_update(|state: &State| {
             ParagraphProps::default()
                 .text(&state.welcome.clone().into())
-                .to_boxed()
+                .to_boxed_any()
+                .into()
         })
-        .on_event(|paragraph, key| {
-            paragraph
-                .downcast_mut::<Paragraph<'_, State, Message>>()
-                .and_then(|paragraph| match key {
-                    Key::Char('r') => paragraph.send(Message::ReverseWelcome).ok(),
-                    Key::Char('q') => paragraph.send(Message::Quit).ok(),
-                    _ => None,
-                });
-        })
-        .to_boxed();
+        .on_event(|_, key| match key {
+            Key::Char('r') => Some(Message::ReverseWelcome),
+            Key::Char('q') => Some(Message::Quit),
+            _ => None,
+        });
 
     tui::run(channel, state, welcome).await?;
 

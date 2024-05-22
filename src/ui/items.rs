@@ -22,8 +22,12 @@ use ratatui::widgets::Cell;
 
 use super::super::git;
 use super::theme::style;
-use super::widget::ToRow;
 use super::{format, span};
+
+/// Needs to be implemented for items that are supposed to be rendered in tables.
+pub trait ToRow<const W: usize> {
+    fn to_row(&self) -> [Cell; W];
+}
 
 pub trait Filter<T> {
     fn matches(&self, item: &T) -> bool;

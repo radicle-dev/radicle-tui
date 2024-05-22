@@ -1,8 +1,7 @@
 use std::cmp;
+use std::marker::PhantomData;
 
 use ratatui::widgets::Row;
-use tokio::sync::mpsc::UnboundedSender;
-
 use termion::event::Key;
 
 use ratatui::layout::Constraint;
@@ -10,11 +9,12 @@ use ratatui::style::Stylize;
 use ratatui::text::Text;
 use ratatui::widgets::TableState;
 
+use crate::ui::items::ToRow;
 use crate::ui::theme::style;
 use crate::ui::{layout, span};
 
-use super::BoxedAny;
-use super::{container::Column, Properties, RenderProps, ToRow, Widget, WidgetBase};
+use super::{container::Column, RenderProps, View};
+use super::{ViewProps, ViewState};
 
 #[derive(Clone, Debug)]
 pub struct TableProps<'a, R, const W: usize>
@@ -83,31 +83,35 @@ where
     }
 }
 
-impl<'a: 'static, R, const W: usize> Properties for TableProps<'a, R, W> where R: ToRow<W> + 'static {}
-impl<'a: 'static, R, const W: usize> BoxedAny for TableProps<'a, R, W> where R: ToRow<W> + 'static {}
-
-impl BoxedAny for TableState {}
-
 pub struct Table<'a, S, M, R, const W: usize>
 where
     R: ToRow<W>,
 {
-    /// Internal base
-    base: WidgetBase<S, M>,
     /// Internal table properties
     props: TableProps<'a, R, W>,
     /// Internal selection and offset state
     state: TableState,
+    /// Phantom
+    phantom: PhantomData<(S, M)>,
+}
+
+impl<'a, S, M, R, const W: usize> Default for Table<'a, S, M, R, W>
+where
+    R: ToRow<W>,
+{
+    fn default() -> Self {
+        Self {
+            props: TableProps::default(),
+            state: TableState::default().with_selected(Some(0)),
+            phantom: PhantomData,
+        }
+    }
 }
 
 impl<'a, S, M, R, const W: usize> Table<'a, S, M, R, W>
 where
     R: ToRow<W>,
 {
-    pub fn selected(&self) -> Option<usize> {
-        self.state.selected()
-    }
-
     fn prev(&mut self) -> Option<usize> {
         let selected = self
             .state
@@ -159,22 +163,14 @@ where
     }
 }
 
-impl<'a: 'static, S: 'a, M: 'a, R, const W: usize> Widget for Table<'a, S, M, R, W>
+impl<'a: 'static, S: 'a, M: 'a, R, const W: usize> View for Table<'a, S, M, R, W>
 where
     R: ToRow<W> + Clone + 'static,
 {
     type Message = M;
     type State = S;
 
-    fn new(_state: &S, tx: UnboundedSender<M>) -> Self {
-        Self {
-            base: WidgetBase::new(tx.clone()),
-            props: TableProps::default(),
-            state: TableState::default().with_selected(Some(0)),
-        }
-    }
-
-    fn handle_event(&mut self, key: Key) {
+    fn handle_event(&mut self, key: Key) -> Option<Self::Message> {
         match key {
             Key::Up | Key::Char('k') => {
                 self.prev();
@@ -197,18 +193,17 @@ where
             _ => {}
         }
 
-        if let Some(on_event) = self.base.on_event {
-            (on_event)(self, key);
-        }
+        None
     }
 
-    fn update(&mut self, state: &S) {
-        self.props =
-            TableProps::from_callback(self.base.on_update, state).unwrap_or(self.props.clone());
-
-        if self.props.selected != self.state.selected() {
-            self.state.select(self.props.selected);
+    fn update(&mut self, _state: &Self::State, props: Option<ViewProps>) {
+        if let Some(props) = props.and_then(|props| props.inner::<TableProps<R, W>>()) {
+            self.props = props;
         }
+
+        // if self.props.selected != self.state.selected() {
+        //     self.state.select(self.props.selected);
+        // }
     }
 
     fn render(&self, frame: &mut ratatui::Frame, props: RenderProps) {
@@ -268,12 +263,8 @@ where
         }
     }
 
-    fn base(&self) -> &WidgetBase<S, M> {
-        &self.base
-    }
-
-    fn base_mut(&mut self) -> &mut WidgetBase<S, M> {
-        &mut self.base
+    fn view_state(&self) -> Option<ViewState> {
+        self.state.selected().map(ViewState::USize)
     }
 }
 

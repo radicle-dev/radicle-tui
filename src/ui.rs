@@ -10,16 +10,16 @@ use std::fmt::Debug;
 use std::time::Duration;
 
 use tokio::sync::broadcast;
-use tokio::sync::mpsc;
 use tokio::sync::mpsc::UnboundedReceiver;
 
 use crate::ui::widget::RenderProps;
+
+use self::widget::Widget;
 
 use super::event::Event;
 use super::store::State;
 use super::task::Interrupted;
 use super::terminal;
-use super::ui::widget::Widget;
 
 const RENDERING_TICK_RATE: Duration = Duration::from_millis(250);
 const INLINE_HEIGHT: usize = 20;
@@ -29,16 +29,10 @@ const INLINE_HEIGHT: usize = 20;
 ///
 /// Once created and run with `main_loop`, the `Frontend` will wait for new messages
 /// being sent on either the terminal event, the state or the interrupt message channel.
-pub struct Frontend<M> {
-    tx: mpsc::UnboundedSender<M>,
-}
+#[derive(Default)]
+pub struct Frontend {}
 
-impl<M> Frontend<M> {
-    /// Create a new `Frontend` storing the sending end of a message channel.
-    pub fn new(tx: mpsc::UnboundedSender<M>) -> Self {
-        Self { tx: tx.clone() }
-    }
-
+impl Frontend {
     /// By calling `main_loop`, the `Frontend` will wait for new messages being sent
     /// on either the terminal event, the state or the interrupt message channel.
     /// After all, it will draw the (potentially) updated root widget.
@@ -53,15 +47,15 @@ impl<M> Frontend<M> {
     ///
     /// Interrupt messages are being sent to broadcast channel for retrieving the
     /// application kill signal.
-    pub async fn main_loop<S, W, P>(
+    pub async fn main_loop<S, M, P>(
         self,
-        root: Option<W>,
+        mut root: Widget<S, M>,
         mut state_rx: UnboundedReceiver<S>,
         mut interrupt_rx: broadcast::Receiver<Interrupted<P>>,
     ) -> anyhow::Result<Interrupted<P>>
     where
-        S: State<P>,
-        W: Widget<State = S, Message = M>,
+        S: State<P> + 'static,
+        M: 'static,
         P: Clone + Send + Sync + Debug,
     {
         let mut ticker = tokio::time::interval(RENDERING_TICK_RATE);
@@ -72,13 +66,8 @@ impl<M> Frontend<M> {
         let mut root = {
             let state = state_rx.recv().await.unwrap();
 
-            match root {
-                Some(mut root) => {
-                    root.update(&state);
-                    root
-                }
-                None => W::new(&state, self.tx.clone()),
-            }
+            root.update(&state);
+            root
         };
 
         let result: anyhow::Result<Interrupted<P>> = loop {

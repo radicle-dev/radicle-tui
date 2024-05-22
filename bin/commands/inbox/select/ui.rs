@@ -22,7 +22,7 @@ use tui::ui::widget::input::{TextField, TextFieldProps};
 use tui::ui::widget::list::{Table, TableProps, TableUtils};
 use tui::ui::widget::text::{Paragraph, ParagraphProps};
 use tui::ui::widget::window::{Shortcuts, ShortcutsProps};
-use tui::ui::widget::{BoxedAny, Properties, RenderProps, Widget, WidgetBase};
+use tui::ui::widget::{BoxedAny, Properties, RenderProps, View, WidgetBase};
 
 use tui::Selection;
 
@@ -122,7 +122,7 @@ pub struct Browser<'a> {
     search: BoxedWidget,
 }
 
-impl<'a: 'static> Widget for Browser<'a> {
+impl<'a: 'static> View for Browser<'a> {
     type Message = Message;
     type State = State;
 
@@ -315,7 +315,7 @@ pub struct BrowserPage<'a> {
     shortcuts: BoxedWidget,
 }
 
-impl<'a: 'static> Widget for BrowserPage<'a> {
+impl<'a: 'static> View for BrowserPage<'a> {
     type Message = Message;
     type State = State;
 
@@ -410,7 +410,7 @@ pub struct Search {
     input: BoxedWidget,
 }
 
-impl Widget for Search {
+impl View for Search {
     type Message = Message;
     type State = State;
 
@@ -513,7 +513,7 @@ pub struct HelpPage<'a> {
     shortcuts: BoxedWidget,
 }
 
-impl<'a: 'static> Widget for HelpPage<'a> {
+impl<'a: 'static> View for HelpPage<'a> {
     type Message = Message;
     type State = State;
 

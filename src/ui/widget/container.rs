@@ -1,6 +1,5 @@
 use std::fmt::Debug;
-
-use tokio::sync::mpsc::UnboundedSender;
+use std::marker::PhantomData;
 
 use termion::event::Key;
 
@@ -10,7 +9,7 @@ use ratatui::widgets::{Block, BorderType, Borders, Row};
 use crate::ui::ext::{FooterBlock, FooterBlockType, HeaderBlock};
 use crate::ui::theme::style;
 
-use super::{BoxedAny, BoxedWidget, Properties, RenderProps, Widget, WidgetBase};
+use super::{RenderProps, View, ViewProps, Widget};
 
 #[derive(Clone, Debug)]
 pub struct Column<'a> {
@@ -64,14 +63,20 @@ impl<'a> Default for HeaderProps<'a> {
     }
 }
 
-impl<'a: 'static> Properties for HeaderProps<'a> {}
-impl<'a: 'static> BoxedAny for HeaderProps<'a> {}
-
 pub struct Header<'a: 'static, S, M> {
     /// Internal props
     props: HeaderProps<'a>,
-    /// Internal base
-    base: WidgetBase<S, M>,
+    /// Phantom
+    phantom: PhantomData<(S, M)>,
+}
+
+impl<'a, S, M> Default for Header<'a, S, M> {
+    fn default() -> Self {
+        Self {
+            props: HeaderProps::default(),
+            phantom: PhantomData,
+        }
+    }
 }
 
 impl<'a, S, A> Header<'a, S, A> {
@@ -87,25 +92,18 @@ impl<'a, S, A> Header<'a, S, A> {
     }
 }
 
-impl<'a: 'static, S, M> Widget for Header<'a, S, M> {
+impl<'a: 'static, S, M> View for Header<'a, S, M> {
     type Message = M;
     type State = S;
 
-    fn new(_state: &S, tx: UnboundedSender<M>) -> Self {
-        Self {
-            base: WidgetBase::new(tx.clone()),
-            props: HeaderProps::default(),
-        }
+    fn handle_event(&mut self, _key: Key) -> Option<Self::Message> {
+        None
     }
 
-    fn handle_event(&mut self, _key: Key) {}
-
-    fn update(&mut self, state: &S) {
-        self.props = self
-            .base
-            .on_update
-            .and_then(|on_update| HeaderProps::from_boxed_any((on_update)(state)))
-            .unwrap_or(self.props.clone());
+    fn update(&mut self, _state: &Self::State, props: Option<ViewProps>) {
+        if let Some(props) = props.and_then(|props| props.inner::<HeaderProps>()) {
+            self.props = props;
+        }
     }
 
     fn render(&self, frame: &mut ratatui::Frame, props: RenderProps) {
@@ -165,14 +163,6 @@ impl<'a: 'static, S, M> Widget for Header<'a, S, M> {
         frame.render_widget(block, props.area);
         frame.render_widget(header, header_layout[0]);
     }
-
-    fn base(&self) -> &WidgetBase<S, M> {
-        &self.base
-    }
-
-    fn base_mut(&mut self) -> &mut WidgetBase<S, M> {
-        &mut self.base
-    }
 }
 
 #[derive(Clone, Debug)]
@@ -205,14 +195,20 @@ impl<'a> Default for FooterProps<'a> {
     }
 }
 
-impl<'a: 'static> Properties for FooterProps<'a> {}
-impl<'a: 'static> BoxedAny for FooterProps<'a> {}
-
 pub struct Footer<'a, S, M> {
     /// Internal props
     props: FooterProps<'a>,
-    /// Internal base
-    base: WidgetBase<S, M>,
+    /// Phantom
+    phantom: PhantomData<(S, M)>,
+}
+
+impl<'a, S, M> Default for Footer<'a, S, M> {
+    fn default() -> Self {
+        Self {
+            props: FooterProps::default(),
+            phantom: PhantomData,
+        }
+    }
 }
 
 impl<'a, S, M> Footer<'a, S, M> {
@@ -250,25 +246,18 @@ impl<'a, S, M> Footer<'a, S, M> {
     }
 }
 
-impl<'a: 'static, S, M> Widget for Footer<'a, S, M> {
+impl<'a: 'static, S, M> View for Footer<'a, S, M> {
     type Message = M;
     type State = S;
 
-    fn new(_state: &S, tx: UnboundedSender<M>) -> Self {
-        Self {
-            base: WidgetBase::new(tx.clone()),
-            props: FooterProps::default(),
-        }
+    fn handle_event(&mut self, _key: Key) -> Option<Self::Message> {
+        None
     }
 
-    fn handle_event(&mut self, _key: Key) {}
-
-    fn update(&mut self, state: &S) {
-        self.props = self
-            .base
-            .on_update
-            .and_then(|on_update| FooterProps::from_boxed_any((on_update)(state)))
-            .unwrap_or(self.props.clone());
+    fn update(&mut self, _state: &Self::State, props: Option<ViewProps>) {
+        if let Some(props) = props.and_then(|props| props.inner::<FooterProps>()) {
+            self.props = props;
+        }
     }
 
     fn render(&self, frame: &mut ratatui::Frame, props: RenderProps) {
@@ -304,14 +293,6 @@ impl<'a: 'static, S, M> Widget for Footer<'a, S, M> {
             self.render_cell(frame, *area, block_type, cell.clone(), props.focus);
         }
     }
-
-    fn base(&self) -> &WidgetBase<S, M> {
-        &self.base
-    }
-
-    fn base_mut(&mut self) -> &mut WidgetBase<S, M> {
-        &mut self.base
-    }
 }
 
 #[derive(Clone, Default)]
@@ -326,65 +307,65 @@ impl ContainerProps {
     }
 }
 
-impl Properties for ContainerProps {}
-impl BoxedAny for ContainerProps {}
-
 pub struct Container<S, M> {
-    /// Internal base
-    base: WidgetBase<S, M>,
     /// Internal props
     props: ContainerProps,
     /// Container header
-    header: Option<BoxedWidget<S, M>>,
+    header: Option<Widget<S, M>>,
     /// Content widget
-    content: Option<BoxedWidget<S, M>>,
+    content: Option<Widget<S, M>>,
     /// Container footer
-    footer: Option<BoxedWidget<S, M>>,
+    footer: Option<Widget<S, M>>,
 }
 
-impl<S, M> Container<S, M> {
-    pub fn header(mut self, header: BoxedWidget<S, M>) -> Self {
-        self.header = Some(header);
-        self
-    }
-
-    pub fn content(mut self, content: BoxedWidget<S, M>) -> Self {
-        self.content = Some(content);
-        self
-    }
-
-    pub fn footer(mut self, footer: BoxedWidget<S, M>) -> Self {
-        self.footer = Some(footer);
-        self
-    }
-}
-
-impl<S, M> Widget for Container<S, M> {
-    type Message = M;
-    type State = S;
-
-    fn new(_state: &S, tx: UnboundedSender<M>) -> Self
-    where
-        Self: Sized,
-    {
+impl<S, M> Default for Container<S, M> {
+    fn default() -> Self {
         Self {
-            base: WidgetBase::new(tx.clone()),
             props: ContainerProps::default(),
             header: None,
             content: None,
             footer: None,
         }
     }
+}
 
-    fn handle_event(&mut self, key: termion::event::Key) {
+impl<S, M> Container<S, M> {
+    pub fn header(mut self, header: Widget<S, M>) -> Self {
+        self.header = Some(header);
+        self
+    }
+
+    pub fn content(mut self, content: Widget<S, M>) -> Self {
+        self.content = Some(content);
+        self
+    }
+
+    pub fn footer(mut self, footer: Widget<S, M>) -> Self {
+        self.footer = Some(footer);
+        self
+    }
+}
+
+impl<S, M> View for Container<S, M>
+where
+    S: 'static,
+    M: 'static,
+{
+    type Message = M;
+    type State = S;
+
+    fn handle_event(&mut self, key: termion::event::Key) -> Option<Self::Message> {
         if let Some(content) = &mut self.content {
             content.handle_event(key);
         }
+
+        None
     }
 
-    fn update(&mut self, state: &S) {
-        self.props =
-            ContainerProps::from_callback(self.base.on_update, state).unwrap_or(self.props.clone());
+    fn update(&mut self, state: &Self::State, props: Option<ViewProps>) {
+        if let Some(props) = props.and_then(|props| props.inner::<ContainerProps>()) {
+            self.props = props;
+        }
 
         if let Some(header) = &mut self.header {
             header.update(state);
@@ -445,14 +426,6 @@ impl<S, M> Widget for Container<S, M> {
             footer.render(frame, RenderProps::from(footer_area).focus(props.focus));
         }
     }
-
-    fn base(&self) -> &WidgetBase<S, M> {
-        &self.base
-    }
-
-    fn base_mut(&mut self) -> &mut WidgetBase<S, M> {
-        &mut self.base
-    }
 }
 
 #[derive(Clone)]
@@ -460,8 +433,6 @@ pub struct SectionGroupState {
     /// Index of currently focused section.
     focus: Option<usize>,
 }
-
-impl BoxedAny for SectionGroupState {}
 
 #[derive(Clone, Default)]
 pub struct SectionGroupProps {
@@ -476,22 +447,27 @@ impl SectionGroupProps {
     }
 }
 
-impl Properties for SectionGroupProps {}
-impl BoxedAny for SectionGroupProps {}
-
 pub struct SectionGroup<S, M> {
-    /// Internal base
-    base: WidgetBase<S, M>,
     /// Internal table properties
     props: SectionGroupProps,
     /// All sections
-    sections: Vec<BoxedWidget<S, M>>,
+    sections: Vec<Widget<S, M>>,
     /// Internal selection and offset state
     state: SectionGroupState,
 }
 
+impl<S, M> Default for SectionGroup<S, M> {
+    fn default() -> Self {
+        Self {
+            props: SectionGroupProps::default(),
+            sections: vec![],
+            state: SectionGroupState { focus: Some(0) },
+        }
+    }
+}
+
 impl<S, M> SectionGroup<S, M> {
-    pub fn section(mut self, section: BoxedWidget<S, M>) -> Self {
+    pub fn section(mut self, section: Widget<S, M>) -> Self {
         self.sections.push(section);
         self
     }
@@ -515,7 +491,7 @@ impl<S, M> SectionGroup<S, M> {
     }
 }
 
-impl<S, M> Widget for SectionGroup<S, M>
+impl<S, M> View for SectionGroup<S, M>
 where
     S: 'static,
     M: 'static,
@@ -523,16 +499,7 @@ where
     type State = S;
     type Message = M;
 
-    fn new(_state: &S, tx: UnboundedSender<M>) -> Self {
-        Self {
-            base: WidgetBase::new(tx.clone()),
-            props: SectionGroupProps::default(),
-            sections: vec![],
-            state: SectionGroupState { focus: Some(0) },
-        }
-    }
-
-    fn handle_event(&mut self, key: Key) {
+    fn handle_event(&mut self, key: Key) -> Option<Self::Message> {
         if let Some(section) = self
             .state
             .focus
@@ -553,14 +520,13 @@ where
             }
         }
 
-        if let Some(on_event) = self.base.on_event {
-            (on_event)(self, key);
-        }
+        None
     }
 
-    fn update(&mut self, state: &S) {
-        self.props = SectionGroupProps::from_callback(self.base.on_update, state)
-            .unwrap_or(self.props.clone());
+    fn update(&mut self, state: &Self::State, props: Option<ViewProps>) {
+        if let Some(props) = props.and_then(|props| props.inner::<SectionGroupProps>()) {
+            self.props = props;
+        }
 
         for section in &mut self.sections {
             section.update(state);
@@ -581,13 +547,5 @@ where
                 section.render(frame, RenderProps::from(*area).focus(focus));
             }
         }
-    }
-
-    fn base(&self) -> &WidgetBase<S, M> {
-        &self.base
-    }
-
-    fn base_mut(&mut self) -> &mut WidgetBase<S, M> {
-        &mut self.base
     }
 }

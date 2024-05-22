@@ -15,7 +15,7 @@ use tui::cob::issue;
 use tui::store::StateValue;
 use tui::ui::items::{Filter, IssueItem, IssueItemFilter};
 use tui::ui::widget::window::{Window, WindowProps};
-use tui::ui::widget::{Properties, Widget};
+use tui::ui::widget::{Properties, View};
 use tui::Channel;
 
 use tui::Exit;
