@@ -16,7 +16,6 @@ use radicle_tui as tui;
 
 use tui::ui::items::{PatchItem, PatchItemFilter};
 use tui::ui::span;
-use tui::ui::widget;
 use tui::ui::widget::container::{
     Column, Container, ContainerProps, Footer, FooterProps, Header, HeaderProps, SectionGroup,
     SectionGroupProps,
@@ -25,18 +24,19 @@ use tui::ui::widget::input::{TextField, TextFieldProps};
 use tui::ui::widget::list::{Table, TableProps, TableUtils};
 use tui::ui::widget::text::{Paragraph, ParagraphProps};
 use tui::ui::widget::window::{Shortcuts, ShortcutsProps};
-use tui::ui::widget::{BoxedAny, Properties, RenderProps, View, WidgetBase};
+use tui::ui::widget::{self, ViewProps};
+use tui::ui::widget::{RenderProps, ToWidget, View};
 
-use tui::Selection;
+use tui::{BoxedAny, Selection};
 
 use crate::tui_patch::common::Mode;
 use crate::tui_patch::common::PatchOperation;
 
 use super::{Message, State};
 
-type BoxedWidget = widget::BoxedWidget<State, Message>;
+type Widget = widget::Widget<State, Message>;
 
-#[derive(Clone)]
+#[derive(Clone, Default)]
 pub struct BrowserProps<'a> {
     /// Application mode: openation and id or id only.
     mode: Mode,
@@ -128,49 +128,34 @@ impl<'a> From<&State> for BrowserProps<'a> {
     }
 }
 
-impl<'a: 'static> Properties for BrowserProps<'a> {}
-impl<'a: 'static> BoxedAny for BrowserProps<'a> {}
-
 pub struct Browser<'a> {
-    /// Internal base
-    base: WidgetBase<State, Message>,
     /// Internal props
     props: BrowserProps<'a>,
     /// Patches widget
-    patches: BoxedWidget,
+    patches: Widget,
     /// Search widget
-    search: BoxedWidget,
+    search: Widget,
 }
 
-impl<'a: 'static> View for Browser<'a> {
-    type Message = Message;
-    type State = State;
-
-    fn new(state: &State, tx: UnboundedSender<Message>) -> Self {
-        let props = BrowserProps::from(state);
-
+impl<'a: 'static> Browser<'a> {
+    fn new(tx: UnboundedSender<Message>) -> Self {
+        let props = BrowserProps::default();
         Self {
-            base: WidgetBase::new(tx.clone()),
             props: props.clone(),
-            patches: Container::new(state, tx.clone())
+            patches: Container::default()
                 .header(
-                    Header::new(state, tx.clone())
+                    Header::default()
                         .columns(props.header.clone())
                         .cutoff(props.cutoff, props.cutoff_after)
-                        .to_boxed(),
+                        .to_widget(tx.clone()),
                 )
-                .content(Box::<Table<State, Message, PatchItem, 9>>::new(
-                    Table::new(state, tx.clone())
-                        .on_event(|table, _| {
-                            table
-                                .downcast_mut::<Table<State, Message, PatchItem, 9>>()
-                                .and_then(|table| {
-                                    table
-                                        .send(Message::Select {
-                                            selected: table.selected(),
-                                        })
-                                        .ok()
-                                });
+                .content(
+                    Table::<State, Message, PatchItem, 9>::default()
+                        .to_widget(tx.clone())
+                        .on_event(|s, _| {
+                            Some(Message::Select {
+                                selected: s.and_then(|s| s.unwrap_usize()),
+                            })
                         })
                         .on_update(|state| {
                             let props = BrowserProps::from(state);
@@ -182,44 +167,43 @@ impl<'a: 'static> View for Browser<'a> {
                                 .footer(!state.browser.show_search)
                                 .page_size(state.browser.page_size)
                                 .cutoff(props.cutoff, props.cutoff_after)
-                                .to_boxed()
+                                .to_boxed_any()
+                                .into()
                         }),
-                ))
-                .footer(
-                    Footer::new(state, tx.clone())
-                        .on_update(|state| {
-                            let props = BrowserProps::from(state);
-
-                            FooterProps::default()
-                                .columns(browse_footer(&props, props.selected))
-                                .to_boxed()
-                        })
-                        .to_boxed(),
                 )
+                .footer(Footer::default().to_widget(tx.clone()).on_update(|state| {
+                    let props = BrowserProps::from(state);
+
+                    FooterProps::default()
+                        .columns(browse_footer(&props, props.selected))
+                        .to_boxed_any()
+                        .into()
+                }))
+                .to_widget(tx.clone())
                 .on_update(|state| {
                     ContainerProps::default()
                         .hide_footer(BrowserProps::from(state).show_search)
-                        .to_boxed()
-                })
-                .to_boxed(),
-            search: Search::new(state, tx.clone()).to_boxed(),
+                        .to_boxed_any()
+                        .into()
+                }),
+            search: Search::new(tx.clone()).to_widget(tx.clone()),
         }
     }
+}
 
-    fn handle_event(&mut self, key: Key) {
+impl<'a: 'static> View for Browser<'a> {
+    type Message = Message;
+    type State = State;
+
+    fn handle_event(&mut self, key: Key) -> Option<Self::Message> {
         if self.props.show_search {
             self.search.handle_event(key);
+            None
         } else {
             match key {
-                Key::Esc | Key::Ctrl('c') => {
-                    let _ = self.send(Message::Exit { selection: None });
-                }
-                Key::Char('?') => {
-                    let _ = self.send(Message::OpenHelp);
-                }
-                Key::Char('/') => {
-                    let _ = self.send(Message::OpenSearch);
-                }
+                Key::Esc | Key::Ctrl('c') => Some(Message::Exit { selection: None }),
+                Key::Char('?') => Some(Message::OpenHelp),
+                Key::Char('/') => Some(Message::OpenSearch),
                 Key::Char('\n') => {
                     let operation = match self.props.mode {
                         Mode::Operation => Some(PatchOperation::Show.to_string()),
@@ -229,60 +213,50 @@ impl<'a: 'static> View for Browser<'a> {
                     self.props
                         .selected
                         .and_then(|selected| self.props.patches.get(selected))
-                        .and_then(|patch| {
-                            self.base
-                                .send(Message::Exit {
-                                    selection: Some(Selection {
-                                        operation,
-                                        ids: vec![patch.id],
-                                        args: vec![],
-                                    }),
-                                })
-                                .ok()
-                        });
+                        .map(|patch| Message::Exit {
+                            selection: Some(Selection {
+                                operation,
+                                ids: vec![patch.id],
+                                args: vec![],
+                            }),
+                        })
                 }
-                Key::Char('c') => {
-                    self.props
-                        .selected
-                        .and_then(|selected| self.props.patches.get(selected))
-                        .and_then(|patch| {
-                            self.base
-                                .send(Message::Exit {
-                                    selection: Some(Selection {
-                                        operation: Some(PatchOperation::Checkout.to_string()),
-                                        ids: vec![patch.id],
-                                        args: vec![],
-                                    }),
-                                })
-                                .ok()
-                        });
-                }
-                Key::Char('d') => {
-                    self.props
-                        .selected
-                        .and_then(|selected| self.props.patches.get(selected))
-                        .and_then(|patch| {
-                            self.base
-                                .send(Message::Exit {
-                                    selection: Some(Selection {
-                                        operation: Some(PatchOperation::Diff.to_string()),
-                                        ids: vec![patch.id],
-                                        args: vec![],
-                                    }),
-                                })
-                                .ok()
-                        });
-                }
+                Key::Char('c') => self
+                    .props
+                    .selected
+                    .and_then(|selected| self.props.patches.get(selected))
+                    .map(|patch| Message::Exit {
+                        selection: Some(Selection {
+                            operation: Some(PatchOperation::Checkout.to_string()),
+                            ids: vec![patch.id],
+                            args: vec![],
+                        }),
+                    }),
+                Key::Char('d') => self
+                    .props
+                    .selected
+                    .and_then(|selected| self.props.patches.get(selected))
+                    .map(|patch| Message::Exit {
+                        selection: Some(Selection {
+                            operation: Some(PatchOperation::Diff.to_string()),
+                            ids: vec![patch.id],
+                            args: vec![],
+                        }),
+                    }),
                 _ => {
                     self.patches.handle_event(key);
+                    None
                 }
             }
         }
     }
 
-    fn update(&mut self, state: &State) {
-        self.props = BrowserProps::from_callback(self.base.on_update, state)
-            .unwrap_or(BrowserProps::from(state));
+    fn update(&mut self, state: &Self::State, props: Option<ViewProps>) {
+        if let Some(props) = props.and_then(|props| props.inner::<BrowserProps>()) {
+            self.props = props;
+        } else {
+            self.props = BrowserProps::from(state);
+        }
 
         self.patches.update(state);
         self.search.update(state);
@@ -300,17 +274,9 @@ impl<'a: 'static> View for Browser<'a> {
             self.patches.render(frame, props);
         }
     }
-
-    fn base(&self) -> &WidgetBase<State, Message> {
-        &self.base
-    }
-
-    fn base_mut(&mut self) -> &mut WidgetBase<State, Message> {
-        &mut self.base
-    }
 }
 
-#[derive(Clone)]
+#[derive(Clone, Default)]
 struct BrowserPageProps<'a> {
     /// Current page size (height of table content).
     page_size: usize,
@@ -343,68 +309,65 @@ impl<'a> From<&State> for BrowserPageProps<'a> {
     }
 }
 
-impl<'a> Properties for BrowserPageProps<'a> {}
-impl<'a> BoxedAny for BrowserPageProps<'a> {}
-
 pub struct BrowserPage<'a> {
-    /// Internal base
-    base: WidgetBase<State, Message>,
     /// Internal props
     props: BrowserPageProps<'a>,
     /// Sections widget
-    sections: BoxedWidget,
+    sections: Widget,
     /// Shortcut widget
-    shortcuts: BoxedWidget,
+    shortcuts: Widget,
+}
+
+impl<'a: 'static> BrowserPage<'a> {
+    pub fn new(tx: UnboundedSender<Message>) -> Self {
+        Self {
+            props: BrowserPageProps::default(),
+            sections: SectionGroup::default()
+                .section(Browser::new(tx.clone()).to_widget(tx.clone()))
+                .to_widget(tx.clone())
+                .on_update(|state| {
+                    let props = BrowserPageProps::from(state);
+                    SectionGroupProps::default()
+                        .handle_keys(props.handle_keys)
+                        .to_boxed_any()
+                        .into()
+                }),
+            shortcuts: Shortcuts::default()
+                .to_widget(tx.clone())
+                .on_update(|state| {
+                    ShortcutsProps::default()
+                        .shortcuts(&BrowserPageProps::from(state).shortcuts)
+                        .to_boxed_any()
+                        .into()
+                }),
+        }
+    }
 }
 
 impl<'a: 'static> View for BrowserPage<'a> {
     type Message = Message;
     type State = State;
 
-    fn new(state: &State, tx: UnboundedSender<Message>) -> Self {
-        let props = BrowserPageProps::from(state);
-
-        Self {
-            base: WidgetBase::new(tx.clone()),
-            props: props.clone(),
-            sections: SectionGroup::new(state, tx.clone())
-                .section(Browser::new(state, tx.clone()).to_boxed())
-                .on_update(|state| {
-                    let props = BrowserPageProps::from(state);
-                    SectionGroupProps::default()
-                        .handle_keys(props.handle_keys)
-                        .to_boxed()
-                })
-                .to_boxed(),
-            shortcuts: Shortcuts::new(state, tx.clone())
-                .on_update(|state| {
-                    ShortcutsProps::default()
-                        .shortcuts(&BrowserPageProps::from(state).shortcuts)
-                        .to_boxed()
-                })
-                .to_boxed(),
-        }
-    }
-
-    fn handle_event(&mut self, key: Key) {
+    fn handle_event(&mut self, key: Key) -> Option<Self::Message> {
         self.sections.handle_event(key);
 
         if self.props.handle_keys {
-            match key {
-                Key::Esc | Key::Ctrl('c') => {
-                    let _ = self.send(Message::Exit { selection: None });
-                }
-                Key::Char('?') => {
-                    let _ = self.send(Message::OpenHelp);
-                }
-                _ => {}
-            }
+            return match key {
+                Key::Esc | Key::Ctrl('c') => Some(Message::Exit { selection: None }),
+                Key::Char('?') => Some(Message::OpenHelp),
+                _ => None,
+            };
         }
+
+        None
     }
 
-    fn update(&mut self, state: &State) {
-        self.props = BrowserPageProps::from_callback(self.base.on_update, state)
-            .unwrap_or(BrowserPageProps::from(state));
+    fn update(&mut self, state: &Self::State, props: Option<ViewProps>) {
+        if let Some(props) = props.and_then(|props| props.inner::<BrowserPageProps>()) {
+            self.props = props;
+        } else {
+            self.props = BrowserPageProps::from(state);
+        }
 
         self.sections.update(state);
         self.shortcuts.update(state);
@@ -425,82 +388,69 @@ impl<'a: 'static> View for BrowserPage<'a> {
         self.shortcuts
             .render(frame, RenderProps::from(shortcuts_area));
 
+        // TODO: Find better solution
         if page_size != self.props.page_size {
-            let _ = self.send(Message::BrowserPageSize(page_size));
+            self.sections.send(Message::BrowserPageSize(page_size));
         }
-    }
-
-    fn base(&self) -> &WidgetBase<State, Message> {
-        &self.base
-    }
-
-    fn base_mut(&mut self) -> &mut WidgetBase<State, Message> {
-        &mut self.base
     }
 }
 
+#[derive(Clone)]
 pub struct SearchProps {}
 
-impl Properties for SearchProps {}
-
 pub struct Search {
-    /// Internal base
-    base: WidgetBase<State, Message>,
     /// Internal props
-    _props: SearchProps,
+    props: SearchProps,
     /// Search input field
-    input: BoxedWidget,
+    input: Widget,
+}
+
+impl Search {
+    fn new(tx: UnboundedSender<Message>) -> Self
+    where
+        Self: Sized,
+    {
+        Self {
+            props: SearchProps {},
+            input: TextField::default()
+                .to_widget(tx.clone())
+                .on_event(|s, _| {
+                    Some(Message::UpdateSearch {
+                        value: s.and_then(|i| i.unwrap_string()).unwrap_or_default(),
+                    })
+                })
+                .on_update(|state: &State| {
+                    TextFieldProps::default()
+                        .text(&state.browser.search.read().to_string())
+                        .title("Search")
+                        .inline(true)
+                        .to_boxed_any()
+                        .into()
+                }),
+        }
+    }
 }
 
 impl View for Search {
     type Message = Message;
     type State = State;
 
-    fn new(state: &State, tx: UnboundedSender<Message>) -> Self
-    where
-        Self: Sized,
-    {
-        Self {
-            base: WidgetBase::new(tx.clone()),
-            _props: SearchProps {},
-            input: TextField::new(state, tx.clone())
-                .on_event(|widget, _| {
-                    widget
-                        .downcast_mut::<TextField<State, Message>>()
-                        .and_then(|field| {
-                            field
-                                .send(Message::UpdateSearch {
-                                    value: field.text().unwrap_or(&String::new()).to_string(),
-                                })
-                                .ok()
-                        });
-                })
-                .on_update(|state| {
-                    TextFieldProps::default()
-                        .text(&state.browser.search.read().to_string())
-                        .title("Search")
-                        .inline(true)
-                        .to_boxed()
-                })
-                .to_boxed(),
-        }
-    }
-
-    fn handle_event(&mut self, key: termion::event::Key) {
+    fn handle_event(&mut self, key: termion::event::Key) -> Option<Self::Message> {
         match key {
-            Key::Esc => {
-                let _ = self.send(Message::CloseSearch);
-            }
-            Key::Char('\n') => {
-                let _ = self.send(Message::ApplySearch);
-            }
+            Key::Esc => Some(Message::CloseSearch),
+            Key::Char('\n') => Some(Message::ApplySearch),
             _ => {
                 self.input.handle_event(key);
+                None
             }
         }
     }
 
-    fn update(&mut self, state: &State) {
+    fn update(&mut self, state: &Self::State, props: Option<ViewProps>) {
+        if let Some(props) = props.and_then(|props| props.inner::<SearchProps>()) {
+            self.props = props;
+        }
+
         self.input.update(state);
     }
 
@@ -511,20 +461,15 @@ impl View for Search {
 
         self.input.render(frame, RenderProps::from(layout[0]));
     }
-
-    fn base(&self) -> &WidgetBase<State, Message> {
-        &self.base
-    }
-
-    fn base_mut(&mut self) -> &mut WidgetBase<State, Message> {
-        &mut self.base
-    }
 }
 
-#[derive(Clone)]
-pub struct HelpPageProps<'a> {
+#[derive(Clone, Default)]
+struct HelpPageProps<'a> {
+    /// Current page size (height of table content).
     page_size: usize,
+    /// Scroll progress of help paragraph.
     help_progress: usize,
+    /// This pages' shortcuts.
     shortcuts: Vec<(&'a str, &'a str)>,
 }
 
@@ -538,53 +483,36 @@ impl<'a> From<&State> for HelpPageProps<'a> {
     }
 }
 
-impl<'a> Properties for HelpPageProps<'a> {}
-impl<'a> BoxedAny for HelpPageProps<'a> {}
-
 pub struct HelpPage<'a> {
-    /// Internal base
-    base: WidgetBase<State, Message>,
     /// Internal props
     props: HelpPageProps<'a>,
     /// Content widget
-    content: BoxedWidget,
+    content: Widget,
     /// Shortcut widget
-    shortcuts: BoxedWidget,
+    shortcuts: Widget,
 }
 
-impl<'a: 'static> View for HelpPage<'a> {
-    type Message = Message;
-    type State = State;
-
-    fn new(state: &State, tx: UnboundedSender<Message>) -> Self
+impl<'a: 'static> HelpPage<'a> {
+    pub fn new(tx: UnboundedSender<Message>) -> Self
     where
         Self: Sized,
     {
         Self {
-            base: WidgetBase::new(tx.clone()),
-            props: HelpPageProps::from(state),
-            content: Container::new(state, tx.clone())
-                .header(
-                    Header::new(state, tx.clone())
-                        .on_update(|_| {
-                            HeaderProps::default()
-                                .columns([Column::new(" Help ", Constraint::Fill(1))].to_vec())
-                                .to_boxed()
-                        })
-                        .to_boxed(),
-                )
+            props: HelpPageProps::default(),
+            content: Container::default()
+                .header(Header::default().to_widget(tx.clone()).on_update(|_| {
+                    HeaderProps::default()
+                        .columns([Column::new(" Help ", Constraint::Fill(1))].to_vec())
+                        .to_boxed_any()
+                        .into()
+                }))
                 .content(
-                    Paragraph::new(state, tx.clone())
-                        .on_event(|paragraph, _| {
-                            paragraph
-                                .downcast_mut::<Paragraph<'_, State, Message>>()
-                                .and_then(|paragraph| {
-                                    paragraph
-                                        .send(Message::ScrollHelp {
-                                            progress: paragraph.progress(),
-                                        })
-                                        .ok()
-                                });
+                    Paragraph::default()
+                        .to_widget(tx.clone())
+                        .on_event(|s, _| {
+                            Some(Message::ScrollHelp {
+                                progress: s.and_then(|p| p.unwrap_usize()).unwrap_or_default(),
+                            })
                         })
                         .on_update(|state| {
                             let props = HelpPageProps::from(state);
@@ -592,61 +520,64 @@ impl<'a: 'static> View for HelpPage<'a> {
                             ParagraphProps::default()
                                 .text(&help_text())
                                 .page_size(props.page_size)
-                                .to_boxed()
-                        })
-                        .to_boxed(),
+                                .to_boxed_any()
+                                .into()
+                        }),
                 )
-                .footer(
-                    Footer::new(state, tx.clone())
-                        .on_update(|state| {
-                            let props = HelpPageProps::from(state);
+                .footer(Footer::default().to_widget(tx.clone()).on_update(|state| {
+                    let props = HelpPageProps::from(state);
 
-                            FooterProps::default()
-                                .columns(
-                                    [
-                                        Column::new(Text::raw(""), Constraint::Fill(1)),
-                                        Column::new(
-                                            span::default(&format!("{}%", props.help_progress))
-                                                .dim(),
-                                            Constraint::Min(4),
-                                        ),
-                                    ]
-                                    .to_vec(),
-                                )
-                                .to_boxed()
-                        })
-                        .to_boxed(),
-                )
-                .to_boxed(),
-            shortcuts: Shortcuts::new(state, tx.clone())
+                    FooterProps::default()
+                        .columns(
+                            [
+                                Column::new(Text::raw(""), Constraint::Fill(1)),
+                                Column::new(
+                                    span::default(&format!("{}%", props.help_progress)).dim(),
+                                    Constraint::Min(4),
+                                ),
+                            ]
+                            .to_vec(),
+                        )
+                        .to_boxed_any()
+                        .into()
+                }))
+                .to_widget(tx.clone()),
+            shortcuts: Shortcuts::default()
+                .to_widget(tx.clone())
                 .on_update(|state| {
                     ShortcutsProps::default()
                         .shortcuts(&HelpPageProps::from(state).shortcuts)
-                        .to_boxed()
-                })
-                .to_boxed(),
+                        .to_boxed_any()
+                        .into()
+                }),
         }
     }
+}
 
-    fn handle_event(&mut self, key: termion::event::Key) {
+impl<'a: 'static> View for HelpPage<'a> {
+    type Message = Message;
+    type State = State;
+
+    fn handle_event(&mut self, key: termion::event::Key) -> Option<Self::Message> {
         match key {
-            Key::Esc | Key::Ctrl('c') => {
-                let _ = self.send(Message::Exit { selection: None });
-            }
-            Key::Char('?') => {
-                let _ = self.send(Message::LeavePage);
-            }
+            Key::Esc | Key::Ctrl('c') => Some(Message::Exit { selection: None }),
+            Key::Char('?') => Some(Message::LeavePage),
             _ => {
                 self.content.handle_event(key);
+                None
             }
         }
     }
 
-    fn update(&mut self, state: &State) {
-        self.props = HelpPageProps::from_callback(self.base.on_update, state)
-            .unwrap_or(HelpPageProps::from(state));
+    fn update(&mut self, state: &Self::State, props: Option<ViewProps>) {
+        if let Some(props) = props.and_then(|props| props.inner::<HelpPageProps>()) {
+            self.props = props;
+        } else {
+            self.props = HelpPageProps::from(state);
+        }
 
         self.content.update(state);
+        self.shortcuts.update(state);
     }
 
     fn render(&self, frame: &mut ratatui::Frame, props: RenderProps) {
@@ -660,17 +591,10 @@ impl<'a: 'static> View for HelpPage<'a> {
         self.shortcuts
             .render(frame, RenderProps::from(shortcuts_area));
 
+        // TODO: Find better solution
         if page_size != self.props.page_size {
-            let _ = self.send(Message::HelpPageSize(page_size));
+            self.content.send(Message::HelpPageSize(page_size));
         }
-    }
-
-    fn base(&self) -> &WidgetBase<State, Message> {
-        &self.base
-    }
-
-    fn base_mut(&mut self) -> &mut WidgetBase<State, Message> {
-        &mut self.base
     }
 }
 
