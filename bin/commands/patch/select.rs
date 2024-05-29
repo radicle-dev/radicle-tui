@@ -15,11 +15,9 @@ use tui::cob::patch;
 use tui::store;
 use tui::ui::items::{Filter, PatchItem, PatchItemFilter};
 use tui::ui::widget::window::{Window, WindowProps};
-use tui::ui::widget::{Properties, View};
-use tui::Channel;
-use tui::Exit;
+use tui::ui::widget::ToWidget;
 
-use tui::PageStack;
+use tui::{BoxedAny, Channel, Exit, PageStack};
 
 use self::ui::BrowserPage;
 use self::ui::HelpPage;
@@ -203,21 +201,22 @@ impl App {
     pub async fn run(&self) -> Result<Option<Selection>> {
         let channel = Channel::default();
         let state = State::try_from(&self.context)?;
-        let window: Window<State, Message, Page> = Window::new(&state, channel.tx.clone())
+        let tx = channel.tx.clone();
+
+        let window = Window::default()
             .page(
                 Page::Browse,
-                BrowserPage::new(&state, channel.tx.clone()).to_boxed(),
+                BrowserPage::new(tx.clone()).to_widget(tx.clone()),
             )
-            .page(
-                Page::Help,
-                HelpPage::new(&state, channel.tx.clone()).to_boxed(),
-            )
+            .page(Page::Help, HelpPage::new(tx.clone()).to_widget(tx.clone()))
+            .to_widget(tx.clone())
             .on_update(|state| {
                 WindowProps::default()
                     .current_page(state.pages.peek().unwrap_or(&Page::Browse).clone())
-                    .to_boxed()
+                    .to_boxed_any()
+                    .into()
             });
 
-        tui::run(channel, state, window.to_boxed()).await
+        tui::run(channel, state, window).await
     }
 }
