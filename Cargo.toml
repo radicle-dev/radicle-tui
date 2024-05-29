@@ -9,9 +9,14 @@ authors = ["Erik Kundt <erik@zirkular.io>"]
 edition = "2021"
 build = "build.rs"
 
+[features]
+default = ["bin"]
+bin = []
+
 [[bin]]
 name = "rad-tui"
 path = "bin/main.rs"
+required-features = ["bin"]
 
 [dependencies]
 anyhow = { version = "1" }
