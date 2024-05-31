@@ -2,6 +2,7 @@ use std::collections::HashMap;
 use std::str::FromStr;
 use std::vec;
 
+use ratatui::Frame;
 use tokio::sync::mpsc::UnboundedSender;
 
 use termion::event::Key;
@@ -10,12 +11,14 @@ use ratatui::layout::{Constraint, Layout};
 use ratatui::style::Stylize;
 use ratatui::text::{Line, Span, Text};
 
-use radicle::patch::{self, Status};
+use radicle::patch;
+use radicle::patch::Status;
 
 use radicle_tui as tui;
 
 use tui::ui::items::{PatchItem, PatchItemFilter};
 use tui::ui::span;
+use tui::ui::widget;
 use tui::ui::widget::container::{
     Column, Container, ContainerProps, Footer, FooterProps, Header, HeaderProps, SectionGroup,
     SectionGroupProps,
@@ -24,7 +27,7 @@ use tui::ui::widget::input::{TextField, TextFieldProps};
 use tui::ui::widget::list::{Table, TableProps, TableUtils};
 use tui::ui::widget::text::{Paragraph, ParagraphProps};
 use tui::ui::widget::window::{Shortcuts, ShortcutsProps};
-use tui::ui::widget::{self, ViewProps};
+use tui::ui::widget::ViewProps;
 use tui::ui::widget::{RenderProps, ToWidget, View};
 
 use tui::{BoxedAny, Selection};
@@ -128,31 +131,27 @@ impl<'a> From<&State> for BrowserProps<'a> {
     }
 }
 
-pub struct Browser<'a> {
-    /// Internal props
-    props: BrowserProps<'a>,
+pub struct Browser {
     /// Patches widget
     patches: Widget,
     /// Search widget
     search: Widget,
 }
 
-impl<'a: 'static> Browser<'a> {
+impl Browser {
     fn new(tx: UnboundedSender<Message>) -> Self {
-        let props = BrowserProps::default();
         Self {
-            props: props.clone(),
             patches: Container::default()
                 .header(
                     Header::default()
-                        .columns(props.header.clone())
-                        .cutoff(props.cutoff, props.cutoff_after)
+                        // .columns(props.header.clone())
+                        // .cutoff(props.cutoff, props.cutoff_after)
                         .to_widget(tx.clone()),
                 )
                 .content(
                     Table::<State, Message, PatchItem, 9>::default()
                         .to_widget(tx.clone())
-                        .on_event(|s, _| {
+                        .on_event(|_, s, _| {
                             Some(Message::Select {
                                 selected: s.and_then(|s| s.unwrap_usize()),
                             })
@@ -191,12 +190,17 @@ impl<'a: 'static> Browser<'a> {
     }
 }
 
-impl<'a: 'static> View for Browser<'a> {
+impl View for Browser {
     type Message = Message;
     type State = State;
 
-    fn handle_event(&mut self, key: Key) -> Option<Self::Message> {
-        if self.props.show_search {
+    fn handle_event(&mut self, props: Option<&ViewProps>, key: Key) -> Option<Self::Message> {
+        let default = BrowserProps::default();
+        let props = props
+            .and_then(|props| props.inner_ref::<BrowserProps>())
+            .unwrap_or(&default);
+
+        if props.show_search {
             self.search.handle_event(key);
             None
         } else {
@@ -205,14 +209,14 @@ impl<'a: 'static> View for Browser<'a> {
                 Key::Char('?') => Some(Message::OpenHelp),
                 Key::Char('/') => Some(Message::OpenSearch),
                 Key::Char('\n') => {
-                    let operation = match self.props.mode {
+                    let operation = match props.mode {
                         Mode::Operation => Some(PatchOperation::Show.to_string()),
                         Mode::Id => None,
                     };
 
-                    self.props
+                    props
                         .selected
-                        .and_then(|selected| self.props.patches.get(selected))
+                        .and_then(|selected| props.patches.get(selected))
                         .map(|patch| Message::Exit {
                             selection: Some(Selection {
                                 operation,
@@ -221,10 +225,9 @@ impl<'a: 'static> View for Browser<'a> {
                             }),
                         })
                 }
-                Key::Char('c') => self
-                    .props
+                Key::Char('c') => props
                     .selected
-                    .and_then(|selected| self.props.patches.get(selected))
+                    .and_then(|selected| props.patches.get(selected))
                     .map(|patch| Message::Exit {
                         selection: Some(Selection {
                             operation: Some(PatchOperation::Checkout.to_string()),
@@ -232,10 +235,9 @@ impl<'a: 'static> View for Browser<'a> {
                             args: vec![],
                         }),
                     }),
-                Key::Char('d') => self
-                    .props
+                Key::Char('d') => props
                     .selected
-                    .and_then(|selected| self.props.patches.get(selected))
+                    .and_then(|selected| props.patches.get(selected))
                     .map(|patch| Message::Exit {
                         selection: Some(Selection {
                             operation: Some(PatchOperation::Diff.to_string()),
@@ -251,33 +253,32 @@ impl<'a: 'static> View for Browser<'a> {
         }
     }
 
-    fn update(&mut self, state: &Self::State, props: Option<ViewProps>) {
-        if let Some(props) = props.and_then(|props| props.inner::<BrowserProps>()) {
-            self.props = props;
-        } else {
-            self.props = BrowserProps::from(state);
-        }
-
+    fn update(&mut self, _props: Option<&ViewProps>, state: &Self::State) {
         self.patches.update(state);
         self.search.update(state);
     }
 
-    fn render(&self, frame: &mut ratatui::Frame, props: RenderProps) {
-        if self.props.show_search {
-            let [table_area, search_area] =
-                Layout::vertical([Constraint::Min(1), Constraint::Length(2)]).areas(props.area);
+    fn render(&self, props: Option<&ViewProps>, render: RenderProps, frame: &mut Frame) {
+        let default = BrowserProps::default();
+        let props = props
+            .and_then(|props| props.inner_ref::<BrowserProps>())
+            .unwrap_or(&default);
 
-            self.patches.render(frame, RenderProps::from(table_area));
+        if props.show_search {
+            let [table_area, search_area] =
+                Layout::vertical([Constraint::Min(1), Constraint::Length(2)]).areas(render.area);
+
+            self.patches.render(RenderProps::from(table_area), frame);
             self.search
-                .render(frame, RenderProps::from(search_area).focus(props.focus));
+                .render(RenderProps::from(search_area).focus(render.focus), frame);
         } else {
-            self.patches.render(frame, props);
+            self.patches.render(render, frame);
         }
     }
 }
 
 #[derive(Clone, Default)]
-struct BrowserPageProps<'a> {
+pub struct BrowserPageProps<'a> {
     /// Current page size (height of table content).
     page_size: usize,
     /// If this pages' keys should be handled (`false` if search is shown).
@@ -309,19 +310,16 @@ impl<'a> From<&State> for BrowserPageProps<'a> {
     }
 }
 
-pub struct BrowserPage<'a> {
-    /// Internal props
-    props: BrowserPageProps<'a>,
+pub struct BrowserPage {
     /// Sections widget
     sections: Widget,
     /// Shortcut widget
     shortcuts: Widget,
 }
 
-impl<'a: 'static> BrowserPage<'a> {
+impl BrowserPage {
     pub fn new(tx: UnboundedSender<Message>) -> Self {
         Self {
-            props: BrowserPageProps::default(),
             sections: SectionGroup::default()
                 .section(Browser::new(tx.clone()).to_widget(tx.clone()))
                 .to_widget(tx.clone())
@@ -344,14 +342,19 @@ impl<'a: 'static> BrowserPage<'a> {
     }
 }
 
-impl<'a: 'static> View for BrowserPage<'a> {
+impl View for BrowserPage {
     type Message = Message;
     type State = State;
 
-    fn handle_event(&mut self, key: Key) -> Option<Self::Message> {
+    fn handle_event(&mut self, props: Option<&ViewProps>, key: Key) -> Option<Self::Message> {
+        let default = BrowserPageProps::default();
+        let props = props
+            .and_then(|props| props.inner_ref::<BrowserPageProps>())
+            .unwrap_or(&default);
+
         self.sections.handle_event(key);
 
-        if self.props.handle_keys {
+        if props.handle_keys {
             return match key {
                 Key::Esc | Key::Ctrl('c') => Some(Message::Exit { selection: None }),
                 Key::Char('?') => Some(Message::OpenHelp),
@@ -362,34 +365,33 @@ impl<'a: 'static> View for BrowserPage<'a> {
         None
     }
 
-    fn update(&mut self, state: &Self::State, props: Option<ViewProps>) {
-        if let Some(props) = props.and_then(|props| props.inner::<BrowserPageProps>()) {
-            self.props = props;
-        } else {
-            self.props = BrowserPageProps::from(state);
-        }
-
+    fn update(&mut self, _props: Option<&ViewProps>, state: &Self::State) {
         self.sections.update(state);
         self.shortcuts.update(state);
     }
 
-    fn render(&self, frame: &mut ratatui::Frame, props: RenderProps) {
-        let page_size = props.area.height.saturating_sub(6) as usize;
+    fn render(&self, props: Option<&ViewProps>, render: RenderProps, frame: &mut Frame) {
+        let default = BrowserPageProps::default();
+        let props = props
+            .and_then(|props| props.inner_ref::<BrowserPageProps>())
+            .unwrap_or(&default);
+
+        let page_size = render.area.height.saturating_sub(6) as usize;
 
         let [content_area, shortcuts_area] =
-            Layout::vertical([Constraint::Min(1), Constraint::Length(1)]).areas(props.area);
+            Layout::vertical([Constraint::Min(1), Constraint::Length(1)]).areas(render.area);
 
         self.sections.render(
-            frame,
             RenderProps::from(content_area)
                 .layout(Layout::horizontal([Constraint::Min(1)]))
                 .focus(true),
+            frame,
         );
         self.shortcuts
-            .render(frame, RenderProps::from(shortcuts_area));
+            .render(RenderProps::from(shortcuts_area), frame);
 
         // TODO: Find better solution
-        if page_size != self.props.page_size {
+        if page_size != props.page_size {
             self.sections.send(Message::BrowserPageSize(page_size));
         }
     }
@@ -399,8 +401,6 @@ impl<'a: 'static> View for BrowserPage<'a> {
 pub struct SearchProps {}
 
 pub struct Search {
-    /// Internal props
-    props: SearchProps,
     /// Search input field
     input: Widget,
 }
@@ -411,7 +411,6 @@ impl Search {
         Self: Sized,
     {
         Self {
-            props: SearchProps {},
             input: TextField::default()
                 .to_widget(tx.clone())
                 .on_event(|s, _| {
@@ -435,7 +434,7 @@ impl View for Search {
     type Message = Message;
     type State = State;
 
-    fn handle_event(&mut self, key: termion::event::Key) -> Option<Self::Message> {
+    fn handle_event(&mut self, _props: Option<&ViewProps>, key: Key) -> Option<Self::Message> {
         match key {
             Key::Esc => Some(Message::CloseSearch),
             Key::Char('\n') => Some(Message::ApplySearch),
@@ -446,20 +445,16 @@ impl View for Search {
         }
     }
 
-    fn update(&mut self, state: &Self::State, props: Option<ViewProps>) {
-        if let Some(props) = props.and_then(|props| props.inner::<SearchProps>()) {
-            self.props = props;
-        }
-
+    fn update(&mut self, _props: Option<&ViewProps>, state: &Self::State) {
         self.input.update(state);
     }
 
-    fn render(&self, frame: &mut ratatui::Frame, props: RenderProps) {
+    fn render(&self, _props: Option<&ViewProps>, render: RenderProps, frame: &mut Frame) {
         let layout = Layout::horizontal(Constraint::from_mins([0]))
             .horizontal_margin(1)
-            .split(props.area);
+            .split(render.area);
 
-        self.input.render(frame, RenderProps::from(layout[0]));
+        self.input.render(RenderProps::from(layout[0]), frame);
     }
 }
 
@@ -483,22 +478,19 @@ impl<'a> From<&State> for HelpPageProps<'a> {
     }
 }
 
-pub struct HelpPage<'a> {
-    /// Internal props
-    props: HelpPageProps<'a>,
+pub struct HelpPage {
     /// Content widget
     content: Widget,
     /// Shortcut widget
     shortcuts: Widget,
 }
 
-impl<'a: 'static> HelpPage<'a> {
+impl HelpPage {
     pub fn new(tx: UnboundedSender<Message>) -> Self
     where
         Self: Sized,
     {
         Self {
-            props: HelpPageProps::default(),
             content: Container::default()
                 .header(Header::default().to_widget(tx.clone()).on_update(|_| {
                     HeaderProps::default()
@@ -509,7 +501,7 @@ impl<'a: 'static> HelpPage<'a> {
                 .content(
                     Paragraph::default()
                         .to_widget(tx.clone())
-                        .on_event(|s, _| {
+                        .on_event(|_, s, _| {
                             Some(Message::ScrollHelp {
                                 progress: s.and_then(|p| p.unwrap_usize()).unwrap_or_default(),
                             })
@@ -554,11 +546,11 @@ impl<'a: 'static> HelpPage<'a> {
     }
 }
 
-impl<'a: 'static> View for HelpPage<'a> {
+impl View for HelpPage {
     type Message = Message;
     type State = State;
 
-    fn handle_event(&mut self, key: termion::event::Key) -> Option<Self::Message> {
+    fn handle_event(&mut self, _props: Option<&ViewProps>, key: Key) -> Option<Self::Message> {
         match key {
             Key::Esc | Key::Ctrl('c') => Some(Message::Exit { selection: None }),
             Key::Char('?') => Some(Message::LeavePage),
@@ -569,30 +561,29 @@ impl<'a: 'static> View for HelpPage<'a> {
         }
     }
 
-    fn update(&mut self, state: &Self::State, props: Option<ViewProps>) {
-        if let Some(props) = props.and_then(|props| props.inner::<HelpPageProps>()) {
-            self.props = props;
-        } else {
-            self.props = HelpPageProps::from(state);
-        }
-
+    fn update(&mut self, _props: Option<&ViewProps>, state: &Self::State) {
         self.content.update(state);
         self.shortcuts.update(state);
     }
 
-    fn render(&self, frame: &mut ratatui::Frame, props: RenderProps) {
-        let page_size = props.area.height.saturating_sub(6) as usize;
+    fn render(&self, props: Option<&ViewProps>, render: RenderProps, frame: &mut Frame) {
+        let default = HelpPageProps::default();
+        let props = props
+            .and_then(|props| props.inner_ref::<HelpPageProps>())
+            .unwrap_or(&default);
+
+        let page_size = render.area.height.saturating_sub(6) as usize;
 
         let [content_area, shortcuts_area] =
-            Layout::vertical([Constraint::Min(1), Constraint::Length(1)]).areas(props.area);
+            Layout::vertical([Constraint::Min(1), Constraint::Length(1)]).areas(render.area);
 
         self.content
-            .render(frame, RenderProps::from(content_area).focus(true));
+            .render(RenderProps::from(content_area).focus(true), frame);
         self.shortcuts
-            .render(frame, RenderProps::from(shortcuts_area));
+            .render(RenderProps::from(content_area).focus(true), frame);
 
         // TODO: Find better solution
-        if page_size != self.props.page_size {
+        if page_size != props.page_size {
             self.content.send(Message::HelpPageSize(page_size));
         }
     }
