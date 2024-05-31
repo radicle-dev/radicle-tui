@@ -90,7 +90,7 @@ impl Frontend {
                     break Ok(interrupted);
                 }
             }
-            terminal.draw(|frame| root.render(frame, RenderProps::from(frame.size())))?;
+            terminal.draw(|frame| root.render(RenderProps::from(frame.size()), frame))?;
         };
 
         terminal::restore(&mut terminal)?;

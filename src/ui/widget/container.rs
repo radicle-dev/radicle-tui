@@ -63,52 +63,30 @@ impl<'a> Default for HeaderProps<'a> {
     }
 }
 
-pub struct Header<'a: 'static, S, M> {
-    /// Internal props
-    props: HeaderProps<'a>,
+pub struct Header<S, M> {
     /// Phantom
     phantom: PhantomData<(S, M)>,
 }
 
-impl<'a, S, M> Default for Header<'a, S, M> {
+impl<S, M> Default for Header<S, M> {
     fn default() -> Self {
         Self {
-            props: HeaderProps::default(),
             phantom: PhantomData,
         }
     }
 }
 
-impl<'a, S, A> Header<'a, S, A> {
-    pub fn columns(mut self, columns: Vec<Column<'a>>) -> Self {
-        self.props.columns = columns;
-        self
-    }
-
-    pub fn cutoff(mut self, cutoff: usize, cutoff_after: usize) -> Self {
-        self.props.cutoff = cutoff;
-        self.props.cutoff_after = cutoff_after;
-        self
-    }
-}
-
-impl<'a: 'static, S, M> View for Header<'a, S, M> {
+impl<'a: 'static, S, M> View for Header<S, M> {
     type Message = M;
     type State = S;
 
-    fn handle_event(&mut self, _key: Key) -> Option<Self::Message> {
-        None
-    }
+    fn render(&self, props: Option<&ViewProps>, render: RenderProps, frame: &mut Frame) {
+        let default = HeaderProps::default();
+        let props = props
+            .and_then(|props| props.inner_ref::<HeaderProps>())
+            .unwrap_or(&default);
 
-    fn update(&mut self, _state: &Self::State, props: Option<ViewProps>) {
-        if let Some(props) = props.and_then(|props| props.inner::<HeaderProps>()) {
-            self.props = props;
-        }
-    }
-
-    fn render(&self, frame: &mut ratatui::Frame, props: RenderProps) {
-        let widths: Vec<Constraint> = self
-            .props
+        let widths: Vec<Constraint> = props
             .columns
             .iter()
             .filter_map(|column| {
@@ -119,8 +97,7 @@ impl<'a: 'static, S, M> View for Header<'a, S, M> {
                 }
             })
             .collect();
-        let cells = self
-            .props
+        let cells = props
             .columns
             .iter()
             .filter_map(|column| {
@@ -132,11 +109,8 @@ impl<'a: 'static, S, M> View for Header<'a, S, M> {
             })
             .collect::<Vec<_>>();
 
-        let widths = if props.area.width < self.props.cutoff as u16 {
-            widths
-                .iter()
-                .take(self.props.cutoff_after)
-                .collect::<Vec<_>>()
+        let widths = if render.area.width < props.cutoff as u16 {
+            widths.iter().take(props.cutoff_after).collect::<Vec<_>>()
         } else {
             widths.iter().collect::<Vec<_>>()
         };
@@ -144,7 +118,7 @@ impl<'a: 'static, S, M> View for Header<'a, S, M> {
         // Render header
         let block = HeaderBlock::default()
             .borders(Borders::ALL)
-            .border_style(style::border(props.focus))
+            .border_style(style::border(render.focus))
             .border_type(BorderType::Rounded);
 
         let header_layout = Layout::default()
@@ -152,7 +126,7 @@ impl<'a: 'static, S, M> View for Header<'a, S, M> {
             .constraints(vec![Constraint::Min(1)])
             .vertical_margin(1)
             .horizontal_margin(1)
-            .split(props.area);
+            .split(render.area);
 
         let header = Row::new(cells).style(style::reset().bold());
         let header = ratatui::widgets::Table::default()
@@ -160,7 +134,7 @@ impl<'a: 'static, S, M> View for Header<'a, S, M> {
             .header(header)
             .widths(widths.clone());
 
-        frame.render_widget(block, props.area);
+        frame.render_widget(block, render.area);
         frame.render_widget(header, header_layout[0]);
     }
 }
@@ -195,34 +169,20 @@ impl<'a> Default for FooterProps<'a> {
     }
 }
 
-pub struct Footer<'a, S, M> {
-    /// Internal props
-    props: FooterProps<'a>,
+pub struct Footer<S, M> {
     /// Phantom
     phantom: PhantomData<(S, M)>,
 }
 
-impl<'a, S, M> Default for Footer<'a, S, M> {
+impl<S, M> Default for Footer<S, M> {
     fn default() -> Self {
         Self {
-            props: FooterProps::default(),
             phantom: PhantomData,
         }
     }
 }
 
-impl<'a, S, M> Footer<'a, S, M> {
-    pub fn columns(mut self, columns: Vec<Column<'a>>) -> Self {
-        self.props.columns = columns;
-        self
-    }
-
-    pub fn cutoff(mut self, cutoff: usize, cutoff_after: usize) -> Self {
-        self.props.cutoff = cutoff;
-        self.props.cutoff_after = cutoff_after;
-        self
-    }
-
+impl<'a, S, M> Footer<S, M> {
     fn render_cell(
         &self,
         frame: &mut ratatui::Frame,
@@ -246,23 +206,17 @@ impl<'a, S, M> Footer<'a, S, M> {
     }
 }
 
-impl<'a: 'static, S, M> View for Footer<'a, S, M> {
+impl<'a: 'static, S, M> View for Footer<S, M> {
     type Message = M;
     type State = S;
 
-    fn handle_event(&mut self, _key: Key) -> Option<Self::Message> {
-        None
-    }
+    fn render(&self, props: Option<&ViewProps>, render: RenderProps, frame: &mut Frame) {
+        let default = FooterProps::default();
+        let props = props
+            .and_then(|props| props.inner_ref::<FooterProps>())
+            .unwrap_or(&default);
 
-    fn update(&mut self, _state: &Self::State, props: Option<ViewProps>) {
-        if let Some(props) = props.and_then(|props| props.inner::<FooterProps>()) {
-            self.props = props;
-        }
-    }
-
-    fn render(&self, frame: &mut ratatui::Frame, props: RenderProps) {
-        let widths = self
-            .props
+        let widths = props
             .columns
             .iter()
             .map(|c| match c.width {
@@ -271,9 +225,8 @@ impl<'a: 'static, S, M> View for Footer<'a, S, M> {
             })
             .collect::<Vec<_>>();
 
-        let layout = Layout::horizontal(widths).split(props.area);
-        let cells = self
-            .props
+        let layout = Layout::horizontal(widths).split(render.area);
+        let cells = props
             .columns
             .iter()
             .map(|c| c.text.clone())
@@ -290,7 +243,7 @@ impl<'a: 'static, S, M> View for Footer<'a, S, M> {
                 _ if i == last => FooterBlockType::End,
                 _ => FooterBlockType::Repeat,
             };
-            self.render_cell(frame, *area, block_type, cell.clone(), props.focus);
+            self.render_cell(frame, *area, block_type, cell.clone(), render.focus);
         }
     }
 }
@@ -308,8 +261,6 @@ impl ContainerProps {
 }
 
 pub struct Container<S, M> {
-    /// Internal props
-    props: ContainerProps,
     /// Container header
     header: Option<Widget<S, M>>,
     /// Content widget
@@ -321,7 +272,6 @@ pub struct Container<S, M> {
 impl<S, M> Default for Container<S, M> {
     fn default() -> Self {
         Self {
-            props: ContainerProps::default(),
             header: None,
             content: None,
             footer: None,
@@ -354,7 +304,7 @@ where
     type Message = M;
     type State = S;
 
-    fn handle_event(&mut self, key: termion::event::Key) -> Option<Self::Message> {
+    fn handle_event(&mut self, _props: Option<&ViewProps>, key: Key) -> Option<Self::Message> {
         if let Some(content) = &mut self.content {
             content.handle_event(key);
         }
@@ -362,11 +312,7 @@ where
         None
     }
 
-    fn update(&mut self, state: &Self::State, props: Option<ViewProps>) {
-        if let Some(props) = props.and_then(|props| props.inner::<ContainerProps>()) {
-            self.props = props;
-        }
-
+    fn update(&mut self, _props: Option<&ViewProps>, state: &Self::State) {
         if let Some(header) = &mut self.header {
             header.update(state);
         }
@@ -380,9 +326,14 @@ where
         }
     }
 
-    fn render(&self, frame: &mut ratatui::Frame, props: RenderProps) {
+    fn render(&self, props: Option<&ViewProps>, render: RenderProps, frame: &mut Frame) {
+        let default = ContainerProps::default();
+        let props = props
+            .and_then(|props| props.inner_ref::<ContainerProps>())
+            .unwrap_or(&default);
+
         let header_h = if self.header.is_some() { 3 } else { 0 };
-        let footer_h = if self.footer.is_some() && !self.props.hide_footer {
+        let footer_h = if self.footer.is_some() && !props.hide_footer {
             3
         } else {
             0
@@ -393,11 +344,11 @@ where
             Constraint::Min(1),
             Constraint::Length(footer_h),
         ])
-        .areas(props.area);
+        .areas(render.area);
 
         let borders = match (
             self.header.is_some(),
-            (self.footer.is_some() && !self.props.hide_footer),
+            (self.footer.is_some() && !props.hide_footer),
         ) {
             (false, false) => Borders::ALL,
             (true, false) => Borders::BOTTOM | Borders::LEFT | Borders::RIGHT,
@@ -406,24 +357,24 @@ where
         };
 
         let block = Block::default()
-            .border_style(style::border(props.focus))
+            .border_style(style::border(render.focus))
             .border_type(BorderType::Rounded)
             .borders(borders);
         frame.render_widget(block.clone(), content_area);
 
         if let Some(header) = &self.header {
-            header.render(frame, RenderProps::from(header_area).focus(props.focus));
+            header.render(RenderProps::from(header_area).focus(render.focus), frame);
         }
 
         if let Some(content) = &self.content {
             content.render(
+                RenderProps::from(block.inner(content_area)).focus(render.focus),
                 frame,
-                RenderProps::from(block.inner(content_area)).focus(props.focus),
             );
         }
 
         if let Some(footer) = &self.footer {
-            footer.render(frame, RenderProps::from(footer_area).focus(props.focus));
+            footer.render(RenderProps::from(footer_area).focus(render.focus), frame);
         }
     }
 }
@@ -448,8 +399,6 @@ impl SectionGroupProps {
 }
 
 pub struct SectionGroup<S, M> {
-    /// Internal table properties
-    props: SectionGroupProps,
     /// All sections
     sections: Vec<Widget<S, M>>,
     /// Internal selection and offset state
@@ -459,7 +408,6 @@ pub struct SectionGroup<S, M> {
 impl<S, M> Default for SectionGroup<S, M> {
     fn default() -> Self {
         Self {
-            props: SectionGroupProps::default(),
             sections: vec![],
             state: SectionGroupState { focus: Some(0) },
         }
@@ -499,7 +447,12 @@ where
     type State = S;
     type Message = M;
 
-    fn handle_event(&mut self, key: Key) -> Option<Self::Message> {
+    fn handle_event(&mut self, props: Option<&ViewProps>, key: Key) -> Option<Self::Message> {
+        let default = SectionGroupProps::default();
+        let props = props
+            .and_then(|props| props.inner_ref::<SectionGroupProps>())
+            .unwrap_or(&default);
+
         if let Some(section) = self
             .state
             .focus
@@ -508,7 +461,7 @@ where
             section.handle_event(key);
         }
 
-        if self.props.handle_keys {
+        if props.handle_keys {
             match key {
                 Key::Left => {
                     self.prev();
@@ -523,18 +476,14 @@ where
         None
     }
 
-    fn update(&mut self, state: &Self::State, props: Option<ViewProps>) {
-        if let Some(props) = props.and_then(|props| props.inner::<SectionGroupProps>()) {
-            self.props = props;
-        }
-
+    fn update(&mut self, _props: Option<&ViewProps>, state: &Self::State) {
         for section in &mut self.sections {
             section.update(state);
         }
     }
 
-    fn render(&self, frame: &mut ratatui::Frame, props: RenderProps) {
-        let areas = props.layout.split(props.area);
+    fn render(&self, _props: Option<&ViewProps>, render: RenderProps, frame: &mut Frame) {
+        let areas = render.layout.split(render.area);
 
         for (index, area) in areas.iter().enumerate() {
             if let Some(section) = self.sections.get(index) {
@@ -544,7 +493,7 @@ where
                     .map(|focus_index| index == focus_index)
                     .unwrap_or_default();
 
-                section.render(frame, RenderProps::from(*area).focus(focus));
+                section.render(RenderProps::from(*area).focus(focus), frame);
             }
         }
     }

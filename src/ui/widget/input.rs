@@ -1,5 +1,6 @@
 use std::marker::PhantomData;
 
+use ratatui::Frame;
 use termion::event::Key;
 
 use ratatui::layout::{Constraint, Layout};
@@ -53,8 +54,6 @@ struct TextFieldState {
 }
 
 pub struct TextField<S, M> {
-    /// Internal props
-    props: TextFieldProps,
     /// Internal state
     state: TextFieldState,
     /// Phantom
@@ -64,7 +63,6 @@ pub struct TextField<S, M> {
 impl<S, M> Default for TextField<S, M> {
     fn default() -> Self {
         Self {
-            props: TextFieldProps::default(),
             state: TextFieldState {
                 text: None,
                 cursor_position: 0,
@@ -144,7 +142,14 @@ where
     type Message = M;
     type State = S;
 
-    fn handle_event(&mut self, key: Key) -> Option<Self::Message> {
+    fn view_state(&self) -> Option<ViewState> {
+        self.state
+            .text
+            .as_ref()
+            .map(|text| ViewState::String(text.to_string()))
+    }
+
+    fn handle_event(&mut self, _props: Option<&ViewProps>, key: Key) -> Option<Self::Message> {
         match key {
             Key::Char(to_insert)
                 if (key != Key::Alt('\n'))
@@ -168,28 +173,34 @@ where
         None
     }
 
-    fn update(&mut self, _state: &Self::State, props: Option<ViewProps>) {
-        if let Some(props) = props.and_then(|props| props.inner::<TextFieldProps>()) {
-            self.props = props;
+    fn update(&mut self, props: Option<&ViewProps>, _state: &Self::State) {
+        let default = TextFieldProps::default();
+        let props = props
+            .and_then(|props| props.inner_ref::<TextFieldProps>())
+            .unwrap_or(&default);
 
-            if self.state.text.is_none() {
-                self.state.cursor_position = self.props.text.len().saturating_sub(1);
-            }
-            self.state.text = Some(self.props.text.clone());
+        if self.state.text.is_none() {
+            self.state.cursor_position = props.text.len().saturating_sub(1);
         }
+        self.state.text = Some(props.text.clone());
     }
 
-    fn render(&self, frame: &mut ratatui::Frame, props: RenderProps) {
-        let area = props.area;
+    fn render(&self, props: Option<&ViewProps>, render: RenderProps, frame: &mut Frame) {
+        let default = TextFieldProps::default();
+        let props = props
+            .and_then(|props| props.inner_ref::<TextFieldProps>())
+            .unwrap_or(&default);
+
+        let area = render.area;
         let layout = Layout::vertical(Constraint::from_lengths([1, 1])).split(area);
 
         let text = self.state.text.clone().unwrap_or_default();
         let input = text.as_str();
-        let label = format!(" {} ", self.props.title);
+        let label = format!(" {} ", props.title);
         let overline = String::from("▔").repeat(area.width as usize);
         let cursor_pos = self.state.cursor_position as u16;
 
-        if self.props.inline_label {
+        if props.inline_label {
             let top_layout = Layout::horizontal([
                 Constraint::Length(label.chars().count() as u16),
                 Constraint::Length(1),
@@ -206,7 +217,7 @@ where
             frame.render_widget(input, top_layout[2]);
             frame.render_widget(overline, layout[1]);
 
-            if self.props.show_cursor {
+            if props.show_cursor {
                 frame.set_cursor(top_layout[2].x + cursor_pos, top_layout[2].y)
             }
         } else {
@@ -222,16 +233,9 @@ where
             frame.render_widget(top, layout[0]);
             frame.render_widget(bottom, layout[1]);
 
-            if self.props.show_cursor {
+            if props.show_cursor {
                 frame.set_cursor(area.x + cursor_pos, area.y)
             }
         }
-    }
-
-    fn view_state(&self) -> Option<ViewState> {
-        self.state
-            .text
-            .as_ref()
-            .map(|text| ViewState::String(text.to_string()))
     }
 }
