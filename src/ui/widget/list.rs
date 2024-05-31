@@ -2,6 +2,7 @@ use std::cmp;
 use std::marker::PhantomData;
 
 use ratatui::widgets::Row;
+use ratatui::Frame;
 use termion::event::Key;
 
 use ratatui::layout::Constraint;
@@ -83,32 +84,29 @@ where
     }
 }
 
-pub struct Table<'a, S, M, R, const W: usize>
+pub struct Table<S, M, R, const W: usize>
 where
     R: ToRow<W>,
 {
-    /// Internal table properties
-    props: TableProps<'a, R, W>,
     /// Internal selection and offset state
     state: TableState,
     /// Phantom
-    phantom: PhantomData<(S, M)>,
+    phantom: PhantomData<(S, M, R)>,
 }
 
-impl<'a, S, M, R, const W: usize> Default for Table<'a, S, M, R, W>
+impl<S, M, R, const W: usize> Default for Table<S, M, R, W>
 where
     R: ToRow<W>,
 {
     fn default() -> Self {
         Self {
-            props: TableProps::default(),
             state: TableState::default().with_selected(Some(0)),
             phantom: PhantomData,
         }
     }
 }
 
-impl<'a, S, M, R, const W: usize> Table<'a, S, M, R, W>
+impl<S, M, R, const W: usize> Table<S, M, R, W>
 where
     R: ToRow<W>,
 {
@@ -163,32 +161,39 @@ where
     }
 }
 
-impl<'a: 'static, S: 'a, M: 'a, R, const W: usize> View for Table<'a, S, M, R, W>
+impl<S, M, R, const W: usize> View for Table<S, M, R, W>
 where
+    S: 'static,
+    M: 'static,
     R: ToRow<W> + Clone + 'static,
 {
     type Message = M;
     type State = S;
 
-    fn handle_event(&mut self, key: Key) -> Option<Self::Message> {
+    fn handle_event(&mut self, props: Option<&ViewProps>, key: Key) -> Option<Self::Message> {
+        let default = TableProps::default();
+        let props = props
+            .and_then(|props| props.inner_ref::<TableProps<R, W>>())
+            .unwrap_or(&default);
+
         match key {
             Key::Up | Key::Char('k') => {
                 self.prev();
             }
             Key::Down | Key::Char('j') => {
-                self.next(self.props.items.len());
+                self.next(props.items.len());
             }
             Key::PageUp => {
-                self.prev_page(self.props.page_size);
+                self.prev_page(props.page_size);
             }
             Key::PageDown => {
-                self.next_page(self.props.items.len(), self.props.page_size);
+                self.next_page(props.items.len(), props.page_size);
             }
             Key::Home => {
                 self.begin();
             }
             Key::End => {
-                self.end(self.props.items.len());
+                self.end(props.items.len());
             }
             _ => {}
         }
@@ -196,41 +201,44 @@ where
         None
     }
 
-    fn update(&mut self, _state: &Self::State, props: Option<ViewProps>) {
-        if let Some(props) = props.and_then(|props| props.inner::<TableProps<R, W>>()) {
-            self.props = props;
-        }
+    fn update(&mut self, _props: Option<&ViewProps>, _state: &Self::State) {
+        // TODO: Fix pre-selection
 
-        // if self.props.selected != self.state.selected() {
-        //     self.state.select(self.props.selected);
+        // let default = TableProps::default();
+        // let props = props
+        //     .and_then(|props| props.inner_ref::<TableProps<R, W>>())
+        //     .unwrap_or(&default);
+
+        // if props.selected != self.state.selected() {
+        //     self.state.select(props.selected);
         // }
     }
 
-    fn render(&self, frame: &mut ratatui::Frame, props: RenderProps) {
-        let widths: Vec<Constraint> = self
-            .props
+    fn render(&self, props: Option<&ViewProps>, render: RenderProps, frame: &mut Frame) {
+        let default = TableProps::default();
+        let props = props
+            .and_then(|props| props.inner_ref::<TableProps<R, W>>())
+            .unwrap_or(&default);
+
+        let widths: Vec<Constraint> = props
             .columns
             .iter()
             .filter_map(|c| if !c.skip { Some(c.width) } else { None })
             .collect();
 
-        let widths = if props.area.width < self.props.cutoff as u16 {
-            widths
-                .iter()
-                .take(self.props.cutoff_after)
-                .collect::<Vec<_>>()
+        let widths = if render.area.width < props.cutoff as u16 {
+            widths.iter().take(props.cutoff_after).collect::<Vec<_>>()
         } else {
             widths.iter().collect::<Vec<_>>()
         };
 
-        if !self.props.items.is_empty() {
-            let rows = self
-                .props
+        if !props.items.is_empty() {
+            let rows = props
                 .items
                 .iter()
                 .map(|item| {
                     let mut cells = vec![];
-                    let mut it = self.props.columns.iter();
+                    let mut it = props.columns.iter();
 
                     for cell in item.to_row() {
                         if let Some(col) = it.next() {
@@ -251,9 +259,9 @@ where
                 .column_spacing(1)
                 .highlight_style(style::highlight());
 
-            frame.render_stateful_widget(rows, props.area, &mut self.state.clone());
+            frame.render_stateful_widget(rows, render.area, &mut self.state.clone());
         } else {
-            let center = layout::centered_rect(props.area, 50, 10);
+            let center = layout::centered_rect(render.area, 50, 10);
             let hint = Text::from(span::default("Nothing to show"))
                 .centered()
                 .light_magenta()

@@ -26,23 +26,32 @@ pub struct ViewProps {
 }
 
 impl ViewProps {
-    pub fn new(inner: &'static dyn Any) -> Self {
-        Self {
-            inner: Box::new(inner),
-        }
-    }
-
     pub fn inner<T>(self) -> Option<T>
     where
-        T: Clone + 'static,
+        T: Default + Clone + 'static,
     {
         self.inner.downcast::<T>().ok().map(|inner| *inner)
+    }
+
+    pub fn inner_ref<T>(&self) -> Option<&T>
+    where
+        T: Default + Clone + 'static,
+    {
+        self.inner.downcast_ref::<T>()
     }
 }
 
 impl From<Box<dyn Any>> for ViewProps {
     fn from(props: Box<dyn Any>) -> Self {
         ViewProps { inner: props }
+    }
+}
+
+impl From<&'static dyn Any> for ViewProps {
+    fn from(inner: &'static dyn Any) -> Self {
+        Self {
+            inner: Box::new(inner),
+        }
     }
 }
 
@@ -112,19 +121,21 @@ pub trait View {
     type State;
     type Message;
 
-    /// Should handle key events and call `handle_event` on all children.
-    fn handle_event(&mut self, key: Key) -> Option<Self::Message>;
-
-    /// Should update the internal props of this and all children.
-    fn update(&mut self, state: &Self::State, props: Option<ViewProps>);
-
-    /// Should render the view using the given `RenderProps`.
-    fn render(&self, frame: &mut Frame, props: RenderProps);
-
     /// Should return the internal state.
     fn view_state(&self) -> Option<ViewState> {
         None
     }
+
+    /// Should handle key events and call `handle_event` on all children.
+    fn handle_event(&mut self, _props: Option<&ViewProps>, _key: Key) -> Option<Self::Message> {
+        None
+    }
+
+    /// Should update the internal props of this and all children.
+    fn update(&mut self, _props: Option<&ViewProps>, _state: &Self::State) {}
+
+    /// Should render the view using the given `RenderProps`.
+    fn render(&self, props: Option<&ViewProps>, render: RenderProps, frame: &mut Frame);
 }
 
 /// A `View` needs to wrapped into a `Widget` before being able to use with the
@@ -132,6 +143,7 @@ pub trait View {
 /// care of calling them before / after calling into the `View`.
 pub struct Widget<S, M> {
     view: BoxedView<S, M>,
+    props: Option<ViewProps>,
     sender: UnboundedSender<M>,
     on_update: Option<UpdateCallback<S>>,
     on_event: Option<EventCallback<M>>,
@@ -145,6 +157,7 @@ impl<S: 'static, M: 'static> Widget<S, M> {
     {
         Self {
             view: Box::new(view),
+            props: None,
             sender: sender.clone(),
             on_update: None,
             on_event: None,
@@ -154,7 +167,7 @@ impl<S: 'static, M: 'static> Widget<S, M> {
     /// Calls `handle_event` on the wrapped view as well as the `on_event` callback.
     /// Sends any message returned by either the view or the callback.
     pub fn handle_event(&mut self, key: Key) {
-        if let Some(message) = self.view.handle_event(key) {
+        if let Some(message) = self.view.handle_event(self.props.as_ref(), key) {
             let _ = self.sender.send(message);
         }
 
@@ -174,13 +187,13 @@ impl<S: 'static, M: 'static> Widget<S, M> {
     /// props directly via their state converters, whereas library widgets can just fallback
     /// to their current props.
     pub fn update(&mut self, state: &S) {
-        let props = self.on_update.map(|on_update| (on_update)(state));
-        self.view.update(state, props);
+        self.props = self.on_update.map(|on_update| (on_update)(state));
+        self.view.update(self.props.as_ref(), state);
     }
 
     /// Renders the wrapped view.
-    pub fn render(&self, frame: &mut Frame, props: RenderProps) {
-        self.view.render(frame, props);
+    pub fn render(&self, render: RenderProps, frame: &mut Frame) {
+        self.view.render(self.props.as_ref(), render, frame);
     }
 
     /// Sets the optional custom event handler.

@@ -1,5 +1,6 @@
 use std::marker::PhantomData;
 
+use ratatui::Frame;
 use termion::event::Key;
 
 use ratatui::layout::{Constraint, Layout};
@@ -48,19 +49,16 @@ struct ParagraphState {
     pub progress: usize,
 }
 
-pub struct Paragraph<'a, S, M> {
-    /// Internal props
-    props: ParagraphProps<'a>,
+pub struct Paragraph<S, M> {
     /// Internal state
     state: ParagraphState,
     /// Phantom
     phantom: PhantomData<(S, M)>,
 }
 
-impl<'a, S, M> Default for Paragraph<'a, S, M> {
+impl<S, M> Default for Paragraph<S, M> {
     fn default() -> Self {
         Self {
-            props: ParagraphProps::default(),
             state: ParagraphState {
                 offset: 0,
                 progress: 0,
@@ -70,19 +68,9 @@ impl<'a, S, M> Default for Paragraph<'a, S, M> {
     }
 }
 
-impl<'a, S, M> Paragraph<'a, S, M> {
-    pub fn scroll(&self) -> (u16, u16) {
+impl<S, M> Paragraph<S, M> {
+    fn scroll(&self) -> (u16, u16) {
         (self.state.offset as u16, 0)
-    }
-
-    pub fn page_size(mut self, page_size: usize) -> Self {
-        self.props.page_size = page_size;
-        self
-    }
-
-    pub fn text(mut self, text: &Text<'a>) -> Self {
-        self.props.content = text.clone();
-        self
     }
 
     fn prev(&mut self, len: usize, page_size: usize) -> (u16, u16) {
@@ -140,18 +128,22 @@ impl<'a, S, M> Paragraph<'a, S, M> {
     }
 }
 
-impl<'a, S, M> View for Paragraph<'a, S, M>
+impl<S, M> View for Paragraph<S, M>
 where
-    'a: 'static,
     S: 'static,
     M: 'static,
 {
     type Message = M;
     type State = S;
 
-    fn handle_event(&mut self, key: Key) -> Option<Self::Message> {
-        let len = self.props.content.lines.len() + 1;
-        let page_size = self.props.page_size;
+    fn handle_event(&mut self, props: Option<&ViewProps>, key: Key) -> Option<Self::Message> {
+        let default = ParagraphProps::default();
+        let props = props
+            .and_then(|props| props.inner_ref::<ParagraphProps>())
+            .unwrap_or(&default);
+
+        let len = props.content.lines.len() + 1;
+        let page_size = props.page_size;
 
         match key {
             Key::Up | Key::Char('k') => {
@@ -178,17 +170,16 @@ where
         None
     }
 
-    fn update(&mut self, _state: &Self::State, props: Option<ViewProps>) {
-        if let Some(props) = props.and_then(|props| props.inner::<ParagraphProps>()) {
-            self.props = props;
-        }
-    }
+    fn render(&self, props: Option<&ViewProps>, render: RenderProps, frame: &mut Frame) {
+        let default = ParagraphProps::default();
+        let props = props
+            .and_then(|props| props.inner_ref::<ParagraphProps>())
+            .unwrap_or(&default);
 
-    fn render(&self, frame: &mut ratatui::Frame, props: RenderProps) {
         let [content_area] = Layout::horizontal([Constraint::Min(1)])
             .horizontal_margin(1)
-            .areas(props.area);
-        let content = ratatui::widgets::Paragraph::new(self.props.content.clone())
+            .areas(render.area);
+        let content = ratatui::widgets::Paragraph::new(props.content.clone())
             .scroll((self.state.offset as u16, 0));
 
         frame.render_widget(content, content_area);
