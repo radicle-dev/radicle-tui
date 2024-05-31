@@ -209,6 +209,7 @@ where
         //     .and_then(|props| props.inner_ref::<TableProps<R, W>>())
         //     .unwrap_or(&default);
 
+        // TODO
         // if props.selected != self.state.selected() {
         //     self.state.select(props.selected);
         // }
