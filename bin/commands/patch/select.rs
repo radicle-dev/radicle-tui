@@ -19,8 +19,8 @@ use tui::ui::widget::ToWidget;
 
 use tui::{BoxedAny, Channel, Exit, PageStack};
 
-use self::ui::BrowserPage;
 use self::ui::HelpPage;
+use self::ui::{BrowserPage, BrowserPageProps};
 
 use super::common::Mode;
 
@@ -206,7 +206,9 @@ impl App {
         let window = Window::default()
             .page(
                 Page::Browse,
-                BrowserPage::new(tx.clone()).to_widget(tx.clone()),
+                BrowserPage::new(tx.clone())
+                    .to_widget(tx.clone())
+                    .on_update(|state| BrowserPageProps::from(state).to_boxed_any().into()),
             )
             .page(Page::Help, HelpPage::new(tx.clone()).to_widget(tx.clone()))
             .to_widget(tx.clone())
