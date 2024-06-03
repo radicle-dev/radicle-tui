@@ -4,7 +4,7 @@ use std::{collections::HashMap, marker::PhantomData};
 use ratatui::Frame;
 use termion::event::Key;
 
-use ratatui::layout::Constraint;
+use ratatui::layout::{Constraint, Layout};
 use ratatui::style::Stylize;
 use ratatui::text::Text;
 use ratatui::widgets::Row;
@@ -113,6 +113,98 @@ where
 
         if let Some(page) = page {
             page.render(RenderProps::from(area).focus(true), frame);
+        }
+    }
+}
+
+#[derive(Clone, Default)]
+pub struct PageProps {
+    /// Current page size (height of table content etc.).
+    pub page_size: usize,
+    /// If this view's should handle keys
+    pub handle_keys: bool,
+}
+
+impl PageProps {
+    pub fn page_size(mut self, page_size: usize) -> Self {
+        self.page_size = page_size;
+        self
+    }
+
+    pub fn handle_keys(mut self, handle_keys: bool) -> Self {
+        self.handle_keys = handle_keys;
+        self
+    }
+}
+
+pub struct Page<S, M> {
+    /// Content widget
+    content: Option<Widget<S, M>>,
+    /// Shortcut widget
+    shortcuts: Option<Widget<S, M>>,
+}
+
+impl<S, M> Default for Page<S, M> {
+    fn default() -> Self {
+        Self {
+            content: None,
+            shortcuts: None,
+        }
+    }
+}
+
+impl<S, M> Page<S, M> {
+    pub fn content(mut self, content: Widget<S, M>) -> Self {
+        self.content = Some(content);
+        self
+    }
+
+    pub fn shortcuts(mut self, shortcuts: Widget<S, M>) -> Self {
+        self.shortcuts = Some(shortcuts);
+        self
+    }
+}
+
+impl<S, M> View for Page<S, M>
+where
+    S: 'static,
+    M: 'static,
+{
+    type State = S;
+    type Message = M;
+
+    fn handle_event(&mut self, _props: Option<&ViewProps>, key: Key) -> Option<Self::Message> {
+        if let Some(content) = self.content.as_mut() {
+            content.handle_event(key);
+        }
+
+        None
+    }
+
+    fn update(&mut self, _props: Option<&ViewProps>, state: &Self::State) {
+        if let Some(content) = self.content.as_mut() {
+            content.update(state);
+        }
+        if let Some(shortcuts) = self.shortcuts.as_mut() {
+            shortcuts.update(state);
+        }
+    }
+
+    fn render(&self, _props: Option<&ViewProps>, render: RenderProps, frame: &mut Frame) {
+        let [content_area, shortcuts_area] =
+            Layout::vertical([Constraint::Min(1), Constraint::Length(1)]).areas(render.area);
+
+        if let Some(content) = self.content.as_ref() {
+            content.render(
+                RenderProps::from(content_area)
+                    .layout(Layout::horizontal([Constraint::Min(1)]))
+                    .focus(true),
+                frame,
+            );
+        }
+
+        if let Some(shortcuts) = self.shortcuts.as_ref() {
+            shortcuts.render(RenderProps::from(shortcuts_area), frame);
         }
     }
 }
