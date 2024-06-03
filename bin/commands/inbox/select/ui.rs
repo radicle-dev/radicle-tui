@@ -8,20 +8,17 @@ use termion::event::Key;
 
 use ratatui::layout::{Constraint, Layout};
 use ratatui::style::Stylize;
-use ratatui::text::{Line, Span, Text};
+use ratatui::text::{Line, Text};
 
 use radicle_tui as tui;
 
 use tui::ui::items::{NotificationItem, NotificationItemFilter, NotificationState};
 use tui::ui::span;
 use tui::ui::widget::container::{
-    Column, Container, ContainerProps, Footer, FooterProps, Header, HeaderProps, SectionGroup,
-    SectionGroupProps,
+    Column, Container, ContainerProps, Footer, FooterProps, Header, HeaderProps,
 };
 use tui::ui::widget::input::{TextField, TextFieldProps};
 use tui::ui::widget::list::{Table, TableProps, TableUtils};
-use tui::ui::widget::text::{Paragraph, ParagraphProps};
-use tui::ui::widget::window::{Shortcuts, ShortcutsProps};
 use tui::ui::widget::{self, ViewProps};
 use tui::ui::widget::{RenderProps, ToWidget, View};
 
@@ -117,21 +114,24 @@ pub struct Browser {
 }
 
 impl Browser {
-    fn new(tx: UnboundedSender<Message>) -> Self {
+    pub fn new(tx: UnboundedSender<Message>) -> Self {
         Self {
             notifications: Container::default()
-                .header(
-                    Header::default()
-                        // .columns(
-                        //     [
-                        //         Column::new("", Constraint::Length(0)),
-                        //         Column::new(Text::from(props.header), Constraint::Fill(1)),
-                        //     ]
-                        //     .to_vec(),
-                        // )
-                        // .cutoff(props.cutoff, props.cutoff_after)
-                        .to_widget(tx.clone()),
-                )
+                .header(Header::default().to_widget(tx.clone()).on_update(|state| {
+                    // TODO: remove and use state directly
+                    let props = BrowserProps::from(state);
+                    HeaderProps::default()
+                        .columns(
+                            [
+                                Column::new("", Constraint::Length(0)),
+                                Column::new(Text::from(props.header), Constraint::Fill(1)),
+                            ]
+                            .to_vec(),
+                        )
+                        .cutoff(props.cutoff, props.cutoff_after)
+                        .to_boxed_any()
+                        .into()
+                }))
                 .content(
                     Table::<State, Message, NotificationItem, 9>::default()
                         .to_widget(tx.clone())
@@ -169,7 +169,23 @@ impl Browser {
                         .to_boxed_any()
                         .into()
                 }),
-            search: Search::new(tx.clone()).to_widget(tx.clone()),
+            search: TextField::default()
+                .to_widget(tx.clone())
+                .on_event(|key, s, _| match key {
+                    Key::Esc => Some(Message::CloseSearch),
+                    Key::Char('\n') => Some(Message::ApplySearch),
+                    _ => Some(Message::UpdateSearch {
+                        value: s.and_then(|i| i.unwrap_string()).unwrap_or_default(),
+                    }),
+                })
+                .on_update(|state: &State| {
+                    TextFieldProps::default()
+                        .text(&state.browser.search.read().to_string())
+                        .title("Search")
+                        .inline(true)
+                        .to_boxed_any()
+                        .into()
+                }),
         }
     }
 }
@@ -248,313 +264,6 @@ impl View for Browser {
     }
 }
 
-#[derive(Clone, Default)]
-struct BrowserPageProps<'a> {
-    /// Current page size (height of table content).
-    page_size: usize,
-    /// If this pages' keys should be handled (`false` if search is shown).
-    handle_keys: bool,
-    /// This pages' shortcuts.
-    shortcuts: Vec<(&'a str, &'a str)>,
-}
-
-impl<'a> From<&State> for BrowserPageProps<'a> {
-    fn from(state: &State) -> Self {
-        Self {
-            page_size: state.browser.page_size,
-            handle_keys: !state.browser.show_search,
-            shortcuts: if state.browser.show_search {
-                vec![("esc", "cancel"), ("enter", "apply")]
-            } else {
-                match state.mode.selection() {
-                    SelectionMode::Id => vec![("enter", "select"), ("/", "search")],
-                    SelectionMode::Operation => vec![
-                        ("enter", "show"),
-                        ("c", "clear"),
-                        ("/", "search"),
-                        ("?", "help"),
-                    ],
-                }
-            },
-        }
-    }
-}
-
-pub struct BrowserPage<'a> {
-    /// Internal props
-    props: BrowserPageProps<'a>,
-    /// Sections widget
-    sections: Widget,
-    /// Shortcut widget
-    shortcuts: Widget,
-}
-
-impl<'a: 'static> BrowserPage<'a> {
-    pub fn new(tx: UnboundedSender<Message>) -> Self {
-        Self {
-            props: BrowserPageProps::default(),
-            sections: SectionGroup::default()
-                .section(Browser::new(tx.clone()).to_widget(tx.clone()))
-                .to_widget(tx.clone())
-                .on_update(|state| {
-                    let props = BrowserPageProps::from(state);
-                    SectionGroupProps::default()
-                        .handle_keys(props.handle_keys)
-                        .to_boxed_any()
-                        .into()
-                }),
-            shortcuts: Shortcuts::default()
-                .to_widget(tx.clone())
-                .on_update(|state| {
-                    ShortcutsProps::default()
-                        .shortcuts(&BrowserPageProps::from(state).shortcuts)
-                        .to_boxed_any()
-                        .into()
-                }),
-        }
-    }
-}
-
-impl<'a: 'static> View for BrowserPage<'a> {
-    type Message = Message;
-    type State = State;
-
-    fn handle_event(&mut self, _props: Option<&ViewProps>, key: Key) -> Option<Self::Message> {
-        self.sections.handle_event(key);
-
-        if self.props.handle_keys {
-            return match key {
-                Key::Esc | Key::Ctrl('c') => Some(Message::Exit { selection: None }),
-                Key::Char('?') => Some(Message::OpenHelp),
-                _ => None,
-            };
-        }
-
-        None
-    }
-
-    fn update(&mut self, _props: Option<&ViewProps>, state: &Self::State) {
-        self.sections.update(state);
-        self.shortcuts.update(state);
-    }
-
-    fn render(&self, _props: Option<&ViewProps>, render: RenderProps, frame: &mut Frame) {
-        let page_size = render.area.height.saturating_sub(6) as usize;
-
-        let [content_area, shortcuts_area] =
-            Layout::vertical([Constraint::Min(1), Constraint::Length(1)]).areas(render.area);
-
-        self.sections.render(
-            RenderProps::from(content_area)
-                .layout(Layout::horizontal([Constraint::Min(1)]))
-                .focus(true),
-            frame,
-        );
-        self.shortcuts
-            .render(RenderProps::from(shortcuts_area), frame);
-
-        // TODO: Find better solution
-        if page_size != self.props.page_size {
-            self.sections.send(Message::BrowserPageSize(page_size));
-        }
-    }
-}
-
-#[derive(Clone)]
-pub struct SearchProps {}
-
-pub struct Search {
-    /// Internal props
-    props: SearchProps,
-    /// Search input field
-    input: Widget,
-}
-
-impl Search {
-    fn new(tx: UnboundedSender<Message>) -> Self
-    where
-        Self: Sized,
-    {
-        Self {
-            props: SearchProps {},
-            input: TextField::default()
-                .to_widget(tx.clone())
-                .on_event(|_, s, _| {
-                    Some(Message::UpdateSearch {
-                        value: s.and_then(|i| i.unwrap_string()).unwrap_or_default(),
-                    })
-                })
-                .on_update(|state: &State| {
-                    TextFieldProps::default()
-                        .text(&state.browser.search.read().to_string())
-                        .title("Search")
-                        .inline(true)
-                        .to_boxed_any()
-                        .into()
-                }),
-        }
-    }
-}
-
-impl View for Search {
-    type Message = Message;
-    type State = State;
-
-    fn handle_event(&mut self, _props: Option<&ViewProps>, key: Key) -> Option<Self::Message> {
-        match key {
-            Key::Esc => Some(Message::CloseSearch),
-            Key::Char('\n') => Some(Message::ApplySearch),
-            _ => {
-                self.input.handle_event(key);
-                None
-            }
-        }
-    }
-
-    fn update(&mut self, _props: Option<&ViewProps>, state: &Self::State) {
-        self.input.update(state);
-    }
-
-    fn render(&self, _props: Option<&ViewProps>, render: RenderProps, frame: &mut Frame) {
-        let layout = Layout::horizontal(Constraint::from_mins([0]))
-            .horizontal_margin(1)
-            .split(render.area);
-
-        self.input.render(RenderProps::from(layout[0]), frame);
-    }
-}
-
-#[derive(Clone, Default)]
-struct HelpPageProps<'a> {
-    /// Current page size (height of table content).
-    page_size: usize,
-    /// Scroll progress of help paragraph.
-    help_progress: usize,
-    /// This pages' shortcuts.
-    shortcuts: Vec<(&'a str, &'a str)>,
-}
-
-impl<'a> From<&State> for HelpPageProps<'a> {
-    fn from(state: &State) -> Self {
-        Self {
-            page_size: state.help.page_size,
-            help_progress: state.help.progress,
-            shortcuts: vec![("?", "close")],
-        }
-    }
-}
-
-pub struct HelpPage {
-    /// Content widget
-    content: Widget,
-    /// Shortcut widget
-    shortcuts: Widget,
-}
-
-impl HelpPage {
-    pub fn new(tx: UnboundedSender<Message>) -> Self
-    where
-        Self: Sized,
-    {
-        Self {
-            content: Container::default()
-                .header(Header::default().to_widget(tx.clone()).on_update(|_| {
-                    HeaderProps::default()
-                        .columns([Column::new(" Help ", Constraint::Fill(1))].to_vec())
-                        .to_boxed_any()
-                        .into()
-                }))
-                .content(
-                    Paragraph::default()
-                        .to_widget(tx.clone())
-                        .on_event(|_, s, _| {
-                            Some(Message::ScrollHelp {
-                                progress: s.and_then(|p| p.unwrap_usize()).unwrap_or_default(),
-                            })
-                        })
-                        .on_update(|state| {
-                            let props = HelpPageProps::from(state);
-
-                            ParagraphProps::default()
-                                .text(&help_text())
-                                .page_size(props.page_size)
-                                .to_boxed_any()
-                                .into()
-                        }),
-                )
-                .footer(Footer::default().to_widget(tx.clone()).on_update(|state| {
-                    let props = HelpPageProps::from(state);
-
-                    FooterProps::default()
-                        .columns(
-                            [
-                                Column::new(Text::raw(""), Constraint::Fill(1)),
-                                Column::new(
-                                    span::default(&format!("{}%", props.help_progress)).dim(),
-                                    Constraint::Min(4),
-                                ),
-                            ]
-                            .to_vec(),
-                        )
-                        .to_boxed_any()
-                        .into()
-                }))
-                .to_widget(tx.clone()),
-            shortcuts: Shortcuts::default()
-                .to_widget(tx.clone())
-                .on_update(|state| {
-                    ShortcutsProps::default()
-                        .shortcuts(&HelpPageProps::from(state).shortcuts)
-                        .to_boxed_any()
-                        .into()
-                }),
-        }
-    }
-}
-
-impl View for HelpPage {
-    type Message = Message;
-    type State = State;
-
-    fn handle_event(&mut self, _props: Option<&ViewProps>, key: Key) -> Option<Self::Message> {
-        match key {
-            Key::Esc | Key::Ctrl('c') => Some(Message::Exit { selection: None }),
-            Key::Char('?') => Some(Message::LeavePage),
-            _ => {
-                self.content.handle_event(key);
-                None
-            }
-        }
-    }
-
-    fn update(&mut self, _props: Option<&ViewProps>, state: &Self::State) {
-        self.content.update(state);
-        self.shortcuts.update(state);
-    }
-
-    fn render(&self, props: Option<&ViewProps>, render: RenderProps, frame: &mut Frame) {
-        let default = HelpPageProps::default();
-        let props = props
-            .and_then(|props| props.inner_ref::<HelpPageProps>())
-            .unwrap_or(&default);
-
-        let page_size = render.area.height.saturating_sub(6) as usize;
-
-        let [content_area, shortcuts_area] =
-            Layout::vertical([Constraint::Min(1), Constraint::Length(1)]).areas(render.area);
-
-        self.content
-            .render(RenderProps::from(content_area).focus(true), frame);
-        self.shortcuts
-            .render(RenderProps::from(content_area).focus(true), frame);
-
-        // TODO: Find better solution
-        if page_size != props.page_size {
-            self.content.send(Message::HelpPageSize(page_size));
-        }
-    }
-}
-
 fn browse_footer<'a>(props: &BrowserProps<'a>) -> Vec<Column<'a>> {
     let search = Line::from(vec![
         span::default(" Search ").cyan().dim().reversed(),
@@ -613,94 +322,4 @@ fn browse_footer<'a>(props: &BrowserProps<'a>) -> Vec<Column<'a>> {
         ]
         .to_vec(),
     }
-}
-
-fn help_text() -> Text<'static> {
-    Text::from(
-        [
-            Line::from(Span::raw("Generic keybindings").cyan()),
-            Line::raw(""),
-            Line::from(vec![
-                Span::raw(format!("{key:>10}", key = "↑,k")).gray(),
-                Span::raw(" "),
-                Span::raw("move cursor one line up").gray().dim(),
-            ]),
-            Line::from(vec![
-                Span::raw(format!("{key:>10}", key = "↓,j")).gray(),
-                Span::raw(" "),
-                Span::raw("move cursor one line down").gray().dim(),
-            ]),
-            Line::from(vec![
-                Span::raw(format!("{key:>10}", key = "PageUp")).gray(),
-                Span::raw(" "),
-                Span::raw("move cursor one page up").gray().dim(),
-            ]),
-            Line::from(vec![
-                Span::raw(format!("{key:>10}", key = "PageDown")).gray(),
-                Span::raw(" "),
-                Span::raw("move cursor one page down").gray().dim(),
-            ]),
-            Line::from(vec![
-                Span::raw(format!("{key:>10}", key = "Home")).gray(),
-                Span::raw(" "),
-                Span::raw("move cursor to the first line").gray().dim(),
-            ]),
-            Line::from(vec![
-                Span::raw(format!("{key:>10}", key = "End")).gray(),
-                Span::raw(" "),
-                Span::raw("move cursor to the last line").gray().dim(),
-            ]),
-            Line::raw(""),
-            Line::from(Span::raw("Specific keybindings").cyan()),
-            Line::raw(""),
-            Line::from(vec![
-                Span::raw(format!("{key:>10}", key = "enter")).gray(),
-                Span::raw(" "),
-                Span::raw("Select notification (if --mode id)").gray().dim(),
-            ]),
-            Line::from(vec![
-                Span::raw(format!("{key:>10}", key = "enter")).gray(),
-                Span::raw(" "),
-                Span::raw("Show notification").gray().dim(),
-            ]),
-            Line::from(vec![
-                Span::raw(format!("{key:>10}", key = "c")).gray(),
-                Span::raw(" "),
-                Span::raw("Clear notifications").gray().dim(),
-            ]),
-            Line::from(vec![
-                Span::raw(format!("{key:>10}", key = "/")).gray(),
-                Span::raw(" "),
-                Span::raw("Search").gray().dim(),
-            ]),
-            Line::from(vec![
-                Span::raw(format!("{key:>10}", key = "?")).gray(),
-                Span::raw(" "),
-                Span::raw("Show help").gray().dim(),
-            ]),
-            Line::from(vec![
-                Span::raw(format!("{key:>10}", key = "Esc")).gray(),
-                Span::raw(" "),
-                Span::raw("Quit / cancel").gray().dim(),
-            ]),
-            Line::raw(""),
-            Line::from(Span::raw("Searching").cyan()),
-            Line::raw(""),
-            Line::from(vec![
-                Span::raw(format!("{key:>10}", key = "Pattern")).gray(),
-                Span::raw(" "),
-                Span::raw("is:<state> | is:patch | is:issue | <search>")
-                    .gray()
-                    .dim(),
-            ]),
-            Line::from(vec![
-                Span::raw(format!("{key:>10}", key = "Example")).gray(),
-                Span::raw(" "),
-                Span::raw("is:unseen is:patch Print").gray().dim(),
-            ]),
-            Line::raw(""),
-            Line::raw(""),
-        ]
-        .to_vec(),
-    )
 }
