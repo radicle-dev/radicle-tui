@@ -15,6 +15,7 @@ use ratatui::prelude::*;
 pub type BoxedView<S, M> = Box<dyn View<State = S, Message = M>>;
 pub type UpdateCallback<S> = fn(&S) -> ViewProps;
 pub type EventCallback<M> = fn(Option<&ViewState>, Key) -> Option<M>;
+pub type RenderCallback<M> = fn(Option<&ViewProps>, &RenderProps) -> Option<M>;
 
 /// `ViewProps` are properties of a `View`. They define a `View`s data, configuration etc.
 /// Since the framework itself does not know the concrete type of `View`, it also does not
@@ -147,6 +148,7 @@ pub struct Widget<S, M> {
     sender: UnboundedSender<M>,
     on_update: Option<UpdateCallback<S>>,
     on_event: Option<EventCallback<M>>,
+    on_render: Option<RenderCallback<M>>,
 }
 
 impl<S: 'static, M: 'static> Widget<S, M> {
@@ -161,6 +163,7 @@ impl<S: 'static, M: 'static> Widget<S, M> {
             sender: sender.clone(),
             on_update: None,
             on_event: None,
+            on_render: None,
         }
     }
 
@@ -193,7 +196,12 @@ impl<S: 'static, M: 'static> Widget<S, M> {
 
     /// Renders the wrapped view.
     pub fn render(&self, render: RenderProps, frame: &mut Frame) {
-        self.view.render(self.props.as_ref(), render, frame);
+        self.view.render(self.props.as_ref(), render.clone(), frame);
+
+        if let Some(on_render) = self.on_render {
+            (on_render)(self.props.as_ref(), &render)
+                .and_then(|message| self.sender.send(message).ok());
+        }
     }
 
     /// Sets the optional custom event handler.
@@ -211,6 +219,15 @@ impl<S: 'static, M: 'static> Widget<S, M> {
         Self: Sized,
     {
         self.on_update = Some(callback);
+        self
+    }
+
+    /// Sets the optional update handler.
+    pub fn on_render(mut self, callback: RenderCallback<M>) -> Self
+    where
+        Self: Sized,
+    {
+        self.on_render = Some(callback);
         self
     }
 
