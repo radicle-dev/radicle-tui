@@ -5,6 +5,12 @@ use std::str::FromStr;
 
 use anyhow::Result;
 
+use termion::event::Key;
+
+use ratatui::layout::Constraint;
+use ratatui::style::Stylize;
+use ratatui::text::{Line, Span, Text};
+
 use radicle::issue::IssueId;
 use radicle::storage::git::Repository;
 use radicle::Profile;
@@ -15,12 +21,15 @@ use tui::cob::issue;
 use tui::store;
 use tui::store::StateValue;
 use tui::ui::items::{Filter, IssueItem, IssueItemFilter};
-use tui::ui::widget::window::{Window, WindowProps};
-use tui::ui::widget::ToWidget;
+use tui::ui::span;
+use tui::ui::widget::container::{Column, Container, Footer, FooterProps, Header, HeaderProps};
+use tui::ui::widget::text::{Paragraph, ParagraphProps};
+use tui::ui::widget::window::{Page, PageProps, Shortcuts, ShortcutsProps, Window, WindowProps};
+use tui::ui::widget::{ToWidget, Widget};
 
 use tui::{BoxedAny, Channel, Exit, PageStack};
 
-use self::ui::{BrowserPage, HelpPage};
+use self::ui::{Browser, BrowserProps};
 
 use super::common::Mode;
 
@@ -38,8 +47,8 @@ pub struct App {
 }
 
 #[derive(Clone, Debug, Eq, PartialEq, Hash)]
-pub enum Page {
-    Browse,
+pub enum AppPage {
+    Browser,
     Help,
 }
 
@@ -72,7 +81,7 @@ pub struct HelpState {
 #[derive(Clone, Debug)]
 pub struct State {
     mode: Mode,
-    pages: PageStack<Page>,
+    pages: PageStack<AppPage>,
     browser: BrowserState,
     help: HelpState,
 }
@@ -96,7 +105,7 @@ impl TryFrom<&Context> for State {
 
         Ok(Self {
             mode: context.mode.clone(),
-            pages: PageStack::new(vec![Page::Browse]),
+            pages: PageStack::new(vec![AppPage::Browser]),
             browser: BrowserState {
                 items,
                 selected: Some(0),
@@ -176,7 +185,7 @@ impl store::State<Selection> for State {
                 None
             }
             Message::OpenHelp => {
-                self.pages.push(Page::Help);
+                self.pages.push(AppPage::Help);
                 None
             }
             Message::LeavePage => {
@@ -204,19 +213,302 @@ impl App {
         let tx = channel.tx.clone();
 
         let window = Window::default()
-            .page(
-                Page::Browse,
-                BrowserPage::new(tx.clone()).to_widget(tx.clone()),
-            )
-            .page(Page::Help, HelpPage::new(tx.clone()).to_widget(tx.clone()))
+            .page(AppPage::Browser, browser_page(&state, &channel))
+            .page(AppPage::Help, help_page(&state, &channel))
             .to_widget(tx.clone())
             .on_update(|state| {
                 WindowProps::default()
-                    .current_page(state.pages.peek().unwrap_or(&Page::Browse).clone())
+                    .current_page(state.pages.peek().unwrap_or(&AppPage::Browser).clone())
                     .to_boxed_any()
                     .into()
             });
 
         tui::run(channel, state, window).await
     }
+}
+
+fn browser_page(_state: &State, channel: &Channel<Message>) -> Widget<State, Message> {
+    let tx = channel.tx.clone();
+
+    let content = Browser::new(tx.clone())
+        .to_widget(tx.clone())
+        .on_update(|state| BrowserProps::from(state).to_boxed_any().into());
+
+    let shortcuts = Shortcuts::default()
+        .to_widget(tx.clone())
+        .on_update(|state: &State| {
+            let shortcuts = if state.browser.show_search {
+                vec![("esc", "cancel"), ("enter", "apply")]
+            } else {
+                match state.mode {
+                    Mode::Id => vec![("enter", "select"), ("/", "search")],
+                    Mode::Operation => vec![
+                        ("enter", "show"),
+                        ("e", "edit"),
+                        ("/", "search"),
+                        ("?", "help"),
+                    ],
+                }
+            };
+
+            ShortcutsProps::default()
+                .shortcuts(&shortcuts)
+                .to_boxed_any()
+                .into()
+        });
+
+    Page::default()
+        .content(content)
+        .shortcuts(shortcuts)
+        .to_widget(tx.clone())
+        .on_event(|key, _, props| {
+            let default = PageProps::default();
+            let props = props
+                .and_then(|props| props.inner_ref::<PageProps>())
+                .unwrap_or(&default);
+
+            if props.handle_keys {
+                match key {
+                    Key::Esc | Key::Ctrl('c') => Some(Message::Exit { selection: None }),
+                    Key::Char('?') => Some(Message::OpenHelp),
+                    _ => None,
+                }
+            } else {
+                None
+            }
+        })
+        .on_update(|state: &State| {
+            PageProps::default()
+                .page_size(state.browser.page_size)
+                .handle_keys(!state.browser.show_search)
+                .to_boxed_any()
+                .into()
+        })
+        .on_render(|props, render| {
+            let default = PageProps::default();
+            let props = props
+                .and_then(|props| props.inner_ref::<PageProps>())
+                .unwrap_or(&default);
+            let page_size = render.area.height.saturating_sub(6) as usize;
+
+            if page_size != props.page_size {
+                return Some(Message::BrowserPageSize(page_size));
+            }
+            None
+        })
+}
+
+fn help_page(_state: &State, channel: &Channel<Message>) -> Widget<State, Message> {
+    let tx = channel.tx.clone();
+
+    let content = Container::default()
+        .header(Header::default().to_widget(tx.clone()).on_update(|_| {
+            HeaderProps::default()
+                .columns([Column::new(" Help ", Constraint::Fill(1))].to_vec())
+                .to_boxed_any()
+                .into()
+        }))
+        .content(
+            Paragraph::default()
+                .to_widget(tx.clone())
+                .on_event(|_, s, _| {
+                    Some(Message::ScrollHelp {
+                        progress: s.and_then(|p| p.unwrap_usize()).unwrap_or_default(),
+                    })
+                })
+                .on_update(|state: &State| {
+                    ParagraphProps::default()
+                        .text(&help_text())
+                        .page_size(state.help.page_size)
+                        .to_boxed_any()
+                        .into()
+                }),
+        )
+        .footer(
+            Footer::default()
+                .to_widget(tx.clone())
+                .on_update(|state: &State| {
+                    FooterProps::default()
+                        .columns(
+                            [
+                                Column::new(Text::raw(""), Constraint::Fill(1)),
+                                Column::new(
+                                    span::default(&format!("{}%", state.help.progress)).dim(),
+                                    Constraint::Min(4),
+                                ),
+                            ]
+                            .to_vec(),
+                        )
+                        .to_boxed_any()
+                        .into()
+                }),
+        )
+        .to_widget(tx.clone());
+
+    let shortcuts = Shortcuts::default().to_widget(tx.clone()).on_update(|_| {
+        ShortcutsProps::default()
+            .shortcuts(&[("?", "close")])
+            .to_boxed_any()
+            .into()
+    });
+
+    Page::default()
+        .content(content)
+        .shortcuts(shortcuts)
+        .to_widget(tx.clone())
+        .on_event(|key, _, _| match key {
+            Key::Esc | Key::Ctrl('c') => Some(Message::Exit { selection: None }),
+            Key::Char('?') => Some(Message::LeavePage),
+            _ => None,
+        })
+        .on_update(|state: &State| {
+            PageProps::default()
+                .page_size(state.help.page_size)
+                .handle_keys(true)
+                .to_boxed_any()
+                .into()
+        })
+        .on_render(|props, render| {
+            let default = PageProps::default();
+            let props = props
+                .and_then(|props| props.inner_ref::<PageProps>())
+                .unwrap_or(&default);
+            let page_size = render.area.height.saturating_sub(6) as usize;
+
+            if page_size != props.page_size {
+                return Some(Message::HelpPageSize(page_size));
+            }
+            None
+        })
+}
+
+fn help_text() -> Text<'static> {
+    Text::from(
+        [
+            Line::from(Span::raw("Generic keybindings").cyan()),
+            Line::raw(""),
+            Line::from(
+                [
+                    Span::raw(format!("{key:>10}", key = "↑,k")).gray(),
+                    Span::raw(" "),
+                    Span::raw("move cursor one line up").gray().dim(),
+                ]
+                .to_vec(),
+            ),
+            Line::from(
+                [
+                    Span::raw(format!("{key:>10}", key = "↓,j")).gray(),
+                    Span::raw(" "),
+                    Span::raw("move cursor one line down").gray().dim(),
+                ]
+                .to_vec(),
+            ),
+            Line::from(
+                [
+                    Span::raw(format!("{key:>10}", key = "PageUp")).gray(),
+                    Span::raw(" "),
+                    Span::raw("move cursor one page up").gray().dim(),
+                ]
+                .to_vec(),
+            ),
+            Line::from(
+                [
+                    Span::raw(format!("{key:>10}", key = "PageDown")).gray(),
+                    Span::raw(" "),
+                    Span::raw("move cursor one page down").gray().dim(),
+                ]
+                .to_vec(),
+            ),
+            Line::from(
+                [
+                    Span::raw(format!("{key:>10}", key = "Home")).gray(),
+                    Span::raw(" "),
+                    Span::raw("move cursor to the first line").gray().dim(),
+                ]
+                .to_vec(),
+            ),
+            Line::from(
+                [
+                    Span::raw(format!("{key:>10}", key = "End")).gray(),
+                    Span::raw(" "),
+                    Span::raw("move cursor to the last line").gray().dim(),
+                ]
+                .to_vec(),
+            ),
+            Line::raw(""),
+            Line::from(Span::raw("Specific keybindings").cyan()),
+            Line::raw(""),
+            Line::from(
+                [
+                    Span::raw(format!("{key:>10}", key = "enter")).gray(),
+                    Span::raw(" "),
+                    Span::raw("Select issue (if --mode id)").gray().dim(),
+                ]
+                .to_vec(),
+            ),
+            Line::from(
+                [
+                    Span::raw(format!("{key:>10}", key = "enter")).gray(),
+                    Span::raw(" "),
+                    Span::raw("Show issue").gray().dim(),
+                ]
+                .to_vec(),
+            ),
+            Line::from(
+                [
+                    Span::raw(format!("{key:>10}", key = "e")).gray(),
+                    Span::raw(" "),
+                    Span::raw("Edit patch").gray().dim(),
+                ]
+                .to_vec(),
+            ),
+            Line::from(
+                [
+                    Span::raw(format!("{key:>10}", key = "/")).gray(),
+                    Span::raw(" "),
+                    Span::raw("Search").gray().dim(),
+                ]
+                .to_vec(),
+            ),
+            Line::from(
+                [
+                    Span::raw(format!("{key:>10}", key = "?")).gray(),
+                    Span::raw(" "),
+                    Span::raw("Show help").gray().dim(),
+                ]
+                .to_vec(),
+            ),
+            Line::from(
+                [
+                    Span::raw(format!("{key:>10}", key = "Esc")).gray(),
+                    Span::raw(" "),
+                    Span::raw("Quit / cancel").gray().dim(),
+                ]
+                .to_vec(),
+            ),
+            Line::raw(""),
+            Line::from(Span::raw("Searching").cyan()),
+            Line::raw(""),
+            Line::from(
+                [
+                    Span::raw(format!("{key:>10}", key = "Pattern")).gray(),
+                    Span::raw(" "),
+                    Span::raw("is:<state> | is:authored | is:assigned | authors:[<did>, ...] | assignees:[<did>, ...] | <search>")
+                        .gray()
+                        .dim(),
+                ]
+                .to_vec(),
+            ),
+            Line::from(
+                [
+                    Span::raw(format!("{key:>10}", key = "Example")).gray(),
+                    Span::raw(" "),
+                    Span::raw("is:solved is:authored alias").gray().dim(),
+                ]
+                .to_vec(),
+            ),
+            Line::raw(""),
+            Line::raw(""),
+        ]
+        .to_vec())
 }
