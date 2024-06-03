@@ -14,7 +14,7 @@ use ratatui::prelude::*;
 
 pub type BoxedView<S, M> = Box<dyn View<State = S, Message = M>>;
 pub type UpdateCallback<S> = fn(&S) -> ViewProps;
-pub type EventCallback<M> = fn(Option<&ViewState>, Key) -> Option<M>;
+pub type EventCallback<M> = fn(Key, Option<&ViewState>, Option<&ViewProps>) -> Option<M>;
 pub type RenderCallback<M> = fn(Option<&ViewProps>, &RenderProps) -> Option<M>;
 
 /// `ViewProps` are properties of a `View`. They define a `View`s data, configuration etc.
@@ -175,7 +175,9 @@ impl<S: 'static, M: 'static> Widget<S, M> {
         }
 
         if let Some(on_event) = self.on_event {
-            if let Some(message) = (on_event)(self.view.view_state().as_ref(), key) {
+            if let Some(message) =
+                (on_event)(key, self.view.view_state().as_ref(), self.props.as_ref())
+            {
                 let _ = self.sender.send(message);
             }
         }

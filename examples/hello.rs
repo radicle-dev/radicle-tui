@@ -49,7 +49,7 @@ pub async fn main() -> Result<()> {
                 .to_boxed_any()
                 .into()
         })
-        .on_event(|_, key| match key {
+        .on_event(|key, _, _| match key {
             Key::Char('r') => Some(Message::ReverseWelcome),
             Key::Char('q') => Some(Message::Quit),
             _ => None,
