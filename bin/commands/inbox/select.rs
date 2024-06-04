@@ -28,7 +28,7 @@ use tui::store::StateValue;
 use tui::ui::items::{Filter, NotificationItem, NotificationItemFilter};
 use tui::ui::span;
 use tui::ui::widget::container::{Column, Container, Footer, FooterProps, Header, HeaderProps};
-use tui::ui::widget::text::{Paragraph, ParagraphProps};
+use tui::ui::widget::text::{TextArea, TextAreaProps};
 use tui::ui::widget::window::{Page, PageProps, Shortcuts, ShortcutsProps, Window, WindowProps};
 use tui::ui::widget::{ToWidget, Widget};
 use tui::{BoxedAny, Channel, Exit, PageStack};
@@ -391,7 +391,7 @@ fn help_page(_state: &State, channel: &Channel<Message>) -> Widget<State, Messag
                 .into()
         }))
         .content(
-            Paragraph::default()
+            TextArea::default()
                 .to_widget(tx.clone())
                 .on_event(|_, s, _| {
                     Some(Message::ScrollHelp {
@@ -399,7 +399,7 @@ fn help_page(_state: &State, channel: &Channel<Message>) -> Widget<State, Messag
                     })
                 })
                 .on_update(|state: &State| {
-                    ParagraphProps::default()
+                    TextAreaProps::default()
                         .text(&help_text())
                         .page_size(state.help.page_size)
                         .to_boxed_any()
