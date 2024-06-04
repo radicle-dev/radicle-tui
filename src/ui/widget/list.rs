@@ -201,18 +201,15 @@ where
         None
     }
 
-    fn update(&mut self, _props: Option<&ViewProps>, _state: &Self::State) {
-        // TODO: Fix pre-selection
+    fn update(&mut self, props: Option<&ViewProps>, _state: &Self::State) {
+        let default = TableProps::default();
+        let props = props
+            .and_then(|props| props.inner_ref::<TableProps<R, W>>())
+            .unwrap_or(&default);
 
-        // let default = TableProps::default();
-        // let props = props
-        //     .and_then(|props| props.inner_ref::<TableProps<R, W>>())
-        //     .unwrap_or(&default);
-
-        // TODO
-        // if props.selected != self.state.selected() {
-        //     self.state.select(props.selected);
-        // }
+        if props.selected != self.state.selected() {
+            self.state.select(props.selected);
+        }
     }
 
     fn render(&self, props: Option<&ViewProps>, render: RenderProps, frame: &mut Frame) {
