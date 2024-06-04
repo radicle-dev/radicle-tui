@@ -1,6 +1,7 @@
 [package]
 name = "radicle-tui"
 description = "Radicle terminal user interfaces"
+keywords = ["radicle", "tui", "heartwood", "cli"]
 repository = "https://app.radicle.xyz/nodes/seed.radicle.xyz/rad:z39mP9rQAaGmERfUMPULfPUi473tY"
 homepage = "https://radicle.xyz"
 license = "MIT OR Apache-2.0"
