@@ -199,7 +199,7 @@ impl store::State<Selection> for State {
         }
     }
 
-    fn tick(&self) {}
+    fn tick(&mut self) {}
 }
 
 impl App {
