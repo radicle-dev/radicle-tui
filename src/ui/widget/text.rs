@@ -1,10 +1,9 @@
 use std::marker::PhantomData;
 
-use ratatui::Frame;
-use termion::event::Key;
-
 use ratatui::layout::{Constraint, Layout};
 use ratatui::text::Text;
+use ratatui::Frame;
+use termion::event::Key;
 
 use super::{RenderProps, View, ViewProps, ViewState};
 
@@ -15,6 +14,7 @@ pub struct ParagraphProps<'a> {
     pub has_footer: bool,
     pub page_size: usize,
     pub progress: usize,
+    pub can_scroll: bool,
 }
 
 impl<'a> ParagraphProps<'a> {
@@ -27,6 +27,11 @@ impl<'a> ParagraphProps<'a> {
         self.content = text.clone();
         self
     }
+
+    pub fn can_scroll(mut self, can_scroll: bool) -> Self {
+        self.can_scroll = can_scroll;
+        self
+    }
 }
 
 impl<'a> Default for ParagraphProps<'a> {
@@ -37,6 +42,7 @@ impl<'a> Default for ParagraphProps<'a> {
             has_footer: false,
             page_size: 1,
             progress: 0,
+            can_scroll: true,
         }
     }
 }
@@ -145,26 +151,28 @@ where
         let len = props.content.lines.len() + 1;
         let page_size = props.page_size;
 
-        match key {
-            Key::Up | Key::Char('k') => {
-                self.prev(len, page_size);
+        if props.can_scroll {
+            match key {
+                Key::Up | Key::Char('k') => {
+                    self.prev(len, page_size);
+                }
+                Key::Down | Key::Char('j') => {
+                    self.next(len, page_size);
+                }
+                Key::PageUp => {
+                    self.prev_page(len, page_size);
+                }
+                Key::PageDown => {
+                    self.next_page(len, page_size);
+                }
+                Key::Home => {
+                    self.begin(len, page_size);
+                }
+                Key::End => {
+                    self.end(len, page_size);
+                }
+                _ => {}
             }
-            Key::Down | Key::Char('j') => {
-                self.next(len, page_size);
-            }
-            Key::PageUp => {
-                self.prev_page(len, page_size);
-            }
-            Key::PageDown => {
-                self.next_page(len, page_size);
-            }
-            Key::Home => {
-                self.begin(len, page_size);
-            }
-            Key::End => {
-                self.end(len, page_size);
-            }
-            _ => {}
         }
 
         None
@@ -180,6 +188,7 @@ where
             .horizontal_margin(1)
             .areas(render.area);
         let content = ratatui::widgets::Paragraph::new(props.content.clone())
+            .style(props.content.style)
             .scroll((self.state.offset as u16, 0));
 
         frame.render_widget(content, content_area);
