@@ -8,7 +8,7 @@ use termion::event::Key;
 use super::{RenderProps, View, ViewProps, ViewState};
 
 #[derive(Clone)]
-pub struct ParagraphProps<'a> {
+pub struct TextAreaProps<'a> {
     pub content: Text<'a>,
     pub has_header: bool,
     pub has_footer: bool,
@@ -17,7 +17,7 @@ pub struct ParagraphProps<'a> {
     pub can_scroll: bool,
 }
 
-impl<'a> ParagraphProps<'a> {
+impl<'a> TextAreaProps<'a> {
     pub fn page_size(mut self, page_size: usize) -> Self {
         self.page_size = page_size;
         self
@@ -34,7 +34,7 @@ impl<'a> ParagraphProps<'a> {
     }
 }
 
-impl<'a> Default for ParagraphProps<'a> {
+impl<'a> Default for TextAreaProps<'a> {
     fn default() -> Self {
         Self {
             content: Text::raw(""),
@@ -48,24 +48,24 @@ impl<'a> Default for ParagraphProps<'a> {
 }
 
 #[derive(Clone)]
-struct ParagraphState {
+struct TextAreaState {
     /// Internal offset
     pub offset: usize,
     /// Internal progress
     pub progress: usize,
 }
 
-pub struct Paragraph<S, M> {
+pub struct TextArea<S, M> {
     /// Internal state
-    state: ParagraphState,
+    state: TextAreaState,
     /// Phantom
     phantom: PhantomData<(S, M)>,
 }
 
-impl<S, M> Default for Paragraph<S, M> {
+impl<S, M> Default for TextArea<S, M> {
     fn default() -> Self {
         Self {
-            state: ParagraphState {
+            state: TextAreaState {
                 offset: 0,
                 progress: 0,
             },
@@ -74,7 +74,7 @@ impl<S, M> Default for Paragraph<S, M> {
     }
 }
 
-impl<S, M> Paragraph<S, M> {
+impl<S, M> TextArea<S, M> {
     fn scroll(&self) -> (u16, u16) {
         (self.state.offset as u16, 0)
     }
@@ -134,7 +134,7 @@ impl<S, M> Paragraph<S, M> {
     }
 }
 
-impl<S, M> View for Paragraph<S, M>
+impl<S, M> View for TextArea<S, M>
 where
     S: 'static,
     M: 'static,
@@ -143,9 +143,9 @@ where
     type State = S;
 
     fn handle_event(&mut self, props: Option<&ViewProps>, key: Key) -> Option<Self::Message> {
-        let default = ParagraphProps::default();
+        let default = TextAreaProps::default();
         let props = props
-            .and_then(|props| props.inner_ref::<ParagraphProps>())
+            .and_then(|props| props.inner_ref::<TextAreaProps>())
             .unwrap_or(&default);
 
         let len = props.content.lines.len() + 1;
@@ -179,9 +179,9 @@ where
     }
 
     fn render(&self, props: Option<&ViewProps>, render: RenderProps, frame: &mut Frame) {
-        let default = ParagraphProps::default();
+        let default = TextAreaProps::default();
         let props = props
-            .and_then(|props| props.inner_ref::<ParagraphProps>())
+            .and_then(|props| props.inner_ref::<TextAreaProps>())
             .unwrap_or(&default);
 
         let [content_area] = Layout::horizontal([Constraint::Min(1)])

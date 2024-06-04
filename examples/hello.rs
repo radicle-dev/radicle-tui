@@ -8,7 +8,7 @@ use ratatui::text::Text;
 use radicle_tui as tui;
 
 use tui::store;
-use tui::ui::widget::text::{Paragraph, ParagraphProps};
+use tui::ui::widget::text::{TextArea, TextAreaProps};
 use tui::ui::widget::ToWidget;
 use tui::{BoxedAny, Channel, Exit};
 
@@ -56,14 +56,14 @@ pub async fn main() -> Result<()> {
         alien: ALIEN.to_string(),
     };
 
-    let scene = Paragraph::default()
+    let scene = TextArea::default()
         .to_widget(sender.clone())
         .on_event(|key, _, _| match key {
             Key::Char('q') => Some(Message::Quit),
             _ => None,
         })
         .on_update(|state: &State| {
-            ParagraphProps::default()
+            TextAreaProps::default()
                 .text(&Text::styled(state.alien.clone(), Color::Rgb(85, 85, 255)))
                 .to_boxed_any()
                 .into()

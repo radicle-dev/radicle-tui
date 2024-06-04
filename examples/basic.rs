@@ -8,7 +8,7 @@ use radicle_tui as tui;
 
 use tui::store;
 use tui::ui::widget::container::{Column, Container, Header, HeaderProps};
-use tui::ui::widget::text::{Paragraph, ParagraphProps};
+use tui::ui::widget::text::{TextArea, TextAreaProps};
 use tui::ui::widget::window::{Page, Shortcuts, ShortcutsProps, Window, WindowProps};
 use tui::ui::widget::ToWidget;
 use tui::{BoxedAny, Channel, Exit};
@@ -72,9 +72,9 @@ pub async fn main() -> Result<()> {
                         .to_boxed_any()
                         .into()
                 }))
-                .content(Paragraph::default().to_widget(sender.clone()).on_update(
+                .content(TextArea::default().to_widget(sender.clone()).on_update(
                     |state: &State| {
-                        ParagraphProps::default()
+                        TextAreaProps::default()
                             .text(&state.content.clone().into())
                             .can_scroll(false)
                             .to_boxed_any()
