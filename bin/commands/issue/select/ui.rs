@@ -270,6 +270,12 @@ impl View for Browser {
         if props.show_search {
             let [table_area, search_area] =
                 Layout::vertical([Constraint::Min(1), Constraint::Length(2)]).areas(render.area);
+            let [_, search_area, _] = Layout::horizontal([
+                Constraint::Length(1),
+                Constraint::Min(1),
+                Constraint::Length(1),
+            ])
+            .areas(search_area);
 
             self.issues.render(RenderProps::from(table_area), frame);
             self.search
