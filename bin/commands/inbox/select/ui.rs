@@ -18,7 +18,8 @@ use tui::ui::widget::container::{
     Column, Container, ContainerProps, Footer, FooterProps, Header, HeaderProps,
 };
 use tui::ui::widget::input::{TextField, TextFieldProps};
-use tui::ui::widget::list::{Table, TableProps, TableUtils};
+use tui::ui::widget::list::{Table, TableProps};
+use tui::ui::widget::utils;
 use tui::ui::widget::{self, ViewProps};
 use tui::ui::widget::{RenderProps, ToWidget, View};
 
@@ -290,7 +291,13 @@ fn browse_footer<'a>(props: &BrowserProps<'a>) -> Vec<Column<'a>> {
 
     let progress = props
         .selected
-        .map(|selected| TableUtils::progress(selected, props.notifications.len(), props.page_size))
+        .map(|selected| {
+            utils::scroll::percent_absolute(
+                selected.saturating_sub(props.page_size),
+                props.notifications.len(),
+                props.page_size,
+            )
+        })
         .unwrap_or_default();
     let progress = span::default(&format!("{}%", progress)).dim();
 
