@@ -273,26 +273,3 @@ where
         self.state.selected().map(ViewState::USize)
     }
 }
-
-pub struct TableUtils {}
-
-impl TableUtils {
-    pub fn progress(selected: usize, len: usize, page_size: usize) -> usize {
-        let step = selected;
-        let page_size = page_size as f64;
-        let len = len as f64;
-
-        let lines = page_size + step.saturating_sub(page_size as usize) as f64;
-        let progress = (lines / len * 100.0).ceil();
-
-        if progress > 97.0 {
-            Self::map_range((0.0, progress), (0.0, 100.0), progress) as usize
-        } else {
-            progress as usize
-        }
-    }
-
-    fn map_range(from: (f64, f64), to: (f64, f64), value: f64) -> f64 {
-        to.0 + (value - from.0) * (to.1 - to.0) / (from.1 - from.0)
-    }
-}

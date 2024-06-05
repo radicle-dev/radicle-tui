@@ -1,10 +1,12 @@
 use std::marker::PhantomData;
 
+use termion::event::Key;
+
 use ratatui::layout::{Constraint, Layout};
 use ratatui::text::Text;
 use ratatui::Frame;
-use termion::event::Key;
 
+use super::utils;
 use super::{RenderProps, View, ViewProps, ViewState};
 
 #[derive(Clone)]
@@ -81,14 +83,15 @@ impl<S, M> TextArea<S, M> {
 
     fn prev(&mut self, len: usize, page_size: usize) -> (u16, u16) {
         self.state.offset = self.state.offset.saturating_sub(1);
-        self.state.progress = Self::scroll_percent(self.state.offset, len, page_size);
+        self.state.progress = utils::scroll::percent_absolute(self.state.offset, len, page_size);
         self.scroll()
     }
 
     fn next(&mut self, len: usize, page_size: usize) -> (u16, u16) {
         if self.state.progress < 100 {
             self.state.offset = self.state.offset.saturating_add(1);
-            self.state.progress = Self::scroll_percent(self.state.offset, len, page_size);
+            self.state.progress =
+                utils::scroll::percent_absolute(self.state.offset, len, page_size);
         }
 
         self.scroll()
@@ -96,7 +99,7 @@ impl<S, M> TextArea<S, M> {
 
     fn prev_page(&mut self, len: usize, page_size: usize) -> (u16, u16) {
         self.state.offset = self.state.offset.saturating_sub(page_size);
-        self.state.progress = Self::scroll_percent(self.state.offset, len, page_size);
+        self.state.progress = utils::scroll::percent_absolute(self.state.offset, len, page_size);
         self.scroll()
     }
 
@@ -104,33 +107,20 @@ impl<S, M> TextArea<S, M> {
         let end = len.saturating_sub(page_size);
 
         self.state.offset = std::cmp::min(self.state.offset.saturating_add(page_size), end);
-        self.state.progress = Self::scroll_percent(self.state.offset, len, page_size);
+        self.state.progress = utils::scroll::percent_absolute(self.state.offset, len, page_size);
         self.scroll()
     }
 
     fn begin(&mut self, len: usize, page_size: usize) -> (u16, u16) {
         self.state.offset = 0;
-        self.state.progress = Self::scroll_percent(self.state.offset, len, page_size);
+        self.state.progress = utils::scroll::percent_absolute(self.state.offset, len, page_size);
         self.scroll()
     }
 
     fn end(&mut self, len: usize, page_size: usize) -> (u16, u16) {
         self.state.offset = len.saturating_sub(page_size);
-        self.state.progress = Self::scroll_percent(self.state.offset, len, page_size);
+        self.state.progress = utils::scroll::percent_absolute(self.state.offset, len, page_size);
         self.scroll()
-    }
-
-    fn scroll_percent(offset: usize, len: usize, height: usize) -> usize {
-        if height >= len {
-            100
-        } else {
-            let y = offset as f64;
-            let h = height as f64;
-            let t = len.saturating_sub(1) as f64;
-            let v = y / (t - h) * 100_f64;
-
-            std::cmp::max(0, std::cmp::min(100, v as usize))
-        }
     }
 }
 
