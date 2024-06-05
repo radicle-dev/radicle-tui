@@ -6,7 +6,7 @@
 
 ## Binaries
 
-This crate provides a single binary called `rad-tui`, which contains all user interfaces. Specific interfaces can be run by the appropriate command, e.g. `rad-tui patch select` shows a patch selector.
+This crate provides a single binary called `rad-tui` which contains all user interfaces. Specific interfaces can be run by the appropriate command, e.g. `rad-tui patch select` shows a patch selector.
 
 The interfaces are designed to be modular and to integrate well with the existing Radicle CLI. Right now, they are meant to be called from other programs that will collect and process their output.
 
@@ -72,23 +72,25 @@ The library portion of this crate is a framework that is the foundation for the 
 
 ```rust
 use anyhow::Result;
+
 use termion::event::Key;
+
+use ratatui::text::Text;
 
 use radicle_tui as tui;
 
 use tui::store;
-use tui::ui::widget::text::{Paragraph, ParagraphProps};
-use tui::ui::widget::{Properties, Widget};
-use tui::{Channel, Exit};
+use tui::ui::widget::text::{TextArea, TextAreaProps};
+use tui::ui::widget::ToWidget;
+use tui::{BoxedAny, Channel, Exit};
 
 #[derive(Clone, Debug)]
 struct State {
-    welcome: String,
+    hello: String,
 }
 
 enum Message {
     Quit,
-    ReverseWelcome,
 }
 
 impl store::State<()> for State {
@@ -97,41 +99,34 @@ impl store::State<()> for State {
     fn update(&mut self, message: Self::Message) -> Option<tui::Exit<()>> {
         match message {
             Message::Quit => Some(Exit { value: None }),
-            Message::ReverseWelcome => {
-                self.welcome = self.welcome.chars().rev().collect::<String>();
-                None
-            }
         }
     }
 
-    fn tick(&self) {}
+    fn tick(&mut self) {}
 }
 
 #[tokio::main]
 pub async fn main() -> Result<()> {
     let channel = Channel::default();
+    let sender = channel.tx.clone();
     let state = State {
-        welcome: "Hello TUI".to_string(),
+        hello: "Hey there, press (q) to quit...".to_string(),
     };
 
-    let welcome = Paragraph::new(&state, channel.tx.clone())
-        .on_update(|state| {
-            ParagraphProps::default()
-                .text(&state.welcome.clone().into())
-                .to_boxed()
+    let scene = TextArea::default()
+        .to_widget(sender.clone())
+        .on_event(|key, _, _| match key {
+            Key::Char('q') => Some(Message::Quit),
+            _ => None,
         })
-        .on_event(|paragraph, key| {
-            paragraph
-                .downcast_mut::<Paragraph<'_, State, Message>>()
-                .and_then(|paragraph| match key {
-                    Key::Char('r') => paragraph.send(Message::ReverseWelcome).ok(),
-                    Key::Char('q') => paragraph.send(Message::Quit).ok(),
-                    _ => None,
-                });
-        })
-        .to_boxed();
+        .on_update(|state: &State| {
+            TextAreaProps::default()
+                .text(&Text::raw(state.hello.clone()))
+                .to_boxed_any()
+                .into()
+        });
 
-    tui::run(channel, state, welcome).await?;
+    tui::run(channel, state, scene).await?;
 
     Ok(())
 }
