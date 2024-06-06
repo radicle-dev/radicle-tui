@@ -187,12 +187,10 @@ impl Browser {
                 }),
             search: TextField::default()
                 .to_widget(tx.clone())
-                .on_event(|key, s, _| match key {
-                    Key::Esc => Some(Message::CloseSearch),
-                    Key::Char('\n') => Some(Message::ApplySearch),
-                    _ => Some(Message::UpdateSearch {
+                .on_event(|_, s, _| {
+                    Some(Message::UpdateSearch {
                         value: s.and_then(|i| i.unwrap_string()).unwrap_or_default(),
-                    }),
+                    })
                 })
                 .on_update(|state: &State| {
                     TextFieldProps::default()
@@ -217,8 +215,17 @@ impl View for Browser {
             .unwrap_or(&default);
 
         if props.show_search {
-            self.search.handle_event(key);
-            None
+            match key {
+                Key::Esc => {
+                    self.search.reset();
+                    Some(Message::CloseSearch)
+                }
+                Key::Char('\n') => Some(Message::ApplySearch),
+                _ => {
+                    self.search.handle_event(key);
+                    None
+                }
+            }
         } else {
             match key {
                 Key::Char('/') => Some(Message::OpenSearch),
