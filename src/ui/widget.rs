@@ -128,6 +128,9 @@ pub trait View {
         None
     }
 
+    /// Should reset the internal state and call `reset` on all children.
+    fn reset(&mut self) {}
+
     /// Should handle key events and call `handle_event` on all children.
     fn handle_event(&mut self, _props: Option<&ViewProps>, _key: Key) -> Option<Self::Message> {
         None
@@ -166,6 +169,11 @@ impl<S: 'static, M: 'static> Widget<S, M> {
             on_event: None,
             on_render: None,
         }
+    }
+
+    /// Calls `reset` on the wrapped view.
+    pub fn reset(&mut self) {
+        self.view.reset()
     }
 
     /// Calls `handle_event` on the wrapped view as well as the `on_event` callback.
