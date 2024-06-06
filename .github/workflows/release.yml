@@ -2,9 +2,8 @@ name: Binaries
 
 on:
   push:
-    - branches: [ "main" ]
-    - tags:
-        - '*'
+    branches: ["main"]
+    tags: ["*"]
 
 env:
   CARGO_TERM_COLOR: always
@@ -12,8 +11,8 @@ env:
 jobs:
   release-linux-binaries:
     permissions:
-      contents: 'read'
-      id-token: 'write'
+      contents: "read"
+      id-token: "write"
     runs-on: ubuntu-20.04
     strategy:
       matrix:
@@ -50,8 +49,8 @@ jobs:
 
   release-macos-binaries:
     permissions:
-      contents: 'read'
-      id-token: 'write'
+      contents: "read"
+      id-token: "write"
     runs-on: macos-11
     strategy:
       matrix:
