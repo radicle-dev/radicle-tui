@@ -93,7 +93,39 @@ impl<S, M> TextField<S, M> {
         self.move_cursor_right();
     }
 
-    fn delete_char(&mut self) {
+    fn delete_char_right(&mut self) {
+        self.state.text = Some(self.state.text.clone().unwrap_or_default());
+
+        // Method "remove" is not used on the saved text for deleting the selected char.
+        // Reason: Using remove on String works on bytes instead of the chars.
+        // Using remove would require special care because of char boundaries.
+
+        let current_index = self.state.cursor_position;
+        let from_left_to_current_index = current_index;
+
+        // Getting all characters before the selected character.
+        let before_char_to_delete = self
+            .state
+            .text
+            .as_ref()
+            .unwrap()
+            .chars()
+            .take(from_left_to_current_index);
+        // Getting all characters after selected character.
+        let after_char_to_delete = self
+            .state
+            .text
+            .as_ref()
+            .unwrap()
+            .chars()
+            .skip(current_index.saturating_add(1));
+
+        // Put all characters together except the selected one.
+        // By leaving the selected one out, it is forgotten and therefore deleted.
+        self.state.text = Some(before_char_to_delete.chain(after_char_to_delete).collect());
+    }
+
+    fn delete_char_left(&mut self) {
         self.state.text = Some(self.state.text.clone().unwrap_or_default());
 
         let is_not_cursor_leftmost = self.state.cursor_position != 0;
@@ -149,6 +181,13 @@ where
             .map(|text| ViewState::String(text.to_string()))
     }
 
+    fn reset(&mut self) {
+        self.state = TextFieldState {
+            text: None,
+            cursor_position: 0,
+        };
+    }
+
     fn handle_event(&mut self, _props: Option<&ViewProps>, key: Key) -> Option<Self::Message> {
         match key {
             Key::Char(to_insert)
@@ -159,7 +198,10 @@ where
                 self.enter_char(to_insert);
             }
             Key::Backspace => {
-                self.delete_char();
+                self.delete_char_left();
+            }
+            Key::Delete => {
+                self.delete_char_right();
             }
             Key::Left => {
                 self.move_cursor_left();
