@@ -45,8 +45,6 @@ impl store::State<()> for State {
             }
         }
     }
-
-    fn tick(&mut self) {}
 }
 
 #[tokio::main]

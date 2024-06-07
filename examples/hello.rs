@@ -44,8 +44,6 @@ impl store::State<()> for State {
             Message::Quit => Some(Exit { value: None }),
         }
     }
-
-    fn tick(&mut self) {}
 }
 
 #[tokio::main]

@@ -24,7 +24,7 @@ where
     fn update(&mut self, message: Self::Message) -> Option<Exit<P>>;
 
     /// Handle recurring tick.
-    fn tick(&mut self);
+    fn tick(&mut self) {}
 }
 
 /// The `Store` updates the applications' state concurrently. It handles
