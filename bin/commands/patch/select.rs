@@ -196,8 +196,6 @@ impl store::State<Selection> for State {
             }
         }
     }
-
-    fn tick(&mut self) {}
 }
 
 impl App {

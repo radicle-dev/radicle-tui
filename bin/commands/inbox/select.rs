@@ -221,8 +221,6 @@ pub enum Message {
 impl store::State<Selection> for State {
     type Message = Message;
 
-    fn tick(&mut self) {}
-
     fn update(&mut self, message: Message) -> Option<Exit<Selection>> {
         match message {
             Message::Exit { selection } => Some(Exit { value: selection }),
