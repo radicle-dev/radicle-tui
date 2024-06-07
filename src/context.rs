@@ -2,7 +2,7 @@ use std::fmt::Display;
 
 use radicle::cob::issue::{Issue, IssueId};
 use radicle::cob::patch::{Patch, PatchId};
-use radicle::crypto::ssh::keystore::{Keystore, MemorySigner};
+use radicle::crypto::ssh::keystore::MemorySigner;
 use radicle::crypto::Signer;
 use radicle::identity::{Project, RepoId};
 use radicle::node::notifications::Notification;
@@ -11,15 +11,15 @@ use radicle::storage::git::Repository;
 use radicle::storage::{ReadRepository, ReadStorage};
 use radicle::Profile;
 
+use radicle_cli::terminal::io::PassphraseValidator;
 use radicle_term as term;
-use term::{passphrase, spinner, Passphrase};
-
-use inquire::validator;
+use term::{passphrase, spinner};
 
 use super::cob::inbox;
 
 /// Git revision parameter. Supports extended SHA-1 syntax.
 #[derive(Debug, Clone, PartialEq, Eq)]
+
 pub struct Rev(String);
 
 impl From<String> for Rev {
@@ -130,34 +130,34 @@ impl Context {
     }
 }
 
-/// Validates secret key passphrases.
-#[derive(Clone)]
-pub struct PassphraseValidator {
-    keystore: Keystore,
-}
+// /// Validates secret key passphrases.
+// #[derive(Clone)]
+// pub struct PassphraseValidator {
+//     keystore: Keystore,
+// }
 
-impl PassphraseValidator {
-    /// Create a new validator.
-    pub fn new(keystore: Keystore) -> Self {
-        Self { keystore }
-    }
-}
+// impl PassphraseValidator {
+//     /// Create a new validator.
+//     pub fn new(keystore: Keystore) -> Self {
+//         Self { keystore }
+//     }
+// }
 
-impl inquire::validator::StringValidator for PassphraseValidator {
-    fn validate(
-        &self,
-        input: &str,
-    ) -> Result<validator::Validation, inquire::error::CustomUserError> {
-        let passphrase = Passphrase::from(input.to_owned());
-        if self.keystore.is_valid_passphrase(&passphrase)? {
-            Ok(validator::Validation::Valid)
-        } else {
-            Ok(validator::Validation::Invalid(
-                validator::ErrorMessage::from("Invalid passphrase, please try again"),
-            ))
-        }
-    }
-}
+// impl inquire::validator::StringValidator for PassphraseValidator {
+//     fn validate(
+//         &self,
+//         input: &str,
+//     ) -> Result<validator::Validation, inquire::error::CustomUserError> {
+//         let passphrase = Passphrase::from(input.to_owned());
+//         if self.keystore.is_valid_passphrase(&passphrase)? {
+//             Ok(validator::Validation::Valid)
+//         } else {
+//             Ok(validator::Validation::Invalid(
+//                 validator::ErrorMessage::from("Invalid passphrase, please try again"),
+//             ))
+//         }
+//     }
+// }
 
 /// Get the signer. First we try getting it from ssh-agent, otherwise we prompt the user,
 /// if we're connected to a TTY.

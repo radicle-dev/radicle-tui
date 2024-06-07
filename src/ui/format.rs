@@ -1,3 +1,5 @@
+use std::time::{SystemTime, UNIX_EPOCH};
+
 use radicle::cob::Label;
 use radicle::cob::{ObjectId, Timestamp};
 use radicle::crypto::PublicKey;
@@ -26,7 +28,8 @@ pub fn did(did: &Did) -> String {
 /// Format a timestamp.
 pub fn timestamp(time: &Timestamp) -> String {
     let fmt = timeago::Formatter::new();
-    let now = Timestamp::now();
+    let now = SystemTime::now().duration_since(UNIX_EPOCH).unwrap();
+    let now = Timestamp::from_secs(now.as_secs());
     let duration = std::time::Duration::from_secs(now.as_secs() - time.as_secs());
 
     fmt.convert(duration)
