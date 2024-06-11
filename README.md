@@ -1,6 +1,6 @@
 # radicle-tui
 
-![alt text](demo.gif "Demo")
+![Screenshot](https://app.radicle.xyz/nodes/seed.radicle.xyz/rad:z39mP9rQAaGmERfUMPULfPUi473tY/tree/demo.png "A screenshot of a terminal running rad-tui")
 
 `radicle-tui` provides various terminal user interfaces for interacting with the [Radicle](https://radicle.xyz) code forge. It also exposes the application framework they were built with.
 
@@ -230,4 +230,4 @@ Please get in touch on [Zulip](https://radicle.zulipchat.com).
 
 `radicle-tui` is distributed under the terms of both the MIT license and the Apache License (Version 2.0).
 
-See [LICENSE-APACHE](LICENSE-APACHE) and [LICENSE-MIT](LICENSE-MIT) for details.
+See [LICENSE-APACHE](https://app.radicle.xyz/nodes/seed.radicle.xyz/rad:z39mP9rQAaGmERfUMPULfPUi473tY/tree/LICENSE-APACHE) and [LICENSE-MIT](https://app.radicle.xyz/nodes/seed.radicle.xyz/rad:z39mP9rQAaGmERfUMPULfPUi473tY/tree/LICENSE-MIT) for details.
