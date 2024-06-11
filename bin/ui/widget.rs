@@ -1,16 +1,19 @@
 use std::marker::PhantomData;
 
-use ratatui::layout::Constraint;
+use radicle::issue::{self, CloseReason};
+use ratatui::layout::{Constraint, Layout};
 use ratatui::style::Stylize;
-use ratatui::text::{Line, Text};
+use ratatui::text::{Line, Span, Text};
 use ratatui::widgets::Row;
 use ratatui::Frame;
 
 use radicle_tui as tui;
 
-use tui::ui::span;
+use tui::ui::theme::style;
 use tui::ui::widget::{RenderProps, View, ViewProps};
+use tui::ui::{layout, span};
 
+use super::format;
 use super::items::IssueItem;
 
 #[derive(Clone, Default)]
@@ -48,11 +51,16 @@ impl<S, M> View for IssueDetails<S, M> {
             .and_then(|props| props.inner_ref::<IssueDetailsProps>())
             .unwrap_or(&default);
 
+        let [area] = Layout::default()
+            .constraints([Constraint::Min(1)])
+            .horizontal_margin(1)
+            .areas(render.area);
+
         if let Some(issue) = props.issue.as_ref() {
             let author = match &issue.author.alias {
                 Some(alias) => {
                     if issue.author.you {
-                        span::alias(&format!("{} (you)", alias))
+                        span::alias(&format!("{}", alias))
                     } else {
                         span::alias(alias)
                     }
@@ -62,9 +70,34 @@ impl<S, M> View for IssueDetails<S, M> {
                     None => span::blank(),
                 },
             };
+
             let did = match &issue.author.human_nid {
-                Some(nid) => span::alias(nid).dim(),
+                Some(nid) => {
+                    if issue.author.you {
+                        span::alias("(you)").dim().italic()
+                    } else {
+                        span::alias(nid).dim()
+                    }
+                }
                 None => span::blank(),
+            };
+
+            let labels = format::labels(&issue.labels);
+
+            let status = match issue.state {
+                issue::State::Open => Text::styled("open", style::green()),
+                issue::State::Closed { reason } => match reason {
+                    CloseReason::Solved => Line::from(
+                        [
+                            Span::styled("closed", style::red()),
+                            Span::raw(" "),
+                            Span::styled("(solved)", style::red().italic().dim()),
+                        ]
+                        .to_vec(),
+                    )
+                    .into(),
+                    CloseReason::Other => Text::styled("closed", style::red()),
+                },
             };
 
             let table = ratatui::widgets::Table::new(
@@ -81,11 +114,21 @@ impl<S, M> View for IssueDetails<S, M> {
                         Text::raw("Author").cyan(),
                         Line::from([author, " ".into(), did].to_vec()).into(),
                     ]),
-                    Row::new([Text::raw("Status").cyan(), Text::raw("???").magenta()]),
+                    Row::new([Text::raw("Labels").cyan(), Text::from(labels).blue()]),
+                    Row::new([Text::raw("Status").cyan(), status]),
                 ],
                 [Constraint::Length(8), Constraint::Fill(1)],
             );
-            frame.render_widget(table, render.area);
+
+            frame.render_widget(table, area);
+        } else {
+            let center = layout::centered_rect(render.area, 50, 10);
+            let hint = Text::from(span::default("No issue selected"))
+                .centered()
+                .light_magenta()
+                .dim();
+
+            frame.render_widget(hint, center);
         }
     }
 }

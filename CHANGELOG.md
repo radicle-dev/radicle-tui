@@ -4,6 +4,10 @@
 
 ### Added
 
+**Binary features:**
+
+- Issue preview widgets in `issue select`
+
 **Library features:**
 
 - Widgets can be mutated in their render function

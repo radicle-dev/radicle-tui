@@ -24,10 +24,8 @@ use tui::ui::widget::list::{Table, TableProps};
 use tui::ui::widget::ViewProps;
 use tui::ui::widget::{RenderProps, ToWidget, View};
 
-use tui::{BoxedAny, Selection};
+use tui::BoxedAny;
 
-use crate::tui_issue::common::IssueOperation;
-use crate::tui_issue::common::Mode;
 use crate::ui::items::{IssueItem, IssueItemFilter};
 
 use super::{Message, State};
@@ -36,12 +34,8 @@ type Widget = widget::Widget<State, Message>;
 
 #[derive(Clone, Default)]
 pub struct BrowserProps<'a> {
-    /// Application mode: openation and id or id only.
-    mode: Mode,
     /// Filtered issues.
     issues: Vec<IssueItem>,
-    /// Current (selected) table index
-    selected: Option<usize>,
     /// Issue statistics.
     stats: HashMap<String, usize>,
     /// Header columns
@@ -86,9 +80,7 @@ impl<'a> From<&State> for BrowserProps<'a> {
         ]);
 
         Self {
-            mode: state.mode.clone(),
             issues,
-            selected: state.browser.selected,
             stats,
             header: [
                 Column::new(" ● ", Constraint::Length(3)),
@@ -143,7 +135,7 @@ impl Browser {
                         .on_event(|_, s, _| {
                             let (selected, _) =
                                 s.and_then(|s| s.unwrap_table()).unwrap_or_default();
-                            Some(Message::Select {
+                            Some(Message::SelectIssue {
                                 selected: Some(selected),
                             })
                         })
@@ -217,33 +209,6 @@ impl View for Browser {
         } else {
             match key {
                 Key::Char('/') => Some(Message::OpenSearch),
-                Key::Char('\n') => {
-                    let operation = match props.mode {
-                        Mode::Operation => Some(IssueOperation::Show.to_string()),
-                        Mode::Id => None,
-                    };
-
-                    props
-                        .selected
-                        .and_then(|selected| props.issues.get(selected))
-                        .map(|issue| Message::Exit {
-                            selection: Some(Selection {
-                                operation,
-                                ids: vec![issue.id],
-                                args: vec![],
-                            }),
-                        })
-                }
-                Key::Char('e') => props
-                    .selected
-                    .and_then(|selected| props.issues.get(selected))
-                    .map(|issue| Message::Exit {
-                        selection: Some(Selection {
-                            operation: Some(IssueOperation::Edit.to_string()),
-                            ids: vec![issue.id],
-                            args: vec![],
-                        }),
-                    }),
                 _ => {
                     self.issues.handle_event(key);
                     None
