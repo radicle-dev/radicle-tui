@@ -17,7 +17,6 @@ use radicle::Profile;
 
 use radicle_tui as tui;
 
-use tui::cob::issue;
 use tui::store;
 use tui::store::StateValue;
 use tui::ui::items::{Filter, IssueItem, IssueItemFilter};
@@ -28,6 +27,8 @@ use tui::ui::widget::window::{Page, PageProps, Shortcuts, ShortcutsProps, Window
 use tui::ui::widget::{ToWidget, Widget};
 
 use tui::{BoxedAny, Channel, Exit, PageStack};
+
+use crate::cob::issue;
 
 use self::ui::{Browser, BrowserProps};
 

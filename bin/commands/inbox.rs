@@ -9,12 +9,12 @@ use anyhow::anyhow;
 
 use radicle_tui as tui;
 
-use tui::cob::inbox::{self};
-
 use radicle_cli::terminal;
 use radicle_cli::terminal::{Args, Error, Help};
 
 use self::common::{Mode, RepositoryMode, SelectionMode};
+
+use crate::cob::inbox;
 
 pub const HELP: Help = Help {
     name: "inbox",

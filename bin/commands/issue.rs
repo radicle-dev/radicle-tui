@@ -15,8 +15,9 @@ use radicle_cli::terminal::{Args, Error, Help};
 
 use radicle_tui as tui;
 
-use tui::cob;
 use tui::log;
+
+use crate::cob;
 
 pub const HELP: Help = Help {
     name: "issue",

@@ -16,7 +16,6 @@ use ratatui::style::Stylize;
 use ratatui::text::{Line, Span, Text};
 
 use termion::event::Key;
-use tui::cob::patch;
 use tui::store;
 use tui::ui::items::{Filter, PatchItem, PatchItemFilter};
 use tui::ui::span;
@@ -30,6 +29,8 @@ use tui::{BoxedAny, Channel, Exit, PageStack};
 use self::ui::{Browser, BrowserProps};
 
 use super::common::Mode;
+
+use crate::cob::patch;
 
 type Selection = tui::Selection<PatchId>;
 

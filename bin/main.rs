@@ -1,3 +1,4 @@
+mod cob;
 mod commands;
 
 use std::ffi::OsString;

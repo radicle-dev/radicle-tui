@@ -22,7 +22,6 @@ use radicle::Profile;
 
 use radicle_tui as tui;
 
-use tui::cob::inbox;
 use tui::store;
 use tui::store::StateValue;
 use tui::ui::items::{Filter, NotificationItem, NotificationItemFilter};
@@ -32,6 +31,8 @@ use tui::ui::widget::text::{TextArea, TextAreaProps};
 use tui::ui::widget::window::{Page, PageProps, Shortcuts, ShortcutsProps, Window, WindowProps};
 use tui::ui::widget::{ToWidget, Widget};
 use tui::{BoxedAny, Channel, Exit, PageStack};
+
+use crate::cob::inbox;
 
 use self::ui::Browser;
 use self::ui::BrowserProps;

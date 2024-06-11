@@ -9,13 +9,16 @@ use anyhow::anyhow;
 
 use radicle::identity::RepoId;
 use radicle::patch::Status;
-use radicle_tui as tui;
-
-use tui::cob::patch::{self, Filter};
-use tui::log;
 
 use radicle_cli::terminal;
 use radicle_cli::terminal::args::{Args, Error, Help};
+
+use radicle_tui as tui;
+
+use tui::log;
+
+use crate::cob::patch;
+use crate::cob::patch::Filter;
 
 pub const HELP: Help = Help {
     name: "patch",

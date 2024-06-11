@@ -9,6 +9,7 @@ pub mod inbox;
 pub mod issue;
 pub mod patch;
 
+#[allow(dead_code)]
 pub fn parse_labels(input: String) -> Result<Vec<Label>> {
     let mut labels = vec![];
     if !input.is_empty() {
@@ -23,6 +24,7 @@ pub fn parse_labels(input: String) -> Result<Vec<Label>> {
     Ok(labels)
 }
 
+#[allow(dead_code)]
 pub fn parse_assignees(input: String) -> Result<Vec<Did>> {
     let mut assignees = vec![];
     if !input.is_empty() {

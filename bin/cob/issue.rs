@@ -80,11 +80,13 @@ pub fn all(profile: &Profile, repository: &Repository) -> Result<Vec<(IssueId, I
     Ok(issues.flatten().collect())
 }
 
+#[allow(dead_code)]
 pub fn find(profile: &Profile, repository: &Repository, id: &IssueId) -> Result<Option<Issue>> {
     let cache = profile.issues(repository)?;
     Ok(cache.get(id)?)
 }
 
+#[allow(dead_code)]
 pub fn create<G: Signer>(
     profile: &Profile,
     repository: &Repository,

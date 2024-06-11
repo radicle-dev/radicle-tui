@@ -1,5 +1,3 @@
-pub mod cob;
-pub mod context;
 pub mod event;
 pub mod git;
 pub mod log;
