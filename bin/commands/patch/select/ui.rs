@@ -16,7 +16,6 @@ use radicle::patch::Status;
 
 use radicle_tui as tui;
 
-use tui::ui::items::{PatchItem, PatchItemFilter};
 use tui::ui::span;
 use tui::ui::widget;
 use tui::ui::widget::container::{
@@ -32,6 +31,7 @@ use tui::{BoxedAny, Selection};
 
 use crate::tui_patch::common::Mode;
 use crate::tui_patch::common::PatchOperation;
+use crate::ui::items::{PatchItem, PatchItemFilter};
 
 use super::{Message, State};
 

@@ -1,5 +1,4 @@
 pub mod event;
-pub mod git;
 pub mod log;
 pub mod store;
 pub mod task;

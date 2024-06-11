@@ -14,7 +14,6 @@ use ratatui::text::{Line, Text};
 
 use radicle_tui as tui;
 
-use tui::ui::items::{IssueItem, IssueItemFilter};
 use tui::ui::span;
 use tui::ui::widget;
 use tui::ui::widget::container::{
@@ -30,6 +29,7 @@ use tui::{BoxedAny, Selection};
 
 use crate::tui_issue::common::IssueOperation;
 use crate::tui_issue::common::Mode;
+use crate::ui::items::{IssueItem, IssueItemFilter};
 
 use super::{Message, State};
 

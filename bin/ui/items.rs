@@ -8,7 +8,8 @@ use nom::{IResult, Parser};
 use radicle::cob::{Label, ObjectId, Timestamp, TypedId};
 use radicle::git::Oid;
 use radicle::identity::{Did, Identity};
-use radicle::issue::{self, CloseReason, Issue, IssueId, Issues};
+use radicle::issue;
+use radicle::issue::{CloseReason, Issue, IssueId, Issues};
 use radicle::node::notifications::{Notification, NotificationId, NotificationKind};
 use radicle::node::{Alias, AliasStore, NodeId};
 use radicle::patch;
@@ -20,14 +21,13 @@ use radicle::Profile;
 use ratatui::style::{Style, Stylize};
 use ratatui::widgets::Cell;
 
-use super::super::git;
-use super::theme::style;
-use super::{format, span};
+use radicle_tui as tui;
+use tui::ui::widget::list::ToRow;
 
-/// Needs to be implemented for items that are supposed to be rendered in tables.
-pub trait ToRow<const W: usize> {
-    fn to_row(&self) -> [Cell; W];
-}
+use super::super::git;
+use super::format;
+use tui::ui::span;
+use tui::ui::theme::style;
 
 pub trait Filter<T> {
     fn matches(&self, item: &T) -> bool;

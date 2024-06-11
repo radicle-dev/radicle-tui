@@ -12,7 +12,6 @@ use ratatui::text::{Line, Text};
 
 use radicle_tui as tui;
 
-use tui::ui::items::{NotificationItem, NotificationItemFilter, NotificationState};
 use tui::ui::span;
 use tui::ui::widget::container::{
     Column, Container, ContainerProps, Footer, FooterProps, Header, HeaderProps,
@@ -26,6 +25,7 @@ use tui::ui::widget::{RenderProps, ToWidget, View};
 use tui::{BoxedAny, Selection};
 
 use crate::tui_inbox::common::{InboxOperation, Mode, RepositoryMode, SelectionMode};
+use crate::ui::items::{NotificationItem, NotificationItemFilter, NotificationState};
 
 use super::{Message, State};
 

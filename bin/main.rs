@@ -1,5 +1,7 @@
 mod cob;
 mod commands;
+mod git;
+mod ui;
 
 use std::ffi::OsString;
 use std::io;

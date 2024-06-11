@@ -17,7 +17,6 @@ use ratatui::text::{Line, Span, Text};
 
 use termion::event::Key;
 use tui::store;
-use tui::ui::items::{Filter, PatchItem, PatchItemFilter};
 use tui::ui::span;
 use tui::ui::widget::container::{Column, Container, Footer, FooterProps, Header, HeaderProps};
 use tui::ui::widget::text::{TextArea, TextAreaProps};
@@ -31,6 +30,7 @@ use self::ui::{Browser, BrowserProps};
 use super::common::Mode;
 
 use crate::cob::patch;
+use crate::ui::items::{Filter, PatchItem, PatchItemFilter};
 
 type Selection = tui::Selection<PatchId>;
 

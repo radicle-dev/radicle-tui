@@ -1,7 +1,7 @@
 use std::cmp;
 use std::marker::PhantomData;
 
-use ratatui::widgets::Row;
+use ratatui::widgets::{Cell, Row};
 use ratatui::Frame;
 use termion::event::Key;
 
@@ -10,12 +10,16 @@ use ratatui::style::Stylize;
 use ratatui::text::Text;
 use ratatui::widgets::TableState;
 
-use crate::ui::items::ToRow;
 use crate::ui::theme::style;
 use crate::ui::{layout, span};
 
 use super::{container::Column, RenderProps, View};
 use super::{ViewProps, ViewState};
+
+/// Needs to be implemented for items that are supposed to be rendered in tables.
+pub trait ToRow<const W: usize> {
+    fn to_row(&self) -> [Cell; W];
+}
 
 #[derive(Clone, Debug)]
 pub struct TableProps<'a, R, const W: usize>
