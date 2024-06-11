@@ -1,10 +1,13 @@
 #[path = "select/ui.rs"]
 mod ui;
 
+use std::collections::HashMap;
 use std::str::FromStr;
 
 use anyhow::Result;
 
+use radicle::cob::thread::CommentId;
+use radicle::git::Oid;
 use termion::event::Key;
 
 use ratatui::layout::Constraint;
@@ -20,15 +23,20 @@ use radicle_tui as tui;
 use tui::store;
 use tui::store::StateValue;
 use tui::ui::span;
-use tui::ui::widget::container::{Column, Container, Footer, FooterProps, Header, HeaderProps};
+use tui::ui::widget::container::{
+    Column, Container, Footer, FooterProps, Header, HeaderProps, SectionGroup, SectionGroupProps,
+    SplitContainer, SplitContainerFocus, SplitContainerProps,
+};
 use tui::ui::widget::input::{TextView, TextViewProps};
+use tui::ui::widget::list::{Tree, TreeProps};
 use tui::ui::widget::window::{Page, PageProps, Shortcuts, ShortcutsProps, Window, WindowProps};
-use tui::ui::widget::{ToWidget, Widget};
+use tui::ui::widget::{PredefinedLayout, ToWidget, Widget};
 
 use tui::{BoxedAny, Channel, Exit, PageStack};
 
 use crate::cob::issue;
-use crate::ui::items::{Filter, IssueItem, IssueItemFilter};
+use crate::ui::items::{CommentItem, Filter, IssueItem, IssueItemFilter};
+use crate::ui::widget::{IssueDetails, IssueDetailsProps};
 
 use self::ui::{Browser, BrowserProps};
 
@@ -60,7 +68,6 @@ pub struct BrowserState {
     selected: Option<usize>,
     filter: IssueItemFilter,
     search: store::StateValue<String>,
-
     show_search: bool,
 }
 
@@ -74,6 +81,67 @@ impl BrowserState {
     }
 }
 
+impl BrowserState {
+    pub fn show_search(&mut self) {
+        self.show_search = true;
+    }
+
+    pub fn hide_search(&mut self) {
+        self.show_search = false;
+    }
+
+    pub fn apply_search(&mut self) {
+        self.search.apply();
+    }
+
+    pub fn reset_search(&mut self) {
+        self.search.reset();
+    }
+
+    pub fn reset_scroll(&mut self) {
+        self.scroll = 0;
+    }
+
+    pub fn scroll(&mut self, scroll: usize) {
+        self.scroll = scroll;
+    }
+
+    pub fn search(&mut self, value: String) {
+        self.search.write(value);
+        self.filter_items();
+    }
+
+    pub fn filter_items(&mut self) {
+        self.filter = IssueItemFilter::from_str(&self.search.read()).unwrap_or_default();
+    }
+}
+
+#[derive(Clone, Debug)]
+pub struct CommentState {
+    /// Current text view cursor.
+    cursor: (usize, usize),
+}
+
+impl CommentState {
+    pub fn reset_cursor(&mut self) {
+        self.cursor = (0, 0);
+    }
+
+    pub fn update_cursor(&mut self, cursor: (usize, usize)) {
+        self.cursor = cursor;
+    }
+}
+
+#[derive(Clone, Debug)]
+pub struct IssueState {
+    /// Currently selected issue item.
+    item: Option<IssueItem>,
+    /// Tree selection per issue.
+    selected_comments: HashMap<IssueId, Vec<CommentId>>,
+    /// State of currently selected comment
+    comment: CommentState,
+}
+
 #[derive(Clone, Debug)]
 pub struct HelpState {
     scroll: usize,
@@ -85,6 +153,7 @@ pub struct State {
     mode: Mode,
     pages: PageStack<AppPage>,
     browser: BrowserState,
+    issue: IssueState,
     help: HelpState,
 }
 
@@ -105,16 +174,33 @@ impl TryFrom<&Context> for State {
         }
         items.sort_by(|a, b| b.timestamp.cmp(&a.timestamp));
 
+        // Pre-select first comment
+        let mut selected_comments = HashMap::new();
+        for item in &items {
+            selected_comments.insert(
+                item.id,
+                item.root_comments()
+                    .first()
+                    .and_then(|comment| Some(vec![comment.id]))
+                    .unwrap_or_default(),
+            );
+        }
+
         Ok(Self {
             mode: context.mode.clone(),
             pages: PageStack::new(vec![AppPage::Browser]),
             browser: BrowserState {
-                items,
+                items: items.clone(),
                 selected: Some(0),
                 scroll: 0,
                 filter,
                 search,
                 show_search: false,
+            },
+            issue: IssueState {
+                item: items.get(0).cloned(),
+                selected_comments,
+                comment: CommentState { cursor: (0, 0) },
             },
             help: HelpState {
                 scroll: 0,
@@ -128,7 +214,7 @@ pub enum Message {
     Exit {
         selection: Option<Selection>,
     },
-    Select {
+    SelectIssue {
         selected: Option<usize>,
         scroll: usize,
     },
@@ -138,6 +224,12 @@ pub enum Message {
     },
     ApplySearch,
     CloseSearch,
+    SelectComment {
+        selected: Option<Vec<CommentId>>,
+    },
+    ScrollComment {
+        cursor: (usize, usize),
+    },
     OpenHelp,
     LeavePage,
     ScrollHelp {
@@ -152,41 +244,62 @@ impl store::State<Selection> for State {
     fn update(&mut self, message: Message) -> Option<Exit<Selection>> {
         match message {
             Message::Exit { selection } => Some(Exit { value: selection }),
-            Message::Select { selected, scroll } => {
+            Message::SelectIssue { selected, scroll } => {
                 self.browser.selected = selected;
-                self.browser.scroll = scroll;
+                self.browser.scroll(scroll);
+
+                self.issue.item = self
+                    .browser
+                    .selected
+                    .and_then(|selected| self.browser.issues().get(selected).cloned());
+                self.issue.comment.reset_cursor();
+
+                None
+            }
+            Message::SelectComment { selected } => {
+                if let Some(item) = &self.issue.item {
+                    self.issue
+                        .selected_comments
+                        .insert(item.id, selected.unwrap_or(vec![]));
+                }
+                self.issue.comment.reset_cursor();
+                None
+            }
+            Message::ScrollComment { cursor } => {
+                self.issue.comment.update_cursor(cursor);
                 None
             }
             Message::OpenSearch => {
-                self.browser.show_search = true;
+                self.browser.show_search();
                 None
             }
             Message::UpdateSearch { value } => {
-                self.browser.search.write(value);
-                self.browser.filter =
-                    IssueItemFilter::from_str(&self.browser.search.read()).unwrap_or_default();
+                self.browser.search(value);
 
                 if let Some(selected) = self.browser.selected {
                     if selected > self.browser.issues().len() {
                         self.browser.selected = Some(0);
+                        self.issue.item = self.browser.issues().get(0).cloned();
+                    } else {
+                        self.issue.item = self.browser.issues().get(selected).cloned();
                     }
+                } else {
+                    self.issue.item = None;
                 }
 
-                self.browser.scroll = 0;
+                self.browser.reset_scroll();
                 None
             }
             Message::ApplySearch => {
-                self.browser.search.apply();
-                self.browser.show_search = false;
-                self.browser.scroll = 0;
+                self.browser.hide_search();
+                self.browser.apply_search();
+                self.browser.reset_scroll();
                 None
             }
             Message::CloseSearch => {
-                self.browser.search.reset();
-                self.browser.show_search = false;
-                self.browser.filter =
-                    IssueItemFilter::from_str(&self.browser.search.read()).unwrap_or_default();
-
+                self.browser.hide_search();
+                self.browser.reset_search();
+                self.browser.filter_items();
                 None
             }
             Message::OpenHelp => {
@@ -234,10 +347,6 @@ impl App {
 fn browser_page(_state: &State, channel: &Channel<Message>) -> Widget<State, Message> {
     let tx = channel.tx.clone();
 
-    let content = Browser::new(tx.clone())
-        .to_widget(tx.clone())
-        .on_update(|state| BrowserProps::from(state).to_boxed_any().into());
-
     let shortcuts = Shortcuts::default()
         .to_widget(tx.clone())
         .on_update(|state: &State| {
@@ -262,7 +371,20 @@ fn browser_page(_state: &State, channel: &Channel<Message>) -> Widget<State, Mes
         });
 
     Page::default()
-        .content(content)
+        .content(
+            SectionGroup::default()
+                .section(browser(channel))
+                .section(issue_details(channel))
+                .section(comment(channel))
+                .to_widget(tx.clone())
+                .on_update(|_| {
+                    SectionGroupProps::default()
+                        .handle_keys(true)
+                        .layout(PredefinedLayout::Expandable3)
+                        .to_boxed_any()
+                        .into()
+                }),
+        )
         .shortcuts(shortcuts)
         .to_widget(tx.clone())
         .on_event(|key, _, props| {
@@ -356,6 +478,124 @@ fn help_page(_state: &State, channel: &Channel<Message>) -> Widget<State, Messag
             _ => None,
         })
         .on_update(|_| PageProps::default().handle_keys(true).to_boxed_any().into())
+}
+
+fn browser(channel: &Channel<Message>) -> Widget<State, Message> {
+    let tx = channel.tx.clone();
+
+    Browser::new(tx.clone())
+        .to_widget(tx.clone())
+        .on_update(|state| BrowserProps::from(state).to_boxed_any().into())
+}
+
+fn issue_details(channel: &Channel<Message>) -> Widget<State, Message> {
+    let tx = channel.tx.clone();
+
+    SplitContainer::default()
+        .top(
+            IssueDetails::default()
+                .to_widget(tx.clone())
+                .on_update(|state: &State| {
+                    IssueDetailsProps::default()
+                        .issue(state.issue.item.clone())
+                        .to_boxed_any()
+                        .into()
+                }),
+        )
+        .bottom(
+            Tree::<State, Message, CommentItem>::default()
+                .to_widget(tx.clone())
+                .on_event(|_, s, _| {
+                    Some(Message::SelectComment {
+                        selected: s.and_then(|s| {
+                            s.unwrap_tree().and_then(|tree| {
+                                Some(tree.iter().map(|id| Oid::from_str(id).unwrap()).collect())
+                            })
+                        }),
+                    })
+                })
+                .on_update(|state| {
+                    let comments = &state
+                        .issue
+                        .item
+                        .as_ref()
+                        .and_then(|item| Some(item.root_comments()))
+                        .unwrap_or(vec![]);
+
+                    let selected = &state
+                        .issue
+                        .item
+                        .as_ref()
+                        .and_then(|item| state.issue.selected_comments.get(&item.id))
+                        .and_then(|selected| {
+                            Some(selected.iter().map(|oid| oid.to_string()).collect())
+                        })
+                        .unwrap_or(vec![]);
+
+                    TreeProps::<CommentItem>::default()
+                        .items(comments.to_vec())
+                        .selected(selected)
+                        .to_boxed_any()
+                        .into()
+                }),
+        )
+        .to_widget(tx.clone())
+        .on_update(|_| {
+            SplitContainerProps::default()
+                .heights([Constraint::Length(5), Constraint::Min(1)])
+                .split_focus(SplitContainerFocus::Bottom)
+                .to_boxed_any()
+                .into()
+        })
+}
+
+fn comment(channel: &Channel<Message>) -> Widget<State, Message> {
+    let tx = channel.tx.clone();
+
+    Container::default()
+        .content(
+            TextView::default()
+                .to_widget(tx.clone())
+                .on_event(|_, vs, _| {
+                    let textview = vs.and_then(|p| p.unwrap_textview()).unwrap_or_default();
+                    Some(Message::ScrollComment {
+                        cursor: textview.cursor,
+                    })
+                })
+                .on_update(|state: &State| {
+                    let body: String = state
+                        .issue
+                        .item
+                        .as_ref()
+                        .and_then(|item| {
+                            state
+                                .issue
+                                .selected_comments
+                                .get(&item.id)
+                                .and_then(|selection| selection.last().copied())
+                                .and_then(|comment_id| {
+                                    state.issue.item.as_ref().and_then(|item| {
+                                        item.comments
+                                            .iter()
+                                            .filter(|item| item.id == comment_id)
+                                            .collect::<Vec<_>>()
+                                            .first()
+                                            .cloned()
+                                    })
+                                })
+                                .and_then(|comment| Some(comment.body.clone()))
+                        })
+                        .unwrap_or_default();
+
+                    TextViewProps::default()
+                        .content(body)
+                        .cursor(state.issue.comment.cursor)
+                        .show_scroll_progress(true)
+                        .to_boxed_any()
+                        .into()
+                }),
+        )
+        .to_widget(tx.clone())
 }
 
 fn help_text() -> Text<'static> {

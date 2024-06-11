@@ -146,7 +146,7 @@ impl Browser {
                         .on_event(|_, s, _| {
                             let (selected, scroll) =
                                 s.and_then(|s| s.unwrap_table()).unwrap_or_default();
-                            Some(Message::Select {
+                            Some(Message::SelectIssue {
                                 selected: Some(selected),
                                 scroll,
                             })
