@@ -76,23 +76,23 @@ Both commands will call into `rad-tui`, process its output and call `rad` accord
 Select a patch, an issue or a notification and an operation:
 
 ```
-$ rad-tui <patch | issue | inbox> select
+rad-tui <patch | issue | inbox> select
 ```
 Same as above:
 
 ```
-$ rad-tui <patch | issue | inbox> select --mode operation
+rad-tui <patch | issue | inbox> select --mode operation
 ```
 
 Select a patch, an issue or a notification only and return its id:
 
 ```
-$ rad-tui <patch | issue | inbox> select --mode id
+rad-tui <patch | issue | inbox> select --mode id
 ```
 
 #### Output
 
-All interfaces return a common JSON object that reflects the choices made by the user, e.g.: 
+All interfaces return a common JSON object on `stderr` that reflects the choices made by the user, e.g.: 
 
 ```
 { "operation": "show", "ids": ["546443226b300484a97a2b2d7c7000af6e8169ba"], args:[] }
