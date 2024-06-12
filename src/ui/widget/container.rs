@@ -9,7 +9,7 @@ use ratatui::widgets::{Block, BorderType, Borders, Row};
 use crate::ui::ext::{FooterBlock, FooterBlockType, HeaderBlock};
 use crate::ui::theme::style;
 
-use super::{RenderProps, View, ViewProps, Widget};
+use super::{PredefinedLayout, RenderProps, View, ViewProps, Widget};
 
 #[derive(Clone, Debug)]
 pub struct Column<'a> {
@@ -389,11 +389,18 @@ pub struct SectionGroupState {
 pub struct SectionGroupProps {
     /// If this pages' keys should be handled.
     handle_keys: bool,
+    /// Section layout
+    layout: PredefinedLayout,
 }
 
 impl SectionGroupProps {
     pub fn handle_keys(mut self, handle_keys: bool) -> Self {
         self.handle_keys = handle_keys;
+        self
+    }
+
+    pub fn layout(mut self, layout: PredefinedLayout) -> Self {
+        self.layout = layout;
         self
     }
 }
@@ -482,8 +489,13 @@ where
         }
     }
 
-    fn render(&self, _props: Option<&ViewProps>, render: RenderProps, frame: &mut Frame) {
-        let areas = render.layout.split(render.area);
+    fn render(&self, props: Option<&ViewProps>, render: RenderProps, frame: &mut Frame) {
+        let default = SectionGroupProps::default();
+        let props = props
+            .and_then(|props| props.inner_ref::<SectionGroupProps>())
+            .unwrap_or(&default);
+
+        let areas = props.layout.split(render.area);
 
         for (index, area) in areas.iter().enumerate() {
             if let Some(section) = self.sections.get(index) {

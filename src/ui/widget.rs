@@ -6,6 +6,7 @@ pub mod utils;
 pub mod window;
 
 use std::any::Any;
+use std::rc::Rc;
 
 use tokio::sync::mpsc::UnboundedSender;
 
@@ -76,6 +77,42 @@ impl ViewState {
         match self {
             ViewState::String(value) => Some(value.clone()),
             _ => None,
+        }
+    }
+}
+
+#[derive(Clone, Default)]
+pub enum PredefinedLayout {
+    #[default]
+    None,
+    Expandable3,
+}
+
+impl PredefinedLayout {
+    pub fn split(&self, area: Rect) -> Rc<[Rect]> {
+        match self {
+            Self::Expandable3 => {
+                if area.width <= 140 {
+                    let [left, right] = Layout::horizontal([
+                        Constraint::Percentage(50),
+                        Constraint::Percentage(50),
+                    ])
+                    .areas(area);
+                    let [right_top, right_bottom] =
+                        Layout::vertical([Constraint::Percentage(50), Constraint::Percentage(50)])
+                            .areas(right);
+
+                    [left, right_top, right_bottom].into()
+                } else {
+                    Layout::horizontal([
+                        Constraint::Percentage(33),
+                        Constraint::Percentage(33),
+                        Constraint::Percentage(33),
+                    ])
+                    .split(area)
+                }
+            }
+            _ => Layout::default().split(area),
         }
     }
 }
