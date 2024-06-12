@@ -379,6 +379,154 @@ where
     }
 }
 
+#[derive(Clone, Default)]
+pub enum SplitContainerFocus {
+    #[default]
+    Top,
+    Bottom,
+}
+
+#[derive(Clone, Default)]
+pub struct SplitContainerProps {
+    split_focus: SplitContainerFocus,
+    heights: [Constraint; 2],
+}
+
+impl SplitContainerProps {
+    pub fn split_focus(mut self, split_focus: SplitContainerFocus) -> Self {
+        self.split_focus = split_focus;
+        self
+    }
+
+    pub fn heights(mut self, heights: [Constraint; 2]) -> Self {
+        self.heights = heights;
+        self
+    }
+}
+
+pub struct SplitContainer<S, M> {
+    /// Container top
+    top: Option<Widget<S, M>>,
+    /// Content bottom
+    bottom: Option<Widget<S, M>>,
+}
+
+impl<S, M> Default for SplitContainer<S, M> {
+    fn default() -> Self {
+        Self {
+            top: None,
+            bottom: None,
+        }
+    }
+}
+
+impl<S, M> SplitContainer<S, M> {
+    pub fn top(mut self, top: Widget<S, M>) -> Self {
+        self.top = Some(top);
+        self
+    }
+
+    pub fn bottom(mut self, bottom: Widget<S, M>) -> Self {
+        self.bottom = Some(bottom);
+        self
+    }
+}
+
+impl<S, M> View for SplitContainer<S, M>
+where
+    S: 'static,
+    M: 'static,
+{
+    type Message = M;
+    type State = S;
+
+    fn handle_event(&mut self, props: Option<&ViewProps>, key: Key) -> Option<Self::Message> {
+        let default = SplitContainerProps::default();
+        let props = props
+            .and_then(|props| props.inner_ref::<SplitContainerProps>())
+            .unwrap_or(&default);
+
+        match props.split_focus {
+            SplitContainerFocus::Top => {
+                if let Some(top) = self.top.as_mut() {
+                    top.handle_event(key);
+                }
+            }
+            SplitContainerFocus::Bottom => {
+                if let Some(bottom) = self.bottom.as_mut() {
+                    bottom.handle_event(key);
+                }
+            }
+        }
+
+        None
+    }
+
+    fn update(&mut self, _props: Option<&ViewProps>, state: &Self::State) {
+        if let Some(top) = self.top.as_mut() {
+            top.update(state);
+        }
+
+        if let Some(bottom) = self.bottom.as_mut() {
+            bottom.update(state);
+        }
+    }
+
+    fn render(&self, props: Option<&ViewProps>, render: RenderProps, frame: &mut Frame) {
+        let default = SplitContainerProps::default();
+        let props = props
+            .and_then(|props| props.inner_ref::<SplitContainerProps>())
+            .unwrap_or(&default);
+
+        let heights = props
+            .heights
+            .iter()
+            .map(|c| {
+                if let Constraint::Length(l) = c {
+                    Constraint::Length(l + 2)
+                } else {
+                    *c
+                }
+            })
+            .collect::<Vec<_>>();
+
+        let [top_area, bottom_area] = Layout::vertical(heights).areas(render.area);
+
+        if let Some(top) = self.top.as_ref() {
+            let block = HeaderBlock::default()
+                .borders(Borders::ALL)
+                .border_style(style::border(render.focus))
+                .border_type(BorderType::Rounded);
+
+            frame.render_widget(block, top_area);
+
+            let [top_area] = Layout::default()
+                .direction(Direction::Vertical)
+                .constraints(vec![Constraint::Min(1)])
+                .vertical_margin(1)
+                .horizontal_margin(2)
+                .areas(top_area);
+            top.render(RenderProps::from(top_area).focus(render.focus), frame)
+        }
+
+        if let Some(bottom) = self.bottom.as_ref() {
+            let block = Block::default()
+                .borders(Borders::LEFT | Borders::RIGHT | Borders::BOTTOM)
+                .border_style(style::border(render.focus))
+                .border_type(BorderType::Rounded);
+
+            frame.render_widget(block, bottom_area);
+
+            let [bottom_area, _] = Layout::default()
+                .direction(Direction::Vertical)
+                .constraints(vec![Constraint::Min(1), Constraint::Length(1)])
+                .horizontal_margin(2)
+                .areas(bottom_area);
+            bottom.render(RenderProps::from(bottom_area).focus(render.focus), frame)
+        }
+    }
+}
+
 #[derive(Clone)]
 pub struct SectionGroupState {
     /// Index of currently focused section.
