@@ -216,7 +216,7 @@ where
         }
     }
 
-    fn render(&self, props: Option<&ViewProps>, render: RenderProps, frame: &mut Frame) {
+    fn render(&mut self, props: Option<&ViewProps>, render: RenderProps, frame: &mut Frame) {
         let default = TableProps::default();
         let props = props
             .and_then(|props| props.inner_ref::<TableProps<R, W>>())
@@ -261,7 +261,7 @@ where
                 .column_spacing(1)
                 .highlight_style(style::highlight());
 
-            frame.render_stateful_widget(rows, render.area, &mut self.state.clone());
+            frame.render_stateful_widget(rows, render.area, &mut self.state);
         } else {
             let center = layout::centered_rect(render.area, 50, 10);
             let hint = Text::from(span::default("Nothing to show"))

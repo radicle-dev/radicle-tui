@@ -80,7 +80,7 @@ impl<'a: 'static, S, M> View for Header<S, M> {
     type Message = M;
     type State = S;
 
-    fn render(&self, props: Option<&ViewProps>, render: RenderProps, frame: &mut Frame) {
+    fn render(&mut self, props: Option<&ViewProps>, render: RenderProps, frame: &mut Frame) {
         let default = HeaderProps::default();
         let props = props
             .and_then(|props| props.inner_ref::<HeaderProps>())
@@ -210,7 +210,7 @@ impl<'a: 'static, S, M> View for Footer<S, M> {
     type Message = M;
     type State = S;
 
-    fn render(&self, props: Option<&ViewProps>, render: RenderProps, frame: &mut Frame) {
+    fn render(&mut self, props: Option<&ViewProps>, render: RenderProps, frame: &mut Frame) {
         let default = FooterProps::default();
         let props = props
             .and_then(|props| props.inner_ref::<FooterProps>())
@@ -326,7 +326,7 @@ where
         }
     }
 
-    fn render(&self, props: Option<&ViewProps>, render: RenderProps, frame: &mut Frame) {
+    fn render(&mut self, props: Option<&ViewProps>, render: RenderProps, frame: &mut Frame) {
         let default = ContainerProps::default();
         let props = props
             .and_then(|props| props.inner_ref::<ContainerProps>())
@@ -362,18 +362,18 @@ where
             .borders(borders);
         frame.render_widget(block.clone(), content_area);
 
-        if let Some(header) = &self.header {
+        if let Some(header) = self.header.as_mut() {
             header.render(RenderProps::from(header_area).focus(render.focus), frame);
         }
 
-        if let Some(content) = &self.content {
+        if let Some(content) = self.content.as_mut() {
             content.render(
                 RenderProps::from(block.inner(content_area)).focus(render.focus),
                 frame,
             );
         }
 
-        if let Some(footer) = &self.footer {
+        if let Some(footer) = self.footer.as_mut() {
             footer.render(RenderProps::from(footer_area).focus(render.focus), frame);
         }
     }
@@ -472,7 +472,7 @@ where
         }
     }
 
-    fn render(&self, props: Option<&ViewProps>, render: RenderProps, frame: &mut Frame) {
+    fn render(&mut self, props: Option<&ViewProps>, render: RenderProps, frame: &mut Frame) {
         let default = SplitContainerProps::default();
         let props = props
             .and_then(|props| props.inner_ref::<SplitContainerProps>())
@@ -492,7 +492,7 @@ where
 
         let [top_area, bottom_area] = Layout::vertical(heights).areas(render.area);
 
-        if let Some(top) = self.top.as_ref() {
+        if let Some(top) = self.top.as_mut() {
             let block = HeaderBlock::default()
                 .borders(Borders::ALL)
                 .border_style(style::border(render.focus))
@@ -509,7 +509,7 @@ where
             top.render(RenderProps::from(top_area).focus(render.focus), frame)
         }
 
-        if let Some(bottom) = self.bottom.as_ref() {
+        if let Some(bottom) = self.bottom.as_mut() {
             let block = Block::default()
                 .borders(Borders::LEFT | Borders::RIGHT | Borders::BOTTOM)
                 .border_style(style::border(render.focus))
@@ -637,7 +637,7 @@ where
         }
     }
 
-    fn render(&self, props: Option<&ViewProps>, render: RenderProps, frame: &mut Frame) {
+    fn render(&mut self, props: Option<&ViewProps>, render: RenderProps, frame: &mut Frame) {
         let default = SectionGroupProps::default();
         let props = props
             .and_then(|props| props.inner_ref::<SectionGroupProps>())
@@ -646,7 +646,7 @@ where
         let areas = props.layout.split(render.area);
 
         for (index, area) in areas.iter().enumerate() {
-            if let Some(section) = self.sections.get(index) {
+            if let Some(section) = self.sections.get_mut(index) {
                 let focus = self
                     .state
                     .focus

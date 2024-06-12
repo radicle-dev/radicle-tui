@@ -98,7 +98,7 @@ where
         }
     }
 
-    fn render(&self, props: Option<&ViewProps>, _render: RenderProps, frame: &mut Frame) {
+    fn render(&mut self, props: Option<&ViewProps>, _render: RenderProps, frame: &mut Frame) {
         let default = WindowProps::default();
         let props = props
             .and_then(|props| props.inner_ref::<WindowProps<Id>>())
@@ -109,7 +109,7 @@ where
         let page = props
             .current_page
             .as_ref()
-            .and_then(|id| self.pages.get(id));
+            .and_then(|id| self.pages.get_mut(id));
 
         if let Some(page) = page {
             page.render(RenderProps::from(area).focus(true), frame);
@@ -190,11 +190,11 @@ where
         }
     }
 
-    fn render(&self, _props: Option<&ViewProps>, render: RenderProps, frame: &mut Frame) {
+    fn render(&mut self, _props: Option<&ViewProps>, render: RenderProps, frame: &mut Frame) {
         let [content_area, shortcuts_area] =
             Layout::vertical([Constraint::Min(1), Constraint::Length(1)]).areas(render.area);
 
-        if let Some(content) = self.content.as_ref() {
+        if let Some(content) = self.content.as_mut() {
             content.render(
                 RenderProps::from(content_area)
                     .layout(Layout::horizontal([Constraint::Min(1)]))
@@ -203,7 +203,7 @@ where
             );
         }
 
-        if let Some(shortcuts) = self.shortcuts.as_ref() {
+        if let Some(shortcuts) = self.shortcuts.as_mut() {
             shortcuts.render(RenderProps::from(shortcuts_area), frame);
         }
     }
@@ -256,7 +256,7 @@ impl<S, M> View for Shortcuts<S, M> {
     type Message = M;
     type State = S;
 
-    fn render(&self, props: Option<&ViewProps>, render: RenderProps, frame: &mut Frame) {
+    fn render(&mut self, props: Option<&ViewProps>, render: RenderProps, frame: &mut Frame) {
         use ratatui::widgets::Table;
 
         let default = ShortcutsProps::default();

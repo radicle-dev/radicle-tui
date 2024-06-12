@@ -177,7 +177,7 @@ pub trait View {
     fn update(&mut self, _props: Option<&ViewProps>, _state: &Self::State) {}
 
     /// Should render the view using the given `RenderProps`.
-    fn render(&self, props: Option<&ViewProps>, render: RenderProps, frame: &mut Frame);
+    fn render(&mut self, props: Option<&ViewProps>, render: RenderProps, frame: &mut Frame);
 }
 
 /// A `View` needs to wrapped into a `Widget` before being able to use with the
@@ -243,7 +243,7 @@ impl<S: 'static, M: 'static> Widget<S, M> {
     }
 
     /// Renders the wrapped view.
-    pub fn render(&self, render: RenderProps, frame: &mut Frame) {
+    pub fn render(&mut self, render: RenderProps, frame: &mut Frame) {
         self.view.render(self.props.as_ref(), render.clone(), frame);
 
         if let Some(on_render) = self.on_render {
