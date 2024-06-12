@@ -269,7 +269,7 @@ impl View for Browser {
         self.search.update(state);
     }
 
-    fn render(&self, props: Option<&ViewProps>, render: RenderProps, frame: &mut Frame) {
+    fn render(&mut self, props: Option<&ViewProps>, render: RenderProps, frame: &mut Frame) {
         let default = BrowserProps::default();
         let props = props
             .and_then(|props| props.inner_ref::<BrowserProps>())
