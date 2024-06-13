@@ -30,8 +30,6 @@ where
     pub selected: Option<usize>,
     pub columns: Vec<Column<'a>>,
     pub has_footer: bool,
-    pub cutoff: usize,
-    pub cutoff_after: usize,
     pub page_size: usize,
 }
 
@@ -44,8 +42,6 @@ where
             items: vec![],
             columns: vec![],
             has_footer: false,
-            cutoff: usize::MAX,
-            cutoff_after: usize::MAX,
             page_size: 1,
             selected: Some(0),
         }
@@ -73,12 +69,6 @@ where
 
     pub fn footer(mut self, has_footer: bool) -> Self {
         self.has_footer = has_footer;
-        self
-    }
-
-    pub fn cutoff(mut self, cutoff: usize, cutoff_after: usize) -> Self {
-        self.cutoff = cutoff;
-        self.cutoff_after = cutoff_after;
         self
     }
 
@@ -225,14 +215,14 @@ where
         let widths: Vec<Constraint> = props
             .columns
             .iter()
-            .filter_map(|c| if !c.skip { Some(c.width) } else { None })
+            .filter_map(|c| {
+                if !c.skip && c.displayed(render.area.width as usize) {
+                    Some(c.width)
+                } else {
+                    None
+                }
+            })
             .collect();
-
-        let widths = if render.area.width < props.cutoff as u16 {
-            widths.iter().take(props.cutoff_after).collect::<Vec<_>>()
-        } else {
-            widths.iter().collect::<Vec<_>>()
-        };
 
         if !props.items.is_empty() {
             let rows = props
@@ -244,7 +234,7 @@ where
 
                     for cell in item.to_row() {
                         if let Some(col) = it.next() {
-                            if !col.skip {
+                            if !col.skip && col.displayed(render.area.width as usize) {
                                 cells.push(cell.clone());
                             }
                         } else {

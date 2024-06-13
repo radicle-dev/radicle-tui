@@ -8,14 +8,58 @@ use ratatui::widgets::{Block, BorderType, Borders, Row};
 
 use crate::ui::ext::{FooterBlock, FooterBlockType, HeaderBlock};
 use crate::ui::theme::style;
+use crate::ui::{RENDER_WIDTH_LARGE, RENDER_WIDTH_MEDIUM, RENDER_WIDTH_SMALL};
 
 use super::{PredefinedLayout, RenderProps, View, ViewProps, Widget};
+
+#[derive(Clone, Debug)]
+pub struct ColumnView {
+    small: bool,
+    medium: bool,
+    large: bool,
+}
+
+impl ColumnView {
+    pub fn all() -> Self {
+        Self {
+            small: true,
+            medium: true,
+            large: true,
+        }
+    }
+
+    pub fn small(mut self) -> Self {
+        self.small = true;
+        self
+    }
+
+    pub fn medium(mut self) -> Self {
+        self.medium = true;
+        self
+    }
+
+    pub fn large(mut self) -> Self {
+        self.large = true;
+        self
+    }
+}
+
+impl Default for ColumnView {
+    fn default() -> Self {
+        Self {
+            small: false,
+            medium: false,
+            large: false,
+        }
+    }
+}
 
 #[derive(Clone, Debug)]
 pub struct Column<'a> {
     pub text: Text<'a>,
     pub width: Constraint,
     pub skip: bool,
+    pub view: ColumnView,
 }
 
 impl<'a> Column<'a> {
@@ -24,12 +68,35 @@ impl<'a> Column<'a> {
             text: text.into(),
             width,
             skip: false,
+            view: ColumnView::all(),
         }
     }
 
     pub fn skip(mut self, skip: bool) -> Self {
         self.skip = skip;
         self
+    }
+
+    pub fn hide_small(mut self) -> Self {
+        self.view = ColumnView::default().medium().large();
+        self
+    }
+
+    pub fn hide_medium(mut self) -> Self {
+        self.view = ColumnView::default().large();
+        self
+    }
+
+    pub fn displayed(&self, area_width: usize) -> bool {
+        if area_width < RENDER_WIDTH_SMALL {
+            self.view.small
+        } else if area_width < RENDER_WIDTH_MEDIUM {
+            self.view.medium
+        } else if area_width < RENDER_WIDTH_LARGE {
+            self.view.large
+        } else {
+            true
+        }
     }
 }
 
@@ -86,34 +153,31 @@ impl<'a: 'static, S, M> View for Header<S, M> {
             .and_then(|props| props.inner_ref::<HeaderProps>())
             .unwrap_or(&default);
 
+        let width = render.area.width.saturating_sub(2);
+
         let widths: Vec<Constraint> = props
             .columns
             .iter()
-            .filter_map(|column| {
-                if !column.skip {
-                    Some(column.width)
+            .filter_map(|c| {
+                if !c.skip && c.displayed(width as usize) {
+                    Some(c.width)
                 } else {
                     None
                 }
             })
             .collect();
+
         let cells = props
             .columns
             .iter()
             .filter_map(|column| {
-                if !column.skip {
+                if !column.skip && column.displayed(width as usize) {
                     Some(column.text.clone())
                 } else {
                     None
                 }
             })
             .collect::<Vec<_>>();
-
-        let widths = if render.area.width < props.cutoff as u16 {
-            widths.iter().take(props.cutoff_after).collect::<Vec<_>>()
-        } else {
-            widths.iter().collect::<Vec<_>>()
-        };
 
         // Render header
         let block = HeaderBlock::default()

@@ -22,6 +22,11 @@ use super::terminal;
 const RENDERING_TICK_RATE: Duration = Duration::from_millis(250);
 const INLINE_HEIGHT: usize = 20;
 
+pub const RENDER_WIDTH_XSMALL: usize = 50;
+pub const RENDER_WIDTH_SMALL: usize = 70;
+pub const RENDER_WIDTH_MEDIUM: usize = 150;
+pub const RENDER_WIDTH_LARGE: usize = usize::MAX;
+
 /// The `Frontend` runs an applications' view concurrently. It handles
 /// terminal events as well as state updates and renders the view accordingly.
 ///
