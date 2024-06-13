@@ -45,10 +45,6 @@ pub struct BrowserProps<'a> {
     stats: HashMap<String, usize>,
     /// Table columns
     columns: Vec<Column<'a>>,
-    /// Max. width, before columns are cut-off.
-    cutoff: usize,
-    /// Column index that marks where to cut.
-    cutoff_after: usize,
     /// Current page size (height of table content).
     page_size: usize,
     /// If search widget should be shown.
@@ -90,16 +86,14 @@ impl<'a> From<&State> for BrowserProps<'a> {
                 Column::new("", Constraint::Length(3)),
                 Column::new("", Constraint::Length(15))
                     .skip(*state.mode.repository() != RepositoryMode::All),
-                Column::new("", Constraint::Length(25)),
+                Column::new("", Constraint::Length(25)).hide_small(),
                 Column::new("", Constraint::Fill(1)),
                 Column::new("", Constraint::Length(8)),
                 Column::new("", Constraint::Length(10)),
-                Column::new("", Constraint::Length(15)),
-                Column::new("", Constraint::Length(18)),
+                Column::new("", Constraint::Length(15)).hide_small(),
+                Column::new("", Constraint::Length(18)).hide_small(),
             ]
             .to_vec(),
-            cutoff: 200,
-            cutoff_after: 5,
             page_size: state.browser.page_size,
             search: state.browser.search.read(),
             show_search: state.browser.show_search,
@@ -129,7 +123,6 @@ impl Browser {
                             ]
                             .to_vec(),
                         )
-                        .cutoff(props.cutoff, props.cutoff_after)
                         .to_boxed_any()
                         .into()
                 }))
@@ -150,7 +143,6 @@ impl Browser {
                                 .selected(state.browser.selected)
                                 .footer(!state.browser.show_search)
                                 .page_size(state.browser.page_size)
-                                .cutoff(props.cutoff, props.cutoff_after)
                                 .to_boxed_any()
                                 .into()
                         }),

@@ -51,10 +51,6 @@ pub struct BrowserProps<'a> {
     header: Vec<Column<'a>>,
     /// Table columns
     columns: Vec<Column<'a>>,
-    /// Max. width, before columns are cut-off.
-    cutoff: usize,
-    /// Column index that marks where to cut.
-    cutoff_after: usize,
     /// Current page size (height of table content).
     page_size: usize,
     /// If search widget should be shown.
@@ -100,28 +96,26 @@ impl<'a> From<&State> for BrowserProps<'a> {
                 Column::new(" ● ", Constraint::Length(3)),
                 Column::new("ID", Constraint::Length(8)),
                 Column::new("Title", Constraint::Fill(1)),
-                Column::new("Author", Constraint::Length(16)),
-                Column::new("", Constraint::Length(16)),
-                Column::new("Head", Constraint::Length(8)),
-                Column::new("+", Constraint::Length(6)),
-                Column::new("-", Constraint::Length(6)),
-                Column::new("Updated", Constraint::Length(16)),
+                Column::new("Author", Constraint::Length(16)).hide_small(),
+                Column::new("", Constraint::Length(16)).hide_medium(),
+                Column::new("Head", Constraint::Length(8)).hide_small(),
+                Column::new("+", Constraint::Length(6)).hide_small(),
+                Column::new("-", Constraint::Length(6)).hide_small(),
+                Column::new("Updated", Constraint::Length(16)).hide_small(),
             ]
             .to_vec(),
             columns: [
                 Column::new(" ● ", Constraint::Length(3)),
                 Column::new("ID", Constraint::Length(8)),
                 Column::new("Title", Constraint::Fill(1)),
-                Column::new("Author", Constraint::Length(16)),
-                Column::new("", Constraint::Length(16)),
-                Column::new("Head", Constraint::Length(8)),
-                Column::new("+", Constraint::Length(6)),
-                Column::new("-", Constraint::Length(6)),
-                Column::new("Updated", Constraint::Length(16)),
+                Column::new("Author", Constraint::Length(16)).hide_small(),
+                Column::new("", Constraint::Length(16)).hide_medium(),
+                Column::new("Head", Constraint::Length(8)).hide_small(),
+                Column::new("+", Constraint::Length(6)).hide_small(),
+                Column::new("-", Constraint::Length(6)).hide_small(),
+                Column::new("Updated", Constraint::Length(16)).hide_small(),
             ]
             .to_vec(),
-            cutoff: 150,
-            cutoff_after: 5,
             page_size: state.browser.page_size,
             show_search: state.browser.show_search,
             search: state.browser.search.read(),
@@ -145,7 +139,6 @@ impl Browser {
                     let props = BrowserProps::from(state);
                     HeaderProps::default()
                         .columns(props.header.clone())
-                        .cutoff(props.cutoff, props.cutoff_after)
                         .to_boxed_any()
                         .into()
                 }))
@@ -166,7 +159,6 @@ impl Browser {
                                 .selected(state.browser.selected)
                                 .footer(!state.browser.show_search)
                                 .page_size(state.browser.page_size)
-                                .cutoff(props.cutoff, props.cutoff_after)
                                 .to_boxed_any()
                                 .into()
                         }),
