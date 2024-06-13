@@ -1,3 +1,4 @@
+use std::collections::HashMap;
 use std::str::FromStr;
 
 use nom::bytes::complete::{tag, take};
@@ -5,6 +6,7 @@ use nom::multi::separated_list0;
 use nom::sequence::{delimited, preceded};
 use nom::{IResult, Parser};
 
+use radicle::cob::thread::{Comment, CommentId};
 use radicle::cob::{Label, ObjectId, Timestamp, TypedId};
 use radicle::git::Oid;
 use radicle::identity::{Did, Identity};
@@ -19,15 +21,19 @@ use radicle::storage::{ReadRepository, ReadStorage, RefUpdate, WriteRepository};
 use radicle::Profile;
 
 use ratatui::style::{Style, Stylize};
+use ratatui::text::{Line, Text};
 use ratatui::widgets::Cell;
 
+use tui_tree_widget::TreeItem;
+
 use radicle_tui as tui;
-use tui::ui::widget::list::ToRow;
+
+use tui::ui::span;
+use tui::ui::theme::style;
+use tui::ui::widget::list::{ToRow, ToTree};
 
 use super::super::git;
 use super::format;
-use tui::ui::span;
-use tui::ui::theme::style;
 
 pub trait Filter<T> {
     fn matches(&self, item: &T) -> bool;
@@ -60,6 +66,7 @@ impl AuthorItem {
 }
 
 #[derive(Clone, Debug)]
+#[allow(dead_code)]
 pub enum NotificationKindItem {
     Branch {
         name: String,
@@ -469,6 +476,8 @@ pub struct IssueItem {
     pub assignees: Vec<AuthorItem>,
     /// Time when issue was opened.
     pub timestamp: Timestamp,
+    /// Comment timeline
+    pub comments: Vec<CommentItem>,
 }
 
 impl IssueItem {
@@ -486,7 +495,21 @@ impl IssueItem {
                 .map(|did| AuthorItem::new(Some(**did), profile))
                 .collect::<Vec<_>>(),
             timestamp: issue.timestamp(),
+            comments: issue
+                .comments()
+                .map(|(comment_id, comment)| {
+                    CommentItem::new(profile, (id, issue.clone()), (*comment_id, comment.clone()))
+                })
+                .collect(),
         })
+    }
+
+    pub fn root_comments(&self) -> Vec<CommentItem> {
+        self.comments
+            .iter()
+            .filter(|comment| comment.reply_to.is_none())
+            .cloned()
+            .collect::<Vec<_>>()
     }
 }
 
@@ -882,6 +905,103 @@ impl FromStr for PatchItemFilter {
             authors,
             search: Some(search),
         })
+    }
+}
+
+/// A `CommentItem` represents a comment COB and is constructed from an `Issue` and
+/// a `Comment`.
+#[derive(Clone, Debug)]
+pub struct CommentItem {
+    /// Comment OID.
+    pub id: CommentId,
+    /// Author of this comment.
+    pub author: AuthorItem,
+    /// The content of this comment.
+    pub body: String,
+    /// Reactions to this comment.
+    pub reactions: Vec<char>,
+    /// Time when patch was opened.
+    pub timestamp: Timestamp,
+    /// The parent OID if this is a reply.
+    pub reply_to: Option<CommentId>,
+    /// Replies to this comment.
+    pub replies: Vec<CommentItem>,
+}
+
+impl CommentItem {
+    pub fn new(profile: &Profile, issue: (IssueId, Issue), comment: (CommentId, Comment)) -> Self {
+        let (issue_id, issue) = issue;
+        let (comment_id, comment) = comment;
+
+        Self {
+            id: comment_id,
+            author: AuthorItem::new(Some(NodeId::from(*comment.author().0)), profile),
+            body: comment.body().to_string(),
+            reactions: comment.reactions().iter().map(|r| r.0.emoji()).collect(),
+            timestamp: comment.timestamp(),
+            reply_to: comment.reply_to(),
+            replies: issue
+                .thread()
+                .replies(&comment_id)
+                .map(|(reply_id, reply)| {
+                    CommentItem::new(
+                        profile,
+                        (issue_id, issue.clone()),
+                        (*reply_id, reply.clone()),
+                    )
+                })
+                .collect(),
+        }
+    }
+
+    pub fn accumulated_reactions(&self) -> HashMap<char, usize> {
+        let mut reactions: HashMap<char, usize> = HashMap::new();
+        for reaction in &self.reactions {
+            if let Some(count) = reactions.get_mut(reaction) {
+                *count = count.saturating_add(1);
+            } else {
+                reactions.insert(*reaction, 1_usize);
+            }
+        }
+
+        reactions
+    }
+}
+
+impl ToTree<String> for CommentItem {
+    fn rows(&self) -> Vec<TreeItem<'_, String>> {
+        let mut children = vec![];
+        for comment in &self.replies {
+            children.extend(comment.rows());
+        }
+
+        let author = match &self.author.alias {
+            Some(alias) => {
+                if self.author.you {
+                    span::alias(&format!("{} (you)", alias))
+                } else {
+                    span::alias(alias)
+                }
+            }
+            None => match &self.author.human_nid {
+                Some(nid) => span::alias(nid).dim(),
+                None => span::blank(),
+            },
+        };
+        let action = if self.reply_to.is_none() {
+            "opened"
+        } else {
+            "commented"
+        };
+        let timestamp = span::timestamp(&format::timestamp(&self.timestamp));
+
+        let text = Text::from(Line::from(
+            [author, " ".into(), action.into(), " ".into(), timestamp].to_vec(),
+        ));
+        let item = TreeItem::new(self.id.to_string(), text, children)
+            .expect("Identifiers need to be unique");
+
+        vec![item]
     }
 }
 
