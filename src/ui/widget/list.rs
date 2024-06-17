@@ -1,5 +1,5 @@
-use std::cmp;
 use std::marker::PhantomData;
+use std::{cmp, vec};
 
 use ratatui::widgets::{Cell, Row};
 use ratatui::Frame;
@@ -9,6 +9,7 @@ use ratatui::layout::Constraint;
 use ratatui::style::Stylize;
 use ratatui::text::Text;
 use ratatui::widgets::TableState;
+use tui_tree_widget::{TreeItem, TreeState};
 
 use crate::ui::theme::style;
 use crate::ui::{layout, span};
@@ -19,6 +20,11 @@ use super::{utils, ViewProps, ViewState};
 /// Needs to be implemented for items that are supposed to be rendered in tables.
 pub trait ToRow<const W: usize> {
     fn to_row(&self) -> [Cell; W];
+}
+
+/// Needs to be implemented for items that are supposed to be rendered in tables.
+pub trait ToTree {
+    fn rows<'a>(&'a self) -> Vec<TreeItem<'a, String>>;
 }
 
 #[derive(Clone, Debug)]
@@ -277,5 +283,128 @@ where
                 self.height.into(),
             ),
         })
+    }
+}
+
+#[derive(Clone, Debug)]
+pub struct TreeProps<R>
+where
+    R: ToTree + Clone,
+{
+    pub items: Vec<R>,
+    pub selected: Vec<String>,
+}
+
+impl<R> Default for TreeProps<R>
+where
+    R: ToTree + Clone,
+{
+    fn default() -> Self {
+        Self {
+            items: vec![],
+            selected: vec![],
+        }
+    }
+}
+
+impl<R> TreeProps<R>
+where
+    R: ToTree + Clone,
+{
+    pub fn items(mut self, items: Vec<R>) -> Self {
+        self.items = items;
+        self
+    }
+
+    pub fn selected(mut self, selected: &[String]) -> Self {
+        self.selected = selected.to_vec();
+        self
+    }
+}
+
+pub struct Tree<S, M, R>
+where
+    R: ToTree,
+{
+    /// Internal selection and offset state
+    state: TreeState<String>,
+    /// Phantom
+    phantom: PhantomData<(S, M, R)>,
+}
+
+impl<S, M, R> Default for Tree<S, M, R>
+where
+    R: ToTree,
+{
+    fn default() -> Self {
+        Self {
+            state: TreeState::default(),
+            phantom: PhantomData,
+        }
+    }
+}
+
+impl<S, M, R> View for Tree<S, M, R>
+where
+    R: ToTree + Clone + 'static,
+{
+    type State = S;
+    type Message = M;
+
+    fn reset(&mut self) {
+        self.state = TreeState::default();
+    }
+
+    fn update(&mut self, props: Option<&ViewProps>, _state: &Self::State) {
+        let default = TreeProps::default();
+        let props = props
+            .and_then(|props| props.inner_ref::<TreeProps<R>>())
+            .unwrap_or(&default);
+
+        if props.selected != self.state.selected() {
+            self.state.select(props.selected.clone());
+        }
+    }
+
+    fn handle_event(&mut self, _props: Option<&ViewProps>, key: Key) -> Option<Self::Message> {
+        match key {
+            Key::Up | Key::Char('k') => {
+                self.state.key_up();
+            }
+            Key::Down | Key::Char('j') => {
+                self.state.key_down();
+            }
+            Key::Left | Key::Char('h') => {
+                self.state.key_left();
+            }
+            Key::Right | Key::Char('l') => {
+                self.state.key_right();
+            }
+            _ => {}
+        }
+
+        None
+    }
+
+    fn render(&mut self, props: Option<&ViewProps>, render: RenderProps, frame: &mut Frame) {
+        let default = TreeProps::default();
+        let props = props
+            .and_then(|props| props.inner_ref::<TreeProps<R>>())
+            .unwrap_or(&default);
+
+        let mut items = vec![];
+        for item in &props.items {
+            items.extend(item.rows());
+        }
+
+        let tree = tui_tree_widget::Tree::new(&items)
+            .expect("all item identifiers are unique")
+            .highlight_style(style::highlight(render.focus));
+
+        frame.render_stateful_widget(tree, render.area, &mut self.state);
+    }
+
+    fn view_state(&self) -> Option<ViewState> {
+        Some(ViewState::Tree(self.state.selected().to_vec()))
     }
 }

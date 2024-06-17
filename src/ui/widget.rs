@@ -66,6 +66,7 @@ pub enum ViewState {
     USize(usize),
     String(String),
     Table { selected: usize, scroll: usize },
+    Tree(Vec<String>),
     TextView(TextViewState),
     TextArea(TextAreaState),
 }
@@ -102,6 +103,13 @@ impl ViewState {
     pub fn unwrap_textarea(&self) -> Option<TextAreaState> {
         match self {
             ViewState::TextArea(state) => Some(state.clone()),
+            _ => None,
+        }
+    }
+
+    pub fn unwrap_tree(&self) -> Option<Vec<String>> {
+        match self {
+            ViewState::Tree(value) => Some(value.clone().to_vec()),
             _ => None,
         }
     }

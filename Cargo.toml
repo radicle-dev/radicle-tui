@@ -45,3 +45,4 @@ thiserror = { version = "1" }
 tokio = { version = "1.32.0", features = ["full"] }
 tokio-stream = { version = "0.1.14" }
 tui-textarea = { version = "0.4.0", default-features = false, features = ["termion"] }
+tui-tree-widget = { version = "0.20.0" }
