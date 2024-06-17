@@ -249,7 +249,7 @@ where
                 .rows(rows)
                 .widths(widths)
                 .column_spacing(1)
-                .highlight_style(style::highlight());
+                .highlight_style(style::highlight(render.focus));
 
             frame.render_stateful_widget(rows, render.area, &mut self.state);
         } else {

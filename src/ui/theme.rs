@@ -49,7 +49,11 @@ pub mod style {
         }
     }
 
-    pub fn highlight() -> Style {
-        cyan().not_dim().reversed()
+    pub fn highlight(focus: bool) -> Style {
+        if focus {
+            cyan().not_dim().reversed()
+        } else {
+            cyan().dim().reversed()
+        }
     }
 }
