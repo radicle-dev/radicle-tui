@@ -1,14 +1,21 @@
-use std::cmp;
+use std::collections::HashSet;
+use std::hash::Hash;
 use std::marker::PhantomData;
+use std::{cmp, vec};
 
-use ratatui::widgets::{Cell, Row, Scrollbar, ScrollbarState};
-use ratatui::Frame;
 use termion::event::Key;
 
 use ratatui::layout::{Constraint, Layout};
 use ratatui::style::{Style, Stylize};
+use ratatui::symbols::border;
 use ratatui::text::Text;
 use ratatui::widgets::TableState;
+use ratatui::widgets::{
+    Block, Borders, Cell, Row, Scrollbar, ScrollbarOrientation, ScrollbarState,
+};
+use ratatui::Frame;
+
+use tui_tree_widget::{TreeItem, TreeState};
 
 use crate::ui::theme::style;
 use crate::ui::{layout, span};
@@ -19,6 +26,14 @@ use super::{utils, ViewProps, ViewState};
 /// Needs to be implemented for items that are supposed to be rendered in tables.
 pub trait ToRow<const W: usize> {
     fn to_row(&self) -> [Cell; W];
+}
+
+/// Needs to be implemented for items that are supposed to be rendered in tables.
+pub trait ToTree<Id>
+where
+    Id: ToString,
+{
+    fn rows(&self) -> Vec<TreeItem<'_, Id>>;
 }
 
 #[derive(Clone, Debug)]
@@ -305,5 +320,203 @@ where
                 self.height.into(),
             ),
         })
+    }
+}
+
+#[derive(Clone, Debug)]
+pub struct TreeProps<R, Id>
+where
+    R: ToTree<Id> + Clone,
+    Id: ToString,
+{
+    /// Root items.
+    pub items: Vec<R>,
+    /// Optional path to selected item, e.g. ["1.0", "1.0.1", "1.0.2"]. If not `None`,
+    /// it will override the internal tree state.
+    pub selected: Option<Vec<Id>>,
+    /// If this widget should render its scrollbar. Default: `true`.
+    pub show_scrollbar: bool,
+    /// Optional identifier set of opened items. If not `None`,
+    /// it will override the internal tree state.
+    pub opened: Option<HashSet<Vec<Id>>>,
+}
+
+impl<R, Id> Default for TreeProps<R, Id>
+where
+    R: ToTree<Id> + Clone,
+    Id: ToString,
+{
+    fn default() -> Self {
+        Self {
+            items: vec![],
+            selected: None,
+            show_scrollbar: true,
+            opened: None,
+        }
+    }
+}
+
+impl<R, Id> TreeProps<R, Id>
+where
+    R: ToTree<Id> + Clone,
+    Id: ToString + Clone,
+{
+    pub fn items(mut self, items: Vec<R>) -> Self {
+        self.items = items;
+        self
+    }
+
+    pub fn selected(mut self, selected: Option<&[Id]>) -> Self {
+        self.selected = selected.map(|s| s.to_vec());
+        self
+    }
+
+    pub fn opened(mut self, opened: Option<HashSet<Vec<Id>>>) -> Self {
+        self.opened = opened;
+        self
+    }
+
+    pub fn show_scrollbar(mut self, show_scrollbar: bool) -> Self {
+        self.show_scrollbar = show_scrollbar;
+        self
+    }
+}
+
+/// A `Tree` is an expandable, collapsable and scrollable tree widget, that takes
+/// a list of root items which implement `ToTree`. It can be updated with a selection
+/// and a set of opened items.
+pub struct Tree<S, M, R, Id>
+where
+    R: ToTree<Id>,
+    Id: ToString + Clone,
+{
+    /// Internal selection and offset state
+    state: TreeState<Id>,
+    /// Phantom
+    phantom: PhantomData<(S, M, R, Id)>,
+}
+
+impl<S, M, R, Id> Default for Tree<S, M, R, Id>
+where
+    R: ToTree<Id>,
+    Id: ToString + Clone + Default,
+{
+    fn default() -> Self {
+        Self {
+            state: TreeState::default(),
+            phantom: PhantomData,
+        }
+    }
+}
+
+impl<S, M, R, Id> View for Tree<S, M, R, Id>
+where
+    R: ToTree<Id> + Clone + 'static,
+    Id: ToString + Clone + Default + Eq + PartialEq + Hash + 'static,
+{
+    type State = S;
+    type Message = M;
+
+    fn reset(&mut self) {
+        self.state = TreeState::default();
+    }
+
+    fn update(&mut self, props: Option<&ViewProps>, _state: &Self::State) {
+        let default = TreeProps::default();
+        let props = props
+            .and_then(|props| props.inner_ref::<TreeProps<R, Id>>())
+            .unwrap_or(&default);
+
+        if let Some(selected) = &props.selected {
+            if selected != self.state.selected() {
+                self.state.select(selected.clone());
+            }
+        }
+
+        if let Some(opened) = &props.opened {
+            if opened != self.state.opened() {
+                self.state.close_all();
+                for path in opened {
+                    self.state.open(path.to_vec());
+                }
+            }
+        }
+    }
+
+    fn handle_event(&mut self, _props: Option<&ViewProps>, key: Key) -> Option<Self::Message> {
+        match key {
+            Key::Up | Key::Char('k') => {
+                self.state.key_up();
+            }
+            Key::Down | Key::Char('j') => {
+                self.state.key_down();
+            }
+            Key::Left | Key::Char('h')
+                if !self.state.selected().is_empty() && !self.state.opened().is_empty() =>
+            {
+                self.state.key_left();
+            }
+            Key::Right | Key::Char('l') => {
+                self.state.key_right();
+            }
+            _ => {}
+        }
+
+        None
+    }
+
+    fn render(&mut self, props: Option<&ViewProps>, render: RenderProps, frame: &mut Frame) {
+        let default = TreeProps::default();
+        let props = props
+            .and_then(|props| props.inner_ref::<TreeProps<R, Id>>())
+            .unwrap_or(&default);
+
+        let mut items = vec![];
+        for item in &props.items {
+            items.extend(item.rows());
+        }
+
+        let tree = if props.show_scrollbar {
+            tui_tree_widget::Tree::new(&items)
+                .expect("all item identifiers are unique")
+                .block(
+                    Block::default()
+                        .borders(Borders::RIGHT)
+                        .border_set(border::Set {
+                            vertical_right: " ",
+                            ..Default::default()
+                        })
+                        .border_style(if render.focus {
+                            Style::default()
+                        } else {
+                            Style::default().dim()
+                        }),
+                )
+                .experimental_scrollbar(Some(
+                    Scrollbar::new(ScrollbarOrientation::VerticalRight)
+                        .begin_symbol(None)
+                        .track_symbol(None)
+                        .end_symbol(None)
+                        .thumb_symbol("┃"),
+                ))
+                .highlight_style(style::highlight(render.focus))
+        } else {
+            tui_tree_widget::Tree::new(&items)
+                .expect("all item identifiers are unique")
+                .highlight_style(style::highlight(render.focus))
+        };
+
+        frame.render_stateful_widget(tree, render.area, &mut self.state);
+    }
+
+    fn view_state(&self) -> Option<ViewState> {
+        Some(ViewState::Tree(
+            self.state
+                .selected()
+                .to_vec()
+                .iter()
+                .map(|s| s.to_string())
+                .collect(),
+        ))
     }
 }

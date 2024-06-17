@@ -1839,6 +1839,7 @@ dependencies = [
  "tokio",
  "tokio-stream",
  "tui-textarea",
+ "tui-tree-widget",
 ]
 
 [[package]]
@@ -2726,6 +2727,16 @@ checksum = "a3e38ced1f941a9cfc923fbf2fe6858443c42cc5220bfd35bdd3648371e7bd8e"
 dependencies = [
  "ratatui",
  "termion 2.0.3",
+ "unicode-width",
+]
+
+[[package]]
+name = "tui-tree-widget"
+version = "0.20.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "a6201de8ad8d88cb6cac4cfe3436d9a1ea31c0732a7aec4c2cc3b23186ad7dcc"
+dependencies = [
+ "ratatui",
  "unicode-width",
 ]
 

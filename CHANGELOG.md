@@ -13,6 +13,7 @@
 - Predefined layouts for section groups
 - New widgets:
 - `SplitContainer`: Vertically split container
+- `Tree`: Generic tree widget
 - `TextView`: Scrollable text view widget
 - `TextArea`: Non-editable text area widget
 
