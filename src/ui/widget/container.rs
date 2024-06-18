@@ -682,10 +682,10 @@ where
 
         if props.handle_keys {
             match key {
-                Key::Left => {
+                Key::BackTab => {
                     self.prev();
                 }
-                Key::Right => {
+                Key::Char('\t') => {
                     self.next(self.sections.len());
                 }
                 _ => {}
