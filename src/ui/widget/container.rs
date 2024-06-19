@@ -12,7 +12,7 @@ use crate::ui::{RENDER_WIDTH_LARGE, RENDER_WIDTH_MEDIUM, RENDER_WIDTH_SMALL};
 
 use super::{PredefinedLayout, RenderProps, View, ViewProps, Widget};
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Default)]
 pub struct ColumnView {
     small: bool,
     medium: bool,
@@ -41,16 +41,6 @@ impl ColumnView {
     pub fn large(mut self) -> Self {
         self.large = true;
         self
-    }
-}
-
-impl Default for ColumnView {
-    fn default() -> Self {
-        Self {
-            small: false,
-            medium: false,
-            large: false,
-        }
     }
 }
 
