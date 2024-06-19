@@ -568,7 +568,7 @@ where
                 .direction(Direction::Vertical)
                 .constraints(vec![Constraint::Min(1)])
                 .vertical_margin(1)
-                .horizontal_margin(2)
+                .horizontal_margin(1)
                 .areas(top_area);
             top.render(RenderProps::from(top_area).focus(render.focus), frame)
         }
@@ -584,7 +584,7 @@ where
             let [bottom_area, _] = Layout::default()
                 .direction(Direction::Vertical)
                 .constraints(vec![Constraint::Min(1), Constraint::Length(1)])
-                .horizontal_margin(2)
+                .horizontal_margin(1)
                 .areas(bottom_area);
             bottom.render(RenderProps::from(bottom_area).focus(render.focus), frame)
         }
