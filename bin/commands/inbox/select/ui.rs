@@ -18,7 +18,6 @@ use tui::ui::widget::container::{
 };
 use tui::ui::widget::input::{TextField, TextFieldProps};
 use tui::ui::widget::list::{Table, TableProps};
-use tui::ui::widget::utils;
 use tui::ui::widget::{self, ViewProps};
 use tui::ui::widget::{RenderProps, ToWidget, View};
 
@@ -41,12 +40,12 @@ pub struct BrowserProps<'a> {
     notifications: Vec<NotificationItem>,
     /// Current (selected) table index
     selected: Option<usize>,
+    /// Current scroll progress
+    progress: usize,
     /// Notification statistics.
     stats: HashMap<String, usize>,
     /// Table columns
     columns: Vec<Column<'a>>,
-    /// Current page size (height of table content).
-    page_size: usize,
     /// If search widget should be shown.
     show_search: bool,
     /// Current search string.
@@ -80,6 +79,7 @@ impl<'a> From<&State> for BrowserProps<'a> {
             header,
             notifications,
             selected: state.browser.selected,
+            progress: state.browser.scroll,
             stats,
             columns: [
                 Column::new("", Constraint::Length(5)),
@@ -94,7 +94,6 @@ impl<'a> From<&State> for BrowserProps<'a> {
                 Column::new("", Constraint::Length(18)).hide_small(),
             ]
             .to_vec(),
-            page_size: state.browser.page_size,
             search: state.browser.search.read(),
             show_search: state.browser.show_search,
         }
@@ -130,8 +129,11 @@ impl Browser {
                     Table::<State, Message, NotificationItem, 9>::default()
                         .to_widget(tx.clone())
                         .on_event(|_, s, _| {
+                            let (selected, scroll) =
+                                s.and_then(|s| s.unwrap_table()).unwrap_or_default();
                             Some(Message::Select {
-                                selected: s.and_then(|s| s.unwrap_usize()),
+                                selected: Some(selected),
+                                scroll,
                             })
                         })
                         .on_update(|state| {
@@ -142,7 +144,6 @@ impl Browser {
                                 .items(state.browser.notifications())
                                 .selected(state.browser.selected)
                                 .footer(!state.browser.show_search)
-                                .page_size(state.browser.page_size)
                                 .to_boxed_any()
                                 .into()
                         }),
@@ -288,17 +289,7 @@ fn browse_footer<'a>(props: &BrowserProps<'a>) -> Vec<Column<'a>> {
         span::default(" Unseen").dim(),
     ]);
 
-    let progress = props
-        .selected
-        .map(|selected| {
-            utils::scroll::percent_absolute(
-                selected.saturating_sub(props.page_size),
-                props.notifications.len(),
-                props.page_size,
-            )
-        })
-        .unwrap_or_default();
-    let progress = span::default(&format!("{}%", progress)).dim();
+    let progress = span::default(&format!("{}%", props.progress)).dim();
 
     match NotificationItemFilter::from_str(&props.search)
         .unwrap_or_default()

@@ -55,9 +55,9 @@ pub enum AppPage {
 pub struct BrowserState {
     items: Vec<PatchItem>,
     selected: Option<usize>,
+    scroll: usize,
     filter: PatchItemFilter,
     search: store::StateValue<String>,
-    page_size: usize,
     show_search: bool,
 }
 
@@ -73,8 +73,7 @@ impl BrowserState {
 
 #[derive(Clone, Debug)]
 pub struct HelpState {
-    progress: usize,
-    page_size: usize,
+    scroll: usize,
 }
 
 #[derive(Clone, Debug)]
@@ -108,31 +107,35 @@ impl TryFrom<&Context> for State {
             browser: BrowserState {
                 items,
                 selected: Some(0),
+                scroll: 0,
                 filter,
                 search,
                 show_search: false,
-                page_size: 1,
             },
-            help: HelpState {
-                progress: 0,
-                page_size: 1,
-            },
+            help: HelpState { scroll: 0 },
         })
     }
 }
 
 pub enum Message {
-    Exit { selection: Option<Selection> },
-    Select { selected: Option<usize> },
-    BrowserPageSize(usize),
-    HelpPageSize(usize),
+    Exit {
+        selection: Option<Selection>,
+    },
+    Select {
+        selected: Option<usize>,
+        scroll: usize,
+    },
     OpenSearch,
-    UpdateSearch { value: String },
+    UpdateSearch {
+        value: String,
+    },
     ApplySearch,
     CloseSearch,
     OpenHelp,
     LeavePage,
-    ScrollHelp { progress: usize },
+    ScrollHelp {
+        scroll: usize,
+    },
 }
 
 impl store::State<Selection> for State {
@@ -141,16 +144,9 @@ impl store::State<Selection> for State {
     fn update(&mut self, message: Message) -> Option<Exit<Selection>> {
         match message {
             Message::Exit { selection } => Some(Exit { value: selection }),
-            Message::Select { selected } => {
+            Message::Select { selected, scroll } => {
                 self.browser.selected = selected;
-                None
-            }
-            Message::BrowserPageSize(size) => {
-                self.browser.page_size = size;
-                None
-            }
-            Message::HelpPageSize(size) => {
-                self.help.page_size = size;
+                self.browser.scroll = scroll;
                 None
             }
             Message::OpenSearch => {
@@ -168,11 +164,13 @@ impl store::State<Selection> for State {
                     }
                 }
 
+                self.browser.scroll = 0;
                 None
             }
             Message::ApplySearch => {
                 self.browser.search.apply();
                 self.browser.show_search = false;
+                self.browser.scroll = 0;
                 None
             }
             Message::CloseSearch => {
@@ -191,8 +189,8 @@ impl store::State<Selection> for State {
                 self.pages.pop();
                 None
             }
-            Message::ScrollHelp { progress } => {
-                self.help.progress = progress;
+            Message::ScrollHelp { scroll } => {
+                self.help.scroll = scroll;
                 None
             }
         }
@@ -277,22 +275,9 @@ fn browser_page(_state: &State, channel: &Channel<Message>) -> Widget<State, Mes
         })
         .on_update(|state: &State| {
             PageProps::default()
-                .page_size(state.browser.page_size)
                 .handle_keys(!state.browser.show_search)
                 .to_boxed_any()
                 .into()
-        })
-        .on_render(|props, render| {
-            let default = PageProps::default();
-            let props = props
-                .and_then(|props| props.inner_ref::<PageProps>())
-                .unwrap_or(&default);
-            let page_size = render.area.height.saturating_sub(6) as usize;
-
-            if page_size != props.page_size {
-                return Some(Message::BrowserPageSize(page_size));
-            }
-            None
         })
 }
 
@@ -311,13 +296,12 @@ fn help_page(_state: &State, channel: &Channel<Message>) -> Widget<State, Messag
                 .to_widget(tx.clone())
                 .on_event(|_, s, _| {
                     Some(Message::ScrollHelp {
-                        progress: s.and_then(|p| p.unwrap_usize()).unwrap_or_default(),
+                        scroll: s.and_then(|p| p.unwrap_usize()).unwrap_or_default(),
                     })
                 })
-                .on_update(|state: &State| {
+                .on_update(|_| {
                     TextAreaProps::default()
                         .text(&help_text())
-                        .page_size(state.help.page_size)
                         .to_boxed_any()
                         .into()
                 }),
@@ -331,7 +315,7 @@ fn help_page(_state: &State, channel: &Channel<Message>) -> Widget<State, Messag
                             [
                                 Column::new(Text::raw(""), Constraint::Fill(1)),
                                 Column::new(
-                                    span::default(&format!("{}%", state.help.progress)).dim(),
+                                    span::default(&format!("{}%", state.help.scroll)).dim(),
                                     Constraint::Min(4),
                                 ),
                             ]
@@ -359,25 +343,7 @@ fn help_page(_state: &State, channel: &Channel<Message>) -> Widget<State, Messag
             Key::Char('?') => Some(Message::LeavePage),
             _ => None,
         })
-        .on_update(|state: &State| {
-            PageProps::default()
-                .page_size(state.help.page_size)
-                .handle_keys(true)
-                .to_boxed_any()
-                .into()
-        })
-        .on_render(|props, render| {
-            let default = PageProps::default();
-            let props = props
-                .and_then(|props| props.inner_ref::<PageProps>())
-                .unwrap_or(&default);
-            let page_size = render.area.height.saturating_sub(6) as usize;
-
-            if page_size != props.page_size {
-                return Some(Message::HelpPageSize(page_size));
-            }
-            None
-        })
+        .on_update(|_| PageProps::default().handle_keys(true).to_boxed_any().into())
 }
 
 fn help_text() -> Text<'static> {
