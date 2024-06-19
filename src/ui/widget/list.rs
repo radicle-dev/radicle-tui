@@ -14,7 +14,7 @@ use crate::ui::theme::style;
 use crate::ui::{layout, span};
 
 use super::{container::Column, RenderProps, View};
-use super::{ViewProps, ViewState};
+use super::{utils, ViewProps, ViewState};
 
 /// Needs to be implemented for items that are supposed to be rendered in tables.
 pub trait ToRow<const W: usize> {
@@ -30,7 +30,6 @@ where
     pub selected: Option<usize>,
     pub columns: Vec<Column<'a>>,
     pub has_footer: bool,
-    pub page_size: usize,
 }
 
 impl<'a, R, const W: usize> Default for TableProps<'a, R, W>
@@ -42,7 +41,6 @@ where
             items: vec![],
             columns: vec![],
             has_footer: false,
-            page_size: 1,
             selected: Some(0),
         }
     }
@@ -71,11 +69,6 @@ where
         self.has_footer = has_footer;
         self
     }
-
-    pub fn page_size(mut self, page_size: usize) -> Self {
-        self.page_size = page_size;
-        self
-    }
 }
 
 pub struct Table<S, M, R, const W: usize>
@@ -83,9 +76,11 @@ where
     R: ToRow<W>,
 {
     /// Internal selection and offset state
-    state: TableState,
+    state: (TableState, usize),
     /// Phantom
     phantom: PhantomData<(S, M, R)>,
+    /// Current render height
+    height: u16,
 }
 
 impl<S, M, R, const W: usize> Default for Table<S, M, R, W>
@@ -94,8 +89,9 @@ where
 {
     fn default() -> Self {
         Self {
-            state: TableState::default().with_selected(Some(0)),
+            state: (TableState::default().with_selected(Some(0)), 0),
             phantom: PhantomData,
+            height: 1,
         }
     }
 }
@@ -107,51 +103,53 @@ where
     fn prev(&mut self) -> Option<usize> {
         let selected = self
             .state
+            .0
             .selected()
             .map(|current| current.saturating_sub(1));
-        self.state.select(selected);
+        self.state.0.select(selected);
         selected
     }
 
     fn next(&mut self, len: usize) -> Option<usize> {
-        let selected = self.state.selected().map(|current| {
+        let selected = self.state.0.selected().map(|current| {
             if current < len.saturating_sub(1) {
                 current.saturating_add(1)
             } else {
                 current
             }
         });
-        self.state.select(selected);
+        self.state.0.select(selected);
         selected
     }
 
     fn prev_page(&mut self, page_size: usize) -> Option<usize> {
         let selected = self
             .state
+            .0
             .selected()
             .map(|current| current.saturating_sub(page_size));
-        self.state.select(selected);
+        self.state.0.select(selected);
         selected
     }
 
     fn next_page(&mut self, len: usize, page_size: usize) -> Option<usize> {
-        let selected = self.state.selected().map(|current| {
+        let selected = self.state.0.selected().map(|current| {
             if current < len.saturating_sub(1) {
                 cmp::min(current.saturating_add(page_size), len.saturating_sub(1))
             } else {
                 current
             }
         });
-        self.state.select(selected);
+        self.state.0.select(selected);
         selected
     }
 
     fn begin(&mut self) {
-        self.state.select(Some(0));
+        self.state.0.select(Some(0));
     }
 
     fn end(&mut self, len: usize) {
-        self.state.select(Some(len.saturating_sub(1)));
+        self.state.0.select(Some(len.saturating_sub(1)));
     }
 }
 
@@ -170,6 +168,8 @@ where
             .and_then(|props| props.inner_ref::<TableProps<R, W>>())
             .unwrap_or(&default);
 
+        let page_size = self.height;
+
         match key {
             Key::Up | Key::Char('k') => {
                 self.prev();
@@ -178,10 +178,10 @@ where
                 self.next(props.items.len());
             }
             Key::PageUp => {
-                self.prev_page(props.page_size);
+                self.prev_page(page_size as usize);
             }
             Key::PageDown => {
-                self.next_page(props.items.len(), props.page_size);
+                self.next_page(props.items.len(), page_size as usize);
             }
             Key::Home => {
                 self.begin();
@@ -201,9 +201,10 @@ where
             .and_then(|props| props.inner_ref::<TableProps<R, W>>())
             .unwrap_or(&default);
 
-        if props.selected != self.state.selected() {
-            self.state.select(props.selected);
+        if props.selected != self.state.0.selected() {
+            self.state.0.select(props.selected);
         }
+        self.state.1 = props.items.len();
     }
 
     fn render(&mut self, props: Option<&ViewProps>, render: RenderProps, frame: &mut Frame) {
@@ -251,7 +252,7 @@ where
                 .column_spacing(1)
                 .highlight_style(style::highlight(render.focus));
 
-            frame.render_stateful_widget(rows, render.area, &mut self.state);
+            frame.render_stateful_widget(rows, render.area, &mut self.state.0);
         } else {
             let center = layout::centered_rect(render.area, 50, 10);
             let hint = Text::from(span::default("Nothing to show"))
@@ -261,9 +262,20 @@ where
 
             frame.render_widget(hint, center);
         }
+
+        self.height = render.area.height;
     }
 
     fn view_state(&self) -> Option<ViewState> {
-        self.state.selected().map(ViewState::USize)
+        let selected = self.state.0.selected().unwrap_or_default();
+
+        Some(ViewState::Table {
+            selected,
+            scroll: utils::scroll::percent_absolute(
+                selected.saturating_sub(self.height.into()),
+                self.state.1,
+                self.height.into(),
+            ),
+        })
     }
 }

@@ -15,16 +15,12 @@ pub mod scroll {
     }
 
     pub fn percent_absolute(offset: usize, len: usize, height: usize) -> usize {
-        if height >= len {
-            100
-        } else {
-            let y = offset as f64;
-            let h = height as f64;
-            let t = len.saturating_sub(1) as f64;
-            let v = y / (t - h) * 100_f64;
+        let y = offset as f64;
+        let h = height as f64;
+        let t = len.saturating_sub(1) as f64;
+        let v = y / (t - h) * 100_f64;
 
-            std::cmp::max(0, std::cmp::min(100, v as usize))
-        }
+        std::cmp::max(0, std::cmp::min(100, v as usize))
     }
 
     fn map_range(from: (f64, f64), to: (f64, f64), value: f64) -> f64 {

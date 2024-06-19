@@ -119,18 +119,11 @@ where
 
 #[derive(Clone, Default)]
 pub struct PageProps {
-    /// Current page size (height of table content etc.).
-    pub page_size: usize,
     /// If this view's should handle keys
     pub handle_keys: bool,
 }
 
 impl PageProps {
-    pub fn page_size(mut self, page_size: usize) -> Self {
-        self.page_size = page_size;
-        self
-    }
-
     pub fn handle_keys(mut self, handle_keys: bool) -> Self {
         self.handle_keys = handle_keys;
         self

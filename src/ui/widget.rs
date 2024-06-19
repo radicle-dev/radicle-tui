@@ -63,6 +63,7 @@ impl From<&'static dyn Any> for ViewProps {
 pub enum ViewState {
     USize(usize),
     String(String),
+    Table { selected: usize, scroll: usize },
 }
 
 impl ViewState {
@@ -76,6 +77,13 @@ impl ViewState {
     pub fn unwrap_string(&self) -> Option<String> {
         match self {
             ViewState::String(value) => Some(value.clone()),
+            _ => None,
+        }
+    }
+
+    pub fn unwrap_table(&self) -> Option<(usize, usize)> {
+        match self {
+            ViewState::Table { selected, scroll } => Some((*selected, *scroll)),
             _ => None,
         }
     }

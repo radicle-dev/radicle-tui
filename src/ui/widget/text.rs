@@ -14,17 +14,11 @@ pub struct TextAreaProps<'a> {
     pub content: Text<'a>,
     pub has_header: bool,
     pub has_footer: bool,
-    pub page_size: usize,
     pub progress: usize,
     pub can_scroll: bool,
 }
 
 impl<'a> TextAreaProps<'a> {
-    pub fn page_size(mut self, page_size: usize) -> Self {
-        self.page_size = page_size;
-        self
-    }
-
     pub fn text(mut self, text: &Text<'a>) -> Self {
         self.content = text.clone();
         self
@@ -42,7 +36,6 @@ impl<'a> Default for TextAreaProps<'a> {
             content: Text::raw(""),
             has_header: false,
             has_footer: false,
-            page_size: 1,
             progress: 0,
             can_scroll: true,
         }
@@ -62,6 +55,8 @@ pub struct TextArea<S, M> {
     state: TextAreaState,
     /// Phantom
     phantom: PhantomData<(S, M)>,
+    /// Current render height
+    height: u16,
 }
 
 impl<S, M> Default for TextArea<S, M> {
@@ -72,6 +67,7 @@ impl<S, M> Default for TextArea<S, M> {
                 progress: 0,
             },
             phantom: PhantomData,
+            height: 1,
         }
     }
 }
@@ -139,7 +135,7 @@ where
             .unwrap_or(&default);
 
         let len = props.content.lines.len() + 1;
-        let page_size = props.page_size;
+        let page_size = self.height as usize;
 
         if props.can_scroll {
             match key {
@@ -169,6 +165,8 @@ where
     }
 
     fn render(&mut self, props: Option<&ViewProps>, render: RenderProps, frame: &mut Frame) {
+        self.height = render.area.height;
+
         let default = TextAreaProps::default();
         let props = props
             .and_then(|props| props.inner_ref::<TextAreaProps>())
