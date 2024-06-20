@@ -282,35 +282,30 @@ where
     }
 }
 
-/// Configuration of a `TextArea`'s internal progress display.
-#[derive(Default, Clone)]
-pub struct TextAreaProgressInfo {
-    scroll: bool,
-    cursor: bool,
+/// The state of a `TextArea`.
+#[derive(Clone, Default)]
+pub struct TextAreaState {
+    /// Current vertical scroll position.
+    pub scroll: usize,
+    /// Current cursor position.
+    pub cursor: (usize, usize),
 }
 
-impl TextAreaProgressInfo {
-    pub fn scroll(mut self, scroll: bool) -> Self {
-        self.scroll = scroll;
-        self
-    }
-
-    pub fn cursor(mut self, cursor: bool) -> Self {
-        self.cursor = cursor;
-        self
-    }
-
-    pub fn is_rendered(&self) -> bool {
-        self.scroll || self.cursor
-    }
-}
-
+/// The properties of a `TextArea`.
 #[derive(Clone)]
 pub struct TextAreaProps<'a> {
+    /// Content of this text area.
     content: Text<'a>,
+    /// Current cursor position. Default: `(0, 0)`.
     cursor: (usize, usize),
-    can_scroll: bool,
-    progress_info: TextAreaProgressInfo,
+    /// If this text area should handle events. Default: `true`.
+    handle_keys: bool,
+    /// If this text area is in insert mode. Default: `false`.
+    insert_mode: bool,
+    /// If this text area should render its scroll progress. Default: `false`.
+    show_scroll_progress: bool,
+    /// If this text area should render its cursor progress. Default: `false`.
+    show_column_progress: bool,
 }
 
 impl<'a> Default for TextAreaProps<'a> {
@@ -318,8 +313,10 @@ impl<'a> Default for TextAreaProps<'a> {
         Self {
             content: String::new().into(),
             cursor: (0, 0),
-            can_scroll: true,
-            progress_info: TextAreaProgressInfo::default(),
+            handle_keys: true,
+            insert_mode: false,
+            show_scroll_progress: false,
+            show_column_progress: false,
         }
     }
 }
@@ -338,21 +335,28 @@ impl<'a> TextAreaProps<'a> {
         self
     }
 
-    pub fn progress_info(mut self, progress_info: TextAreaProgressInfo) -> Self {
-        self.progress_info = progress_info;
+    pub fn show_scroll_progress(mut self, show_scroll_progress: bool) -> Self {
+        self.show_scroll_progress = show_scroll_progress;
         self
     }
 
-    pub fn can_scroll(mut self, can_scroll: bool) -> Self {
-        self.can_scroll = can_scroll;
+    pub fn show_column_progress(mut self, show_column_progress: bool) -> Self {
+        self.show_column_progress = show_column_progress;
+        self
+    }
+
+    pub fn handle_keys(mut self, handle_keys: bool) -> Self {
+        self.handle_keys = handle_keys;
         self
     }
 }
 
+/// A non-editable text area that can be behave like a text editor.
+/// It can scroll through text by moving around the cursor.
 pub struct TextArea<'a, S, M> {
     phantom: PhantomData<(S, M)>,
     textarea: tui_textarea::TextArea<'a>,
-    height: u16,
+    area: (u16, u16),
 }
 
 impl<'a, S, M> Default for TextArea<'a, S, M> {
@@ -360,7 +364,7 @@ impl<'a, S, M> Default for TextArea<'a, S, M> {
         Self {
             phantom: PhantomData,
             textarea: tui_textarea::TextArea::default(),
-            height: 0,
+            area: (0, 0),
         }
     }
 }
@@ -370,38 +374,44 @@ impl<'a, S, M> View for TextArea<'a, S, M> {
     type Message = M;
 
     fn handle_event(&mut self, props: Option<&ViewProps>, key: Key) -> Option<Self::Message> {
+        use tui_textarea::Input;
+
         let default = TextAreaProps::default();
         let props = props
             .and_then(|props| props.inner_ref::<TextAreaProps>())
             .unwrap_or(&default);
 
-        if props.can_scroll {
-            match key {
-                Key::Left => {
-                    self.textarea.input(tui_textarea::Input {
-                        key: tui_textarea::Key::Left,
-                        ..Default::default()
-                    });
+        if props.handle_keys {
+            if !props.insert_mode {
+                match key {
+                    Key::Left | Key::Char('h') => {
+                        self.textarea.input(Input {
+                            key: tui_textarea::Key::Left,
+                            ..Default::default()
+                        });
+                    }
+                    Key::Right | Key::Char('l') => {
+                        self.textarea.input(Input {
+                            key: tui_textarea::Key::Right,
+                            ..Default::default()
+                        });
+                    }
+                    Key::Up | Key::Char('k') => {
+                        self.textarea.input(Input {
+                            key: tui_textarea::Key::Up,
+                            ..Default::default()
+                        });
+                    }
+                    Key::Down | Key::Char('j') => {
+                        self.textarea.input(Input {
+                            key: tui_textarea::Key::Down,
+                            ..Default::default()
+                        });
+                    }
+                    _ => {}
                 }
-                Key::Right => {
-                    self.textarea.input(tui_textarea::Input {
-                        key: tui_textarea::Key::Right,
-                        ..Default::default()
-                    });
-                }
-                Key::Up => {
-                    self.textarea.input(tui_textarea::Input {
-                        key: tui_textarea::Key::Up,
-                        ..Default::default()
-                    });
-                }
-                Key::Down => {
-                    self.textarea.input(tui_textarea::Input {
-                        key: tui_textarea::Key::Down,
-                        ..Default::default()
-                    });
-                }
-                _ => {}
+            } else {
+                // TODO: Implement insert mode.
             }
         }
 
@@ -435,21 +445,26 @@ impl<'a, S, M> View for TextArea<'a, S, M> {
             .horizontal_margin(1)
             .areas(render.area);
 
-        let cursor_line_style = Style::default();
+        let progress_height = if props.show_scroll_progress || props.show_column_progress {
+            1
+        } else {
+            0
+        };
 
+        let [content_area, progress_area] =
+            Layout::vertical([Constraint::Min(1), Constraint::Length(progress_height)]).areas(area);
+
+        let cursor_line_style = Style::default();
         let cursor_style = if render.focus {
             Style::default().reversed()
         } else {
             cursor_line_style
         };
-
         let content_style = if render.focus {
             Style::default()
         } else {
             Style::default().dim()
         };
-
-        self.height = render.area.height;
 
         self.textarea.move_cursor(tui_textarea::CursorMove::Jump(
             props.cursor.0 as u16,
@@ -459,58 +474,269 @@ impl<'a, S, M> View for TextArea<'a, S, M> {
         self.textarea.set_cursor_style(cursor_style);
         self.textarea.set_style(content_style);
 
-        if props.progress_info.is_rendered() {
-            let [content_area, progress_area] =
-                Layout::vertical([Constraint::Min(1), Constraint::Length(1)]).areas(area);
+        let (scroll_progress, cursor_progress) = (
+            utils::scroll::percent_absolute(
+                self.textarea.cursor().0,
+                props.content.lines.len(),
+                content_area.height.into(),
+            ),
+            (self.textarea.cursor().0, self.textarea.cursor().1),
+        );
 
-            let mut progress_info = vec![];
+        frame.render_widget(self.textarea.widget(), content_area);
 
-            if props.progress_info.scroll {
-                progress_info.push(Span::styled(
-                    format!(
-                        "{}%",
-                        utils::scroll::percent_absolute(
-                            self.textarea.cursor().0,
-                            self.textarea.lines().len(),
-                            content_area.height.into()
-                        )
-                    ),
-                    Style::default().dim(),
-                ))
-            }
+        let mut progress_info = vec![];
 
-            if props.progress_info.scroll && props.progress_info.cursor {
-                progress_info.push(Span::raw(" "));
-            }
-
-            if props.progress_info.cursor {
-                progress_info.push(Span::styled(
-                    format!(
-                        "[{},{}]",
-                        self.textarea.cursor().0,
-                        self.textarea.cursor().1
-                    ),
-                    Style::default().dim(),
-                ))
-            }
-
-            let line = Line::from(progress_info).alignment(Alignment::Right);
-
-            frame.render_widget(self.textarea.widget(), content_area);
-            frame.render_widget(line, progress_area);
-        } else {
-            frame.render_widget(self.textarea.widget(), area);
+        if props.show_scroll_progress {
+            progress_info.push(Span::styled(
+                format!("{}%", scroll_progress),
+                Style::default().dim(),
+            ))
         }
+
+        if props.show_scroll_progress && props.show_column_progress {
+            progress_info.push(Span::raw(" "));
+        }
+
+        if props.show_column_progress {
+            progress_info.push(Span::styled(
+                format!("[{},{}]", cursor_progress.0, cursor_progress.1),
+                Style::default().dim(),
+            ))
+        }
+
+        frame.render_widget(
+            Line::from(progress_info).alignment(Alignment::Right),
+            progress_area,
+        );
+
+        self.area = (content_area.height, content_area.width);
     }
 
     fn view_state(&self) -> Option<ViewState> {
-        Some(ViewState::TextArea {
-            scroll: utils::scroll::percent_absolute(
-                self.textarea.cursor().0.saturating_sub(self.height.into()),
-                self.textarea.lines().len(),
-                self.height.into(),
-            ),
+        Some(ViewState::TextArea(TextAreaState {
             cursor: self.textarea.cursor(),
-        })
+            scroll: utils::scroll::percent_absolute(
+                self.textarea.cursor().0.saturating_sub(self.area.0.into()),
+                self.textarea.lines().len(),
+                self.area.0.into(),
+            ),
+        }))
+    }
+}
+
+/// State of a `TextView`.
+#[derive(Clone, Default)]
+pub struct TextViewState {
+    /// Current vertical scroll position.
+    pub scroll: usize,
+    /// Current cursor position.
+    pub cursor: (usize, usize),
+}
+
+/// Properties of a `TextView`.
+#[derive(Clone)]
+pub struct TextViewProps<'a> {
+    /// Content of this text view.
+    content: Text<'a>,
+    /// Current cursor position. Default: `(0, 0)`.
+    cursor: (usize, usize),
+    /// If this widget should handle events. Default: `true`.
+    handle_keys: bool,
+    /// If this widget should render its scroll progress. Default: `false`.
+    show_scroll_progress: bool,
+    /// If this widget should render its cursor progress. Default: `false`.
+    show_column_progress: bool,
+}
+
+impl<'a> TextViewProps<'a> {
+    pub fn content<T>(mut self, content: T) -> Self
+    where
+        T: Into<Text<'a>>,
+    {
+        self.content = content.into();
+        self
+    }
+
+    pub fn cursor(mut self, cursor: (usize, usize)) -> Self {
+        self.cursor = cursor;
+        self
+    }
+
+    pub fn show_scroll_progress(mut self, show_scroll_progress: bool) -> Self {
+        self.show_scroll_progress = show_scroll_progress;
+        self
+    }
+
+    pub fn show_column_progress(mut self, show_column_progress: bool) -> Self {
+        self.show_column_progress = show_column_progress;
+        self
+    }
+
+    pub fn handle_keys(mut self, handle_keys: bool) -> Self {
+        self.handle_keys = handle_keys;
+        self
+    }
+}
+
+impl<'a> Default for TextViewProps<'a> {
+    fn default() -> Self {
+        Self {
+            content: String::new().into(),
+            cursor: (0, 0),
+            handle_keys: true,
+            show_scroll_progress: false,
+            show_column_progress: false,
+        }
+    }
+}
+
+/// A scrollable, non-editable text view widget. It can scroll through text by
+/// moving around the viewport.
+pub struct TextView<S, M> {
+    /// Internal view state.
+    state: TextViewState,
+    /// Current render area.
+    area: (u16, u16),
+    /// Phantom.
+    phantom: PhantomData<(S, M)>,
+}
+
+impl<S, M> Default for TextView<S, M> {
+    fn default() -> Self {
+        Self {
+            state: TextViewState {
+                scroll: 0,
+                cursor: (0, 0),
+            },
+            area: (0, 0),
+            phantom: PhantomData,
+        }
+    }
+}
+
+impl<S, M> TextView<S, M> {
+    fn scroll_up(&mut self) {
+        self.state.cursor.0 = self.state.cursor.0.saturating_sub(1);
+    }
+
+    fn scroll_down(&mut self, len: usize, page_size: usize) {
+        let end = len.saturating_sub(page_size);
+        self.state.cursor.0 = std::cmp::min(self.state.cursor.0.saturating_add(1), end);
+    }
+
+    fn scroll_left(&mut self) {
+        self.state.cursor.1 = self.state.cursor.1.saturating_sub(3);
+    }
+
+    fn scroll_right(&mut self, max_line_length: usize) {
+        self.state.cursor.1 = std::cmp::min(
+            self.state.cursor.1.saturating_add(3),
+            max_line_length.saturating_add(3),
+        );
+    }
+
+    fn prev_page(&mut self, page_size: usize) {
+        self.state.cursor.0 = self.state.cursor.0.saturating_sub(page_size);
+    }
+
+    fn next_page(&mut self, len: usize, page_size: usize) {
+        let end = len.saturating_sub(page_size);
+
+        self.state.cursor.0 = std::cmp::min(self.state.cursor.0.saturating_add(page_size), end);
+    }
+
+    fn begin(&mut self) {
+        self.state.cursor.0 = 0;
+    }
+
+    fn end(&mut self, len: usize, page_size: usize) {
+        self.state.cursor.0 = len.saturating_sub(page_size);
+    }
+}
+
+impl<S, M> View for TextView<S, M>
+where
+    S: 'static,
+    M: 'static,
+{
+    type Message = M;
+    type State = S;
+
+    fn handle_event(&mut self, props: Option<&ViewProps>, key: Key) -> Option<Self::Message> {
+        let default = TextViewProps::default();
+        let props = props
+            .and_then(|props| props.inner_ref::<TextViewProps>())
+            .unwrap_or(&default);
+
+        let len = props.content.lines.len();
+        let max_line_len = props
+            .content
+            .lines
+            .iter()
+            .map(|l| l.width())
+            .max()
+            .unwrap_or_default();
+        let page_size = self.area.0 as usize;
+
+        if props.handle_keys {
+            match key {
+                Key::Up | Key::Char('k') => {
+                    self.scroll_up();
+                }
+                Key::Down | Key::Char('j') => {
+                    self.scroll_down(len, page_size);
+                }
+                Key::Left | Key::Char('h') => {
+                    self.scroll_left();
+                }
+                Key::Right | Key::Char('l') => {
+                    self.scroll_right(max_line_len.saturating_sub(self.area.1.into()));
+                }
+                Key::PageUp => {
+                    self.prev_page(page_size);
+                }
+                Key::PageDown => {
+                    self.next_page(len, page_size);
+                }
+                Key::Home => {
+                    self.begin();
+                }
+                Key::End => {
+                    self.end(len, page_size);
+                }
+                _ => {}
+            }
+        }
+
+        self.state.scroll = utils::scroll::percent_absolute(
+            self.state.cursor.0,
+            props.content.lines.len(),
+            self.area.0.into(),
+        );
+
+        None
+    }
+
+    fn render(&mut self, props: Option<&ViewProps>, render: RenderProps, frame: &mut Frame) {
+        let default = TextViewProps::default();
+        let props = props
+            .and_then(|props| props.inner_ref::<TextViewProps>())
+            .unwrap_or(&default);
+
+        let [content_area] = Layout::horizontal([Constraint::Min(1)])
+            .horizontal_margin(1)
+            .areas(render.area);
+        let content = ratatui::widgets::Paragraph::new(props.content.clone())
+            .style(props.content.style)
+            .scroll((self.state.cursor.0 as u16, self.state.cursor.1 as u16));
+
+        frame.render_widget(content, content_area);
+
+        self.area = (content_area.height, content_area.width);
+    }
+
+    fn view_state(&self) -> Option<ViewState> {
+        Some(ViewState::TextView(self.state.clone()))
     }
 }

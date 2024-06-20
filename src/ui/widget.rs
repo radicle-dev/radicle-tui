@@ -13,6 +13,8 @@ use termion::event::Key;
 
 use ratatui::prelude::*;
 
+use self::input::{TextAreaState, TextViewState};
+
 pub type BoxedView<S, M> = Box<dyn View<State = S, Message = M>>;
 pub type UpdateCallback<S> = fn(&S) -> ViewProps;
 pub type EventCallback<M> = fn(Key, Option<&ViewState>, Option<&ViewProps>) -> Option<M>;
@@ -62,14 +64,9 @@ impl From<&'static dyn Any> for ViewProps {
 pub enum ViewState {
     USize(usize),
     String(String),
-    Table {
-        selected: usize,
-        scroll: usize,
-    },
-    TextArea {
-        scroll: usize,
-        cursor: (usize, usize),
-    },
+    Table { selected: usize, scroll: usize },
+    TextView(TextViewState),
+    TextArea(TextAreaState),
 }
 
 impl ViewState {
@@ -94,9 +91,16 @@ impl ViewState {
         }
     }
 
-    pub fn unwrap_textarea(&self) -> Option<(usize, (usize, usize))> {
+    pub fn unwrap_textview(&self) -> Option<TextViewState> {
         match self {
-            ViewState::TextArea { scroll, cursor } => Some((*scroll, *cursor)),
+            ViewState::TextView(state) => Some(state.clone()),
+            _ => None,
+        }
+    }
+
+    pub fn unwrap_textarea(&self) -> Option<TextAreaState> {
+        match self {
+            ViewState::TextArea(state) => Some(state.clone()),
             _ => None,
         }
     }

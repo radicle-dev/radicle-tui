@@ -300,9 +300,13 @@ fn help_page(_state: &State, channel: &Channel<Message>) -> Widget<State, Messag
         .content(
             TextArea::default()
                 .to_widget(tx.clone())
-                .on_event(|_, s, _| {
-                    let (scroll, cursor) = s.and_then(|p| p.unwrap_textarea()).unwrap_or_default();
-                    Some(Message::ScrollHelp { scroll, cursor })
+                .on_event(|_, view_state, _| {
+                    view_state
+                        .and_then(|tv| tv.unwrap_textarea())
+                        .map(|tas| Message::ScrollHelp {
+                            scroll: tas.scroll,
+                            cursor: tas.cursor,
+                        })
                 })
                 .on_update(|state: &State| {
                     TextAreaProps::default()

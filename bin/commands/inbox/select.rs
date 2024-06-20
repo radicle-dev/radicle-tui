@@ -26,7 +26,8 @@ use tui::store;
 use tui::store::StateValue;
 use tui::ui::span;
 use tui::ui::widget::container::{Column, Container, Footer, FooterProps, Header, HeaderProps};
-use tui::ui::widget::input::{TextArea, TextAreaProps};
+use tui::ui::widget::input::TextView;
+use tui::ui::widget::input::TextViewProps;
 use tui::ui::widget::window::{Page, PageProps, Shortcuts, ShortcutsProps, Window, WindowProps};
 use tui::ui::widget::{ToWidget, Widget};
 use tui::{BoxedAny, Channel, Exit, PageStack};
@@ -381,14 +382,18 @@ fn help_page(_state: &State, channel: &Channel<Message>) -> Widget<State, Messag
                 .into()
         }))
         .content(
-            TextArea::default()
+            TextView::default()
                 .to_widget(tx.clone())
-                .on_event(|_, s, _| {
-                    let (scroll, cursor) = s.and_then(|p| p.unwrap_textarea()).unwrap_or_default();
-                    Some(Message::ScrollHelp { scroll, cursor })
+                .on_event(|_, view_state, _| {
+                    view_state
+                        .and_then(|tv| tv.unwrap_textview())
+                        .map(|tvs| Message::ScrollHelp {
+                            scroll: tvs.scroll,
+                            cursor: tvs.cursor,
+                        })
                 })
                 .on_update(|state: &State| {
-                    TextAreaProps::default()
+                    TextViewProps::default()
                         .content(help_text())
                         .cursor(state.help.cursor)
                         .to_boxed_any()

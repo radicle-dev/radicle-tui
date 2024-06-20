@@ -63,7 +63,7 @@ pub async fn main() -> Result<()> {
         .on_update(|state: &State| {
             TextAreaProps::default()
                 .content(Text::styled(state.alien.clone(), Color::Rgb(85, 85, 255)))
-                .can_scroll(false)
+                .handle_keys(false)
                 .to_boxed_any()
                 .into()
         });
