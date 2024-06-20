@@ -26,7 +26,7 @@ use tui::store;
 use tui::store::StateValue;
 use tui::ui::span;
 use tui::ui::widget::container::{Column, Container, Footer, FooterProps, Header, HeaderProps};
-use tui::ui::widget::text::{TextArea, TextAreaProps};
+use tui::ui::widget::input::{TextArea, TextAreaProps};
 use tui::ui::widget::window::{Page, PageProps, Shortcuts, ShortcutsProps, Window, WindowProps};
 use tui::ui::widget::{ToWidget, Widget};
 use tui::{BoxedAny, Channel, Exit, PageStack};
@@ -83,6 +83,7 @@ impl BrowserState {
 #[derive(Clone, Debug)]
 pub struct HelpState {
     scroll: usize,
+    cursor: (usize, usize),
 }
 
 #[derive(Clone, Debug)]
@@ -196,7 +197,10 @@ impl TryFrom<&Context> for State {
                 search,
                 show_search: false,
             },
-            help: HelpState { scroll: 0 },
+            help: HelpState {
+                scroll: 0,
+                cursor: (0, 0),
+            },
         })
     }
 }
@@ -219,6 +223,7 @@ pub enum Message {
     LeavePage,
     ScrollHelp {
         scroll: usize,
+        cursor: (usize, usize),
     },
 }
 
@@ -273,8 +278,9 @@ impl store::State<Selection> for State {
                 self.pages.pop();
                 None
             }
-            Message::ScrollHelp { scroll } => {
+            Message::ScrollHelp { scroll, cursor } => {
                 self.help.scroll = scroll;
+                self.help.cursor = cursor;
                 None
             }
         }
@@ -378,13 +384,13 @@ fn help_page(_state: &State, channel: &Channel<Message>) -> Widget<State, Messag
             TextArea::default()
                 .to_widget(tx.clone())
                 .on_event(|_, s, _| {
-                    Some(Message::ScrollHelp {
-                        scroll: s.and_then(|p| p.unwrap_usize()).unwrap_or_default(),
-                    })
+                    let (scroll, cursor) = s.and_then(|p| p.unwrap_textarea()).unwrap_or_default();
+                    Some(Message::ScrollHelp { scroll, cursor })
                 })
-                .on_update(|_| {
+                .on_update(|state: &State| {
                     TextAreaProps::default()
-                        .text(&help_text())
+                        .content(help_text())
+                        .cursor(state.help.cursor)
                         .to_boxed_any()
                         .into()
                 }),
@@ -436,32 +442,32 @@ fn help_text() -> Text<'static> {
             Line::raw(""),
             Line::from(vec![
                 Span::raw(format!("{key:>10}", key = "↑,k")).gray(),
-                Span::raw(" "),
+                Span::raw(": "),
                 Span::raw("move cursor one line up").gray().dim(),
             ]),
             Line::from(vec![
                 Span::raw(format!("{key:>10}", key = "↓,j")).gray(),
-                Span::raw(" "),
+                Span::raw(": "),
                 Span::raw("move cursor one line down").gray().dim(),
             ]),
             Line::from(vec![
                 Span::raw(format!("{key:>10}", key = "PageUp")).gray(),
-                Span::raw(" "),
+                Span::raw(": "),
                 Span::raw("move cursor one page up").gray().dim(),
             ]),
             Line::from(vec![
                 Span::raw(format!("{key:>10}", key = "PageDown")).gray(),
-                Span::raw(" "),
+                Span::raw(": "),
                 Span::raw("move cursor one page down").gray().dim(),
             ]),
             Line::from(vec![
                 Span::raw(format!("{key:>10}", key = "Home")).gray(),
-                Span::raw(" "),
+                Span::raw(": "),
                 Span::raw("move cursor to the first line").gray().dim(),
             ]),
             Line::from(vec![
                 Span::raw(format!("{key:>10}", key = "End")).gray(),
-                Span::raw(" "),
+                Span::raw(": "),
                 Span::raw("move cursor to the last line").gray().dim(),
             ]),
             Line::raw(""),
@@ -469,32 +475,32 @@ fn help_text() -> Text<'static> {
             Line::raw(""),
             Line::from(vec![
                 Span::raw(format!("{key:>10}", key = "enter")).gray(),
-                Span::raw(" "),
+                Span::raw(": "),
                 Span::raw("Select notification (if --mode id)").gray().dim(),
             ]),
             Line::from(vec![
                 Span::raw(format!("{key:>10}", key = "enter")).gray(),
-                Span::raw(" "),
+                Span::raw(": "),
                 Span::raw("Show notification").gray().dim(),
             ]),
             Line::from(vec![
                 Span::raw(format!("{key:>10}", key = "c")).gray(),
-                Span::raw(" "),
+                Span::raw(": "),
                 Span::raw("Clear notifications").gray().dim(),
             ]),
             Line::from(vec![
                 Span::raw(format!("{key:>10}", key = "/")).gray(),
-                Span::raw(" "),
+                Span::raw(": "),
                 Span::raw("Search").gray().dim(),
             ]),
             Line::from(vec![
                 Span::raw(format!("{key:>10}", key = "?")).gray(),
-                Span::raw(" "),
+                Span::raw(": "),
                 Span::raw("Show help").gray().dim(),
             ]),
             Line::from(vec![
                 Span::raw(format!("{key:>10}", key = "Esc")).gray(),
-                Span::raw(" "),
+                Span::raw(": "),
                 Span::raw("Quit / cancel").gray().dim(),
             ]),
             Line::raw(""),
@@ -502,18 +508,16 @@ fn help_text() -> Text<'static> {
             Line::raw(""),
             Line::from(vec![
                 Span::raw(format!("{key:>10}", key = "Pattern")).gray(),
-                Span::raw(" "),
+                Span::raw(": "),
                 Span::raw("is:<state> | is:patch | is:issue | <search>")
                     .gray()
                     .dim(),
             ]),
             Line::from(vec![
                 Span::raw(format!("{key:>10}", key = "Example")).gray(),
-                Span::raw(" "),
+                Span::raw(": "),
                 Span::raw("is:unseen is:patch Print").gray().dim(),
             ]),
-            Line::raw(""),
-            Line::raw(""),
         ]
         .to_vec(),
     )
