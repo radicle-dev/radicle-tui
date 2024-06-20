@@ -8,7 +8,7 @@ use ratatui::text::Text;
 use radicle_tui as tui;
 
 use tui::store;
-use tui::ui::widget::text::{TextArea, TextAreaProps};
+use tui::ui::widget::input::{TextArea, TextAreaProps};
 use tui::ui::widget::ToWidget;
 use tui::{BoxedAny, Channel, Exit};
 
@@ -62,7 +62,8 @@ pub async fn main() -> Result<()> {
         })
         .on_update(|state: &State| {
             TextAreaProps::default()
-                .text(&Text::styled(state.alien.clone(), Color::Rgb(85, 85, 255)))
+                .content(Text::styled(state.alien.clone(), Color::Rgb(85, 85, 255)))
+                .can_scroll(false)
                 .to_boxed_any()
                 .into()
         });

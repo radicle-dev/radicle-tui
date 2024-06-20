@@ -3,11 +3,11 @@ use std::marker::PhantomData;
 use ratatui::Frame;
 use termion::event::Key;
 
-use ratatui::layout::{Constraint, Layout};
-use ratatui::style::Stylize;
-use ratatui::text::{Line, Span};
+use ratatui::layout::{Alignment, Constraint, Layout};
+use ratatui::style::{Style, Stylize};
+use ratatui::text::{Line, Span, Text};
 
-use super::{RenderProps, View, ViewProps, ViewState};
+use super::{utils, RenderProps, View, ViewProps, ViewState};
 
 #[derive(Clone)]
 pub struct TextFieldProps {
@@ -279,5 +279,238 @@ where
                 frame.set_cursor(area.x + cursor_pos, area.y)
             }
         }
+    }
+}
+
+/// Configuration of a `TextArea`'s internal progress display.
+#[derive(Default, Clone)]
+pub struct TextAreaProgressInfo {
+    scroll: bool,
+    cursor: bool,
+}
+
+impl TextAreaProgressInfo {
+    pub fn scroll(mut self, scroll: bool) -> Self {
+        self.scroll = scroll;
+        self
+    }
+
+    pub fn cursor(mut self, cursor: bool) -> Self {
+        self.cursor = cursor;
+        self
+    }
+
+    pub fn is_rendered(&self) -> bool {
+        self.scroll || self.cursor
+    }
+}
+
+#[derive(Clone)]
+pub struct TextAreaProps<'a> {
+    content: Text<'a>,
+    cursor: (usize, usize),
+    can_scroll: bool,
+    progress_info: TextAreaProgressInfo,
+}
+
+impl<'a> Default for TextAreaProps<'a> {
+    fn default() -> Self {
+        Self {
+            content: String::new().into(),
+            cursor: (0, 0),
+            can_scroll: true,
+            progress_info: TextAreaProgressInfo::default(),
+        }
+    }
+}
+
+impl<'a> TextAreaProps<'a> {
+    pub fn content<T>(mut self, content: T) -> Self
+    where
+        T: Into<Text<'a>>,
+    {
+        self.content = content.into();
+        self
+    }
+
+    pub fn cursor(mut self, cursor: (usize, usize)) -> Self {
+        self.cursor = cursor;
+        self
+    }
+
+    pub fn progress_info(mut self, progress_info: TextAreaProgressInfo) -> Self {
+        self.progress_info = progress_info;
+        self
+    }
+
+    pub fn can_scroll(mut self, can_scroll: bool) -> Self {
+        self.can_scroll = can_scroll;
+        self
+    }
+}
+
+pub struct TextArea<'a, S, M> {
+    phantom: PhantomData<(S, M)>,
+    textarea: tui_textarea::TextArea<'a>,
+    height: u16,
+}
+
+impl<'a, S, M> Default for TextArea<'a, S, M> {
+    fn default() -> Self {
+        Self {
+            phantom: PhantomData,
+            textarea: tui_textarea::TextArea::default(),
+            height: 0,
+        }
+    }
+}
+
+impl<'a, S, M> View for TextArea<'a, S, M> {
+    type State = S;
+    type Message = M;
+
+    fn handle_event(&mut self, props: Option<&ViewProps>, key: Key) -> Option<Self::Message> {
+        let default = TextAreaProps::default();
+        let props = props
+            .and_then(|props| props.inner_ref::<TextAreaProps>())
+            .unwrap_or(&default);
+
+        if props.can_scroll {
+            match key {
+                Key::Left => {
+                    self.textarea.input(tui_textarea::Input {
+                        key: tui_textarea::Key::Left,
+                        ..Default::default()
+                    });
+                }
+                Key::Right => {
+                    self.textarea.input(tui_textarea::Input {
+                        key: tui_textarea::Key::Right,
+                        ..Default::default()
+                    });
+                }
+                Key::Up => {
+                    self.textarea.input(tui_textarea::Input {
+                        key: tui_textarea::Key::Up,
+                        ..Default::default()
+                    });
+                }
+                Key::Down => {
+                    self.textarea.input(tui_textarea::Input {
+                        key: tui_textarea::Key::Down,
+                        ..Default::default()
+                    });
+                }
+                _ => {}
+            }
+        }
+
+        None
+    }
+
+    fn update(&mut self, props: Option<&ViewProps>, _state: &Self::State) {
+        let default = TextAreaProps::default();
+        let props = props
+            .and_then(|props| props.inner_ref::<TextAreaProps>())
+            .unwrap_or(&default);
+
+        self.textarea = tui_textarea::TextArea::new(
+            props
+                .content
+                .lines
+                .iter()
+                .map(|line| line.to_string())
+                .collect::<Vec<_>>(),
+        );
+    }
+
+    fn render(&mut self, props: Option<&ViewProps>, render: RenderProps, frame: &mut Frame) {
+        let default = TextAreaProps::default();
+        let props = props
+            .and_then(|props| props.inner_ref::<TextAreaProps>())
+            .unwrap_or(&default);
+
+        let [area] = Layout::default()
+            .constraints([Constraint::Min(1)])
+            .horizontal_margin(1)
+            .areas(render.area);
+
+        let cursor_line_style = Style::default();
+
+        let cursor_style = if render.focus {
+            Style::default().reversed()
+        } else {
+            cursor_line_style
+        };
+
+        let content_style = if render.focus {
+            Style::default()
+        } else {
+            Style::default().dim()
+        };
+
+        self.height = render.area.height;
+
+        self.textarea.move_cursor(tui_textarea::CursorMove::Jump(
+            props.cursor.0 as u16,
+            props.cursor.1 as u16,
+        ));
+        self.textarea.set_cursor_line_style(cursor_line_style);
+        self.textarea.set_cursor_style(cursor_style);
+        self.textarea.set_style(content_style);
+
+        if props.progress_info.is_rendered() {
+            let [content_area, progress_area] =
+                Layout::vertical([Constraint::Min(1), Constraint::Length(1)]).areas(area);
+
+            let mut progress_info = vec![];
+
+            if props.progress_info.scroll {
+                progress_info.push(Span::styled(
+                    format!(
+                        "{}%",
+                        utils::scroll::percent_absolute(
+                            self.textarea.cursor().0,
+                            self.textarea.lines().len(),
+                            content_area.height.into()
+                        )
+                    ),
+                    Style::default().dim(),
+                ))
+            }
+
+            if props.progress_info.scroll && props.progress_info.cursor {
+                progress_info.push(Span::raw(" "));
+            }
+
+            if props.progress_info.cursor {
+                progress_info.push(Span::styled(
+                    format!(
+                        "[{},{}]",
+                        self.textarea.cursor().0,
+                        self.textarea.cursor().1
+                    ),
+                    Style::default().dim(),
+                ))
+            }
+
+            let line = Line::from(progress_info).alignment(Alignment::Right);
+
+            frame.render_widget(self.textarea.widget(), content_area);
+            frame.render_widget(line, progress_area);
+        } else {
+            frame.render_widget(self.textarea.widget(), area);
+        }
+    }
+
+    fn view_state(&self) -> Option<ViewState> {
+        Some(ViewState::TextArea {
+            scroll: utils::scroll::percent_absolute(
+                self.textarea.cursor().0.saturating_sub(self.height.into()),
+                self.textarea.lines().len(),
+                self.height.into(),
+            ),
+            cursor: self.textarea.cursor(),
+        })
     }
 }

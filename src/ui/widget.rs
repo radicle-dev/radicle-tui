@@ -1,7 +1,6 @@
 pub mod container;
 pub mod input;
 pub mod list;
-pub mod text;
 pub mod utils;
 pub mod window;
 
@@ -63,7 +62,14 @@ impl From<&'static dyn Any> for ViewProps {
 pub enum ViewState {
     USize(usize),
     String(String),
-    Table { selected: usize, scroll: usize },
+    Table {
+        selected: usize,
+        scroll: usize,
+    },
+    TextArea {
+        scroll: usize,
+        cursor: (usize, usize),
+    },
 }
 
 impl ViewState {
@@ -84,6 +90,13 @@ impl ViewState {
     pub fn unwrap_table(&self) -> Option<(usize, usize)> {
         match self {
             ViewState::Table { selected, scroll } => Some((*selected, *scroll)),
+            _ => None,
+        }
+    }
+
+    pub fn unwrap_textarea(&self) -> Option<(usize, (usize, usize))> {
+        match self {
+            ViewState::TextArea { scroll, cursor } => Some((*scroll, *cursor)),
             _ => None,
         }
     }
