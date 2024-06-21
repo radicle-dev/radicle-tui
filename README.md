@@ -56,6 +56,44 @@ cargo install --force --locked --git https://seed.radicle.xyz/z39mP9rQAaGmERfUMP
 
 This will install `rad-tui`. All available commands can be shown by running `rad-tui --help`.
 
+#### Nix
+
+There is a `flake.nix` present in the repository. This means that for
+development, it should be as simple as using [`direnv`](https://direnv.net/) and
+having the following `.envrc` file:
+
+```
+# .envrc
+use flake
+```
+
+For using the binary in a NixOS, in your `flake.nix` you can add one of the
+following to the `inputs` set:
+
+```nix
+inputs = {
+    # Replace <Tag> with the specific tag to build
+    radicle-tui = {
+        url = "git+https://seed.radicle.xyz/z3gqcJUoA1n9HaHKufZs5FCSGazv5.git?tag=<Tag>";
+    }
+}
+```
+
+```nix
+inputs = {
+    # Replace <Commit SHA> with the specific commit to build
+    rad-tui = {
+        url = "git+https://seed.radicle.xyz/z3gqcJUoA1n9HaHKufZs5FCSGazv5.git?rev=<Commit SHA>";
+    }
+}
+```
+
+Then in your `home.nix` you can add:
+
+```
+home.packages.inputs.radicle-tui.packages.{system}.default
+```
+
 ### Usage
 
 Soon, `rad-tui` will be integrated into [`heartwood`](https://app.radicle.xyz/nodes/seed.radicle.xyz/rad:z3gqcJUoA1n9HaHKufZs5FCSGazv5). Until then, you can use the `rad` proxy script that is provided. It's considered to be a drop-in replacement for `rad` and can be used for testing and prototyping purposes. It should reflect the current behavior, as if `rad-tui` would have been integrated, e.g.
