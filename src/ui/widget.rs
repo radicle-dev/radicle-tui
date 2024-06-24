@@ -303,11 +303,6 @@ impl<S: 'static, M: 'static> Widget<S, M> {
         self.on_render = Some(callback);
         self
     }
-
-    /// Sends a message to the widgets' message channel.
-    pub fn send(&self, message: M) {
-        let _ = self.sender.send(message);
-    }
 }
 
 /// A `View` needs to be wrapped into a `Widget` in order to be used with the framework.
