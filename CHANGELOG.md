@@ -24,6 +24,10 @@
 - `TextView`: Scrollable text view widget
 - `TextArea`: Non-editable text area widget
 
+- Support Nix and NixOS tooling via the use of Flakes
+- Apply `cargo clippy` suggestions for trait implementations and
+  missing documentation
+
 ### Changed
 
 **Binary features**
