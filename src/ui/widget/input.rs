@@ -445,14 +445,17 @@ impl<'a, S, M> View for TextArea<'a, S, M> {
             .horizontal_margin(1)
             .areas(render.area);
 
-        let progress_height = if props.show_scroll_progress || props.show_column_progress {
-            1
-        } else {
-            0
-        };
-
-        let [content_area, progress_area] =
-            Layout::vertical([Constraint::Min(1), Constraint::Length(progress_height)]).areas(area);
+        let [content_area, progress_area] = Layout::vertical([
+            Constraint::Min(1),
+            Constraint::Length(
+                if props.show_scroll_progress || props.show_column_progress {
+                    1
+                } else {
+                    0
+                },
+            ),
+        ])
+        .areas(area);
 
         let cursor_line_style = Style::default();
         let cursor_style = if render.focus {
@@ -545,8 +548,6 @@ pub struct TextViewProps<'a> {
     handle_keys: bool,
     /// If this widget should render its scroll progress. Default: `false`.
     show_scroll_progress: bool,
-    /// If this widget should render its cursor progress. Default: `false`.
-    show_column_progress: bool,
 }
 
 impl<'a> TextViewProps<'a> {
@@ -568,11 +569,6 @@ impl<'a> TextViewProps<'a> {
         self
     }
 
-    pub fn show_column_progress(mut self, show_column_progress: bool) -> Self {
-        self.show_column_progress = show_column_progress;
-        self
-    }
-
     pub fn handle_keys(mut self, handle_keys: bool) -> Self {
         self.handle_keys = handle_keys;
         self
@@ -586,7 +582,6 @@ impl<'a> Default for TextViewProps<'a> {
             cursor: (0, 0),
             handle_keys: true,
             show_scroll_progress: false,
-            show_column_progress: false,
         }
     }
 }
@@ -724,14 +719,47 @@ where
             .and_then(|props| props.inner_ref::<TextViewProps>())
             .unwrap_or(&default);
 
-        let [content_area] = Layout::horizontal([Constraint::Min(1)])
+        let [area] = Layout::default()
+            .constraints([Constraint::Min(1)])
             .horizontal_margin(1)
             .areas(render.area);
+
+        let [content_area, progress_area] = Layout::vertical([
+            Constraint::Min(1),
+            Constraint::Length(if props.show_scroll_progress { 1 } else { 0 }),
+        ])
+        .areas(area);
+
+        let style = if render.focus {
+            Style::default()
+        } else {
+            Style::default().dim()
+        };
+
         let content = ratatui::widgets::Paragraph::new(props.content.clone())
-            .style(props.content.style)
+            .style(style)
             .scroll((self.state.cursor.0 as u16, self.state.cursor.1 as u16));
 
+        let scroll_progress = utils::scroll::percent_absolute(
+            self.state.cursor.0,
+            props.content.lines.len(),
+            content_area.height.into(),
+        );
+
+        let progress_info = if props.show_scroll_progress {
+            vec![Span::styled(
+                format!("{}%", scroll_progress),
+                Style::default().dim(),
+            )]
+        } else {
+            vec![]
+        };
+
         frame.render_widget(content, content_area);
+        frame.render_widget(
+            Line::from(progress_info).alignment(Alignment::Right),
+            progress_area,
+        );
 
         self.area = (content_area.height, content_area.width);
     }
