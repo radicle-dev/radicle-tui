@@ -11,6 +11,8 @@
 - Per-column visibility for tables depending on their render width
 - Vertically split container
 - Predefined layouts for section groups
+- `TextView`: Scrollable text viewer widget
+- `TextArea`: Non-editable text area widget
 
 ### Changed
 
@@ -24,6 +26,7 @@
 **Library features:**
 
 - Widgets are not immutable anymore in their render function
+- Ability to send messages through widgets
 - All Radicle-dependent code (moved to `bin/`)
 - Page size attribute from scrollable widgets
 - Cutoff attributes from table properties
