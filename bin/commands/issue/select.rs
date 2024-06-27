@@ -314,7 +314,6 @@ fn help_page(_state: &State, channel: &Channel<Message>) -> Widget<State, Messag
                     TextViewProps::default()
                         .content(help_text())
                         .cursor(state.help.cursor)
-                        .show_scroll_progress(true)
                         .to_boxed_any()
                         .into()
                 }),
