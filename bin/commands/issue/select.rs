@@ -315,7 +315,6 @@ fn help_page(_state: &State, channel: &Channel<Message>) -> Widget<State, Messag
                         .content(help_text())
                         .cursor(state.help.cursor)
                         .show_scroll_progress(true)
-                        .show_column_progress(true)
                         .to_boxed_any()
                         .into()
                 }),
