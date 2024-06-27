@@ -9,9 +9,10 @@
 - Widgets can be mutated in their render function
 - Scrollable widgets calculate their state by using a stored render height
 - Per-column visibility for tables depending on their render width
-- Vertically split container
 - Predefined layouts for section groups
-- `TextView`: Scrollable text viewer widget
+- New widgets:
+- `SplitContainer`: Vertically split container
+- `TextView`: Scrollable text view widget
 - `TextArea`: Non-editable text area widget
 
 ### Changed
