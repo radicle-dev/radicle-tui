@@ -505,15 +505,15 @@ fn issue_details(channel: &Channel<Message>) -> Widget<State, Message> {
         .bottom(
             Tree::<State, Message, CommentItem>::default()
                 .to_widget(tx.clone())
-                .on_event(|_, s, _| {
-                    Some(Message::SelectComment {
-                        selected: s.and_then(|s| {
-                            s.unwrap_tree().and_then(|tree| {
-                                Some(tree.iter().map(|id| Oid::from_str(id).unwrap()).collect())
-                            })
-                        }),
-                    })
-                })
+                // .on_event(|_, s, _| {
+                //     Some(Message::SelectComment {
+                //         selected: s.and_then(|s| {
+                //             s.unwrap_tree().and_then(|tree| {
+                //                 Some(tree.iter().map(|id| Oid::from_str(id).unwrap()).collect())
+                //             })
+                //         }),
+                //     })
+                // })
                 .on_update(|state| {
                     let comments = &state
                         .issue
@@ -535,6 +535,7 @@ fn issue_details(channel: &Channel<Message>) -> Widget<State, Message> {
                     TreeProps::<CommentItem>::default()
                         .items(comments.to_vec())
                         .selected(selected)
+                        .show_scroll_progress(true)
                         .to_boxed_any()
                         .into()
                 }),

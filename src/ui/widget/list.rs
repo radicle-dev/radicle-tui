@@ -1,13 +1,14 @@
 use std::marker::PhantomData;
 use std::{cmp, vec};
 
-use ratatui::widgets::{Cell, Row};
+use ratatui::symbols::{self, border};
+use ratatui::widgets::{Block, Borders, Cell, Row, Scrollbar, ScrollbarOrientation};
 use ratatui::Frame;
 use termion::event::Key;
 
-use ratatui::layout::Constraint;
-use ratatui::style::Stylize;
-use ratatui::text::Text;
+use ratatui::layout::{Alignment, Constraint, Layout};
+use ratatui::style::{Style, Stylize};
+use ratatui::text::{Line, Span, Text};
 use ratatui::widgets::TableState;
 use tui_tree_widget::{TreeItem, TreeState};
 
@@ -291,8 +292,12 @@ pub struct TreeProps<R>
 where
     R: ToTree + Clone,
 {
+    /// Root items of this tree.
     pub items: Vec<R>,
+    /// Path of currently selected item, e.g. ["1.0", "1.1", "1.1.3"]
     pub selected: Vec<String>,
+    /// If this widget should render its scroll progress. Default: `false`.
+    show_scroll_progress: bool,
 }
 
 impl<R> Default for TreeProps<R>
@@ -303,6 +308,7 @@ where
         Self {
             items: vec![],
             selected: vec![],
+            show_scroll_progress: false,
         }
     }
 }
@@ -318,6 +324,11 @@ where
 
     pub fn selected(mut self, selected: &[String]) -> Self {
         self.selected = selected.to_vec();
+        self
+    }
+
+    pub fn show_scroll_progress(mut self, show_scroll_progress: bool) -> Self {
+        self.show_scroll_progress = show_scroll_progress;
         self
     }
 }
@@ -361,9 +372,9 @@ where
             .and_then(|props| props.inner_ref::<TreeProps<R>>())
             .unwrap_or(&default);
 
-        if props.selected != self.state.selected() {
-            self.state.select(props.selected.clone());
-        }
+        // if props.selected != self.state.selected() {
+        //     self.state.select(props.selected.clone());
+        // }
     }
 
     fn handle_event(&mut self, _props: Option<&ViewProps>, key: Key) -> Option<Self::Message> {
@@ -392,16 +403,126 @@ where
             .and_then(|props| props.inner_ref::<TreeProps<R>>())
             .unwrap_or(&default);
 
-        let mut items = vec![];
-        for item in &props.items {
-            items.extend(item.rows());
-        }
+        let [area] = Layout::default()
+            .constraints([Constraint::Min(1)])
+            .horizontal_margin(1)
+            .areas(render.area);
+
+        let [content_area, progress_area] = Layout::vertical([
+            Constraint::Min(1),
+            Constraint::Length(if props.show_scroll_progress { 1 } else { 0 }),
+        ])
+        .areas(area);
+
+        // let mut items = vec![];
+        // for item in &props.items {
+        //     items.extend(item.rows());
+        // }
+
+        let items = vec![
+            TreeItem::new_leaf("a".to_string(), "Alfa"),
+            TreeItem::new(
+                "b".to_string(),
+                "Bravo",
+                vec![
+                    TreeItem::new_leaf("c".to_string(), "Charlie"),
+                    TreeItem::new(
+                        "d".to_string(),
+                        "Delta",
+                        vec![
+                            TreeItem::new_leaf("e".to_string(), "Echo"),
+                            TreeItem::new_leaf("f".to_string(), "Foxtrot"),
+                        ],
+                    )
+                    .expect("all item identifiers are unique"),
+                    TreeItem::new_leaf("g".to_string(), "Golf"),
+                ],
+            )
+            .expect("all item identifiers are unique"),
+            TreeItem::new_leaf("h".to_string(), "Hotel"),
+            TreeItem::new(
+                "i".to_string(),
+                "India",
+                vec![
+                    TreeItem::new_leaf("j".to_string(), "Juliett"),
+                    TreeItem::new_leaf("k".to_string(), "Kilo"),
+                    TreeItem::new_leaf("l".to_string(), "Lima"),
+                    TreeItem::new_leaf("m".to_string(), "Mike"),
+                    TreeItem::new_leaf("n".to_string(), "November"),
+                ],
+            )
+            .expect("all item identifiers are unique"),
+            TreeItem::new_leaf("o".to_string(), "Oscar"),
+            TreeItem::new(
+                "p".to_string(),
+                "Papa",
+                vec![
+                    TreeItem::new_leaf("q".to_string(), "Quebec"),
+                    TreeItem::new_leaf("r".to_string(), "Romeo"),
+                    TreeItem::new_leaf("s".to_string(), "Sierra"),
+                    TreeItem::new_leaf("t".to_string(), "Tango"),
+                    TreeItem::new_leaf("u".to_string(), "Uniform"),
+                    TreeItem::new(
+                        "v".to_string(),
+                        "Victor",
+                        vec![
+                            TreeItem::new_leaf("w".to_string(), "Whiskey"),
+                            TreeItem::new_leaf("x".to_string(), "Xray"),
+                            TreeItem::new_leaf("y".to_string(), "Yankee"),
+                        ],
+                    )
+                    .expect("all item identifiers are unique"),
+                ],
+            )
+            .expect("all item identifiers are unique"),
+            TreeItem::new_leaf("z".to_string(), "Zulu"),
+        ];
+
+        let scroll_progress = utils::scroll::percent_absolute(
+            self.state.get_offset(),
+            items.len(),
+            content_area.height.into(),
+        );
 
         let tree = tui_tree_widget::Tree::new(&items)
             .expect("all item identifiers are unique")
+            .block(
+                Block::default()
+                    .borders(Borders::RIGHT)
+                    // .border_set(border::Set {
+                    //     top_left: "",
+                    //     top_right: "",
+                    //     bottom_left: "",
+                    //     bottom_right: "",
+                    //     vertical_left: "",
+                    //     vertical_right: "",
+                    //     horizontal_top: "",
+                    //     horizontal_bottom: "",
+                    // }),
+                    .border_style(style::border(false)),
+            )
+            .experimental_scrollbar(Some(
+                Scrollbar::new(ScrollbarOrientation::VerticalRight)
+                    .begin_symbol(None)
+                    .track_symbol(None)
+                    .end_symbol(None),
+            ))
             .highlight_style(style::highlight(render.focus));
 
+        let progress_info = if props.show_scroll_progress && scroll_progress > 0 {
+            vec![Span::styled(
+                format!("{}%", scroll_progress),
+                Style::default().dim(),
+            )]
+        } else {
+            vec![]
+        };
+
         frame.render_stateful_widget(tree, render.area, &mut self.state);
+        // frame.render_widget(
+        //     Line::from(progress_info).alignment(Alignment::Right),
+        //     progress_area,
+        // );
     }
 
     fn view_state(&self) -> Option<ViewState> {
