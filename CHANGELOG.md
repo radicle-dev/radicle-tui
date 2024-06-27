@@ -11,9 +11,9 @@
 - Per-column visibility for tables depending on their render width
 - Predefined layouts for section groups
 - New widgets:
-- `SplitContainer`: Vertically split container
 - `TextView`: Scrollable text view widget
 - `TextArea`: Non-editable text area widget
+- `SplitContainer`: Vertically split container
 
 ### Changed
 
