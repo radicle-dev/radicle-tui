@@ -283,7 +283,7 @@ where
 }
 
 /// The state of a `TextArea`.
-#[derive(Clone, Default)]
+#[derive(Clone, Default, Debug)]
 pub struct TextAreaState {
     /// Current vertical scroll position.
     pub scroll: usize,
@@ -529,7 +529,7 @@ impl<'a, S, M> View for TextArea<'a, S, M> {
 }
 
 /// State of a `TextView`.
-#[derive(Clone, Default)]
+#[derive(Clone, Default, Debug)]
 pub struct TextViewState {
     /// Current vertical scroll position.
     pub scroll: usize,
@@ -711,6 +711,17 @@ where
         );
 
         None
+    }
+
+    fn update(&mut self, props: Option<&ViewProps>, _state: &Self::State) {
+        let default = TextViewProps::default();
+        let props = props
+            .and_then(|props| props.inner_ref::<TextViewProps>())
+            .unwrap_or(&default);
+
+        if props.cursor != self.state.cursor {
+            self.state.cursor = props.cursor;
+        }
     }
 
     fn render(&mut self, props: Option<&ViewProps>, render: RenderProps, frame: &mut Frame) {

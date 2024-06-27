@@ -61,6 +61,7 @@ impl From<&'static dyn Any> for ViewProps {
 
 /// A `ViewState` is the representation of a `View`s internal state. e.g. current
 /// table selection or contents of a text field.
+#[derive(Debug)]
 pub enum ViewState {
     USize(usize),
     String(String),
