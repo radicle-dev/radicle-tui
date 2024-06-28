@@ -133,7 +133,7 @@ impl PredefinedLayout {
                     ])
                     .areas(area);
                     let [right_top, right_bottom] =
-                        Layout::vertical([Constraint::Percentage(50), Constraint::Percentage(50)])
+                        Layout::vertical([Constraint::Percentage(65), Constraint::Percentage(35)])
                             .areas(right);
 
                     [left, right_top, right_bottom].into()
