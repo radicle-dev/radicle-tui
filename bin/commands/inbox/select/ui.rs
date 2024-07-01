@@ -40,8 +40,6 @@ pub struct BrowserProps<'a> {
     notifications: Vec<NotificationItem>,
     /// Current (selected) table index
     selected: Option<usize>,
-    /// Current scroll progress
-    progress: usize,
     /// Notification statistics.
     stats: HashMap<String, usize>,
     /// Table columns
@@ -79,7 +77,6 @@ impl<'a> From<&State> for BrowserProps<'a> {
             header,
             notifications,
             selected: state.browser.selected,
-            progress: state.browser.scroll,
             stats,
             columns: [
                 Column::new("", Constraint::Length(5)),
@@ -129,11 +126,10 @@ impl Browser {
                     Table::<State, Message, NotificationItem, 9>::default()
                         .to_widget(tx.clone())
                         .on_event(|_, s, _| {
-                            let (selected, scroll) =
+                            let (selected, _) =
                                 s.and_then(|s| s.unwrap_table()).unwrap_or_default();
                             Some(Message::Select {
                                 selected: Some(selected),
-                                scroll,
                             })
                         })
                         .on_update(|state| {
@@ -143,7 +139,6 @@ impl Browser {
                                 .columns(props.columns)
                                 .items(state.browser.notifications())
                                 .selected(state.browser.selected)
-                                .footer(!state.browser.show_search)
                                 .to_boxed_any()
                                 .into()
                         }),
@@ -288,8 +283,10 @@ fn browse_footer<'a>(props: &BrowserProps<'a>) -> Vec<Column<'a>> {
             .dim(),
         span::default(" Unseen").dim(),
     ]);
-
-    let progress = span::default(&format!("{}%", props.progress)).dim();
+    let sum = Line::from(vec![
+        span::default("Σ ").dim(),
+        span::default(&props.notifications.len().to_string()).dim(),
+    ]);
 
     match NotificationItemFilter::from_str(&props.search)
         .unwrap_or_default()
@@ -307,7 +304,7 @@ fn browse_footer<'a>(props: &BrowserProps<'a>) -> Vec<Column<'a>> {
                     Text::from(block.clone()),
                     Constraint::Min(block.width() as u16),
                 ),
-                Column::new(Text::from(progress), Constraint::Min(4)),
+                Column::new(Text::from(sum.clone()), Constraint::Min(sum.width() as u16)),
             ]
             .to_vec()
         }
@@ -321,7 +318,7 @@ fn browse_footer<'a>(props: &BrowserProps<'a>) -> Vec<Column<'a>> {
                 Text::from(unseen.clone()),
                 Constraint::Min(unseen.width() as u16),
             ),
-            Column::new(Text::from(progress), Constraint::Min(4)),
+            Column::new(Text::from(sum.clone()), Constraint::Min(sum.width() as u16)),
         ]
         .to_vec(),
     }

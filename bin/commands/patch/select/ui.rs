@@ -44,8 +44,6 @@ pub struct BrowserProps<'a> {
     patches: Vec<PatchItem>,
     /// Current (selected) table index
     selected: Option<usize>,
-    /// Current scroll progress
-    progress: usize,
     /// Patch statistics.
     stats: HashMap<String, usize>,
     /// Header columns
@@ -90,7 +88,6 @@ impl<'a> From<&State> for BrowserProps<'a> {
             mode: state.mode.clone(),
             patches,
             selected: state.browser.selected,
-            progress: state.browser.scroll,
             stats,
             header: [
                 Column::new(" ● ", Constraint::Length(3)),
@@ -145,11 +142,10 @@ impl Browser {
                     Table::<State, Message, PatchItem, 9>::default()
                         .to_widget(tx.clone())
                         .on_event(|_, s, _| {
-                            let (selected, scroll) =
+                            let (selected, _) =
                                 s.and_then(|s| s.unwrap_table()).unwrap_or_default();
                             Some(Message::Select {
                                 selected: Some(selected),
-                                scroll,
                             })
                         })
                         .on_update(|state| {
@@ -159,7 +155,6 @@ impl Browser {
                                 .columns(props.columns)
                                 .items(state.browser.patches())
                                 .selected(state.browser.selected)
-                                .footer(!state.browser.show_search)
                                 .to_boxed_any()
                                 .into()
                         }),
@@ -339,8 +334,6 @@ fn browser_footer<'a>(props: &BrowserProps<'a>) -> Vec<Column<'a>> {
         span::default(&props.patches.len().to_string()).dim(),
     ]);
 
-    let progress = span::default(&format!("{}%", props.progress)).dim();
-
     match filter.status() {
         Some(state) => {
             let block = match state {
@@ -356,7 +349,7 @@ fn browser_footer<'a>(props: &BrowserProps<'a>) -> Vec<Column<'a>> {
                     Text::from(block.clone()),
                     Constraint::Min(block.width() as u16),
                 ),
-                Column::new(Text::from(progress), Constraint::Min(4)),
+                Column::new(Text::from(sum.clone()), Constraint::Min(sum.width() as u16)),
             ]
         }
         None => vec![
@@ -378,7 +371,6 @@ fn browser_footer<'a>(props: &BrowserProps<'a>) -> Vec<Column<'a>> {
                 Constraint::Min(archived.width() as u16),
             ),
             Column::new(Text::from(sum.clone()), Constraint::Min(sum.width() as u16)),
-            Column::new(Text::from(progress), Constraint::Min(4)),
         ],
     }
 }

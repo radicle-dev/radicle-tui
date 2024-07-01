@@ -65,7 +65,6 @@ pub enum AppPage {
 pub struct BrowserState {
     items: Vec<NotificationItem>,
     selected: Option<usize>,
-    scroll: usize,
     filter: NotificationItemFilter,
     search: store::StateValue<String>,
     show_search: bool,
@@ -193,7 +192,6 @@ impl TryFrom<&Context> for State {
             browser: BrowserState {
                 items: notifications,
                 selected: Some(0),
-                scroll: 0,
                 filter,
                 search,
                 show_search: false,
@@ -212,7 +210,6 @@ pub enum Message {
     },
     Select {
         selected: Option<usize>,
-        scroll: usize,
     },
     OpenSearch,
     UpdateSearch {
@@ -234,9 +231,8 @@ impl store::State<Selection> for State {
     fn update(&mut self, message: Message) -> Option<Exit<Selection>> {
         match message {
             Message::Exit { selection } => Some(Exit { value: selection }),
-            Message::Select { selected, scroll } => {
+            Message::Select { selected } => {
                 self.browser.selected = selected;
-                self.browser.scroll = scroll;
                 None
             }
             Message::OpenSearch => {
@@ -254,13 +250,11 @@ impl store::State<Selection> for State {
                     }
                 }
 
-                self.browser.scroll = 0;
                 None
             }
             Message::ApplySearch => {
                 self.browser.search.apply();
                 self.browser.show_search = false;
-                self.browser.scroll = 0;
                 None
             }
             Message::CloseSearch => {
