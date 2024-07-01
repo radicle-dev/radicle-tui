@@ -9,6 +9,7 @@
 - Widgets can be mutated in their render function
 - Scrollable widgets calculate their state by using a stored render height
 - Per-column visibility for tables depending on their render width
+- Tables can render a scrollbar
 - Predefined layouts for section groups
 - New widgets:
 - `SplitContainer`: Vertically split container
@@ -22,6 +23,10 @@
 - Use container focus for table highlighting
 - Default keybindings for switching sections
 
+**Binary features**
+
+- Selection interfaces don't show their browser scroll progress anymore
+
 ### Removed
 
 **Library features:**
@@ -30,7 +35,7 @@
 - Ability to send messages through widgets
 - All Radicle-dependent code (moved to `bin/`)
 - Page size attribute from scrollable widgets
-- Cutoff attributes from table properties
+- Cutoff and footer attributes from table properties
 
 ## [0.3.1] - 2024-06-11
 
