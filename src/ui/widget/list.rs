@@ -1,12 +1,12 @@
 use std::cmp;
 use std::marker::PhantomData;
 
-use ratatui::widgets::{Cell, Row};
+use ratatui::widgets::{Cell, Row, Scrollbar, ScrollbarState};
 use ratatui::Frame;
 use termion::event::Key;
 
-use ratatui::layout::Constraint;
-use ratatui::style::Stylize;
+use ratatui::layout::{Constraint, Layout};
+use ratatui::style::{Style, Stylize};
 use ratatui::text::Text;
 use ratatui::widgets::TableState;
 
@@ -29,7 +29,7 @@ where
     pub items: Vec<R>,
     pub selected: Option<usize>,
     pub columns: Vec<Column<'a>>,
-    pub has_footer: bool,
+    pub show_scrollbar: bool,
 }
 
 impl<'a, R, const W: usize> Default for TableProps<'a, R, W>
@@ -40,7 +40,7 @@ where
         Self {
             items: vec![],
             columns: vec![],
-            has_footer: false,
+            show_scrollbar: true,
             selected: Some(0),
         }
     }
@@ -65,8 +65,8 @@ where
         self
     }
 
-    pub fn footer(mut self, has_footer: bool) -> Self {
-        self.has_footer = has_footer;
+    pub fn show_scrollbar(mut self, show_scrollbar: bool) -> Self {
+        self.show_scrollbar = show_scrollbar;
         self
     }
 }
@@ -213,6 +213,9 @@ where
             .and_then(|props| props.inner_ref::<TableProps<R, W>>())
             .unwrap_or(&default);
 
+        let show_scrollbar = props.show_scrollbar && props.items.len() >= self.height.into();
+        let has_items = !props.items.is_empty();
+
         let widths: Vec<Constraint> = props
             .columns
             .iter()
@@ -225,7 +228,17 @@ where
             })
             .collect();
 
-        if !props.items.is_empty() {
+        if has_items {
+            let [table_area, scroller_area] = Layout::horizontal([
+                Constraint::Min(1),
+                if show_scrollbar {
+                    Constraint::Length(1)
+                } else {
+                    Constraint::Length(0)
+                },
+            ])
+            .areas(render.area);
+
             let rows = props
                 .items
                 .iter()
@@ -246,13 +259,28 @@ where
                     Row::new(cells)
                 })
                 .collect::<Vec<_>>();
+
             let rows = ratatui::widgets::Table::default()
                 .rows(rows)
                 .widths(widths)
                 .column_spacing(1)
                 .highlight_style(style::highlight(render.focus));
+            frame.render_stateful_widget(rows, table_area, &mut self.state.0);
 
-            frame.render_stateful_widget(rows, render.area, &mut self.state.0);
+            let scroller = Scrollbar::default()
+                .begin_symbol(None)
+                .track_symbol(None)
+                .end_symbol(None)
+                .thumb_symbol("┃")
+                .style(if render.focus {
+                    Style::default()
+                } else {
+                    Style::default().dim()
+                });
+            let mut scroller_state = ScrollbarState::default()
+                .content_length(props.items.len().saturating_sub(self.height.into()))
+                .position(self.state.0.offset());
+            frame.render_stateful_widget(scroller, scroller_area, &mut scroller_state);
         } else {
             let center = layout::centered_rect(render.area, 50, 10);
             let hint = Text::from(span::default("Nothing to show"))
