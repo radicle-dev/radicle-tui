@@ -548,6 +548,8 @@ pub struct TextViewProps<'a> {
     handle_keys: bool,
     /// If this widget should render its scroll progress. Default: `false`.
     show_scroll_progress: bool,
+    /// An optional text that is rendered inside the footer bar on the bottom.
+    footer: Option<Text<'a>>,
 }
 
 impl<'a> TextViewProps<'a> {
@@ -556,6 +558,14 @@ impl<'a> TextViewProps<'a> {
         T: Into<Text<'a>>,
     {
         self.content = content.into();
+        self
+    }
+
+    pub fn footer<T>(mut self, footer: Option<T>) -> Self
+    where
+        T: Into<Text<'a>>,
+    {
+        self.footer = footer.map(|f| f.into());
         self
     }
 
@@ -582,6 +592,7 @@ impl<'a> Default for TextViewProps<'a> {
             cursor: (0, 0),
             handle_keys: true,
             show_scroll_progress: false,
+            footer: None,
         }
     }
 }
@@ -735,9 +746,10 @@ where
             .horizontal_margin(1)
             .areas(render.area);
 
-        let [content_area, progress_area] = Layout::vertical([
+        let render_footer = props.show_scroll_progress || props.footer.is_some();
+        let [content_area, footer_area] = Layout::vertical([
             Constraint::Min(1),
-            Constraint::Length(if props.show_scroll_progress { 1 } else { 0 }),
+            Constraint::Length(if render_footer { 1 } else { 0 }),
         ])
         .areas(area);
 
@@ -768,8 +780,18 @@ where
 
         frame.render_widget(content, content_area);
         frame.render_widget(
+            props
+                .footer
+                .as_ref()
+                .cloned()
+                .unwrap_or_default()
+                .alignment(Alignment::Left)
+                .dim(),
+            footer_area,
+        );
+        frame.render_widget(
             Line::from(progress_info).alignment(Alignment::Right),
-            progress_area,
+            footer_area,
         );
 
         self.area = (content_area.height, content_area.width);
