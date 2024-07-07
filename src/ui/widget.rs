@@ -13,7 +13,10 @@ use termion::event::Key;
 
 use ratatui::prelude::*;
 
-use self::input::{TextAreaState, TextViewState};
+use self::{
+    container::SectionGroupState,
+    input::{TextAreaState, TextViewState},
+};
 
 pub type BoxedView<S, M> = Box<dyn View<State = S, Message = M>>;
 pub type UpdateCallback<S> = fn(&S) -> ViewProps;
@@ -69,6 +72,7 @@ pub enum ViewState {
     Tree(Vec<String>),
     TextView(TextViewState),
     TextArea(TextAreaState),
+    SectionGroup(SectionGroupState),
 }
 
 impl ViewState {
@@ -107,6 +111,13 @@ impl ViewState {
         }
     }
 
+    pub fn unwrap_section_group(&self) -> Option<SectionGroupState> {
+        match self {
+            ViewState::SectionGroup(state) => Some(state.clone()),
+            _ => None,
+        }
+    }
+
     pub fn unwrap_tree(&self) -> Option<Vec<String>> {
         match self {
             ViewState::Tree(value) => Some(value.clone().to_vec()),
@@ -119,14 +130,18 @@ impl ViewState {
 pub enum PredefinedLayout {
     #[default]
     None,
-    Expandable3,
+    Expandable3 {
+        left_only: bool,
+    },
 }
 
 impl PredefinedLayout {
     pub fn split(&self, area: Rect) -> Rc<[Rect]> {
         match self {
-            Self::Expandable3 => {
-                if area.width <= 140 {
+            Self::Expandable3 { left_only } => {
+                if *left_only {
+                    [area].into()
+                } else if area.width <= 140 {
                     let [left, right] = Layout::horizontal([
                         Constraint::Percentage(50),
                         Constraint::Percentage(50),
