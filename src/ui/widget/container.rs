@@ -10,7 +10,7 @@ use crate::ui::ext::{FooterBlock, FooterBlockType, HeaderBlock};
 use crate::ui::theme::style;
 use crate::ui::{RENDER_WIDTH_LARGE, RENDER_WIDTH_MEDIUM, RENDER_WIDTH_SMALL};
 
-use super::{PredefinedLayout, RenderProps, View, ViewProps, Widget};
+use super::{PredefinedLayout, RenderProps, View, ViewProps, ViewState, Widget};
 
 #[derive(Clone, Debug, Default)]
 pub struct ColumnView {
@@ -581,14 +581,17 @@ where
     }
 }
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct SectionGroupState {
     /// Index of currently focused section.
-    focus: Option<usize>,
+    pub focus: Option<usize>,
 }
 
 #[derive(Clone, Default)]
 pub struct SectionGroupProps {
+    /// Index of currently focused section. If set, it will override the widgets'
+    /// internal state.
+    focus: Option<usize>,
     /// If this pages' keys should be handled.
     handle_keys: bool,
     /// Section layout
@@ -603,6 +606,11 @@ impl SectionGroupProps {
 
     pub fn layout(mut self, layout: PredefinedLayout) -> Self {
         self.layout = layout;
+        self
+    }
+
+    pub fn focus(mut self, focus: Option<usize>) -> Self {
+        self.focus = focus;
         self
     }
 }
@@ -685,9 +693,18 @@ where
         None
     }
 
-    fn update(&mut self, _props: Option<&ViewProps>, state: &Self::State) {
+    fn update(&mut self, props: Option<&ViewProps>, state: &Self::State) {
+        let default = SectionGroupProps::default();
+        let props = props
+            .and_then(|props| props.inner_ref::<SectionGroupProps>())
+            .unwrap_or(&default);
+
         for section in &mut self.sections {
             section.update(state);
+        }
+
+        if props.focus.is_some() && props.focus != self.state.focus {
+            self.state.focus = props.focus;
         }
     }
 
@@ -710,5 +727,9 @@ where
                 section.render(RenderProps::from(*area).focus(focus), frame);
             }
         }
+    }
+
+    fn view_state(&self) -> Option<super::ViewState> {
+        Some(ViewState::SectionGroup(self.state.clone()))
     }
 }
