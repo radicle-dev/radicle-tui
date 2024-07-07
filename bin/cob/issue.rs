@@ -1,3 +1,6 @@
+use std::fmt;
+use std::fmt::Write as _;
+
 use anyhow::Result;
 
 use radicle::cob::issue::{Issue, IssueId};
@@ -42,34 +45,32 @@ impl Filter {
     }
 }
 
-impl ToString for Filter {
-    fn to_string(&self) -> String {
-        let mut filter = String::new();
-
+impl fmt::Display for Filter {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         if let Some(state) = &self.state {
-            filter.push_str(&format!("is:{}", state));
-            filter.push(' ');
+            write!(f, "is:{}", state)?;
+            f.write_char(' ')?;
         }
         if self.assigned {
-            filter.push_str("is:assigned");
-            filter.push(' ');
+            f.write_str("is:assigned")?;
+            f.write_char(' ')?;
         }
         if !self.assignees.is_empty() {
-            filter.push_str("assignees:");
-            filter.push('[');
+            f.write_str("assignees:")?;
+            f.write_char('[')?;
 
             let mut assignees = self.assignees.iter().peekable();
             while let Some(assignee) = assignees.next() {
-                filter.push_str(&assignee.encode());
+                f.write_str(&assignee.encode())?;
 
                 if assignees.peek().is_some() {
-                    filter.push(',');
+                    f.write_char(',')?;
                 }
             }
-            filter.push(']');
+            f.write_char(']')?;
         }
 
-        filter
+        Ok(())
     }
 }
 

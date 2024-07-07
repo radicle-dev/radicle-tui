@@ -1,3 +1,6 @@
+use std::fmt;
+use std::fmt::Write as _;
+
 use anyhow::Result;
 
 use radicle::cob::patch::{Patch, PatchId};
@@ -41,34 +44,32 @@ impl Filter {
     }
 }
 
-impl ToString for Filter {
-    fn to_string(&self) -> String {
-        let mut filter = String::new();
-
+impl fmt::Display for Filter {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         if let Some(state) = &self.status {
-            filter.push_str(&format!("is:{}", state));
-            filter.push(' ');
+            write!(f, "is:{}", state)?;
+            f.write_char(' ')?;
         }
         if self.authored {
-            filter.push_str("is:authored");
-            filter.push(' ');
+            f.write_str("is:authored")?;
+            f.write_char(' ')?;
         }
         if !self.authors.is_empty() {
-            filter.push_str("authors:");
-            filter.push('[');
+            f.write_str("authors:")?;
+            f.write_char('[')?;
 
             let mut authors = self.authors.iter().peekable();
             while let Some(author) = authors.next() {
-                filter.push_str(&author.encode());
+                f.write_str(&author.encode())?;
 
                 if authors.peek().is_some() {
-                    filter.push(',');
+                    f.write_char(',')?;
                 }
             }
-            filter.push(']');
+            f.write_char(']')?;
         }
 
-        filter
+        Ok(())
     }
 }
 

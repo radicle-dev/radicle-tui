@@ -43,6 +43,7 @@ use super::common::{Mode, RepositoryMode};
 
 type Selection = tui::Selection<NotificationId>;
 
+#[allow(dead_code)]
 pub struct Context {
     pub profile: Profile,
     pub repository: Repository,
