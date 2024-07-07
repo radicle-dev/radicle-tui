@@ -20,7 +20,7 @@ pub mod scroll {
         let t = len.saturating_sub(1) as f64;
         let v = y / (t - h) * 100_f64;
 
-        std::cmp::max(0, std::cmp::min(100, v as usize))
+        (v as usize).clamp(0, 100)
     }
 
     fn map_range(from: (f64, f64), to: (f64, f64), value: f64) -> f64 {
