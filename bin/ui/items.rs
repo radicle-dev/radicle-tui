@@ -954,17 +954,21 @@ impl CommentItem {
         }
     }
 
-    pub fn accumulated_reactions(&self) -> HashMap<char, usize> {
-        let mut reactions: HashMap<char, usize> = HashMap::new();
+    pub fn accumulated_reactions(&self) -> Vec<(char, usize)> {
+        let mut accumulated: HashMap<char, usize> = HashMap::new();
+
         for reaction in &self.reactions {
-            if let Some(count) = reactions.get_mut(reaction) {
+            if let Some(count) = accumulated.get_mut(reaction) {
                 *count = count.saturating_add(1);
             } else {
-                reactions.insert(*reaction, 1_usize);
+                accumulated.insert(*reaction, 1_usize);
             }
         }
 
-        reactions
+        let mut sorted = accumulated.into_iter().collect::<Vec<_>>();
+        sorted.sort();
+
+        sorted
     }
 }
 
