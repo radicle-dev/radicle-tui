@@ -129,7 +129,7 @@ pub struct FooterBlock {
     /// Type of the border. The default is plain lines but one can choose to have rounded corners
     /// or doubled lines instead.
     border_type: BorderType,
-    ///
+    /// Type of the footer block. The default is single.
     block_type: FooterBlockType,
     /// Widget style
     style: Style,
