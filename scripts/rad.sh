@@ -26,6 +26,9 @@ if [[ "$1" == "patch" ]] || [[ "$1" == "issue" ]] || [[ "$1" == "inbox" ]]; then
             op=$(extract_operation $out)
             id=$(extract_id $out)
             
+            echo $op
+            echo $id
+            
             rad $1 $op $id
         else
             # Run TUI
@@ -33,7 +36,9 @@ if [[ "$1" == "patch" ]] || [[ "$1" == "issue" ]] || [[ "$1" == "inbox" ]]; then
             { out=$(rad-tui $1 select $args 2>&1 >&3 3>&-); } 3>&1
             id=$(extract_id $out)
             
-            rad $1 $2 $id
+            args=("$@")
+ 
+            rad $1 $2 $id ${args[@]:2}
         fi
     else
         rad $@

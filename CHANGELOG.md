@@ -38,6 +38,10 @@
 - Page size attribute from scrollable widgets
 - Cutoff and footer attributes from table properties
 
+### Fixed
+
+- Broken positional argument passing in `rad.sh` proxy script
+
 ## [0.3.1] - 2024-06-11
 
 ### Added
