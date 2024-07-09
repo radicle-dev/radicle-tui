@@ -28,7 +28,7 @@ pub trait ToRow<const W: usize> {
     fn to_row(&self) -> [Cell; W];
 }
 
-/// Needs to be implemented for items that are supposed to be rendered in tables.
+/// Needs to be implemented for items that are supposed to be rendered in trees.
 pub trait ToTree<Id>
 where
     Id: ToString,
