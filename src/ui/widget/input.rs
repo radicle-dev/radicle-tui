@@ -7,14 +7,23 @@ use ratatui::layout::{Alignment, Constraint, Layout};
 use ratatui::style::{Style, Stylize};
 use ratatui::text::{Line, Span, Text};
 
+use crate::ui::theme::Theme;
+
 use super::{utils, RenderProps, View, ViewProps, ViewState};
 
 #[derive(Clone)]
 pub struct TextFieldProps {
+    /// The label of this input field.
     pub title: String,
-    pub inline_label: bool,
-    pub show_cursor: bool,
+    /// The input text.
     pub text: String,
+    /// Sets if the label should be displayed inline with the input. The default is `false`.
+    pub inline_label: bool,
+    /// Sets if the cursor should be shown. The default is `true`.
+    pub show_cursor: bool,
+    /// Set to `true` if the content style should be dimmed whenever the widget
+    /// has no focus.
+    pub dim: bool,
 }
 
 impl TextFieldProps {
@@ -34,6 +43,11 @@ impl TextFieldProps {
         self.inline_label = inline;
         self
     }
+
+    pub fn dim(mut self, dim: bool) -> Self {
+        self.dim = dim;
+        self
+    }
 }
 
 impl Default for TextFieldProps {
@@ -43,6 +57,7 @@ impl Default for TextFieldProps {
             inline_label: false,
             show_cursor: true,
             text: String::new(),
+            dim: false,
         }
     }
 }
@@ -238,22 +253,33 @@ where
 
         let text = self.state.text.clone().unwrap_or_default();
         let input = text.as_str();
-        let label = format!(" {} ", props.title);
+        let label_content = format!(" {} ", props.title);
         let overline = String::from("▔").repeat(area.width as usize);
         let cursor_pos = self.state.cursor_position as u16;
 
+        let (label, input, overline) = if !render.focus && props.dim {
+            (
+                Span::from(label_content.clone()).magenta().dim().reversed(),
+                Span::from(input).reset().dim(),
+                Span::raw(overline).magenta().dim(),
+            )
+        } else {
+            (
+                Span::from(label_content.clone()).magenta().reversed(),
+                Span::from(input).reset(),
+                Span::raw(overline).magenta(),
+            )
+        };
+
         if props.inline_label {
             let top_layout = Layout::horizontal([
-                Constraint::Length(label.chars().count() as u16),
+                Constraint::Length(label_content.chars().count() as u16),
                 Constraint::Length(1),
                 Constraint::Min(1),
             ])
             .split(layout[0]);
 
-            let label = Span::from(label.clone()).magenta().dim().reversed();
-            let input = Span::from(input).reset();
-
-            let overline = Line::from([Span::raw(overline).magenta().dim()].to_vec());
+            let overline = Line::from([overline].to_vec());
 
             frame.render_widget(label, top_layout[0]);
             frame.render_widget(input, top_layout[2]);
@@ -263,14 +289,8 @@ where
                 frame.set_cursor(top_layout[2].x + cursor_pos, top_layout[2].y)
             }
         } else {
-            let top = Line::from([Span::from(input).reset()].to_vec());
-            let bottom = Line::from(
-                [
-                    Span::from(label).magenta().dim().reversed(),
-                    Span::raw(overline).magenta().dim(),
-                ]
-                .to_vec(),
-            );
+            let top = Line::from([input].to_vec());
+            let bottom = Line::from([label, overline].to_vec());
 
             frame.render_widget(top, layout[0]);
             frame.render_widget(bottom, layout[1]);
@@ -306,6 +326,9 @@ pub struct TextAreaProps<'a> {
     show_scroll_progress: bool,
     /// If this text area should render its cursor progress. Default: `false`.
     show_column_progress: bool,
+    /// Set to `true` if the content style should be dimmed whenever the widget
+    /// has no focus.
+    dim: bool,
 }
 
 impl<'a> Default for TextAreaProps<'a> {
@@ -317,6 +340,7 @@ impl<'a> Default for TextAreaProps<'a> {
             insert_mode: false,
             show_scroll_progress: false,
             show_column_progress: false,
+            dim: false,
         }
     }
 }
@@ -347,6 +371,11 @@ impl<'a> TextAreaProps<'a> {
 
     pub fn handle_keys(mut self, handle_keys: bool) -> Self {
         self.handle_keys = handle_keys;
+        self
+    }
+
+    pub fn dim(mut self, dim: bool) -> Self {
+        self.dim = dim;
         self
     }
 }
@@ -463,10 +492,10 @@ impl<'a, S, M> View for TextArea<'a, S, M> {
         } else {
             cursor_line_style
         };
-        let content_style = if render.focus {
-            Style::default()
-        } else {
+        let content_style = if !render.focus && props.dim {
             Style::default().dim()
+        } else {
+            Style::default()
         };
 
         self.textarea.move_cursor(tui_textarea::CursorMove::Jump(
@@ -550,6 +579,11 @@ pub struct TextViewProps<'a> {
     show_scroll_progress: bool,
     /// An optional text that is rendered inside the footer bar on the bottom.
     footer: Option<Text<'a>>,
+    /// The style used whenever the widget has focus.
+    textview_style: Style,
+    /// Set to `true` if the content style should be dimmed whenever the widget
+    /// has no focus.
+    dim: bool,
 }
 
 impl<'a> TextViewProps<'a> {
@@ -583,16 +617,30 @@ impl<'a> TextViewProps<'a> {
         self.handle_keys = handle_keys;
         self
     }
+
+    pub fn textview_style(mut self, style: Style) -> Self {
+        self.textview_style = style;
+        self
+    }
+
+    pub fn dim(mut self, dim: bool) -> Self {
+        self.dim = dim;
+        self
+    }
 }
 
 impl<'a> Default for TextViewProps<'a> {
     fn default() -> Self {
+        let theme = Theme::default();
+
         Self {
             content: String::new().into(),
             cursor: (0, 0),
             handle_keys: true,
             show_scroll_progress: false,
             footer: None,
+            textview_style: theme.textview_style,
+            dim: false,
         }
     }
 }
@@ -753,10 +801,10 @@ where
         ])
         .areas(area);
 
-        let style = if render.focus {
-            Style::default()
+        let style = if !render.focus && props.dim {
+            props.textview_style.dim()
         } else {
-            Style::default().dim()
+            props.textview_style
         };
 
         let content = ratatui::widgets::Paragraph::new(props.content.clone())

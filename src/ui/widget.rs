@@ -178,6 +178,12 @@ pub struct RenderProps {
 }
 
 impl RenderProps {
+    /// Sets the area to render in.
+    pub fn area(mut self, area: Rect) -> Self {
+        self.area = area;
+        self
+    }
+
     /// Sets the focus of these render props.
     pub fn focus(mut self, focus: bool) -> Self {
         self.focus = focus;

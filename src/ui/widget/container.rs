@@ -7,7 +7,7 @@ use ratatui::prelude::*;
 use ratatui::widgets::{Block, BorderType, Borders, Row};
 
 use crate::ui::ext::{FooterBlock, FooterBlockType, HeaderBlock};
-use crate::ui::theme::style;
+use crate::ui::theme::{style, Theme};
 use crate::ui::{RENDER_WIDTH_LARGE, RENDER_WIDTH_MEDIUM, RENDER_WIDTH_SMALL};
 
 use super::{PredefinedLayout, RenderProps, View, ViewProps, ViewState, Widget};
@@ -95,6 +95,8 @@ pub struct HeaderProps<'a> {
     pub columns: Vec<Column<'a>>,
     pub cutoff: usize,
     pub cutoff_after: usize,
+    pub border_color: Color,
+    pub focus_border_color: Color,
 }
 
 impl<'a> HeaderProps<'a> {
@@ -108,14 +110,28 @@ impl<'a> HeaderProps<'a> {
         self.cutoff_after = cutoff_after;
         self
     }
+
+    pub fn border_color(mut self, color: Color) -> Self {
+        self.border_color = color;
+        self
+    }
+
+    pub fn focus_border_color(mut self, color: Color) -> Self {
+        self.focus_border_color = color;
+        self
+    }
 }
 
 impl<'a> Default for HeaderProps<'a> {
     fn default() -> Self {
+        let theme = Theme::default();
+
         Self {
             columns: vec![],
             cutoff: usize::MAX,
             cutoff_after: usize::MAX,
+            border_color: theme.border_color,
+            focus_border_color: theme.focus_border_color,
         }
     }
 }
@@ -169,10 +185,16 @@ impl<'a: 'static, S, M> View for Header<S, M> {
             })
             .collect::<Vec<_>>();
 
+        let border_style = if render.focus {
+            Style::default().fg(props.focus_border_color)
+        } else {
+            Style::default().fg(props.border_color)
+        };
+
         // Render header
         let block = HeaderBlock::default()
             .borders(Borders::ALL)
-            .border_style(style::border(render.focus))
+            .border_style(border_style)
             .border_type(BorderType::Rounded);
 
         let header_layout = Layout::default()
@@ -198,6 +220,8 @@ pub struct FooterProps<'a> {
     pub columns: Vec<Column<'a>>,
     pub cutoff: usize,
     pub cutoff_after: usize,
+    pub border_color: Color,
+    pub focus_border_color: Color,
 }
 
 impl<'a> FooterProps<'a> {
@@ -211,14 +235,28 @@ impl<'a> FooterProps<'a> {
         self.cutoff_after = cutoff_after;
         self
     }
+
+    pub fn border_color(mut self, color: Color) -> Self {
+        self.border_color = color;
+        self
+    }
+
+    pub fn focus_border_color(mut self, color: Color) -> Self {
+        self.focus_border_color = color;
+        self
+    }
 }
 
 impl<'a> Default for FooterProps<'a> {
     fn default() -> Self {
+        let theme = Theme::default();
+
         Self {
             columns: vec![],
             cutoff: usize::MAX,
             cutoff_after: usize::MAX,
+            border_color: theme.border_color,
+            focus_border_color: theme.focus_border_color,
         }
     }
 }
@@ -240,22 +278,22 @@ impl<'a, S, M> Footer<S, M> {
     fn render_cell(
         &self,
         frame: &mut ratatui::Frame,
-        area: Rect,
+        border_style: Style,
+        render: RenderProps,
         block_type: FooterBlockType,
         text: impl Into<Text<'a>>,
-        focus: bool,
     ) {
         let footer_layout = Layout::default()
             .direction(Direction::Vertical)
             .constraints(vec![Constraint::Min(1)])
             .vertical_margin(1)
             .horizontal_margin(1)
-            .split(area);
+            .split(render.area);
 
         let footer_block = FooterBlock::default()
-            .border_style(style::border(focus))
+            .border_style(border_style)
             .block_type(block_type);
-        frame.render_widget(footer_block, area);
+        frame.render_widget(footer_block, render.area);
         frame.render_widget(text.into(), footer_layout[0]);
     }
 }
@@ -269,6 +307,12 @@ impl<'a: 'static, S, M> View for Footer<S, M> {
         let props = props
             .and_then(|props| props.inner_ref::<FooterProps>())
             .unwrap_or(&default);
+
+        let border_style = if render.focus {
+            Style::default().fg(props.focus_border_color)
+        } else {
+            Style::default().fg(props.border_color)
+        };
 
         let widths = props
             .columns
@@ -297,19 +341,49 @@ impl<'a: 'static, S, M> View for Footer<S, M> {
                 _ if i == last => FooterBlockType::End,
                 _ => FooterBlockType::Repeat,
             };
-            self.render_cell(frame, *area, block_type, cell.clone(), render.focus);
+            self.render_cell(
+                frame,
+                border_style,
+                render.clone().area(*area),
+                block_type,
+                cell.clone(),
+            );
         }
     }
 }
 
-#[derive(Clone, Default)]
+#[derive(Clone)]
 pub struct ContainerProps {
     hide_footer: bool,
+    border_color: Color,
+    focus_border_color: Color,
+}
+
+impl Default for ContainerProps {
+    fn default() -> Self {
+        let theme = Theme::default();
+
+        Self {
+            hide_footer: false,
+            border_color: theme.border_color,
+            focus_border_color: theme.focus_border_color,
+        }
+    }
 }
 
 impl ContainerProps {
     pub fn hide_footer(mut self, hide: bool) -> Self {
         self.hide_footer = hide;
+        self
+    }
+
+    pub fn border_color(mut self, color: Color) -> Self {
+        self.border_color = color;
+        self
+    }
+
+    pub fn focus_border_color(mut self, color: Color) -> Self {
+        self.focus_border_color = color;
         self
     }
 }
@@ -386,6 +460,12 @@ where
             .and_then(|props| props.inner_ref::<ContainerProps>())
             .unwrap_or(&default);
 
+        let border_style = if render.focus {
+            Style::default().fg(props.focus_border_color)
+        } else {
+            Style::default().fg(props.border_color)
+        };
+
         let header_h = if self.header.is_some() { 3 } else { 0 };
         let footer_h = if self.footer.is_some() && !props.hide_footer {
             3
@@ -411,7 +491,7 @@ where
         };
 
         let block = Block::default()
-            .border_style(style::border(render.focus))
+            .border_style(border_style)
             .border_type(BorderType::Rounded)
             .borders(borders);
         frame.render_widget(block.clone(), content_area);
@@ -440,10 +520,25 @@ pub enum SplitContainerFocus {
     Bottom,
 }
 
-#[derive(Clone, Default)]
+#[derive(Clone)]
 pub struct SplitContainerProps {
     split_focus: SplitContainerFocus,
     heights: [Constraint; 2],
+    border_color: Color,
+    focus_border_color: Color,
+}
+
+impl Default for SplitContainerProps {
+    fn default() -> Self {
+        let theme = Theme::default();
+
+        Self {
+            split_focus: SplitContainerFocus::default(),
+            heights: [Constraint::Percentage(50), Constraint::Percentage(50)],
+            border_color: theme.border_color,
+            focus_border_color: theme.focus_border_color,
+        }
+    }
 }
 
 impl SplitContainerProps {
@@ -454,6 +549,16 @@ impl SplitContainerProps {
 
     pub fn heights(mut self, heights: [Constraint; 2]) -> Self {
         self.heights = heights;
+        self
+    }
+
+    pub fn border_color(mut self, color: Color) -> Self {
+        self.border_color = color;
+        self
+    }
+
+    pub fn focus_border_color(mut self, color: Color) -> Self {
+        self.focus_border_color = color;
         self
     }
 }
@@ -544,12 +649,18 @@ where
             })
             .collect::<Vec<_>>();
 
+        let border_style = if render.focus {
+            Style::default().fg(props.focus_border_color)
+        } else {
+            Style::default().fg(props.border_color)
+        };
+
         let [top_area, bottom_area] = Layout::vertical(heights).areas(render.area);
 
         if let Some(top) = self.top.as_mut() {
             let block = HeaderBlock::default()
                 .borders(Borders::ALL)
-                .border_style(style::border(render.focus))
+                .border_style(border_style)
                 .border_type(BorderType::Rounded);
 
             frame.render_widget(block, top_area);
@@ -566,7 +677,7 @@ where
         if let Some(bottom) = self.bottom.as_mut() {
             let block = Block::default()
                 .borders(Borders::LEFT | Borders::RIGHT | Borders::BOTTOM)
-                .border_style(style::border(render.focus))
+                .border_style(border_style)
                 .border_type(BorderType::Rounded);
 
             frame.render_widget(block, bottom_area);

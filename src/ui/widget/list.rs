@@ -45,6 +45,7 @@ where
     pub selected: Option<usize>,
     pub columns: Vec<Column<'a>>,
     pub show_scrollbar: bool,
+    pub dim: bool,
 }
 
 impl<'a, R, const W: usize> Default for TableProps<'a, R, W>
@@ -57,6 +58,7 @@ where
             columns: vec![],
             show_scrollbar: true,
             selected: Some(0),
+            dim: false,
         }
     }
 }
@@ -82,6 +84,11 @@ where
 
     pub fn show_scrollbar(mut self, show_scrollbar: bool) -> Self {
         self.show_scrollbar = show_scrollbar;
+        self
+    }
+
+    pub fn dim(mut self, dim: bool) -> Self {
+        self.dim = dim;
         self
     }
 }
@@ -264,7 +271,7 @@ where
                     for cell in item.to_row() {
                         if let Some(col) = it.next() {
                             if !col.skip && col.displayed(render.area.width as usize) {
-                                cells.push(cell.clone());
+                                cells.push(cell.clone())
                             }
                         } else {
                             continue;
@@ -275,12 +282,19 @@ where
                 })
                 .collect::<Vec<_>>();
 
-            let rows = ratatui::widgets::Table::default()
+            let table = ratatui::widgets::Table::default()
                 .rows(rows)
                 .widths(widths)
                 .column_spacing(1)
                 .highlight_style(style::highlight(render.focus));
-            frame.render_stateful_widget(rows, table_area, &mut self.state.0);
+
+            let table = if !render.focus && props.dim {
+                table.dim()
+            } else {
+                table
+            };
+
+            frame.render_stateful_widget(table, table_area, &mut self.state.0);
 
             let scroller = Scrollbar::default()
                 .begin_symbol(None)
@@ -339,6 +353,9 @@ where
     /// Optional identifier set of opened items. If not `None`,
     /// it will override the internal tree state.
     pub opened: Option<HashSet<Vec<Id>>>,
+    /// Set to `true` if the content style should be dimmed whenever the widget
+    /// has no focus.
+    pub dim: bool,
 }
 
 impl<R, Id> Default for TreeProps<R, Id>
@@ -352,6 +369,7 @@ where
             selected: None,
             show_scrollbar: true,
             opened: None,
+            dim: false,
         }
     }
 }
@@ -378,6 +396,11 @@ where
 
     pub fn show_scrollbar(mut self, show_scrollbar: bool) -> Self {
         self.show_scrollbar = show_scrollbar;
+        self
+    }
+
+    pub fn dim(mut self, dim: bool) -> Self {
+        self.dim = dim;
         self
     }
 }
@@ -476,6 +499,12 @@ where
             items.extend(item.rows());
         }
 
+        let tree_style = if !render.focus && props.dim {
+            Style::default().dim()
+        } else {
+            Style::default()
+        };
+
         let tree = if props.show_scrollbar {
             tui_tree_widget::Tree::new(&items)
                 .expect("all item identifiers are unique")
@@ -500,9 +529,11 @@ where
                         .thumb_symbol("┃"),
                 ))
                 .highlight_style(style::highlight(render.focus))
+                .style(tree_style)
         } else {
             tui_tree_widget::Tree::new(&items)
                 .expect("all item identifiers are unique")
+                .style(tree_style)
                 .highlight_style(style::highlight(render.focus))
         };
 

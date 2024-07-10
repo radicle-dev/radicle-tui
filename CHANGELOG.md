@@ -15,6 +15,7 @@
 - Per-column visibility for tables depending on their render width
 - Tables can render a scrollbar
 - Predefined layouts for section groups
+- Basic theming support via widget properties
 - New widgets:
 - `SplitContainer`: Vertically split container
 - `Tree`: Generic tree widget

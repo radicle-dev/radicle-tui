@@ -5,11 +5,11 @@ use ratatui::Frame;
 use termion::event::Key;
 
 use ratatui::layout::{Constraint, Layout};
-use ratatui::style::Stylize;
+use ratatui::style::{Style, Stylize};
 use ratatui::text::Text;
 use ratatui::widgets::Row;
 
-use crate::ui::theme::style;
+use crate::ui::theme::{style, Theme};
 
 use super::{RenderProps, View, ViewProps, Widget};
 
@@ -206,6 +206,8 @@ where
 pub struct ShortcutsProps {
     pub shortcuts: Vec<(String, String)>,
     pub divider: char,
+    pub shortcuts_keys_style: Style,
+    pub shortcuts_action_style: Style,
 }
 
 impl ShortcutsProps {
@@ -221,13 +223,27 @@ impl ShortcutsProps {
         }
         self
     }
+
+    pub fn shortcuts_keys_style(mut self, style: Style) -> Self {
+        self.shortcuts_keys_style = style;
+        self
+    }
+
+    pub fn shortcuts_action_style(mut self, style: Style) -> Self {
+        self.shortcuts_action_style = style;
+        self
+    }
 }
 
 impl Default for ShortcutsProps {
     fn default() -> Self {
+        let theme = Theme::default();
+
         Self {
             shortcuts: vec![],
             divider: '∙',
+            shortcuts_keys_style: theme.shortcuts_keys_style,
+            shortcuts_action_style: theme.shortcuts_action_style,
         }
     }
 }
@@ -261,8 +277,8 @@ impl<S, M> View for Shortcuts<S, M> {
         let mut row = vec![];
 
         while let Some(shortcut) = shortcuts.next() {
-            let short = Text::from(shortcut.0.clone()).style(style::gray());
-            let long = Text::from(shortcut.1.clone()).style(style::gray().dim());
+            let short = Text::from(shortcut.0.clone()).style(props.shortcuts_keys_style);
+            let long = Text::from(shortcut.1.clone()).style(props.shortcuts_action_style);
             let spacer = Text::from(String::new());
             let divider = Text::from(format!(" {} ", props.divider)).style(style::gray().dim());
 

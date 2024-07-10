@@ -1,3 +1,45 @@
+use ratatui::style::{Color, Style, Stylize};
+
+#[derive(Clone, Debug)]
+pub struct Theme {
+    pub border_color: Color,
+    pub focus_border_color: Color,
+    pub shortcuts_keys_style: Style,
+    pub shortcuts_action_style: Style,
+    pub textview_style: Style,
+    pub dim_no_focus: bool,
+}
+
+impl Default for Theme {
+    fn default() -> Self {
+        Self::default_dark()
+    }
+}
+
+impl Theme {
+    pub fn default_light() -> Self {
+        Self {
+            border_color: Color::Rgb(170, 170, 170),
+            focus_border_color: Color::Black,
+            shortcuts_keys_style: style::yellow(),
+            shortcuts_action_style: style::reset(),
+            textview_style: style::reset(),
+            dim_no_focus: true,
+        }
+    }
+
+    pub fn default_dark() -> Self {
+        Self {
+            border_color: Color::Indexed(236),
+            focus_border_color: Color::Indexed(238),
+            shortcuts_keys_style: style::yellow().dim(),
+            shortcuts_action_style: style::gray(),
+            textview_style: style::reset(),
+            dim_no_focus: true,
+        }
+    }
+}
+
 pub mod style {
     use ratatui::style::{Color, Style, Stylize};
 
@@ -39,14 +81,6 @@ pub mod style {
 
     pub fn darkgray() -> Style {
         Style::default().fg(Color::DarkGray)
-    }
-
-    pub fn border(focus: bool) -> Style {
-        if focus {
-            Style::default().fg(Color::Indexed(238))
-        } else {
-            Style::default().fg(Color::Indexed(236))
-        }
     }
 
     pub fn highlight(focus: bool) -> Style {
