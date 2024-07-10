@@ -172,7 +172,7 @@ impl<'a: 'static, S, M> View for Header<S, M> {
         // Render header
         let block = HeaderBlock::default()
             .borders(Borders::ALL)
-            .border_style(style::border(render.focus))
+            .border_style(style::border(render.focus, render.mode))
             .border_type(BorderType::Rounded);
 
         let header_layout = Layout::default()
@@ -240,22 +240,21 @@ impl<'a, S, M> Footer<S, M> {
     fn render_cell(
         &self,
         frame: &mut ratatui::Frame,
-        area: Rect,
+        render: RenderProps,
         block_type: FooterBlockType,
         text: impl Into<Text<'a>>,
-        focus: bool,
     ) {
         let footer_layout = Layout::default()
             .direction(Direction::Vertical)
             .constraints(vec![Constraint::Min(1)])
             .vertical_margin(1)
             .horizontal_margin(1)
-            .split(area);
+            .split(render.area);
 
         let footer_block = FooterBlock::default()
-            .border_style(style::border(focus))
+            .border_style(style::border(render.focus, render.mode))
             .block_type(block_type);
-        frame.render_widget(footer_block, area);
+        frame.render_widget(footer_block, render.area);
         frame.render_widget(text.into(), footer_layout[0]);
     }
 }
@@ -297,7 +296,7 @@ impl<'a: 'static, S, M> View for Footer<S, M> {
                 _ if i == last => FooterBlockType::End,
                 _ => FooterBlockType::Repeat,
             };
-            self.render_cell(frame, *area, block_type, cell.clone(), render.focus);
+            self.render_cell(frame, render.clone().area(*area), block_type, cell.clone());
         }
     }
 }
@@ -411,7 +410,7 @@ where
         };
 
         let block = Block::default()
-            .border_style(style::border(render.focus))
+            .border_style(style::border(render.focus, render.mode))
             .border_type(BorderType::Rounded)
             .borders(borders);
         frame.render_widget(block.clone(), content_area);
@@ -549,7 +548,7 @@ where
         if let Some(top) = self.top.as_mut() {
             let block = HeaderBlock::default()
                 .borders(Borders::ALL)
-                .border_style(style::border(render.focus))
+                .border_style(style::border(render.focus, render.mode.clone()))
                 .border_type(BorderType::Rounded);
 
             frame.render_widget(block, top_area);
@@ -566,7 +565,7 @@ where
         if let Some(bottom) = self.bottom.as_mut() {
             let block = Block::default()
                 .borders(Borders::LEFT | Borders::RIGHT | Borders::BOTTOM)
-                .border_style(style::border(render.focus))
+                .border_style(style::border(render.focus, render.mode))
                 .border_type(BorderType::Rounded);
 
             frame.render_widget(block, bottom_area);
@@ -724,7 +723,7 @@ where
                     .map(|focus_index| index == focus_index)
                     .unwrap_or_default();
 
-                section.render(RenderProps::from(*area).focus(focus), frame);
+                section.render(RenderProps::from(*area).focus(focus).mode(render.mode.clone()), frame);
             }
         }
     }

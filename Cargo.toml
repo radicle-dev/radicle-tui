@@ -39,6 +39,7 @@ serde = { version = "1.0", features = ["derive"] }
 serde_json = { version = "1.0" }
 signal-hook = { version = "0.3.17" }
 timeago = { version = "0.4.1" }
+terminal-light = { version = "1.4.0" }
 termion = { version = "3" }
 textwrap = { version = "0.16.0" }
 thiserror = { version = "1" }

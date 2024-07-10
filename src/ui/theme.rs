@@ -1,5 +1,14 @@
+#[derive(Clone, Default)]
+pub enum Mode {
+    #[default]
+    Light,
+    Dark,
+}
+
 pub mod style {
     use ratatui::style::{Color, Style, Stylize};
+
+    use super::Mode;
 
     pub fn reset() -> Style {
         Style::default().fg(Color::Reset)
@@ -41,11 +50,24 @@ pub mod style {
         Style::default().fg(Color::DarkGray)
     }
 
-    pub fn border(focus: bool) -> Style {
-        if focus {
-            Style::default().fg(Color::Indexed(238))
-        } else {
-            Style::default().fg(Color::Indexed(236))
+    pub fn border(focus: bool, mode: Mode) -> Style {
+        match mode {
+            Mode::Light => {
+                log::warn!("light...");
+                if focus {
+                    Style::default().fg(Color::Black)
+                } else {
+                    Style::default().fg(Color::Gray)
+                }
+            }
+            Mode::Dark => {
+                log::warn!("dark...");
+                if focus {
+                    Style::default().fg(Color::Indexed(238))
+                } else {
+                    Style::default().fg(Color::Indexed(236))
+                }
+            }
         }
     }
 
