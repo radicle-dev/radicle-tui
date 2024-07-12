@@ -26,6 +26,7 @@ anyhow = { version = "1" }
 inquire = { version = "0.7.4", default-features = false, features = ["termion", "editor"] }
 lexopt = { version = "0.3.0" }
 fuzzy-matcher = "0.3.7"
+lazy_static = { version = "1.5.0" }
 libc = { version = "^0.2" }
 log = { version = "0.4.19" }
 nom = { version = "^7.1.0" }

@@ -126,7 +126,8 @@ impl Browser {
                     let props = BrowserProps::from(state);
                     HeaderProps::default()
                         .columns(props.header.clone())
-                        .theme(state.theme.clone())
+                        .border_color(state.settings.theme.border_color)
+                        .focus_border_color(state.settings.theme.focus_border_color)
                         .to_boxed_any()
                         .into()
                 }))
@@ -156,15 +157,17 @@ impl Browser {
 
                     FooterProps::default()
                         .columns(browse_footer(&props))
-                        .theme(state.theme.clone())
+                        .border_color(state.settings.theme.border_color)
+                        .focus_border_color(state.settings.theme.focus_border_color)
                         .to_boxed_any()
                         .into()
                 }))
                 .to_widget(tx.clone())
                 .on_update(|state| {
                     ContainerProps::default()
+                        .border_color(state.settings.theme.border_color)
+                        .focus_border_color(state.settings.theme.focus_border_color)
                         .hide_footer(BrowserProps::from(state).show_search)
-                        .theme(state.theme.clone())
                         .to_boxed_any()
                         .into()
                 }),
