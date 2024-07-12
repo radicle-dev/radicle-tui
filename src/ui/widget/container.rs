@@ -95,7 +95,8 @@ pub struct HeaderProps<'a> {
     pub columns: Vec<Column<'a>>,
     pub cutoff: usize,
     pub cutoff_after: usize,
-    pub theme: Theme,
+    pub border_color: Color,
+    pub focus_border_color: Color,
 }
 
 impl<'a> HeaderProps<'a> {
@@ -110,19 +111,27 @@ impl<'a> HeaderProps<'a> {
         self
     }
 
-    pub fn theme(mut self, theme: Theme) -> Self {
-        self.theme = theme;
+    pub fn border_color(mut self, color: Color) -> Self {
+        self.border_color = color;
+        self
+    }
+
+    pub fn focus_border_color(mut self, color: Color) -> Self {
+        self.focus_border_color = color;
         self
     }
 }
 
 impl<'a> Default for HeaderProps<'a> {
     fn default() -> Self {
+        let theme = Theme::default();
+
         Self {
             columns: vec![],
             cutoff: usize::MAX,
             cutoff_after: usize::MAX,
-            theme: Theme::default(),
+            border_color: theme.border_color,
+            focus_border_color: theme.focus_border_color,
         }
     }
 }
@@ -176,10 +185,16 @@ impl<'a: 'static, S, M> View for Header<S, M> {
             })
             .collect::<Vec<_>>();
 
+        let border_style = if render.focus {
+            Style::default().fg(props.focus_border_color)
+        } else {
+            Style::default().fg(props.border_color)
+        };
+
         // Render header
         let block = HeaderBlock::default()
             .borders(Borders::ALL)
-            .border_style(props.theme.border_style(render.focus))
+            .border_style(border_style)
             .border_type(BorderType::Rounded);
 
         let header_layout = Layout::default()
@@ -205,7 +220,8 @@ pub struct FooterProps<'a> {
     pub columns: Vec<Column<'a>>,
     pub cutoff: usize,
     pub cutoff_after: usize,
-    pub theme: Theme,
+    pub border_color: Color,
+    pub focus_border_color: Color,
 }
 
 impl<'a> FooterProps<'a> {
@@ -220,19 +236,27 @@ impl<'a> FooterProps<'a> {
         self
     }
 
-    pub fn theme(mut self, theme: Theme) -> Self {
-        self.theme = theme;
+    pub fn border_color(mut self, color: Color) -> Self {
+        self.border_color = color;
+        self
+    }
+
+    pub fn focus_border_color(mut self, color: Color) -> Self {
+        self.focus_border_color = color;
         self
     }
 }
 
 impl<'a> Default for FooterProps<'a> {
     fn default() -> Self {
+        let theme = Theme::default();
+
         Self {
             columns: vec![],
             cutoff: usize::MAX,
             cutoff_after: usize::MAX,
-            theme: Theme::default(),
+            border_color: theme.border_color,
+            focus_border_color: theme.focus_border_color,
         }
     }
 }
@@ -254,7 +278,7 @@ impl<'a, S, M> Footer<S, M> {
     fn render_cell(
         &self,
         frame: &mut ratatui::Frame,
-        theme: &Theme,
+        border_style: Style,
         render: RenderProps,
         block_type: FooterBlockType,
         text: impl Into<Text<'a>>,
@@ -267,7 +291,7 @@ impl<'a, S, M> Footer<S, M> {
             .split(render.area);
 
         let footer_block = FooterBlock::default()
-            .border_style(theme.border_style(render.focus))
+            .border_style(border_style)
             .block_type(block_type);
         frame.render_widget(footer_block, render.area);
         frame.render_widget(text.into(), footer_layout[0]);
@@ -283,6 +307,12 @@ impl<'a: 'static, S, M> View for Footer<S, M> {
         let props = props
             .and_then(|props| props.inner_ref::<FooterProps>())
             .unwrap_or(&default);
+
+        let border_style = if render.focus {
+            Style::default().fg(props.focus_border_color)
+        } else {
+            Style::default().fg(props.border_color)
+        };
 
         let widths = props
             .columns
@@ -313,7 +343,7 @@ impl<'a: 'static, S, M> View for Footer<S, M> {
             };
             self.render_cell(
                 frame,
-                &props.theme,
+                border_style,
                 render.clone().area(*area),
                 block_type,
                 cell.clone(),
@@ -322,10 +352,23 @@ impl<'a: 'static, S, M> View for Footer<S, M> {
     }
 }
 
-#[derive(Clone, Default)]
+#[derive(Clone)]
 pub struct ContainerProps {
     hide_footer: bool,
-    theme: Theme,
+    border_color: Color,
+    focus_border_color: Color,
+}
+
+impl Default for ContainerProps {
+    fn default() -> Self {
+        let theme = Theme::default();
+
+        Self {
+            hide_footer: false,
+            border_color: theme.border_color,
+            focus_border_color: theme.focus_border_color,
+        }
+    }
 }
 
 impl ContainerProps {
@@ -334,8 +377,13 @@ impl ContainerProps {
         self
     }
 
-    pub fn theme(mut self, theme: Theme) -> Self {
-        self.theme = theme;
+    pub fn border_color(mut self, color: Color) -> Self {
+        self.border_color = color;
+        self
+    }
+
+    pub fn focus_border_color(mut self, color: Color) -> Self {
+        self.focus_border_color = color;
         self
     }
 }
@@ -412,7 +460,11 @@ where
             .and_then(|props| props.inner_ref::<ContainerProps>())
             .unwrap_or(&default);
 
-        let border_style = props.theme.border_style(render.focus);
+        let border_style = if render.focus {
+            Style::default().fg(props.focus_border_color)
+        } else {
+            Style::default().fg(props.border_color)
+        };
 
         let header_h = if self.header.is_some() { 3 } else { 0 };
         let footer_h = if self.footer.is_some() && !props.hide_footer {
@@ -468,11 +520,25 @@ pub enum SplitContainerFocus {
     Bottom,
 }
 
-#[derive(Clone, Default)]
+#[derive(Clone)]
 pub struct SplitContainerProps {
     split_focus: SplitContainerFocus,
     heights: [Constraint; 2],
-    theme: Theme,
+    border_color: Color,
+    focus_border_color: Color,
+}
+
+impl Default for SplitContainerProps {
+    fn default() -> Self {
+        let theme = Theme::default();
+
+        Self {
+            split_focus: SplitContainerFocus::default(),
+            heights: [Constraint::Percentage(50), Constraint::Percentage(50)],
+            border_color: theme.border_color,
+            focus_border_color: theme.focus_border_color,
+        }
+    }
 }
 
 impl SplitContainerProps {
@@ -486,8 +552,13 @@ impl SplitContainerProps {
         self
     }
 
-    pub fn theme(mut self, theme: Theme) -> Self {
-        self.theme = theme;
+    pub fn border_color(mut self, color: Color) -> Self {
+        self.border_color = color;
+        self
+    }
+
+    pub fn focus_border_color(mut self, color: Color) -> Self {
+        self.focus_border_color = color;
         self
     }
 }
@@ -577,7 +648,12 @@ where
                 }
             })
             .collect::<Vec<_>>();
-        let border_style = props.theme.border_style(render.focus);
+
+        let border_style = if render.focus {
+            Style::default().fg(props.focus_border_color)
+        } else {
+            Style::default().fg(props.border_color)
+        };
 
         let [top_area, bottom_area] = Layout::vertical(heights).areas(render.area);
 

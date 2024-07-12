@@ -1,4 +1,4 @@
-use ratatui::style::{Color, Style};
+use ratatui::style::Color;
 
 #[derive(Clone, Default)]
 pub enum Mode {
@@ -9,38 +9,15 @@ pub enum Mode {
 
 #[derive(Clone, Debug)]
 pub struct Theme {
-    border_color: Color,
-    focus_border_color: Color,
+    pub border_color: Color,
+    pub focus_border_color: Color,
 }
 
 impl Default for Theme {
     fn default() -> Self {
-        Self::default_dark()
-    }
-}
-
-impl Theme {
-    pub fn default_dark() -> Self {
         Self {
             border_color: Color::Indexed(236),
             focus_border_color: Color::Indexed(238),
-        }
-    }
-
-    pub fn default_light() -> Self {
-        Self {
-            // border_color: style::gray().fg.unwrap_or_default(),
-            // focus_border_color: Color::Reset,
-            border_color: Color::Rgb(170, 170, 170),
-            focus_border_color: Color::Black,
-        }
-    }
-
-    pub fn border_style(&self, focus: bool) -> Style {
-        if focus {
-            Style::default().fg(self.focus_border_color)
-        } else {
-            Style::default().fg(self.border_color)
         }
     }
 }
@@ -86,32 +63,6 @@ pub mod style {
 
     pub fn darkgray() -> Style {
         Style::default().fg(Color::DarkGray)
-    }
-
-    pub fn border(focus: bool) -> Style {
-        // match mode {
-        //     Mode::Light => {
-        //         log::warn!("light...");
-        //         if focus {
-        //             Style::default().fg(Color::Black)
-        //         } else {
-        //             Style::default().fg(Color::Gray)
-        //         }
-        //     }
-        //     Mode::Dark => {
-        //         log::warn!("dark...");
-        //         if focus {
-        //             Style::default().fg(Color::Indexed(238))
-        //         } else {
-        //             Style::default().fg(Color::Indexed(236))
-        //         }
-        //     }
-        // }
-        if focus {
-            Style::default().fg(Color::Indexed(238))
-        } else {
-            Style::default().fg(Color::Indexed(236))
-        }
     }
 
     pub fn highlight(focus: bool) -> Style {
