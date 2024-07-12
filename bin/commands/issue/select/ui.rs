@@ -126,6 +126,7 @@ impl Browser {
                     let props = BrowserProps::from(state);
                     HeaderProps::default()
                         .columns(props.header.clone())
+                        .theme(state.theme.clone())
                         .to_boxed_any()
                         .into()
                 }))
@@ -155,6 +156,7 @@ impl Browser {
 
                     FooterProps::default()
                         .columns(browse_footer(&props))
+                        .theme(state.theme.clone())
                         .to_boxed_any()
                         .into()
                 }))
@@ -162,6 +164,7 @@ impl Browser {
                 .on_update(|state| {
                     ContainerProps::default()
                         .hide_footer(BrowserProps::from(state).show_search)
+                        .theme(state.theme.clone())
                         .to_boxed_any()
                         .into()
                 }),

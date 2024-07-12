@@ -18,6 +18,7 @@ use radicle_tui as tui;
 use tui::log;
 
 use crate::cob;
+use crate::ui::TerminalInfo;
 
 pub const HELP: Help = Help {
     name: "issue",
@@ -156,7 +157,11 @@ pub async fn run(options: Options, ctx: impl terminal::Context) -> anyhow::Resul
                 repository,
                 mode: opts.mode,
                 filter: opts.filter.clone(),
+                terminal_info: TerminalInfo {
+                    luma: terminal_light::luma().ok(),
+                },
             };
+
             let output = select::App::new(context).run().await?;
 
             let output = output

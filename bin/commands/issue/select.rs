@@ -23,9 +23,10 @@ use radicle_tui as tui;
 use tui::store;
 use tui::store::StateValue;
 use tui::ui::span;
+use tui::ui::theme::Theme;
 use tui::ui::widget::container::{
-    Column, Container, Footer, FooterProps, Header, HeaderProps, SectionGroup, SectionGroupProps,
-    SplitContainer, SplitContainerFocus, SplitContainerProps,
+    Column, Container, ContainerProps, Footer, FooterProps, Header, HeaderProps, SectionGroup,
+    SectionGroupProps, SplitContainer, SplitContainerFocus, SplitContainerProps,
 };
 use tui::ui::widget::input::{TextView, TextViewProps};
 use tui::ui::widget::list::{Tree, TreeProps};
@@ -36,6 +37,7 @@ use tui::{BoxedAny, Channel, Exit, PageStack};
 use crate::cob::issue;
 use crate::ui::items::{CommentItem, Filter, IssueItem, IssueItemFilter};
 use crate::ui::widget::{IssueDetails, IssueDetailsProps};
+use crate::ui::TerminalInfo;
 
 use self::ui::{Browser, BrowserProps};
 
@@ -48,6 +50,7 @@ pub struct Context {
     pub repository: Repository,
     pub mode: Mode,
     pub filter: issue::Filter,
+    pub terminal_info: TerminalInfo,
 }
 
 pub struct App {
@@ -230,6 +233,7 @@ pub struct State {
     preview: PreviewState,
     section: Option<Section>,
     help: HelpState,
+    theme: Theme,
 }
 
 impl TryFrom<&Context> for State {
@@ -239,6 +243,12 @@ impl TryFrom<&Context> for State {
         let issues = issue::all(&context.profile, &context.repository)?;
         let search = StateValue::new(context.filter.to_string());
         let filter = IssueItemFilter::from_str(&search.read()).unwrap_or_default();
+
+        let theme = match context.terminal_info.luma {
+            Some(luma) if luma <= 0.6 => Theme::default_dark(),
+            Some(luma) if luma > 0.6 => Theme::default_light(),
+            _ => Theme::default(),
+        };
 
         // Convert into UI items
         let mut items = vec![];
@@ -282,6 +292,7 @@ impl TryFrom<&Context> for State {
                 scroll: 0,
                 cursor: (0, 0),
             },
+            theme,
         })
     }
 }
@@ -548,10 +559,11 @@ fn issue(channel: &Channel<Message>) -> Widget<State, Message> {
         .top(issue_details(channel))
         .bottom(comment_tree(channel))
         .to_widget(tx.clone())
-        .on_update(|_| {
+        .on_update(|state| {
             SplitContainerProps::default()
                 .heights([Constraint::Length(5), Constraint::Min(1)])
                 .split_focus(SplitContainerFocus::Bottom)
+                .theme(state.theme.clone())
                 .to_boxed_any()
                 .into()
         })
@@ -641,6 +653,12 @@ fn comment(channel: &Channel<Message>) -> Widget<State, Message> {
                 }),
         )
         .to_widget(tx.clone())
+        .on_update(|state| {
+            ContainerProps::default()
+                .theme(state.theme.clone())
+                .to_boxed_any()
+                .into()
+        })
 }
 
 fn help_page(channel: &Channel<Message>) -> Widget<State, Message> {
