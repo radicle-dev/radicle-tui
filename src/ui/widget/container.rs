@@ -7,7 +7,7 @@ use ratatui::prelude::*;
 use ratatui::widgets::{Block, BorderType, Borders, Row};
 
 use crate::ui::ext::{FooterBlock, FooterBlockType, HeaderBlock};
-use crate::ui::theme::style;
+use crate::ui::theme::{style, Theme};
 use crate::ui::{RENDER_WIDTH_LARGE, RENDER_WIDTH_MEDIUM, RENDER_WIDTH_SMALL};
 
 use super::{PredefinedLayout, RenderProps, View, ViewProps, ViewState, Widget};
@@ -95,6 +95,7 @@ pub struct HeaderProps<'a> {
     pub columns: Vec<Column<'a>>,
     pub cutoff: usize,
     pub cutoff_after: usize,
+    pub theme: Theme,
 }
 
 impl<'a> HeaderProps<'a> {
@@ -108,6 +109,11 @@ impl<'a> HeaderProps<'a> {
         self.cutoff_after = cutoff_after;
         self
     }
+
+    pub fn theme(mut self, theme: Theme) -> Self {
+        self.theme = theme;
+        self
+    }
 }
 
 impl<'a> Default for HeaderProps<'a> {
@@ -116,6 +122,7 @@ impl<'a> Default for HeaderProps<'a> {
             columns: vec![],
             cutoff: usize::MAX,
             cutoff_after: usize::MAX,
+            theme: Theme::default(),
         }
     }
 }
@@ -172,7 +179,7 @@ impl<'a: 'static, S, M> View for Header<S, M> {
         // Render header
         let block = HeaderBlock::default()
             .borders(Borders::ALL)
-            .border_style(style::border(render.focus, render.mode))
+            .border_style(props.theme.border_style(render.focus))
             .border_type(BorderType::Rounded);
 
         let header_layout = Layout::default()
@@ -198,6 +205,7 @@ pub struct FooterProps<'a> {
     pub columns: Vec<Column<'a>>,
     pub cutoff: usize,
     pub cutoff_after: usize,
+    pub theme: Theme,
 }
 
 impl<'a> FooterProps<'a> {
@@ -211,6 +219,11 @@ impl<'a> FooterProps<'a> {
         self.cutoff_after = cutoff_after;
         self
     }
+
+    pub fn theme(mut self, theme: Theme) -> Self {
+        self.theme = theme;
+        self
+    }
 }
 
 impl<'a> Default for FooterProps<'a> {
@@ -219,6 +232,7 @@ impl<'a> Default for FooterProps<'a> {
             columns: vec![],
             cutoff: usize::MAX,
             cutoff_after: usize::MAX,
+            theme: Theme::default(),
         }
     }
 }
@@ -240,6 +254,7 @@ impl<'a, S, M> Footer<S, M> {
     fn render_cell(
         &self,
         frame: &mut ratatui::Frame,
+        theme: &Theme,
         render: RenderProps,
         block_type: FooterBlockType,
         text: impl Into<Text<'a>>,
@@ -252,7 +267,7 @@ impl<'a, S, M> Footer<S, M> {
             .split(render.area);
 
         let footer_block = FooterBlock::default()
-            .border_style(style::border(render.focus, render.mode))
+            .border_style(theme.border_style(render.focus))
             .block_type(block_type);
         frame.render_widget(footer_block, render.area);
         frame.render_widget(text.into(), footer_layout[0]);
@@ -296,7 +311,13 @@ impl<'a: 'static, S, M> View for Footer<S, M> {
                 _ if i == last => FooterBlockType::End,
                 _ => FooterBlockType::Repeat,
             };
-            self.render_cell(frame, render.clone().area(*area), block_type, cell.clone());
+            self.render_cell(
+                frame,
+                &props.theme,
+                render.clone().area(*area),
+                block_type,
+                cell.clone(),
+            );
         }
     }
 }
@@ -304,11 +325,17 @@ impl<'a: 'static, S, M> View for Footer<S, M> {
 #[derive(Clone, Default)]
 pub struct ContainerProps {
     hide_footer: bool,
+    theme: Theme,
 }
 
 impl ContainerProps {
     pub fn hide_footer(mut self, hide: bool) -> Self {
         self.hide_footer = hide;
+        self
+    }
+
+    pub fn theme(mut self, theme: Theme) -> Self {
+        self.theme = theme;
         self
     }
 }
@@ -385,6 +412,8 @@ where
             .and_then(|props| props.inner_ref::<ContainerProps>())
             .unwrap_or(&default);
 
+        let border_style = props.theme.border_style(render.focus);
+
         let header_h = if self.header.is_some() { 3 } else { 0 };
         let footer_h = if self.footer.is_some() && !props.hide_footer {
             3
@@ -410,7 +439,7 @@ where
         };
 
         let block = Block::default()
-            .border_style(style::border(render.focus, render.mode))
+            .border_style(border_style)
             .border_type(BorderType::Rounded)
             .borders(borders);
         frame.render_widget(block.clone(), content_area);
@@ -443,6 +472,7 @@ pub enum SplitContainerFocus {
 pub struct SplitContainerProps {
     split_focus: SplitContainerFocus,
     heights: [Constraint; 2],
+    theme: Theme,
 }
 
 impl SplitContainerProps {
@@ -453,6 +483,11 @@ impl SplitContainerProps {
 
     pub fn heights(mut self, heights: [Constraint; 2]) -> Self {
         self.heights = heights;
+        self
+    }
+
+    pub fn theme(mut self, theme: Theme) -> Self {
+        self.theme = theme;
         self
     }
 }
@@ -542,13 +577,14 @@ where
                 }
             })
             .collect::<Vec<_>>();
+        let border_style = props.theme.border_style(render.focus);
 
         let [top_area, bottom_area] = Layout::vertical(heights).areas(render.area);
 
         if let Some(top) = self.top.as_mut() {
             let block = HeaderBlock::default()
                 .borders(Borders::ALL)
-                .border_style(style::border(render.focus, render.mode.clone()))
+                .border_style(border_style)
                 .border_type(BorderType::Rounded);
 
             frame.render_widget(block, top_area);
@@ -565,7 +601,7 @@ where
         if let Some(bottom) = self.bottom.as_mut() {
             let block = Block::default()
                 .borders(Borders::LEFT | Borders::RIGHT | Borders::BOTTOM)
-                .border_style(style::border(render.focus, render.mode))
+                .border_style(border_style)
                 .border_type(BorderType::Rounded);
 
             frame.render_widget(block, bottom_area);
@@ -723,7 +759,7 @@ where
                     .map(|focus_index| index == focus_index)
                     .unwrap_or_default();
 
-                section.render(RenderProps::from(*area).focus(focus).mode(render.mode.clone()), frame);
+                section.render(RenderProps::from(*area).focus(focus), frame);
             }
         }
     }

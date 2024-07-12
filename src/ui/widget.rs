@@ -18,8 +18,6 @@ use self::{
     input::{TextAreaState, TextViewState},
 };
 
-use super::theme::{self, Mode};
-
 pub type BoxedView<S, M> = Box<dyn View<State = S, Message = M>>;
 pub type UpdateCallback<S> = fn(&S) -> ViewProps;
 pub type EventCallback<M> = fn(Key, Option<&ViewState>, Option<&ViewProps>) -> Option<M>;
@@ -177,8 +175,6 @@ pub struct RenderProps {
     pub layout: Layout,
     /// Focus of the render props.
     pub focus: bool,
-    /// Light or dark terminal
-    pub mode: theme::Mode,
 }
 
 impl RenderProps {
@@ -187,7 +183,6 @@ impl RenderProps {
         self.area = area;
         self
     }
-
 
     /// Sets the focus of these render props.
     pub fn focus(mut self, focus: bool) -> Self {
@@ -200,12 +195,6 @@ impl RenderProps {
         self.layout = layout;
         self
     }
-
-    /// Sets the mode: light or dark.
-    pub fn mode(mut self, mode: theme::Mode) -> Self {
-        self.mode = mode;
-        self
-    }
 }
 
 impl From<Rect> for RenderProps {
@@ -214,7 +203,6 @@ impl From<Rect> for RenderProps {
             area,
             layout: Layout::default(),
             focus: false,
-            mode: Mode::Light,
         }
     }
 }

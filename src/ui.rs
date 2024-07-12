@@ -61,13 +61,6 @@ impl Frontend {
         M: 'static,
         P: Clone + Send + Sync + Debug,
     {
-        println!("luma: {:?}", terminal_light::luma()?);
-        let mode = match terminal_light::luma() {
-            Ok(luma) if luma <= 0.6 => theme::Mode::Dark,
-            Ok(luma) if luma > 0.6 => theme::Mode::Light,
-            _ => theme::Mode::default(),
-        };
-
         let mut ticker = tokio::time::interval(RENDERING_TICK_RATE);
 
         let mut terminal = terminal::setup(INLINE_HEIGHT)?;
@@ -100,9 +93,7 @@ impl Frontend {
                     break Ok(interrupted);
                 }
             }
-            terminal.draw(|frame| {
-                root.render(RenderProps::from(frame.size()).mode(mode.clone()), frame)
-            })?;
+            terminal.draw(|frame| root.render(RenderProps::from(frame.size()), frame))?;
         };
 
         terminal::restore(&mut terminal)?;
