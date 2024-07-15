@@ -124,8 +124,11 @@ impl Browser {
                 .header(Header::default().to_widget(tx.clone()).on_update(|state| {
                     // TODO: remove and use state directly
                     let props = BrowserProps::from(state);
+
                     HeaderProps::default()
                         .columns(props.header.clone())
+                        .border_color(state.theme.border_color)
+                        .focus_border_color(state.theme.focus_border_color)
                         .to_boxed_any()
                         .into()
                 }))
@@ -155,12 +158,16 @@ impl Browser {
 
                     FooterProps::default()
                         .columns(browse_footer(&props))
+                        .border_color(state.theme.border_color)
+                        .focus_border_color(state.theme.focus_border_color)
                         .to_boxed_any()
                         .into()
                 }))
                 .to_widget(tx.clone())
                 .on_update(|state| {
                     ContainerProps::default()
+                        .border_color(state.theme.border_color)
+                        .focus_border_color(state.theme.focus_border_color)
                         .hide_footer(BrowserProps::from(state).show_search)
                         .to_boxed_any()
                         .into()

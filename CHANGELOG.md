@@ -7,6 +7,8 @@
 **Binary features:**
 
 - Issue preview widgets in `issue select`
+- Basic theming support with light and dark theme bundles
+- Support for application settings
 
 **Library features:**
 

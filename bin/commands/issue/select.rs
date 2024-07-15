@@ -23,9 +23,10 @@ use radicle_tui as tui;
 use tui::store;
 use tui::store::StateValue;
 use tui::ui::span;
+use tui::ui::theme::Theme;
 use tui::ui::widget::container::{
-    Column, Container, Footer, FooterProps, Header, HeaderProps, SectionGroup, SectionGroupProps,
-    SplitContainer, SplitContainerFocus, SplitContainerProps,
+    Column, Container, ContainerProps, Footer, FooterProps, Header, HeaderProps, SectionGroup,
+    SectionGroupProps, SplitContainer, SplitContainerFocus, SplitContainerProps,
 };
 use tui::ui::widget::input::{TextView, TextViewProps};
 use tui::ui::widget::list::{Tree, TreeProps};
@@ -34,8 +35,10 @@ use tui::ui::widget::{PredefinedLayout, ToWidget, Widget};
 use tui::{BoxedAny, Channel, Exit, PageStack};
 
 use crate::cob::issue;
+use crate::settings::{self, ThemeBundle, ThemeMode};
 use crate::ui::items::{CommentItem, Filter, IssueItem, IssueItemFilter};
 use crate::ui::widget::{IssueDetails, IssueDetailsProps};
+use crate::ui::TerminalInfo;
 
 use self::ui::{Browser, BrowserProps};
 
@@ -52,6 +55,7 @@ pub struct Context {
 
 pub struct App {
     context: Context,
+    terminal_info: TerminalInfo,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq, Hash)]
@@ -230,15 +234,33 @@ pub struct State {
     preview: PreviewState,
     section: Option<Section>,
     help: HelpState,
+    theme: Theme,
 }
 
-impl TryFrom<&Context> for State {
+impl TryFrom<(&Context, &TerminalInfo)> for State {
     type Error = anyhow::Error;
 
-    fn try_from(context: &Context) -> Result<Self, Self::Error> {
+    fn try_from(value: (&Context, &TerminalInfo)) -> Result<Self, Self::Error> {
+        let (context, terminal_info) = value;
+        let settings = settings::Settings::default();
+
         let issues = issue::all(&context.profile, &context.repository)?;
         let search = StateValue::new(context.filter.to_string());
         let filter = IssueItemFilter::from_str(&search.read()).unwrap_or_default();
+
+        let default_bundle = ThemeBundle::default();
+        let theme_bundle = settings.theme.active_bundle().unwrap_or(&default_bundle);
+        let theme = match settings.theme.mode() {
+            ThemeMode::Auto => {
+                if terminal_info.is_dark() {
+                    theme_bundle.dark.clone()
+                } else {
+                    theme_bundle.light.clone()
+                }
+            }
+            ThemeMode::Light => theme_bundle.light.clone(),
+            ThemeMode::Dark => theme_bundle.dark.clone(),
+        };
 
         // Convert into UI items
         let mut items = vec![];
@@ -282,6 +304,7 @@ impl TryFrom<&Context> for State {
                 scroll: 0,
                 cursor: (0, 0),
             },
+            theme,
         })
     }
 }
@@ -426,13 +449,16 @@ impl store::State<Selection> for State {
 }
 
 impl App {
-    pub fn new(context: Context) -> Self {
-        Self { context }
+    pub fn new(context: Context, terminal_info: TerminalInfo) -> Self {
+        Self {
+            context,
+            terminal_info,
+        }
     }
 
     pub async fn run(&self) -> Result<Option<Selection>> {
         let channel = Channel::default();
-        let state = State::try_from(&self.context)?;
+        let state = State::try_from((&self.context, &self.terminal_info))?;
         let tx = channel.tx.clone();
 
         let window = Window::default()
@@ -471,6 +497,8 @@ fn browser_page(channel: &Channel<Message>) -> Widget<State, Message> {
 
             ShortcutsProps::default()
                 .shortcuts(&shortcuts)
+                .shortcuts_keys_style(state.theme.shortcuts_keys_style)
+                .shortcuts_action_style(state.theme.shortcuts_action_style)
                 .to_boxed_any()
                 .into()
         });
@@ -548,9 +576,11 @@ fn issue(channel: &Channel<Message>) -> Widget<State, Message> {
         .top(issue_details(channel))
         .bottom(comment_tree(channel))
         .to_widget(tx.clone())
-        .on_update(|_| {
+        .on_update(|state| {
             SplitContainerProps::default()
                 .heights([Constraint::Length(5), Constraint::Min(1)])
+                .border_color(state.theme.border_color)
+                .focus_border_color(state.theme.focus_border_color)
                 .split_focus(SplitContainerFocus::Bottom)
                 .to_boxed_any()
                 .into()
@@ -641,6 +671,13 @@ fn comment(channel: &Channel<Message>) -> Widget<State, Message> {
                 }),
         )
         .to_widget(tx.clone())
+        .on_update(|state| {
+            ContainerProps::default()
+                .border_color(state.theme.border_color)
+                .focus_border_color(state.theme.focus_border_color)
+                .to_boxed_any()
+                .into()
+        })
 }
 
 fn help_page(channel: &Channel<Message>) -> Widget<State, Message> {
@@ -691,7 +728,14 @@ fn help_page(channel: &Channel<Message>) -> Widget<State, Message> {
                         .into()
                 }),
         )
-        .to_widget(tx.clone());
+        .to_widget(tx.clone())
+        .on_update(|state| {
+            ContainerProps::default()
+                .border_color(state.theme.border_color)
+                .focus_border_color(state.theme.focus_border_color)
+                .to_boxed_any()
+                .into()
+        });
 
     let shortcuts = Shortcuts::default().to_widget(tx.clone()).on_update(|_| {
         ShortcutsProps::default()

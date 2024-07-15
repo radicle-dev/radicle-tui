@@ -7,6 +7,8 @@ use std::ffi::OsString;
 
 use anyhow::anyhow;
 
+use lazy_static::lazy_static;
+
 use radicle::identity::RepoId;
 use radicle::issue;
 
@@ -18,6 +20,13 @@ use radicle_tui as tui;
 use tui::log;
 
 use crate::cob;
+use crate::ui::TerminalInfo;
+
+lazy_static! {
+    static ref TERMINAL_INFO: TerminalInfo = TerminalInfo {
+        luma: Some(terminal_light::luma().unwrap_or_default())
+    };
+}
 
 pub const HELP: Help = Help {
     name: "issue",
@@ -143,6 +152,8 @@ pub async fn run(options: Options, ctx: impl terminal::Context) -> anyhow::Resul
     let (_, rid) = radicle::rad::cwd()
         .map_err(|_| anyhow!("this command must be run in the context of a project"))?;
 
+    let terminal_info = TERMINAL_INFO.clone();
+
     match options.op {
         Operation::Select { opts } => {
             let profile = ctx.profile()?;
@@ -157,7 +168,8 @@ pub async fn run(options: Options, ctx: impl terminal::Context) -> anyhow::Resul
                 mode: opts.mode,
                 filter: opts.filter.clone(),
             };
-            let output = select::App::new(context).run().await?;
+
+            let output = select::App::new(context, terminal_info).run().await?;
 
             let output = output
                 .map(|o| serde_json::to_string(&o).unwrap_or_default())
