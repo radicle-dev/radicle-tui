@@ -1,9 +1,10 @@
 use std::marker::PhantomData;
 
+use ratatui::widgets::Paragraph;
 use ratatui::Frame;
 use termion::event::Key;
 
-use ratatui::layout::{Alignment, Constraint, Layout};
+use ratatui::layout::{Alignment, Constraint, Layout, Rect};
 use ratatui::style::{Style, Stylize};
 use ratatui::text::{Line, Span, Text};
 
@@ -580,7 +581,11 @@ pub struct TextViewProps<'a> {
     /// An optional text that is rendered inside the footer bar on the bottom.
     footer: Option<Text<'a>>,
     /// The style used whenever the widget has focus.
-    textview_style: Style,
+    content_style: Style,
+    /// Default scroll progress style.
+    scroll_style: Style,
+    /// Scroll progress style whenever the the widget has focus.
+    focus_scroll_style: Style,
     /// Set to `true` if the content style should be dimmed whenever the widget
     /// has no focus.
     dim: bool,
@@ -618,8 +623,18 @@ impl<'a> TextViewProps<'a> {
         self
     }
 
-    pub fn textview_style(mut self, style: Style) -> Self {
-        self.textview_style = style;
+    pub fn content_style(mut self, style: Style) -> Self {
+        self.content_style = style;
+        self
+    }
+
+    pub fn scroll_style(mut self, style: Style) -> Self {
+        self.scroll_style = style;
+        self
+    }
+
+    pub fn focus_scroll_style(mut self, style: Style) -> Self {
+        self.focus_scroll_style = style;
         self
     }
 
@@ -639,7 +654,9 @@ impl<'a> Default for TextViewProps<'a> {
             handle_keys: true,
             show_scroll_progress: false,
             footer: None,
-            textview_style: theme.textview_style,
+            content_style: theme.textview_style,
+            scroll_style: theme.textview_scroll_style,
+            focus_scroll_style: theme.textview_focus_scroll_style,
             dim: false,
         }
     }
@@ -706,6 +723,67 @@ impl<S, M> TextView<S, M> {
 
     fn end(&mut self, len: usize, page_size: usize) {
         self.state.cursor.0 = len.saturating_sub(page_size);
+    }
+
+    fn update_area(&mut self, area: Rect) {
+        self.area = (area.height, area.width);
+    }
+
+    fn render_content(&self, frame: &mut Frame, props: &TextViewProps, render: &RenderProps) {
+        let content_style = if !render.focus && props.dim {
+            props.content_style.dim()
+        } else {
+            props.content_style
+        };
+
+        let content = Paragraph::new(props.content.clone())
+            .style(content_style)
+            .scroll((self.state.cursor.0 as u16, self.state.cursor.1 as u16));
+
+        frame.render_widget(content, render.area);
+    }
+
+    fn render_footer(
+        &self,
+        frame: &mut Frame,
+        props: &TextViewProps,
+        render: &RenderProps,
+        content_height: u16,
+    ) {
+        let [text_area, scroll_area] =
+            Layout::horizontal([Constraint::Min(1), Constraint::Length(10)]).areas(render.area);
+
+        let scroll_style = if render.focus {
+            props.focus_scroll_style
+        } else {
+            props.scroll_style
+        };
+
+        let mut scroll = vec![];
+        if props.show_scroll_progress {
+            let content_len = props.content.lines.len();
+            let scroll_progress = utils::scroll::percent_absolute(
+                self.state.cursor.0,
+                content_len,
+                content_height.into(),
+            );
+            if (content_height as usize) < content_len {
+                // vec![Span::styled(format!("All / {}", content_len), scroll_style)]
+                scroll = vec![Span::styled(format!("{}%", scroll_progress), scroll_style)];
+            }
+        }
+
+        frame.render_widget(
+            props
+                .footer
+                .as_ref()
+                .cloned()
+                .unwrap_or_default()
+                .alignment(Alignment::Left)
+                .dim(),
+            text_area,
+        );
+        frame.render_widget(Line::from(scroll).alignment(Alignment::Right), scroll_area);
     }
 }
 
@@ -788,61 +866,27 @@ where
         let props = props
             .and_then(|props| props.inner_ref::<TextViewProps>())
             .unwrap_or(&default);
+        let render_footer = props.show_scroll_progress || props.footer.is_some();
 
         let [area] = Layout::default()
             .constraints([Constraint::Min(1)])
             .horizontal_margin(1)
             .areas(render.area);
 
-        let render_footer = props.show_scroll_progress || props.footer.is_some();
-        let [content_area, footer_area] = Layout::vertical([
-            Constraint::Min(1),
-            Constraint::Length(if render_footer { 1 } else { 0 }),
-        ])
-        .areas(area);
+        if render_footer {
+            let [content_area, footer_area] = Layout::vertical([
+                Constraint::Min(1),
+                Constraint::Length(if render_footer { 1 } else { 0 }),
+            ])
+            .areas(area);
 
-        let style = if !render.focus && props.dim {
-            props.textview_style.dim()
+            self.render_content(frame, props, &render.clone().area(content_area));
+            self.render_footer(frame, props, &render.area(footer_area), content_area.height);
+            self.update_area(content_area);
         } else {
-            props.textview_style
-        };
-
-        let content = ratatui::widgets::Paragraph::new(props.content.clone())
-            .style(style)
-            .scroll((self.state.cursor.0 as u16, self.state.cursor.1 as u16));
-
-        let scroll_progress = utils::scroll::percent_absolute(
-            self.state.cursor.0,
-            props.content.lines.len(),
-            content_area.height.into(),
-        );
-
-        let progress_info = if props.show_scroll_progress {
-            vec![Span::styled(
-                format!("{}%", scroll_progress),
-                Style::default().dim(),
-            )]
-        } else {
-            vec![]
-        };
-
-        frame.render_widget(content, content_area);
-        frame.render_widget(
-            props
-                .footer
-                .as_ref()
-                .cloned()
-                .unwrap_or_default()
-                .alignment(Alignment::Left)
-                .dim(),
-            footer_area,
-        );
-        frame.render_widget(
-            Line::from(progress_info).alignment(Alignment::Right),
-            footer_area,
-        );
-
-        self.area = (content_area.height, content_area.width);
+            self.render_content(frame, props, &render);
+            self.update_area(render.area);
+        }
     }
 
     fn view_state(&self) -> Option<ViewState> {

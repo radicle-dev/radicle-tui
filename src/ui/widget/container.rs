@@ -95,8 +95,8 @@ pub struct HeaderProps<'a> {
     pub columns: Vec<Column<'a>>,
     pub cutoff: usize,
     pub cutoff_after: usize,
-    pub border_color: Color,
-    pub focus_border_color: Color,
+    pub border_style: Style,
+    pub focus_border_style: Style,
 }
 
 impl<'a> HeaderProps<'a> {
@@ -111,13 +111,13 @@ impl<'a> HeaderProps<'a> {
         self
     }
 
-    pub fn border_color(mut self, color: Color) -> Self {
-        self.border_color = color;
+    pub fn border_style(mut self, color: Style) -> Self {
+        self.border_style = color;
         self
     }
 
-    pub fn focus_border_color(mut self, color: Color) -> Self {
-        self.focus_border_color = color;
+    pub fn focus_border_style(mut self, color: Style) -> Self {
+        self.focus_border_style = color;
         self
     }
 }
@@ -130,8 +130,8 @@ impl<'a> Default for HeaderProps<'a> {
             columns: vec![],
             cutoff: usize::MAX,
             cutoff_after: usize::MAX,
-            border_color: theme.border_color,
-            focus_border_color: theme.focus_border_color,
+            border_style: theme.border_style,
+            focus_border_style: theme.focus_border_style,
         }
     }
 }
@@ -186,9 +186,9 @@ impl<'a: 'static, S, M> View for Header<S, M> {
             .collect::<Vec<_>>();
 
         let border_style = if render.focus {
-            Style::default().fg(props.focus_border_color)
+            props.focus_border_style
         } else {
-            Style::default().fg(props.border_color)
+            props.border_style
         };
 
         // Render header
@@ -220,8 +220,8 @@ pub struct FooterProps<'a> {
     pub columns: Vec<Column<'a>>,
     pub cutoff: usize,
     pub cutoff_after: usize,
-    pub border_color: Color,
-    pub focus_border_color: Color,
+    pub border_style: Style,
+    pub focus_border_style: Style,
 }
 
 impl<'a> FooterProps<'a> {
@@ -236,13 +236,13 @@ impl<'a> FooterProps<'a> {
         self
     }
 
-    pub fn border_color(mut self, color: Color) -> Self {
-        self.border_color = color;
+    pub fn border_style(mut self, color: Style) -> Self {
+        self.border_style = color;
         self
     }
 
-    pub fn focus_border_color(mut self, color: Color) -> Self {
-        self.focus_border_color = color;
+    pub fn focus_border_style(mut self, color: Style) -> Self {
+        self.focus_border_style = color;
         self
     }
 }
@@ -255,8 +255,8 @@ impl<'a> Default for FooterProps<'a> {
             columns: vec![],
             cutoff: usize::MAX,
             cutoff_after: usize::MAX,
-            border_color: theme.border_color,
-            focus_border_color: theme.focus_border_color,
+            border_style: theme.border_style,
+            focus_border_style: theme.focus_border_style,
         }
     }
 }
@@ -309,9 +309,9 @@ impl<'a: 'static, S, M> View for Footer<S, M> {
             .unwrap_or(&default);
 
         let border_style = if render.focus {
-            Style::default().fg(props.focus_border_color)
+            props.focus_border_style
         } else {
-            Style::default().fg(props.border_color)
+            props.border_style
         };
 
         let widths = props
@@ -355,8 +355,8 @@ impl<'a: 'static, S, M> View for Footer<S, M> {
 #[derive(Clone)]
 pub struct ContainerProps {
     hide_footer: bool,
-    border_color: Color,
-    focus_border_color: Color,
+    border_style: Style,
+    focus_border_style: Style,
 }
 
 impl Default for ContainerProps {
@@ -365,8 +365,8 @@ impl Default for ContainerProps {
 
         Self {
             hide_footer: false,
-            border_color: theme.border_color,
-            focus_border_color: theme.focus_border_color,
+            border_style: theme.border_style,
+            focus_border_style: theme.focus_border_style,
         }
     }
 }
@@ -377,13 +377,13 @@ impl ContainerProps {
         self
     }
 
-    pub fn border_color(mut self, color: Color) -> Self {
-        self.border_color = color;
+    pub fn border_style(mut self, color: Style) -> Self {
+        self.border_style = color;
         self
     }
 
-    pub fn focus_border_color(mut self, color: Color) -> Self {
-        self.focus_border_color = color;
+    pub fn focus_border_style(mut self, color: Style) -> Self {
+        self.focus_border_style = color;
         self
     }
 }
@@ -461,9 +461,9 @@ where
             .unwrap_or(&default);
 
         let border_style = if render.focus {
-            Style::default().fg(props.focus_border_color)
+            props.focus_border_style
         } else {
-            Style::default().fg(props.border_color)
+            props.border_style
         };
 
         let header_h = if self.header.is_some() { 3 } else { 0 };
@@ -524,8 +524,8 @@ pub enum SplitContainerFocus {
 pub struct SplitContainerProps {
     split_focus: SplitContainerFocus,
     heights: [Constraint; 2],
-    border_color: Color,
-    focus_border_color: Color,
+    border_style: Style,
+    focus_border_style: Style,
 }
 
 impl Default for SplitContainerProps {
@@ -535,8 +535,8 @@ impl Default for SplitContainerProps {
         Self {
             split_focus: SplitContainerFocus::default(),
             heights: [Constraint::Percentage(50), Constraint::Percentage(50)],
-            border_color: theme.border_color,
-            focus_border_color: theme.focus_border_color,
+            border_style: theme.border_style,
+            focus_border_style: theme.focus_border_style,
         }
     }
 }
@@ -552,13 +552,13 @@ impl SplitContainerProps {
         self
     }
 
-    pub fn border_color(mut self, color: Color) -> Self {
-        self.border_color = color;
+    pub fn border_style(mut self, color: Style) -> Self {
+        self.border_style = color;
         self
     }
 
-    pub fn focus_border_color(mut self, color: Color) -> Self {
-        self.focus_border_color = color;
+    pub fn focus_border_style(mut self, color: Style) -> Self {
+        self.focus_border_style = color;
         self
     }
 }
@@ -650,9 +650,9 @@ where
             .collect::<Vec<_>>();
 
         let border_style = if render.focus {
-            Style::default().fg(props.focus_border_color)
+            props.focus_border_style
         } else {
-            Style::default().fg(props.border_color)
+            props.border_style
         };
 
         let [top_area, bottom_area] = Layout::vertical(heights).areas(render.area);

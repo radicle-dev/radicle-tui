@@ -2,11 +2,13 @@ use ratatui::style::{Color, Style, Stylize};
 
 #[derive(Clone, Debug)]
 pub struct Theme {
-    pub border_color: Color,
-    pub focus_border_color: Color,
+    pub border_style: Style,
+    pub focus_border_style: Style,
     pub shortcuts_keys_style: Style,
     pub shortcuts_action_style: Style,
     pub textview_style: Style,
+    pub textview_scroll_style: Style,
+    pub textview_focus_scroll_style: Style,
     pub dim_no_focus: bool,
 }
 
@@ -19,23 +21,27 @@ impl Default for Theme {
 impl Theme {
     pub fn default_light() -> Self {
         Self {
-            border_color: Color::Rgb(170, 170, 170),
-            focus_border_color: Color::Black,
+            border_style: Style::default().fg(Color::Rgb(170, 170, 170)),
+            focus_border_style: Style::default().black(),
             shortcuts_keys_style: style::yellow(),
             shortcuts_action_style: style::reset(),
             textview_style: style::reset(),
-            dim_no_focus: true,
+            textview_scroll_style: style::cyan().dim(),
+            textview_focus_scroll_style: style::cyan(),
+            dim_no_focus: false,
         }
     }
 
     pub fn default_dark() -> Self {
         Self {
-            border_color: Color::Indexed(236),
-            focus_border_color: Color::Indexed(238),
+            border_style: Style::default().fg(Color::Indexed(240)),
+            focus_border_style: Style::default().fg(Color::Indexed(246)),
             shortcuts_keys_style: style::yellow().dim(),
             shortcuts_action_style: style::gray(),
             textview_style: style::reset(),
-            dim_no_focus: true,
+            textview_scroll_style: style::cyan().dim(),
+            textview_focus_scroll_style: style::cyan(),
+            dim_no_focus: false,
         }
     }
 }
