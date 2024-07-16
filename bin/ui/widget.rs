@@ -19,11 +19,17 @@ use super::items::IssueItem;
 #[derive(Clone, Default)]
 pub struct IssueDetailsProps {
     issue: Option<IssueItem>,
+    dim: bool,
 }
 
 impl IssueDetailsProps {
     pub fn issue(mut self, issue: Option<IssueItem>) -> Self {
         self.issue = issue;
+        self
+    }
+
+    pub fn dim(mut self, dim: bool) -> Self {
+        self.dim = dim;
         self
     }
 }
@@ -119,6 +125,12 @@ impl<S, M> View for IssueDetails<S, M> {
                 ],
                 [Constraint::Length(8), Constraint::Fill(1)],
             );
+
+            let table = if !render.focus && props.dim {
+                table.dim()
+            } else {
+                table
+            };
 
             frame.render_widget(table, area);
         } else {

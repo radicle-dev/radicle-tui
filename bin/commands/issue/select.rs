@@ -294,7 +294,7 @@ impl TryFrom<(&Context, &TerminalInfo)> for State {
                 show_search: false,
             },
             preview: PreviewState {
-                show: false,
+                show: true,
                 issue: items.first().cloned(),
                 selected_comments,
                 comment: CommentState { cursor: (0, 0) },
@@ -492,7 +492,7 @@ fn browser_page(channel: &Channel<Message>) -> Widget<State, Message> {
                 if state.section == Some(Section::Browser) {
                     shortcuts = [shortcuts, [("/", "search")].to_vec()].concat()
                 }
-                [shortcuts, [("p", "preview"), ("?", "help")].to_vec()].concat()
+                [shortcuts, [("p", "toggle preview"), ("?", "help")].to_vec()].concat()
             };
 
             ShortcutsProps::default()
@@ -579,8 +579,8 @@ fn issue(channel: &Channel<Message>) -> Widget<State, Message> {
         .on_update(|state| {
             SplitContainerProps::default()
                 .heights([Constraint::Length(5), Constraint::Min(1)])
-                .border_color(state.theme.border_color)
-                .focus_border_color(state.theme.focus_border_color)
+                .border_style(state.theme.border_style)
+                .focus_border_style(state.theme.focus_border_style)
                 .split_focus(SplitContainerFocus::Bottom)
                 .to_boxed_any()
                 .into()
@@ -595,6 +595,7 @@ fn issue_details(channel: &Channel<Message>) -> Widget<State, Message> {
         .on_update(|state: &State| {
             IssueDetailsProps::default()
                 .issue(state.preview.issue.clone())
+                .dim(state.theme.dim_no_focus)
                 .to_boxed_any()
                 .into()
         })
@@ -622,6 +623,7 @@ fn comment_tree(channel: &Channel<Message>) -> Widget<State, Message> {
                 .items(root.to_vec())
                 .selected(Some(selected))
                 .opened(Some(opened.clone()))
+                .dim(state.theme.dim_no_focus)
                 .to_boxed_any()
                 .into()
         })
@@ -666,6 +668,7 @@ fn comment(channel: &Channel<Message>) -> Widget<State, Message> {
                         .footer(Some(reactions))
                         .cursor(state.preview.comment.cursor)
                         .show_scroll_progress(true)
+                        .dim(state.theme.dim_no_focus)
                         .to_boxed_any()
                         .into()
                 }),
@@ -673,8 +676,8 @@ fn comment(channel: &Channel<Message>) -> Widget<State, Message> {
         .to_widget(tx.clone())
         .on_update(|state| {
             ContainerProps::default()
-                .border_color(state.theme.border_color)
-                .focus_border_color(state.theme.focus_border_color)
+                .border_style(state.theme.border_style)
+                .focus_border_style(state.theme.focus_border_style)
                 .to_boxed_any()
                 .into()
         })
@@ -705,6 +708,7 @@ fn help_page(channel: &Channel<Message>) -> Widget<State, Message> {
                     TextViewProps::default()
                         .content(help_text())
                         .cursor(state.help.cursor)
+                        .dim(state.theme.dim_no_focus)
                         .to_boxed_any()
                         .into()
                 }),
@@ -731,8 +735,8 @@ fn help_page(channel: &Channel<Message>) -> Widget<State, Message> {
         .to_widget(tx.clone())
         .on_update(|state| {
             ContainerProps::default()
-                .border_color(state.theme.border_color)
-                .focus_border_color(state.theme.focus_border_color)
+                .border_style(state.theme.border_style)
+                .focus_border_style(state.theme.focus_border_style)
                 .to_boxed_any()
                 .into()
         });
