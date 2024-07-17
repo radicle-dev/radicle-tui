@@ -10,7 +10,7 @@ use termion::event::Key;
 
 use ratatui::layout::Constraint;
 use ratatui::style::Stylize;
-use ratatui::text::{Line, Span, Text};
+use ratatui::text::Text;
 
 use radicle::cob::thread::CommentId;
 use radicle::git::Oid;
@@ -28,7 +28,7 @@ use tui::ui::widget::container::{
     Column, Container, ContainerProps, Footer, FooterProps, Header, HeaderProps, SectionGroup,
     SectionGroupProps, SplitContainer, SplitContainerFocus, SplitContainerProps,
 };
-use tui::ui::widget::input::{TextView, TextViewProps};
+use tui::ui::widget::input::{TextView, TextViewProps, TextViewState};
 use tui::ui::widget::list::{Tree, TreeProps};
 use tui::ui::widget::window::{Page, PageProps, Shortcuts, ShortcutsProps, Window, WindowProps};
 use tui::ui::widget::{PredefinedLayout, ToWidget, Widget};
@@ -150,22 +150,6 @@ impl BrowserState {
 }
 
 #[derive(Clone, Debug)]
-pub struct CommentState {
-    /// Current text view cursor.
-    cursor: (usize, usize),
-}
-
-impl CommentState {
-    pub fn reset_cursor(&mut self) {
-        self.cursor = (0, 0);
-    }
-
-    pub fn update_cursor(&mut self, cursor: (usize, usize)) {
-        self.cursor = cursor;
-    }
-}
-
-#[derive(Clone, Debug)]
 pub struct PreviewState {
     /// If preview is visible.
     show: bool,
@@ -174,7 +158,7 @@ pub struct PreviewState {
     /// Tree selection per issue.
     selected_comments: HashMap<IssueId, Vec<CommentId>>,
     /// State of currently selected comment
-    comment: CommentState,
+    comment: TextViewState,
 }
 
 impl PreviewState {
@@ -222,8 +206,7 @@ impl PreviewState {
 
 #[derive(Clone, Debug)]
 pub struct HelpState {
-    scroll: usize,
-    cursor: (usize, usize),
+    text: TextViewState,
 }
 
 #[derive(Clone, Debug)]
@@ -297,12 +280,11 @@ impl TryFrom<(&Context, &TerminalInfo)> for State {
                 show: true,
                 issue: items.first().cloned(),
                 selected_comments,
-                comment: CommentState { cursor: (0, 0) },
+                comment: TextViewState::default(),
             },
             section: Some(Section::Browser),
             help: HelpState {
-                scroll: 0,
-                cursor: (0, 0),
+                text: TextViewState::default().content(help_text()),
             },
             theme,
         })
@@ -311,35 +293,20 @@ impl TryFrom<(&Context, &TerminalInfo)> for State {
 
 pub enum Message {
     Quit,
-    Exit {
-        operation: Option<IssueOperation>,
-    },
+    Exit { operation: Option<IssueOperation> },
     ExitFromMode,
-    SelectIssue {
-        selected: Option<usize>,
-    },
+    SelectIssue { selected: Option<usize> },
     OpenSearch,
-    UpdateSearch {
-        value: String,
-    },
+    UpdateSearch { value: String },
     ApplySearch,
     CloseSearch,
     TogglePreview,
-    FocusSection {
-        section: Option<Section>,
-    },
-    SelectComment {
-        selected: Option<Vec<CommentId>>,
-    },
-    ScrollComment {
-        cursor: (usize, usize),
-    },
+    FocusSection { section: Option<Section> },
+    SelectComment { selected: Option<Vec<CommentId>> },
+    ScrollComment { state: TextViewState },
     OpenHelp,
     LeavePage,
-    ScrollHelp {
-        scroll: usize,
-        cursor: (usize, usize),
-    },
+    ScrollHelp { state: TextViewState },
 }
 
 impl store::State<Selection> for State {
@@ -393,8 +360,8 @@ impl store::State<Selection> for State {
                 self.preview.comment.reset_cursor();
                 None
             }
-            Message::ScrollComment { cursor } => {
-                self.preview.comment.update_cursor(cursor);
+            Message::ScrollComment { state } => {
+                self.preview.comment = state;
                 None
             }
             Message::OpenSearch => {
@@ -439,9 +406,8 @@ impl store::State<Selection> for State {
                 self.pages.pop();
                 None
             }
-            Message::ScrollHelp { scroll, cursor } => {
-                self.help.scroll = scroll;
-                self.help.cursor = cursor;
+            Message::ScrollHelp { state } => {
+                self.help.text = state;
                 None
             }
         }
@@ -637,10 +603,8 @@ fn comment(channel: &Channel<Message>) -> Widget<State, Message> {
             TextView::default()
                 .to_widget(tx.clone())
                 .on_event(|_, vs, _| {
-                    let textview = vs.and_then(|p| p.unwrap_textview()).unwrap_or_default();
-                    Some(Message::ScrollComment {
-                        cursor: textview.cursor,
-                    })
+                    let state = vs.and_then(|p| p.unwrap_textview()).unwrap_or_default();
+                    Some(Message::ScrollComment { state })
                 })
                 .on_update(|state: &State| {
                     let comment = state.preview.selected_comment();
@@ -664,9 +628,8 @@ fn comment(channel: &Channel<Message>) -> Widget<State, Message> {
                         .unwrap_or_default();
 
                     TextViewProps::default()
-                        .content(body)
+                        .state(Some(state.preview.comment.clone().content(body)))
                         .footer(Some(reactions))
-                        .cursor(state.preview.comment.cursor)
                         .show_scroll_progress(true)
                         .dim(state.theme.dim_no_focus)
                         .to_boxed_any()
@@ -699,15 +662,11 @@ fn help_page(channel: &Channel<Message>) -> Widget<State, Message> {
                 .on_event(|_, view_state, _| {
                     view_state
                         .and_then(|tv| tv.unwrap_textview())
-                        .map(|tvs| Message::ScrollHelp {
-                            scroll: tvs.scroll,
-                            cursor: tvs.cursor,
-                        })
+                        .map(|tvs| Message::ScrollHelp { state: tvs })
                 })
                 .on_update(|state: &State| {
                     TextViewProps::default()
-                        .content(help_text())
-                        .cursor(state.help.cursor)
+                        .state(Some(state.help.text.clone()))
                         .dim(state.theme.dim_no_focus)
                         .to_boxed_any()
                         .into()
@@ -722,7 +681,7 @@ fn help_page(channel: &Channel<Message>) -> Widget<State, Message> {
                             [
                                 Column::new(Text::raw(""), Constraint::Fill(1)),
                                 Column::new(
-                                    span::default(&format!("{}%", state.help.scroll)).dim(),
+                                    span::default(&format!("{}%", state.help.text.scroll)).dim(),
                                     Constraint::Min(4),
                                 ),
                             ]
@@ -760,158 +719,33 @@ fn help_page(channel: &Channel<Message>) -> Widget<State, Message> {
         .on_update(|_| PageProps::default().handle_keys(true).to_boxed_any().into())
 }
 
-fn help_text() -> Text<'static> {
-    Text::from(
-        [
-            Line::from(Span::raw("Generic keybindings").cyan()),
-            Line::raw(""),
-            Line::from(
-                [
-                    Span::raw(format!("{key:>10}", key = "↑,k")).gray(),
-                    Span::raw(": "),
-                    Span::raw("move cursor one line up").gray().dim(),
-                ]
-                .to_vec(),
-            ),
-            Line::from(
-                [
-                    Span::raw(format!("{key:>10}", key = "↓,j")).gray(),
-                    Span::raw(": "),
-                    Span::raw("move cursor one line down").gray().dim(),
-                ]
-                .to_vec(),
-            ),
-            Line::from(
-                [
-                    Span::raw(format!("{key:>10}", key = "PageUp")).gray(),
-                    Span::raw(": "),
-                    Span::raw("move cursor one page up").gray().dim(),
-                ]
-                .to_vec(),
-            ),
-            Line::from(
-                [
-                    Span::raw(format!("{key:>10}", key = "PageDown")).gray(),
-                    Span::raw(": "),
-                    Span::raw("move cursor one page down").gray().dim(),
-                ]
-                .to_vec(),
-            ),
-            Line::from(
-                [
-                    Span::raw(format!("{key:>10}", key = "Home")).gray(),
-                    Span::raw(": "),
-                    Span::raw("move cursor to the first line").gray().dim(),
-                ]
-                .to_vec(),
-            ),
-            Line::from(
-                [
-                    Span::raw(format!("{key:>10}", key = "End")).gray(),
-                    Span::raw(": "),
-                    Span::raw("move cursor to the last line").gray().dim(),
-                ]
-                .to_vec(),
-            ),
-            Line::raw(""),
-            Line::from(
-                [
-                    Span::raw(format!("{key:>10}", key = "Tab")).gray(),
-                    Span::raw(": "),
-                    Span::raw("focus next section").gray().dim(),
-                ]
-                .to_vec(),
-            ),
-            Line::from(
-                [
-                    Span::raw(format!("{key:>10}", key = "Backtab")).gray(),
-                    Span::raw(": "),
-                    Span::raw("focus previous section").gray().dim(),
-                ]
-                .to_vec(),
-            ),
-            Line::raw(""),
-            Line::from(Span::raw("Specific keybindings").cyan()),
-            Line::raw(""),
-            Line::from(
-                [
-                    Span::raw(format!("{key:>10}", key = "enter")).gray(),
-                    Span::raw(": "),
-                    Span::raw("Select issue (if --mode id)").gray().dim(),
-                ]
-                .to_vec(),
-            ),
-            Line::from(
-                [
-                    Span::raw(format!("{key:>10}", key = "enter")).gray(),
-                    Span::raw(": "),
-                    Span::raw("Show issue").gray().dim(),
-                ]
-                .to_vec(),
-            ),
-            Line::from(
-                [
-                    Span::raw(format!("{key:>10}", key = "e")).gray(),
-                    Span::raw(": "),
-                    Span::raw("Edit issue").gray().dim(),
-                ]
-                .to_vec(),
-            ),
-            Line::from(
-                [
-                    Span::raw(format!("{key:>10}", key = "p")).gray(),
-                    Span::raw(": "),
-                    Span::raw("Toggle issue preview").gray().dim(),
-                ]
-                .to_vec(),
-            ),
-            Line::from(
-                [
-                    Span::raw(format!("{key:>10}", key = "/")).gray(),
-                    Span::raw(": "),
-                    Span::raw("Search").gray().dim(),
-                ]
-                .to_vec(),
-            ),
-            Line::from(
-                [
-                    Span::raw(format!("{key:>10}", key = "?")).gray(),
-                    Span::raw(": "),
-                    Span::raw("Show help").gray().dim(),
-                ]
-                .to_vec(),
-            ),
-            Line::from(
-                [
-                    Span::raw(format!("{key:>10}", key = "Esc")).gray(),
-                    Span::raw(": "),
-                    Span::raw("Quit / cancel").gray().dim(),
-                ]
-                .to_vec(),
-            ),
-            Line::raw(""),
-            Line::from(Span::raw("Searching").cyan()),
-            Line::raw(""),
-            Line::from(
-                [
-                    Span::raw(format!("{key:>10}", key = "Pattern")).gray(),
-                    Span::raw(": "),
-                    Span::raw("is:<state> | is:authored | is:assigned | authors:[<did>, ...] | assignees:[<did>, ...] | <search>")
-                        .gray()
-                        .dim(),
-                ]
-                .to_vec(),
-            ),
-            Line::from(
-                [
-                    Span::raw(format!("{key:>10}", key = "Example")).gray(),
-                    Span::raw(": "),
-                    Span::raw("is:solved is:authored alias").gray().dim(),
-                ]
-                .to_vec(),
-            ),
-        ]
-        .to_vec())
+fn help_text() -> String {
+    r#"# Generic keybindings
+
+`↑,k`:      move cursor one line up
+`↓,j:       move cursor one line down
+`PageUp`:   move cursor one page up
+`PageDown`: move cursor one page down
+`Home`:     move cursor to the first line
+`End`:      move cursor to the last line
+`Tab`:      focus next section
+`BackTab`:  focus previous section
+`Esc`:      Quit / cancel
+
+# Specific keybindings
+
+`Enter`:    Select issue (if --mode id)
+`Enter`:    Show issue
+`e`:        Edit issue
+`p`:        Toggle issue preview
+`/`:        Search
+`?`:        Show help
+
+# Searching
+
+Pattern:    is:<state> | is:authored | is:assigned | authors:[<did>, ...] | assignees:[<did>, ...] | <search>
+Example:    is:solved is:authored alias"#
+        .into()
 }
 
 fn append_opened(all: &mut HashSet<Vec<String>>, path: Vec<String>, comment: CommentItem) {

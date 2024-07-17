@@ -13,13 +13,13 @@ use radicle_tui as tui;
 
 use ratatui::layout::Constraint;
 use ratatui::style::Stylize;
-use ratatui::text::{Line, Span, Text};
+use ratatui::text::Text;
 
 use termion::event::Key;
 use tui::store;
 use tui::ui::span;
 use tui::ui::widget::container::{Column, Container, Footer, FooterProps, Header, HeaderProps};
-use tui::ui::widget::input::{TextView, TextViewProps};
+use tui::ui::widget::input::{TextView, TextViewProps, TextViewState};
 use tui::ui::widget::window::{Page, PageProps, Shortcuts, ShortcutsProps, Window, WindowProps};
 use tui::ui::widget::{ToWidget, Widget};
 
@@ -72,8 +72,7 @@ impl BrowserState {
 
 #[derive(Clone, Debug)]
 pub struct HelpState {
-    scroll: usize,
-    cursor: (usize, usize),
+    text: TextViewState,
 }
 
 #[derive(Clone, Debug)]
@@ -112,32 +111,22 @@ impl TryFrom<&Context> for State {
                 show_search: false,
             },
             help: HelpState {
-                scroll: 0,
-                cursor: (0, 0),
+                text: TextViewState::default().content(help_text()),
             },
         })
     }
 }
 
 pub enum Message {
-    Exit {
-        selection: Option<Selection>,
-    },
-    Select {
-        selected: Option<usize>,
-    },
+    Exit { selection: Option<Selection> },
+    Select { selected: Option<usize> },
     OpenSearch,
-    UpdateSearch {
-        value: String,
-    },
+    UpdateSearch { value: String },
     ApplySearch,
     CloseSearch,
     OpenHelp,
     LeavePage,
-    ScrollHelp {
-        scroll: usize,
-        cursor: (usize, usize),
-    },
+    ScrollHelp { state: TextViewState },
 }
 
 impl store::State<Selection> for State {
@@ -181,16 +170,17 @@ impl store::State<Selection> for State {
                 None
             }
             Message::OpenHelp => {
+                log::warn!("OpenHelp");
                 self.pages.push(AppPage::Help);
                 None
             }
             Message::LeavePage => {
+                log::warn!("LeavePage");
                 self.pages.pop();
                 None
             }
-            Message::ScrollHelp { scroll, cursor } => {
-                self.help.scroll = scroll;
-                self.help.cursor = cursor;
+            Message::ScrollHelp { state } => {
+                self.help.text = state;
                 None
             }
         }
@@ -297,15 +287,11 @@ fn help_page(_state: &State, channel: &Channel<Message>) -> Widget<State, Messag
                 .on_event(|_, view_state, _| {
                     view_state
                         .and_then(|tv| tv.unwrap_textview())
-                        .map(|tvs| Message::ScrollHelp {
-                            scroll: tvs.scroll,
-                            cursor: tvs.cursor,
-                        })
+                        .map(|tvs| Message::ScrollHelp { state: tvs })
                 })
                 .on_update(|state: &State| {
                     TextViewProps::default()
-                        .content(help_text())
-                        .cursor(state.help.cursor)
+                        .state(Some(state.help.text.clone()))
                         .to_boxed_any()
                         .into()
                 }),
@@ -319,7 +305,7 @@ fn help_page(_state: &State, channel: &Channel<Message>) -> Widget<State, Messag
                             [
                                 Column::new(Text::raw(""), Constraint::Fill(1)),
                                 Column::new(
-                                    span::default(&format!("{}%", state.help.scroll)).dim(),
+                                    span::default(&format!("{}%", state.help.text.scroll)).dim(),
                                     Constraint::Min(4),
                                 ),
                             ]
@@ -350,95 +336,29 @@ fn help_page(_state: &State, channel: &Channel<Message>) -> Widget<State, Messag
         .on_update(|_| PageProps::default().handle_keys(true).to_boxed_any().into())
 }
 
-fn help_text() -> Text<'static> {
-    Text::from(
-        [
-            Line::from(Span::raw("Generic keybindings").cyan()),
-            Line::raw(""),
-            Line::from(vec![
-                Span::raw(format!("{key:>10}", key = "↑,k")).gray(),
-                Span::raw(": "),
-                Span::raw("move cursor one line up").gray().dim(),
-            ]),
-            Line::from(vec![
-                Span::raw(format!("{key:>10}", key = "↓,j")).gray(),
-                Span::raw(": "),
-                Span::raw("move cursor one line down").gray().dim(),
-            ]),
-            Line::from(vec![
-                Span::raw(format!("{key:>10}", key = "PageUp")).gray(),
-                Span::raw(": "),
-                Span::raw("move cursor one page up").gray().dim(),
-            ]),
-            Line::from(vec![
-                Span::raw(format!("{key:>10}", key = "PageDown")).gray(),
-                Span::raw(": "),
-                Span::raw("move cursor one page down").gray().dim(),
-            ]),
-            Line::from(vec![
-                Span::raw(format!("{key:>10}", key = "Home")).gray(),
-                Span::raw(": "),
-                Span::raw("move cursor to the first line").gray().dim(),
-            ]),
-            Line::from(vec![
-                Span::raw(format!("{key:>10}", key = "End")).gray(),
-                Span::raw(": "),
-                Span::raw("move cursor to the last line").gray().dim(),
-            ]),
-            Line::raw(""),
-            Line::from(Span::raw("Specific keybindings").cyan()),
-            Line::raw(""),
-            Line::from(vec![
-                Span::raw(format!("{key:>10}", key = "enter")).gray(),
-                Span::raw(": "),
-                Span::raw("Select patch (if --mode id)").gray().dim(),
-            ]),
-            Line::from(vec![
-                Span::raw(format!("{key:>10}", key = "enter")).gray(),
-                Span::raw(": "),
-                Span::raw("Show patch").gray().dim(),
-            ]),
-            Line::from(vec![
-                Span::raw(format!("{key:>10}", key = "c")).gray(),
-                Span::raw(": "),
-                Span::raw("Checkout patch").gray().dim(),
-            ]),
-            Line::from(vec![
-                Span::raw(format!("{key:>10}", key = "d")).gray(),
-                Span::raw(": "),
-                Span::raw("Show patch diff").gray().dim(),
-            ]),
-            Line::from(vec![
-                Span::raw(format!("{key:>10}", key = "/")).gray(),
-                Span::raw(": "),
-                Span::raw("Search").gray().dim(),
-            ]),
-            Line::from(vec![
-                Span::raw(format!("{key:>10}", key = "?")).gray(),
-                Span::raw(": "),
-                Span::raw("Show help").gray().dim(),
-            ]),
-            Line::from(vec![
-                Span::raw(format!("{key:>10}", key = "Esc")).gray(),
-                Span::raw(": "),
-                Span::raw("Quit / cancel").gray().dim(),
-            ]),
-            Line::raw(""),
-            Line::from(Span::raw("Searching").cyan()),
-            Line::raw(""),
-            Line::from(vec![
-                Span::raw(format!("{key:>10}", key = "Pattern")).gray(),
-                Span::raw(": "),
-                Span::raw("is:<state> | is:authored | authors:[<did>, <did>] | <search>")
-                    .gray()
-                    .dim(),
-            ]),
-            Line::from(vec![
-                Span::raw(format!("{key:>10}", key = "Example")).gray(),
-                Span::raw(": "),
-                Span::raw("is:open is:authored improve").gray().dim(),
-            ]),
-        ]
-        .to_vec(),
-    )
+fn help_text() -> String {
+    r#"# Generic keybindings
+
+`↑,k`:      move cursor one line up
+`↓,j:       move cursor one line down
+`PageUp`:   move cursor one page up
+`PageDown`: move cursor one page down
+`Home`:     move cursor to the first line
+`End`:      move cursor to the last line
+`Esc`:      Quit / cancel
+
+# Specific keybindings
+
+`enter`:    Select patch (if --mode id)
+`enter`:    Show patch
+`c`:        Checkout patch
+`d`:        Show patch diff
+`/`:        Search
+`?`:        Show help
+
+# Searching
+
+Pattern:    is:<state> | is:authored | authors:[<did>, <did>] | <search>
+Example:    is:open is:authored improve"#
+        .into()
 }

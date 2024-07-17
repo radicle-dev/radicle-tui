@@ -26,14 +26,15 @@
 
 ### Changed
 
+**Binary features**
+
+- Selection interfaces don't show their browser scroll progress anymore
+- Selection interfaces show their help as unstyled markdown
+
 **Library features:**
 
 - Use container focus for table highlighting
 - Default keybindings for switching sections
-
-**Binary features**
-
-- Selection interfaces don't show their browser scroll progress anymore
 
 ### Removed
 

@@ -181,7 +181,7 @@ impl View for Browser {
     type Message = Message;
     type State = State;
 
-    fn handle_event(&mut self, props: Option<&ViewProps>, key: Key) -> Option<Message> {
+    fn handle_event(&mut self, props: Option<&ViewProps>, key: Key) -> Option<Self::Message> {
         let default = BrowserProps::default();
         let props = props
             .and_then(|props| props.inner_ref::<BrowserProps>())

@@ -219,7 +219,6 @@ impl View for Browser {
         } else {
             match key {
                 Key::Esc | Key::Ctrl('c') => Some(Message::Exit { selection: None }),
-                Key::Char('?') => Some(Message::OpenHelp),
                 Key::Char('/') => Some(Message::OpenSearch),
                 Key::Char('\n') => {
                     let operation = match props.mode {
