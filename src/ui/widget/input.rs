@@ -565,15 +565,39 @@ pub struct TextViewState {
     pub scroll: usize,
     /// Current cursor position.
     pub cursor: (usize, usize),
+    /// Content of this text view.
+    pub content: String,
+}
+
+impl TextViewState {
+    pub fn content<T>(mut self, content: T) -> Self
+    where
+        T: Into<String>,
+    {
+        self.content = content.into();
+        self
+    }
+
+    pub fn cursor(mut self, cursor: (usize, usize)) -> Self {
+        self.cursor = cursor;
+        self
+    }
+
+    pub fn scroll(mut self, scroll: usize) -> Self {
+        self.scroll = scroll;
+        self
+    }
+
+    pub fn reset_cursor(&mut self) {
+        self.cursor = (0, 0);
+    }
 }
 
 /// Properties of a `TextView`.
 #[derive(Clone)]
 pub struct TextViewProps<'a> {
-    /// Content of this text view.
-    content: Text<'a>,
-    /// Current cursor position. Default: `(0, 0)`.
-    cursor: (usize, usize),
+    /// Optional state. If set, it will override the internal view state.
+    state: Option<TextViewState>,
     /// If this widget should handle events. Default: `true`.
     handle_keys: bool,
     /// If this widget should render its scroll progress. Default: `false`.
@@ -592,14 +616,6 @@ pub struct TextViewProps<'a> {
 }
 
 impl<'a> TextViewProps<'a> {
-    pub fn content<T>(mut self, content: T) -> Self
-    where
-        T: Into<Text<'a>>,
-    {
-        self.content = content.into();
-        self
-    }
-
     pub fn footer<T>(mut self, footer: Option<T>) -> Self
     where
         T: Into<Text<'a>>,
@@ -608,8 +624,8 @@ impl<'a> TextViewProps<'a> {
         self
     }
 
-    pub fn cursor(mut self, cursor: (usize, usize)) -> Self {
-        self.cursor = cursor;
+    pub fn state(mut self, state: Option<TextViewState>) -> Self {
+        self.state = state;
         self
     }
 
@@ -649,8 +665,7 @@ impl<'a> Default for TextViewProps<'a> {
         let theme = Theme::default();
 
         Self {
-            content: String::new().into(),
-            cursor: (0, 0),
+            state: None,
             handle_keys: true,
             show_scroll_progress: false,
             footer: None,
@@ -676,10 +691,7 @@ pub struct TextView<S, M> {
 impl<S, M> Default for TextView<S, M> {
     fn default() -> Self {
         Self {
-            state: TextViewState {
-                scroll: 0,
-                cursor: (0, 0),
-            },
+            state: TextViewState::default(),
             area: (0, 0),
             phantom: PhantomData,
         }
@@ -736,7 +748,7 @@ impl<S, M> TextView<S, M> {
             props.content_style
         };
 
-        let content = Paragraph::new(props.content.clone())
+        let content = Paragraph::new(self.state.content.clone())
             .style(content_style)
             .scroll((self.state.cursor.0 as u16, self.state.cursor.1 as u16));
 
@@ -761,7 +773,7 @@ impl<S, M> TextView<S, M> {
 
         let mut scroll = vec![];
         if props.show_scroll_progress {
-            let content_len = props.content.lines.len();
+            let content_len = self.state.content.lines().count();
             let scroll_progress = utils::scroll::percent_absolute(
                 self.state.cursor.0,
                 content_len,
@@ -801,14 +813,9 @@ where
             .and_then(|props| props.inner_ref::<TextViewProps>())
             .unwrap_or(&default);
 
-        let len = props.content.lines.len();
-        let max_line_len = props
-            .content
-            .lines
-            .iter()
-            .map(|l| l.width())
-            .max()
-            .unwrap_or_default();
+        let lines = self.state.content.lines().clone();
+        let len = lines.clone().count();
+        let max_line_len = lines.map(|l| l.chars().count()).max().unwrap_or_default();
         let page_size = self.area.0 as usize;
 
         if props.handle_keys {
@@ -843,7 +850,7 @@ where
 
         self.state.scroll = utils::scroll::percent_absolute(
             self.state.cursor.0,
-            props.content.lines.len(),
+            self.state.content.lines().count(),
             self.area.0.into(),
         );
 
@@ -856,8 +863,8 @@ where
             .and_then(|props| props.inner_ref::<TextViewProps>())
             .unwrap_or(&default);
 
-        if props.cursor != self.state.cursor {
-            self.state.cursor = props.cursor;
+        if let Some(state) = &props.state {
+            self.state = state.clone();
         }
     }
 
@@ -884,8 +891,8 @@ where
             self.render_footer(frame, props, &render.area(footer_area), content_area.height);
             self.update_area(content_area);
         } else {
-            self.render_content(frame, props, &render);
-            self.update_area(render.area);
+            self.render_content(frame, props, &render.clone().area(area));
+            self.update_area(area);
         }
     }
 
