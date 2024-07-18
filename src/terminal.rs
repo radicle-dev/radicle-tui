@@ -5,6 +5,7 @@ use termion::input::TermRead;
 use termion::raw::{IntoRawMode, RawTerminal};
 
 use ratatui::prelude::*;
+use ratatui::{TerminalOptions, Viewport};
 
 use tokio::sync::mpsc::{self};
 
