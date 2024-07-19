@@ -26,9 +26,6 @@ if [[ "$1" == "patch" ]] || [[ "$1" == "issue" ]] || [[ "$1" == "inbox" ]]; then
             op=$(extract_operation $out)
             id=$(extract_id $out)
             
-            echo $op
-            echo $id
-            
             rad $1 $op $id
         else
             # Run TUI
