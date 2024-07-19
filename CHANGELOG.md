@@ -45,6 +45,7 @@
 - All Radicle-dependent code (moved to `bin/`)
 - Page size attribute from scrollable widgets
 - Cutoff and footer attributes from table properties
+- Logging facilities
 
 ### Fixed
 
