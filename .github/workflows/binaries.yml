@@ -51,7 +51,7 @@ jobs:
     permissions:
       contents: "read"
       id-token: "write"
-    runs-on: macos-11
+    runs-on: macos-12
     strategy:
       matrix:
         target:
