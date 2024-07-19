@@ -13,10 +13,6 @@ use radicle::patch::Status;
 use radicle_cli::terminal;
 use radicle_cli::terminal::args::{Args, Error, Help};
 
-use radicle_tui as tui;
-
-use tui::log;
-
 use crate::cob::patch;
 use crate::cob::patch::Filter;
 
@@ -160,7 +156,10 @@ pub async fn run(options: Options, ctx: impl terminal::Context) -> anyhow::Resul
             let rid = options.repo.unwrap_or(rid);
             let repository = profile.storage.repository(rid).unwrap();
 
-            log::enable(&profile, "patch", "select")?;
+            if let Err(err) = crate::log::enable() {
+                println!("{}", err);
+            }
+            log::info!("Starting patch selection interface in project {}..", rid);
 
             let context = select::Context {
                 profile,
@@ -173,6 +172,9 @@ pub async fn run(options: Options, ctx: impl terminal::Context) -> anyhow::Resul
             let output = output
                 .map(|o| serde_json::to_string(&o).unwrap_or_default())
                 .unwrap_or_default();
+
+            log::info!("About to print to `stderr`: {}", output);
+            log::info!("Exiting patch selection interface..");
 
             eprint!("{output}");
         }

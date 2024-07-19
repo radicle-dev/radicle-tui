@@ -3,6 +3,7 @@ mod commands;
 mod git;
 mod settings;
 mod ui;
+mod log;
 
 use std::ffi::OsString;
 use std::io;
