@@ -1,5 +1,5 @@
 {
-  description = "Build a cargo project";
+  description = "A TUI for the Radicle code forge";
 
   inputs = {
     nixpkgs.url = "github:NixOS/nixpkgs/release-24.05";
@@ -11,10 +11,7 @@
 
     rust-overlay = {
       url = "github:oxalica/rust-overlay";
-      inputs = {
-        nixpkgs.follows = "nixpkgs";
-        flake-utils.follows = "flake-utils";
-      };
+      inputs.nixpkgs.follows = "nixpkgs";
     };
 
     flake-utils.url = "github:numtide/flake-utils";
@@ -108,6 +105,7 @@
         };
 
         packages = {
+          inherit radicle-tui;
           default = radicle-tui;
         };
 
