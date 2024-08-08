@@ -1,6 +1,6 @@
 # radicle-tui
 
-![Screenshot](https://seed.radicle.xyz/raw/rad:z39mP9rQAaGmERfUMPULfPUi473tY/c9bf4f45266b4e00bad7d21e5354ddf3108841be/demo.png "Screenshot of radicle-tui")
+![Screenshot](https://seed.radicle.xyz/raw/rad:z39mP9rQAaGmERfUMPULfPUi473tY/0e6d9477b450e520c2e770b5ded21e1fc6a83520/demo.png "Screenshot of radicle-tui")
 
 `radicle-tui` provides various terminal user interfaces for interacting with the [Radicle](https://radicle.xyz) code forge. It also exposes the application framework they were built with.
 
