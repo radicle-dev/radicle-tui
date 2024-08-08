@@ -62,11 +62,11 @@ Soon, `rad-tui` will be integrated into [`heartwood`](https://app.radicle.xyz/no
 
 ```sh
 # show an interface that let's you select a patch
-./scripts/rad.sh patch show
+./rad.sh patch show
 ```
 ```sh
 # show an interface that let's you select a patch and an operation
-./scripts/rad.sh patch --tui
+./rad.sh patch --tui
 ```
 
 Both commands will call into `rad-tui`, process its output and call `rad` accordingly.
