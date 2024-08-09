@@ -40,7 +40,9 @@ jobs:
         with:
           image: ${{ matrix.docker_image }}
           options: ${{ matrix.docker_options }}
-          run: cargo build --release --target "${{ matrix.target }}"
+          run: |
+            rustup target add "${{ matrix.target }}"
+            cargo build --release --target "${{ matrix.target }}"
       - name: Upload release binaries
         uses: actions/upload-artifact@v4
         with:
