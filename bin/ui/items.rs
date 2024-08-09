@@ -304,9 +304,9 @@ impl ToRow<9> for NotificationItem {
         [
             id.into(),
             seen.into(),
+            summary.into(),
             name.into(),
             kind_id.into(),
-            summary.into(),
             type_name.into(),
             status.into(),
             author.into(),

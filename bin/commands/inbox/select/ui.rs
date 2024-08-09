@@ -81,14 +81,16 @@ impl<'a> From<&State> for BrowserProps<'a> {
             columns: [
                 Column::new("", Constraint::Length(5)),
                 Column::new("", Constraint::Length(3)),
-                Column::new("", Constraint::Length(15))
+                Column::new("", Constraint::Fill(5)),
+                Column::new("", Constraint::Fill(1))
                     .skip(*state.mode.repository() != RepositoryMode::All),
-                Column::new("", Constraint::Length(25)).hide_small(),
-                Column::new("", Constraint::Fill(1)),
+                Column::new("", Constraint::Fill(1))
+                    .hide_small()
+                    .hide_medium(),
                 Column::new("", Constraint::Length(8)),
                 Column::new("", Constraint::Length(10)),
-                Column::new("", Constraint::Length(15)).hide_small(),
-                Column::new("", Constraint::Length(18)).hide_small(),
+                Column::new("", Constraint::Min(12)).hide_small(),
+                Column::new("", Constraint::Min(14)).hide_small(),
             ]
             .to_vec(),
             search: state.browser.search.read(),
