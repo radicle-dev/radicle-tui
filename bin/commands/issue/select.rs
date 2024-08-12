@@ -116,13 +116,27 @@ impl BrowserState {
             .collect()
     }
 
-    pub fn selected_issue(&self) -> Option<&IssueItem> {
+    pub fn selected(&self) -> Option<&IssueItem> {
         self.selected
             .and_then(|selected| self.issues_ref().get(selected).copied())
     }
-}
 
-impl BrowserState {
+    pub fn select(&mut self, selected: Option<usize>) -> Option<&IssueItem> {
+        self.selected = selected;
+        self.selected()
+    }
+
+    pub fn select_first(&mut self) -> Option<&IssueItem> {
+        self.selected.and_then(|selected| {
+            if selected > self.issues_ref().len() {
+                self.selected = Some(0);
+                self.issues_ref().first().cloned()
+            } else {
+                self.issues_ref().get(selected).cloned()
+            }
+        })
+    }
+
     pub fn show_search(&mut self) {
         self.show_search = true;
     }
@@ -315,7 +329,7 @@ impl store::State<Selection> for State {
     fn update(&mut self, message: Message) -> Option<Exit<Selection>> {
         match message {
             Message::Quit => Some(Exit { value: None }),
-            Message::Exit { operation } => self.browser.selected_issue().map(|issue| Exit {
+            Message::Exit { operation } => self.browser.selected().map(|issue| Exit {
                 value: Some(Selection {
                     operation: operation.map(|op| op.to_string()),
                     ids: vec![issue.id],
@@ -328,7 +342,7 @@ impl store::State<Selection> for State {
                     Mode::Id => None,
                 };
 
-                self.browser.selected_issue().map(|issue| Exit {
+                self.browser.selected().map(|issue| Exit {
                     value: Some(Selection {
                         operation,
                         ids: vec![issue.id],
@@ -337,8 +351,8 @@ impl store::State<Selection> for State {
                 })
             }
             Message::SelectIssue { selected } => {
-                self.browser.selected = selected;
-                self.preview.issue = self.browser.selected_issue().cloned();
+                self.browser.select(selected);
+                self.preview.issue = self.browser.selected().cloned();
                 self.preview.comment.reset_cursor();
                 None
             }
@@ -370,18 +384,7 @@ impl store::State<Selection> for State {
             }
             Message::UpdateSearch { value } => {
                 self.browser.search(value);
-
-                if let Some(selected) = self.browser.selected {
-                    if selected > self.browser.issues().len() {
-                        self.browser.selected = Some(0);
-                        self.preview.issue = self.browser.issues().first().cloned();
-                    } else {
-                        self.preview.issue = self.browser.issues().get(selected).cloned();
-                    }
-                } else {
-                    self.preview.issue = None;
-                }
-
+                self.preview.issue = self.browser.select_first().cloned();
                 None
             }
             Message::ApplySearch => {
@@ -394,7 +397,7 @@ impl store::State<Selection> for State {
                 self.browser.reset_search();
                 self.browser.filter_items();
 
-                self.preview.issue = self.browser.selected_issue().cloned();
+                self.preview.issue = self.browser.selected().cloned();
                 self.preview.comment.reset_cursor();
                 None
             }
