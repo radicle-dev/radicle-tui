@@ -36,8 +36,8 @@ use tui::{BoxedAny, Channel, Exit, PageStack};
 
 use crate::cob::issue;
 use crate::settings::{self, ThemeBundle, ThemeMode};
-use crate::ui::items::{CommentItem, Filter, IssueItem, IssueItemFilter};
-use crate::ui::widget::{IssueDetails, IssueDetailsProps};
+use crate::ui::items::{CommentItem, IssueItem, IssueItemFilter};
+use crate::ui::widget::{BrowserState, IssueDetails, IssueDetailsProps};
 use crate::ui::TerminalInfo;
 
 use self::ui::{Browser, BrowserProps};
@@ -92,74 +92,6 @@ impl From<Section> for usize {
             Section::Details => 1,
             Section::Comment => 2,
         }
-    }
-}
-
-#[derive(Clone, Debug)]
-pub struct BrowserState {
-    items: Vec<IssueItem>,
-    selected: Option<usize>,
-    filter: IssueItemFilter,
-    search: store::StateValue<String>,
-    show_search: bool,
-}
-
-impl BrowserState {
-    pub fn issues(&self) -> Vec<IssueItem> {
-        self.issues_ref().into_iter().cloned().collect()
-    }
-
-    pub fn issues_ref(&self) -> Vec<&IssueItem> {
-        self.items
-            .iter()
-            .filter(|patch| self.filter.matches(patch))
-            .collect()
-    }
-
-    pub fn selected(&self) -> Option<&IssueItem> {
-        self.selected
-            .and_then(|selected| self.issues_ref().get(selected).copied())
-    }
-
-    pub fn select(&mut self, selected: Option<usize>) -> Option<&IssueItem> {
-        self.selected = selected;
-        self.selected()
-    }
-
-    pub fn select_first(&mut self) -> Option<&IssueItem> {
-        self.selected.and_then(|selected| {
-            if selected > self.issues_ref().len() {
-                self.selected = Some(0);
-                self.issues_ref().first().cloned()
-            } else {
-                self.issues_ref().get(selected).cloned()
-            }
-        })
-    }
-
-    pub fn show_search(&mut self) {
-        self.show_search = true;
-    }
-
-    pub fn hide_search(&mut self) {
-        self.show_search = false;
-    }
-
-    pub fn apply_search(&mut self) {
-        self.search.apply();
-    }
-
-    pub fn reset_search(&mut self) {
-        self.search.reset();
-    }
-
-    pub fn search(&mut self, value: String) {
-        self.search.write(value);
-        self.filter_items();
-    }
-
-    pub fn filter_items(&mut self) {
-        self.filter = IssueItemFilter::from_str(&self.search.read()).unwrap_or_default();
     }
 }
 
@@ -227,7 +159,7 @@ pub struct HelpState {
 pub struct State {
     mode: Mode,
     pages: PageStack<AppPage>,
-    browser: BrowserState,
+    browser: BrowserState<IssueItem, IssueItemFilter>,
     preview: PreviewState,
     section: Option<Section>,
     help: HelpState,
@@ -283,13 +215,7 @@ impl TryFrom<(&Context, &TerminalInfo)> for State {
         Ok(Self {
             mode: context.mode.clone(),
             pages: PageStack::new(vec![AppPage::Browser]),
-            browser: BrowserState {
-                items: items.clone(),
-                selected: Some(0),
-                filter,
-                search,
-                show_search: false,
-            },
+            browser: BrowserState::build(items.clone(), filter, search),
             preview: PreviewState {
                 show: true,
                 issue: items.first().cloned(),
@@ -329,7 +255,7 @@ impl store::State<Selection> for State {
     fn update(&mut self, message: Message) -> Option<Exit<Selection>> {
         match message {
             Message::Quit => Some(Exit { value: None }),
-            Message::Exit { operation } => self.browser.selected().map(|issue| Exit {
+            Message::Exit { operation } => self.browser.selected_item().map(|issue| Exit {
                 value: Some(Selection {
                     operation: operation.map(|op| op.to_string()),
                     ids: vec![issue.id],
@@ -342,7 +268,7 @@ impl store::State<Selection> for State {
                     Mode::Id => None,
                 };
 
-                self.browser.selected().map(|issue| Exit {
+                self.browser.selected_item().map(|issue| Exit {
                     value: Some(Selection {
                         operation,
                         ids: vec![issue.id],
@@ -351,8 +277,8 @@ impl store::State<Selection> for State {
                 })
             }
             Message::SelectIssue { selected } => {
-                self.browser.select(selected);
-                self.preview.issue = self.browser.selected().cloned();
+                self.browser.select_item(selected);
+                self.preview.issue = self.browser.selected_item().cloned();
                 self.preview.comment.reset_cursor();
                 None
             }
@@ -383,8 +309,8 @@ impl store::State<Selection> for State {
                 None
             }
             Message::UpdateSearch { value } => {
-                self.browser.search(value);
-                self.preview.issue = self.browser.select_first().cloned();
+                self.browser.update_search(value);
+                self.preview.issue = self.browser.select_first_item().cloned();
                 None
             }
             Message::ApplySearch => {
@@ -395,9 +321,8 @@ impl store::State<Selection> for State {
             Message::CloseSearch => {
                 self.browser.hide_search();
                 self.browser.reset_search();
-                self.browser.filter_items();
 
-                self.preview.issue = self.browser.selected().cloned();
+                self.preview.issue = self.browser.selected_item().cloned();
                 self.preview.comment.reset_cursor();
                 None
             }
@@ -451,7 +376,7 @@ fn browser_page(channel: &Channel<Message>) -> Widget<State, Message> {
     let shortcuts = Shortcuts::default()
         .to_widget(tx.clone())
         .on_update(|state: &State| {
-            let shortcuts = if state.browser.show_search {
+            let shortcuts = if state.browser.is_search_shown() {
                 vec![("esc", "cancel"), ("enter", "apply")]
             } else {
                 let mut shortcuts = match state.mode {
@@ -490,7 +415,7 @@ fn browser_page(channel: &Channel<Message>) -> Widget<State, Message> {
                 })
                 .on_update(|state: &State| {
                     SectionGroupProps::default()
-                        .handle_keys(state.preview.show && !state.browser.show_search)
+                        .handle_keys(state.preview.show && !state.browser.is_search_shown())
                         .layout(PredefinedLayout::Expandable3 {
                             left_only: !state.preview.show,
                         })
@@ -524,7 +449,7 @@ fn browser_page(channel: &Channel<Message>) -> Widget<State, Message> {
         })
         .on_update(|state: &State| {
             PageProps::default()
-                .handle_keys(!state.browser.show_search)
+                .handle_keys(!state.browser.is_search_shown())
                 .to_boxed_any()
                 .into()
         })
