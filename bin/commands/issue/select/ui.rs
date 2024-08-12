@@ -52,7 +52,7 @@ impl<'a> From<&State> for BrowserProps<'a> {
     fn from(state: &State) -> Self {
         use radicle::issue::State;
 
-        let issues = state.browser.issues();
+        let issues = state.browser.items();
 
         let mut open = 0;
         let mut other = 0;
@@ -104,8 +104,8 @@ impl<'a> From<&State> for BrowserProps<'a> {
                 Column::new("Opened", Constraint::Length(16)).hide_small(),
             ]
             .to_vec(),
-            search: state.browser.search.read(),
-            show_search: state.browser.show_search,
+            search: state.browser.read_search(),
+            show_search: state.browser.is_search_shown(),
         }
     }
 }
@@ -147,8 +147,8 @@ impl Browser {
 
                             TableProps::default()
                                 .columns(props.columns)
-                                .items(state.browser.issues())
-                                .selected(state.browser.selected)
+                                .items(state.browser.items())
+                                .selected(state.browser.selected())
                                 .dim(state.theme.dim_no_focus)
                                 .to_boxed_any()
                                 .into()
@@ -182,7 +182,7 @@ impl Browser {
                 })
                 .on_update(|state: &State| {
                     TextFieldProps::default()
-                        .text(&state.browser.search.read().to_string())
+                        .text(&state.browser.read_search())
                         .title("Search")
                         .inline(true)
                         .to_boxed_any()
