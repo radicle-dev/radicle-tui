@@ -57,7 +57,7 @@ impl<'a> From<&State> for BrowserProps<'a> {
         let mut archived = 0;
         let mut merged = 0;
 
-        let patches = state.browser.patches();
+        let patches = state.browser.items();
 
         for patch in &patches {
             match patch.state {
@@ -105,8 +105,8 @@ impl<'a> From<&State> for BrowserProps<'a> {
                 Column::new("Updated", Constraint::Length(16)).hide_small(),
             ]
             .to_vec(),
-            show_search: state.browser.show_search,
-            search: state.browser.search.read(),
+            show_search: state.browser.is_search_shown(),
+            search: state.browser.read_search(),
         }
     }
 }
@@ -136,7 +136,7 @@ impl Browser {
                         .on_event(|_, s, _| {
                             let (selected, _) =
                                 s.and_then(|s| s.unwrap_table()).unwrap_or_default();
-                            Some(Message::Select {
+                            Some(Message::SelectPatch {
                                 selected: Some(selected),
                             })
                         })
@@ -145,8 +145,8 @@ impl Browser {
                             let props = BrowserProps::from(state);
                             TableProps::default()
                                 .columns(props.columns)
-                                .items(state.browser.patches())
-                                .selected(state.browser.selected)
+                                .items(state.browser.items())
+                                .selected(state.browser.selected())
                                 .to_boxed_any()
                                 .into()
                         }),
@@ -176,7 +176,7 @@ impl Browser {
                 })
                 .on_update(|state: &State| {
                     TextFieldProps::default()
-                        .text(&state.browser.search.read().to_string())
+                        .text(&state.browser.read_search())
                         .title("Search")
                         .inline(true)
                         .to_boxed_any()
