@@ -27,7 +27,7 @@ use tui::{BoxedAny, Channel, Exit, PageStack};
 
 use self::ui::{Browser, BrowserProps};
 
-use super::common::Mode;
+use super::common::{Mode, PatchOperation};
 
 use crate::cob::patch;
 use crate::ui::items::{Filter, PatchItem, PatchItemFilter};
@@ -67,6 +67,18 @@ impl BrowserState {
             .filter(|patch| self.filter.matches(patch))
             .cloned()
             .collect()
+    }
+
+    pub fn patches_ref(&self) -> Vec<&PatchItem> {
+        self.items
+            .iter()
+            .filter(|patch| self.filter.matches(patch))
+            .collect()
+    }
+
+    pub fn selected_item(&self) -> Option<&PatchItem> {
+        self.selected
+            .and_then(|selected| self.patches_ref().get(selected).copied())
     }
 }
 
@@ -118,7 +130,9 @@ impl TryFrom<&Context> for State {
 }
 
 pub enum Message {
-    Exit { selection: Option<Selection> },
+    Quit,
+    Exit { operation: Option<PatchOperation> },
+    ExitFromMode,
     Select { selected: Option<usize> },
     OpenSearch,
     UpdateSearch { value: String },
@@ -134,7 +148,28 @@ impl store::State<Selection> for State {
 
     fn update(&mut self, message: Message) -> Option<Exit<Selection>> {
         match message {
-            Message::Exit { selection } => Some(Exit { value: selection }),
+            Message::Quit => Some(Exit { value: None }),
+            Message::Exit { operation } => self.browser.selected_item().map(|issue| Exit {
+                value: Some(Selection {
+                    operation: operation.map(|op| op.to_string()),
+                    ids: vec![issue.id],
+                    args: vec![],
+                }),
+            }),
+            Message::ExitFromMode => {
+                let operation = match self.mode {
+                    Mode::Operation => Some(PatchOperation::Show.to_string()),
+                    Mode::Id => None,
+                };
+
+                self.browser.selected_item().map(|issue| Exit {
+                    value: Some(Selection {
+                        operation,
+                        ids: vec![issue.id],
+                        args: vec![],
+                    }),
+                })
+            }
             Message::Select { selected } => {
                 self.browser.selected = selected;
                 None
@@ -255,8 +290,15 @@ fn browser_page(_state: &State, channel: &Channel<Message>) -> Widget<State, Mes
 
             if props.handle_keys {
                 match key {
-                    Key::Esc | Key::Ctrl('c') => Some(Message::Exit { selection: None }),
+                    Key::Esc | Key::Ctrl('c') => Some(Message::Quit),
                     Key::Char('?') => Some(Message::OpenHelp),
+                    Key::Char('\n') => Some(Message::ExitFromMode),
+                    Key::Char('c') => Some(Message::Exit {
+                        operation: Some(PatchOperation::Checkout),
+                    }),
+                    Key::Char('d') => Some(Message::Exit {
+                        operation: Some(PatchOperation::Diff),
+                    }),
                     _ => None,
                 }
             } else {
@@ -329,7 +371,7 @@ fn help_page(_state: &State, channel: &Channel<Message>) -> Widget<State, Messag
         .shortcuts(shortcuts)
         .to_widget(tx.clone())
         .on_event(|key, _, _| match key {
-            Key::Esc | Key::Ctrl('c') => Some(Message::Exit { selection: None }),
+            Key::Esc | Key::Ctrl('c') => Some(Message::Quit),
             Key::Char('?') => Some(Message::LeavePage),
             _ => None,
         })
