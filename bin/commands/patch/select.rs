@@ -30,7 +30,8 @@ use self::ui::{Browser, BrowserProps};
 use super::common::{Mode, PatchOperation};
 
 use crate::cob::patch;
-use crate::ui::items::{Filter, PatchItem, PatchItemFilter};
+use crate::ui::items::{PatchItem, PatchItemFilter};
+use crate::ui::widget::BrowserState;
 
 type Selection = tui::Selection<PatchId>;
 
@@ -52,37 +53,6 @@ pub enum AppPage {
 }
 
 #[derive(Clone, Debug)]
-pub struct BrowserState {
-    items: Vec<PatchItem>,
-    selected: Option<usize>,
-    filter: PatchItemFilter,
-    search: store::StateValue<String>,
-    show_search: bool,
-}
-
-impl BrowserState {
-    pub fn patches(&self) -> Vec<PatchItem> {
-        self.items
-            .iter()
-            .filter(|patch| self.filter.matches(patch))
-            .cloned()
-            .collect()
-    }
-
-    pub fn patches_ref(&self) -> Vec<&PatchItem> {
-        self.items
-            .iter()
-            .filter(|patch| self.filter.matches(patch))
-            .collect()
-    }
-
-    pub fn selected_item(&self) -> Option<&PatchItem> {
-        self.selected
-            .and_then(|selected| self.patches_ref().get(selected).copied())
-    }
-}
-
-#[derive(Clone, Debug)]
 pub struct HelpState {
     text: TextViewState,
 }
@@ -91,7 +61,7 @@ pub struct HelpState {
 pub struct State {
     mode: Mode,
     pages: PageStack<AppPage>,
-    browser: BrowserState,
+    browser: BrowserState<PatchItem, PatchItemFilter>,
     help: HelpState,
 }
 
@@ -115,13 +85,7 @@ impl TryFrom<&Context> for State {
         Ok(Self {
             mode: context.mode.clone(),
             pages: PageStack::new(vec![AppPage::Browse]),
-            browser: BrowserState {
-                items,
-                selected: Some(0),
-                filter,
-                search,
-                show_search: false,
-            },
+            browser: BrowserState::build(items.clone(), filter, search),
             help: HelpState {
                 text: TextViewState::default().content(help_text()),
             },
@@ -133,7 +97,7 @@ pub enum Message {
     Quit,
     Exit { operation: Option<PatchOperation> },
     ExitFromMode,
-    Select { selected: Option<usize> },
+    SelectPatch { selected: Option<usize> },
     OpenSearch,
     UpdateSearch { value: String },
     ApplySearch,
@@ -170,47 +134,34 @@ impl store::State<Selection> for State {
                     }),
                 })
             }
-            Message::Select { selected } => {
-                self.browser.selected = selected;
+            Message::SelectPatch { selected } => {
+                self.browser.select_item(selected);
                 None
             }
             Message::OpenSearch => {
-                self.browser.show_search = true;
+                self.browser.show_search();
                 None
             }
             Message::UpdateSearch { value } => {
-                self.browser.search.write(value);
-                self.browser.filter =
-                    PatchItemFilter::from_str(&self.browser.search.read()).unwrap_or_default();
-
-                if let Some(selected) = self.browser.selected {
-                    if selected > self.browser.patches().len() {
-                        self.browser.selected = Some(0);
-                    }
-                }
-
+                self.browser.update_search(value);
+                self.browser.select_first_item();
                 None
             }
             Message::ApplySearch => {
-                self.browser.search.apply();
-                self.browser.show_search = false;
+                self.browser.hide_search();
+                self.browser.apply_search();
                 None
             }
             Message::CloseSearch => {
-                self.browser.search.reset();
-                self.browser.show_search = false;
-                self.browser.filter =
-                    PatchItemFilter::from_str(&self.browser.search.read()).unwrap_or_default();
-
+                self.browser.hide_search();
+                self.browser.reset_search();
                 None
             }
             Message::OpenHelp => {
-                log::warn!("OpenHelp");
                 self.pages.push(AppPage::Help);
                 None
             }
             Message::LeavePage => {
-                log::warn!("LeavePage");
                 self.pages.pop();
                 None
             }
@@ -257,7 +208,7 @@ fn browser_page(_state: &State, channel: &Channel<Message>) -> Widget<State, Mes
     let shortcuts = Shortcuts::default()
         .to_widget(tx.clone())
         .on_update(|state: &State| {
-            let shortcuts = if state.browser.show_search {
+            let shortcuts = if state.browser.is_search_shown() {
                 vec![("esc", "cancel"), ("enter", "apply")]
             } else {
                 match state.mode {
@@ -307,7 +258,7 @@ fn browser_page(_state: &State, channel: &Channel<Message>) -> Widget<State, Mes
         })
         .on_update(|state: &State| {
             PageProps::default()
-                .handle_keys(!state.browser.show_search)
+                .handle_keys(!state.browser.is_search_shown())
                 .to_boxed_any()
                 .into()
         })
