@@ -26,10 +26,8 @@ use tui::ui::widget::list::{Table, TableProps};
 use tui::ui::widget::ViewProps;
 use tui::ui::widget::{RenderProps, ToWidget, View};
 
-use tui::{BoxedAny, Selection};
+use tui::BoxedAny;
 
-use crate::tui_patch::common::Mode;
-use crate::tui_patch::common::PatchOperation;
 use crate::ui::items::{PatchItem, PatchItemFilter};
 
 use super::{Message, State};
@@ -38,12 +36,8 @@ type Widget = widget::Widget<State, Message>;
 
 #[derive(Clone, Default)]
 pub struct BrowserProps<'a> {
-    /// Application mode: openation and id or id only.
-    mode: Mode,
     /// Filtered patches.
     patches: Vec<PatchItem>,
-    /// Current (selected) table index
-    selected: Option<usize>,
     /// Patch statistics.
     stats: HashMap<String, usize>,
     /// Header columns
@@ -85,9 +79,7 @@ impl<'a> From<&State> for BrowserProps<'a> {
         ]);
 
         Self {
-            mode: state.mode.clone(),
             patches,
-            selected: state.browser.selected,
             stats,
             header: [
                 Column::new(" ● ", Constraint::Length(3)),
@@ -218,45 +210,7 @@ impl View for Browser {
             }
         } else {
             match key {
-                Key::Esc | Key::Ctrl('c') => Some(Message::Exit { selection: None }),
                 Key::Char('/') => Some(Message::OpenSearch),
-                Key::Char('\n') => {
-                    let operation = match props.mode {
-                        Mode::Operation => Some(PatchOperation::Show.to_string()),
-                        Mode::Id => None,
-                    };
-
-                    props
-                        .selected
-                        .and_then(|selected| props.patches.get(selected))
-                        .map(|patch| Message::Exit {
-                            selection: Some(Selection {
-                                operation,
-                                ids: vec![patch.id],
-                                args: vec![],
-                            }),
-                        })
-                }
-                Key::Char('c') => props
-                    .selected
-                    .and_then(|selected| props.patches.get(selected))
-                    .map(|patch| Message::Exit {
-                        selection: Some(Selection {
-                            operation: Some(PatchOperation::Checkout.to_string()),
-                            ids: vec![patch.id],
-                            args: vec![],
-                        }),
-                    }),
-                Key::Char('d') => props
-                    .selected
-                    .and_then(|selected| props.patches.get(selected))
-                    .map(|patch| Message::Exit {
-                        selection: Some(Selection {
-                            operation: Some(PatchOperation::Diff.to_string()),
-                            ids: vec![patch.id],
-                            args: vec![],
-                        }),
-                    }),
                 _ => {
                     self.patches.handle_event(key);
                     None
