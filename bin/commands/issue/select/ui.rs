@@ -27,6 +27,7 @@ use tui::ui::widget::{RenderProps, ToWidget, View};
 use tui::BoxedAny;
 
 use crate::ui::items::{IssueItem, IssueItemFilter};
+use crate::ui::widget::BrowserState;
 
 use super::{Message, State};
 
@@ -115,6 +116,8 @@ pub struct Browser {
     issues: Widget,
     /// Search widget
     search: Widget,
+    /// Internal widget state
+    state: BrowserState<IssueItem, IssueItemFilter>,
 }
 
 impl Browser {
@@ -175,11 +178,11 @@ impl Browser {
                 }),
             search: TextField::default()
                 .to_widget(tx.clone())
-                .on_event(|_, s, _| {
-                    Some(Message::UpdateSearch {
-                        value: s.and_then(|i| i.unwrap_string()).unwrap_or_default(),
-                    })
-                })
+                // .on_event(|_, s, _| {
+                //     Some(Message::UpdateSearch {
+                //         value: s.and_then(|i| i.unwrap_string()).unwrap_or_default(),
+                //     })
+                // })
                 .on_update(|state: &State| {
                     TextFieldProps::default()
                         .text(&state.browser.read_search())
@@ -188,6 +191,7 @@ impl Browser {
                         .to_boxed_any()
                         .into()
                 }),
+            state: BrowserState::default(),
         }
     }
 }
@@ -202,21 +206,27 @@ impl View for Browser {
             .and_then(|props| props.inner_ref::<BrowserProps>())
             .unwrap_or(&default);
 
-        if props.show_search {
+        if self.state.is_search_shown() {
             match key {
                 Key::Esc => {
-                    self.search.reset();
+                    self.state.hide_search();
                     Some(Message::CloseSearch)
                 }
-                Key::Char('\n') => Some(Message::ApplySearch),
+                Key::Char('\n') => {
+                    self.state.apply_search();
+                    Some(Message::ApplySearch)
+                }
                 _ => {
                     self.search.handle_event(key);
-                    None
+                    Some(Message::UpdateSearch)
                 }
             }
         } else {
             match key {
-                Key::Char('/') => Some(Message::OpenSearch),
+                Key::Char('/') => {
+                    self.state.show_search();
+                    Some(Message::OpenSearch)
+                }
                 _ => {
                     self.issues.handle_event(key);
                     None
@@ -236,7 +246,7 @@ impl View for Browser {
             .and_then(|props| props.inner_ref::<BrowserProps>())
             .unwrap_or(&default);
 
-        if props.show_search {
+        if self.state.is_search_shown() {
             let [table_area, search_area] =
                 Layout::vertical([Constraint::Min(1), Constraint::Length(2)]).areas(render.area);
             let [_, search_area, _] = Layout::horizontal([

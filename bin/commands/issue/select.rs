@@ -237,7 +237,8 @@ pub enum Message {
     ExitFromMode,
     SelectIssue { selected: Option<usize> },
     OpenSearch,
-    UpdateSearch { value: String },
+    // UpdateSearch { value: String },
+    UpdateSearch,
     ApplySearch,
     CloseSearch,
     TogglePreview,
@@ -305,22 +306,22 @@ impl store::State<Selection> for State {
                 None
             }
             Message::OpenSearch => {
-                self.browser.show_search();
+                // self.browser.show_search();
                 None
             }
-            Message::UpdateSearch { value } => {
-                self.browser.update_search(value);
+            Message::UpdateSearch => {
+                // self.browser.update_search(value);
                 self.preview.issue = self.browser.select_first_item().cloned();
                 None
             }
             Message::ApplySearch => {
-                self.browser.hide_search();
-                self.browser.apply_search();
+                // self.browser.hide_search();
+                // self.browser.apply_search();
                 None
             }
             Message::CloseSearch => {
-                self.browser.hide_search();
-                self.browser.reset_search();
+                // self.browser.hide_search();
+                // self.browser.reset_search();
 
                 self.preview.issue = self.browser.selected_item().cloned();
                 self.preview.comment.reset_cursor();
