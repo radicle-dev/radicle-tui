@@ -2,7 +2,7 @@ name: Binaries
 
 on:
   push:
-    branches: ["main"]
+    branches: ["main", "ci"]
     tags: ["*"]
 
 env:
