@@ -16,12 +16,18 @@ jobs:
     runs-on: ubuntu-20.04
     strategy:
       matrix:
-        target: [x86_64-unknown-linux-gnu, x86_64-unknown-linux-musl, aarch64-unknown-linux-gnu]
+        target: [x86_64-unknown-linux-gnu, x86_64-unknown-linux-musl, aarch64-unknown-linux-gnu, aarch64-unknown-linux-musl]
         include:
-          - target: x86_64-unknown-linux-musl
-            dependencies: musl-tools
+          - target: x86_64-unknown-linux-gnu
           - target: aarch64-unknown-linux-gnu
             dependencies: gcc-aarch64-linux-gnu
+          - target: x86_64-unknown-linux-musl
+            dependencies: musl-tools
+            docker: registry.gitlab.com/rust_musl_docker/image:stable-latest
+            options: -v /home/runner/work/radicle-tui/radicle-tui:/workdir -v /home/runner/.cargo/git:/root/.cargo/git -v /home/runner/.cargo/registry:/root/.cargo/registry
+          - target: aarch64-unknown-linux-musl
+            docker: messense/rust-musl-cross:aarch64-musl
+            options: -v /home/runner/work/radicle-tui/radicle-tui:/home/rust/src -v /home/runner/.cargo/git:/root/.cargo/git -v /home/runner/.cargo/registry:/root/.cargo/registry
     steps:
       - name: Checkout source code
         uses: actions/checkout@v4
@@ -34,12 +40,21 @@ jobs:
             target
           key: cargo-${{ matrix.target }}-${{ hashFiles('**/Cargo.lock') }}
       - uses: dtolnay/rust-toolchain@1.80
-      - name: Install build dependencies
-        run: sudo apt-get update --yes && sudo apt-get install --yes ${{ matrix.dependencies }}
       - name: Build release binaries
+        if: contains(matrix.target, 'gnu')
         run: |
+          sudo apt-get update --yes && sudo apt-get install --yes ${{ matrix.dependencies }}
           rustup target add "${{ matrix.target }}"
           cargo build --release --target "${{ matrix.target }}"
+      - name: Build release binaries (statically linked)
+        if: contains(matrix.target, 'musl')
+        uses: addnab/docker-run-action@v3
+        with:
+          image: ${{ matrix.docker }}
+          options: ${{ matrix.options }}
+          run: |
+            rustup target add "${{ matrix.target }}"
+            cargo build --release --target "${{ matrix.target }}"
       - name: Upload release binaries
         uses: actions/upload-artifact@v4
         with:
