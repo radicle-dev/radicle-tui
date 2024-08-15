@@ -1,6 +1,6 @@
 # Changelog
 
-## [0.4.0] - 2024-07-19
+## [0.4.0] - 2024-08-15
 
 ### Added
 
@@ -9,6 +9,7 @@
 - Issue preview widgets in `issue select`
 - Basic theming support with light and dark theme bundles
 - Support for application settings
+- Provide dynamically linked CI build
 
 **Library features:**
 
