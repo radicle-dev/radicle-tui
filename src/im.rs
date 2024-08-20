@@ -247,15 +247,15 @@ impl Ui {
             .with_ctx(self.ctx.clone())
     }
 
-    pub fn build_layout<R>(
+    pub fn layout<R>(
         &mut self,
         layout: Layout,
         add_contents: impl FnOnce(&mut Self) -> R,
     ) -> InnerResponse<R> {
-        self.build_layout_dyn(layout, Box::new(add_contents))
+        self.layout_dyn(layout, Box::new(add_contents))
     }
 
-    pub fn build_layout_dyn<'a, R>(
+    pub fn layout_dyn<'a, R>(
         &mut self,
         layout: Layout,
         add_contents: Box<dyn FnOnce(&mut Self) -> R + 'a>,
