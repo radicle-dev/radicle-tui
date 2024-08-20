@@ -1,4 +1,5 @@
 pub mod event;
+pub mod im;
 pub mod store;
 pub mod task;
 pub mod terminal;
