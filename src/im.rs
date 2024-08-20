@@ -28,7 +28,7 @@ pub trait App {
     type State;
     type Message;
 
-    fn render(&self, ui: &mut Ui, frame: &mut Frame, state: &Self::State) -> Result<()>;
+    fn update(&self, ui: &Context, frame: &mut Frame, state: &Self::State) -> Result<()>;
 }
 
 pub async fn run_app<S, M, P>(
@@ -82,14 +82,14 @@ impl Frontend {
         let mut events_rx = terminal::events();
 
         let mut state = state_rx.recv().await.unwrap();
-        let mut ui = Ui::default();
+        let mut ctx = Context::default();
 
         let result: anyhow::Result<Interrupted<P>> = loop {
             tokio::select! {
                 // Tick to terminate the select every N milliseconds
                 _ = ticker.tick() => (),
                 Some(event) = events_rx.recv() => match event {
-                    Event::Key(key) => ui.store_input(key),
+                    Event::Key(key) => ctx.store_input(key),
                     Event::Resize => (),
                 },
                 // Handle state updates
@@ -105,13 +105,14 @@ impl Frontend {
                 }
             }
             terminal.draw(|frame| {
-                let mut ui = ui.clone().with_area(frame.size());
-                if let Err(err) = app.render(&mut ui, frame, &state) {
+                let ctx = ctx.clone().with_frame_size(frame.size());
+
+                if let Err(err) = app.update(&ctx, frame, &state) {
                     log::warn!("Drawing failed: {}", err);
                 }
             })?;
 
-            ui.clear_inputs();
+            ctx.clear_inputs();
         };
 
         terminal::restore(&mut terminal)?;
@@ -140,26 +141,32 @@ impl<R> InnerResponse<R> {
     }
 }
 
-pub trait Widget {
-    fn ui(self, ui: &mut Ui, frame: &mut Frame) -> Response;
-}
-
-#[derive(Default, Clone, Debug)]
-pub struct Ui {
+#[derive(Clone, Default, Debug)]
+pub struct Context {
     pub(crate) inputs: VecDeque<Key>,
-    pub(crate) theme: Theme,
-    pub(crate) area: Rect,
-    pub(crate) layout: Layout,
-    next_area: usize,
+    frame_size: Rect,
 }
 
-impl Ui {
-    pub fn input(&mut self, f: impl Fn(Key) -> bool) -> bool {
-        self.inputs.iter().find(|key| f(**key)).is_some()
+impl Context {
+    pub fn new(frame_size: Rect) -> Self {
+        Self {
+            inputs: VecDeque::default(),
+            frame_size,
+        }
     }
 
-    pub fn input_with_key(&mut self, f: impl Fn(Key) -> bool) -> Option<Key> {
-        self.inputs.iter().find(|key| f(**key)).copied()
+    pub fn with_inputs(mut self, inputs: VecDeque<Key>) -> Self {
+        self.inputs = inputs;
+        self
+    }
+
+    pub fn with_frame_size(mut self, frame_size: Rect) -> Self {
+        self.frame_size = frame_size;
+        self
+    }
+
+    pub fn frame_size(&self) -> Rect {
+        self.frame_size.clone()
     }
 
     pub fn store_input(&mut self, key: Key) {
@@ -168,6 +175,29 @@ impl Ui {
 
     pub fn clear_inputs(&mut self) {
         self.inputs.clear();
+    }
+}
+
+pub trait Widget {
+    fn ui(self, ui: &mut Ui, frame: &mut Frame) -> Response;
+}
+
+#[derive(Default, Clone, Debug)]
+pub struct Ui {
+    pub(crate) theme: Theme,
+    pub(crate) area: Rect,
+    pub(crate) layout: Layout,
+    next_area: usize,
+    ctx: Context,
+}
+
+impl Ui {
+    pub fn input(&mut self, f: impl Fn(Key) -> bool) -> bool {
+        self.ctx.inputs.iter().find(|key| f(**key)).is_some()
+    }
+
+    pub fn input_with_key(&mut self, f: impl Fn(Key) -> bool) -> Option<Key> {
+        self.ctx.inputs.iter().find(|key| f(**key)).copied()
     }
 }
 
@@ -189,8 +219,8 @@ impl Ui {
         self
     }
 
-    pub fn with_inputs(mut self, inputs: VecDeque<Key>) -> Self {
-        self.inputs = inputs;
+    pub fn with_ctx(mut self, ctx: Context) -> Self {
+        self.ctx = ctx;
         self
     }
 
@@ -214,7 +244,7 @@ impl Ui {
         Ui::default()
             .with_area(area)
             .with_layout(layout)
-            .with_inputs(self.inputs.clone())
+            .with_ctx(self.ctx.clone())
     }
 
     pub fn build_layout<R>(
@@ -284,7 +314,35 @@ pub mod widget {
 
     use crate::ui::theme::style;
 
-    use super::{Response, Widget, Ui};
+    use super::{Context, InnerResponse, Response, Ui, Widget};
+
+    #[derive(Default)]
+    pub struct Window {}
+
+    impl Window {
+        #[inline]
+        pub fn show<R>(
+            self,
+            ctx: &Context,
+            add_contents: impl FnOnce(&mut Ui) -> R,
+        ) -> Option<InnerResponse<Option<R>>> {
+            self.show_dyn(ctx, Box::new(add_contents))
+        }
+
+        fn show_dyn<'c, R>(
+            self,
+            ctx: &Context,
+            add_contents: Box<dyn FnOnce(&mut Ui) -> R + 'c>,
+        ) -> Option<InnerResponse<Option<R>>> {
+            let mut ui = Ui::default()
+                .with_area(ctx.frame_size())
+                .with_ctx(ctx.clone());
+
+            let inner = add_contents(&mut ui);
+
+            Some(InnerResponse::new(Some(inner), Response::default()))
+        }
+    }
 
     pub struct TextView {
         text: String,
@@ -396,7 +454,7 @@ pub mod widget {
 
     impl<'a> TextEdit<'a> {
         /// # Example
-        /// 
+        ///
         /// ```
         /// let mut state = TextEditState::default();
         /// let output = im::widget::TextEdit::new(&mut text, &mut cursor).show(ui, frame);
