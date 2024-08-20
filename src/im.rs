@@ -127,7 +127,6 @@ pub struct Response {}
 pub struct InnerResponse<R> {
     /// What the user closure returned.
     pub inner: R,
-
     /// The response of the area.
     pub response: Response,
 }
@@ -143,7 +142,7 @@ pub trait Widget {
     fn ui(self, ui: &mut UI, frame: &mut Frame) -> Response;
 }
 
-#[derive(Default, Clone)]
+#[derive(Default, Clone, Debug)]
 pub struct UI {
     pub(crate) inputs: VecDeque<Key>,
     pub(crate) theme: Theme,
@@ -183,6 +182,11 @@ impl UI {
         self
     }
 
+    pub fn with_inputs(mut self, inputs: VecDeque<Key>) -> Self {
+        self.inputs = inputs;
+        self
+    }
+
     pub fn area(&self) -> Rect {
         self.area
     }
@@ -194,7 +198,10 @@ impl UI {
     }
 
     pub fn child_ui(&mut self, area: Rect, layout: Layout) -> Self {
-        UI::default().with_area(area).with_layout(layout)
+        UI::default()
+            .with_area(area)
+            .with_layout(layout)
+            .with_inputs(self.inputs.clone())
     }
 
     pub fn build_layout<R>(
