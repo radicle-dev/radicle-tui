@@ -148,6 +148,7 @@ pub struct UI {
     pub(crate) theme: Theme,
     pub(crate) area: Rect,
     pub(crate) layout: Layout,
+    next_area: usize,
 }
 
 impl UI {
@@ -189,6 +190,12 @@ impl UI {
 
     pub fn area(&self) -> Rect {
         self.area
+    }
+
+    pub fn next_area(&mut self) -> Option<Rect> {
+        let rect = self.layout.split(self.area).get(self.next_area).cloned();
+        self.next_area = self.next_area + 1;
+        rect
     }
 }
 
@@ -264,7 +271,10 @@ mod widget {
 
     impl Widget for TextView {
         fn ui(self, ui: &mut UI, frame: &mut Frame) -> Response {
-            frame.render_widget(Paragraph::new(self.text), ui.area());
+            let area = ui.next_area().unwrap_or_default();
+
+            frame.render_widget(Paragraph::new(self.text), area);
+
             Response {}
         }
     }
@@ -316,9 +326,10 @@ mod widget {
                 .iter()
                 .map(|(width, _)| Constraint::Length(*width as u16))
                 .collect();
-
             let table = Table::new([Row::new(row)], widths).column_spacing(0);
-            frame.render_widget(table, ui.area());
+
+            let area = ui.next_area().unwrap_or_default();
+            frame.render_widget(table, area);
 
             Response {}
         }
