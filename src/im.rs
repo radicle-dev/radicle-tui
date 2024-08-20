@@ -1,12 +1,16 @@
+use std::collections::VecDeque;
 use std::fmt::Debug;
 use std::time::Duration;
 
-use ratatui::Frame;
-use termion::event::Key;
+use anyhow::Result;
+
+use ratatui::layout::Rect;
 use tokio::sync::broadcast;
 use tokio::sync::mpsc::UnboundedReceiver;
 
-use anyhow::Result;
+use termion::event::Key;
+
+use ratatui::Frame;
 
 use crate::event::Event;
 use crate::store;
@@ -14,6 +18,7 @@ use crate::store::State;
 use crate::task;
 use crate::task::Interrupted;
 use crate::terminal;
+use crate::ui::theme::Theme;
 use crate::Channel;
 
 const RENDERING_TICK_RATE: Duration = Duration::from_millis(250);
@@ -23,7 +28,7 @@ pub trait App {
     type State;
     type Message;
 
-    fn render(&self, frame: &mut Frame, ui: UI, state: &Self::State) -> Result<()>;
+    fn render(&self, ui: &mut UI, frame: &mut Frame, state: &Self::State) -> Result<()>;
 }
 
 pub async fn run_app<S, M, P>(
@@ -77,20 +82,14 @@ impl Frontend {
         let mut events_rx = terminal::events();
 
         let mut state = state_rx.recv().await.unwrap();
-
         let mut ui = UI::default();
-        terminal.draw(|frame| {
-            if let Err(err) = app.render(frame, ui.clone(), &state) {
-                log::warn!("Drawing failed: {}", err);
-            }
-        })?;
 
         let result: anyhow::Result<Interrupted<P>> = loop {
             tokio::select! {
                 // Tick to terminate the select every N milliseconds
                 _ = ticker.tick() => (),
                 Some(event) = events_rx.recv() => match event {
-                    Event::Key(key) => ui.handle_event(key),
+                    Event::Key(key) => ui.store_input(key),
                     Event::Resize => (),
                 },
                 // Handle state updates
@@ -106,10 +105,13 @@ impl Frontend {
                 }
             }
             terminal.draw(|frame| {
-                if let Err(err) = app.render(frame, ui.clone(), &state) {
+                let mut ui = ui.clone().with_area(frame.size());
+                if let Err(err) = app.render(&mut ui, frame, &state) {
                     log::warn!("Drawing failed: {}", err);
                 }
             })?;
+
+            ui.clear_inputs();
         };
 
         terminal::restore(&mut terminal)?;
@@ -121,71 +123,148 @@ impl Frontend {
 pub struct Response {}
 
 pub trait Widget {
-    fn ui(self, ui: &mut UI) -> Response;
+    fn ui(self, ui: &mut UI, frame: &mut Frame) -> Response;
 }
 
 #[derive(Default, Clone)]
 pub struct UI {
-    events: Vec<Event>,
+    pub(crate) inputs: VecDeque<Key>,
+    pub(crate) theme: Theme,
+    pub(crate) area: Rect,
 }
 
 impl UI {
     pub fn input(&mut self, f: impl Fn(Key) -> bool) -> bool {
-        self.events
-            .iter()
-            .find(|ev| match ev {
-                Event::Key(key) => f(*key),
-                _ => false,
-            })
-            .is_some()
+        self.inputs.iter().find(|key| f(**key)).is_some()
+    }
+
+    pub fn store_input(&mut self, key: Key) {
+        self.inputs.push_back(key);
+    }
+
+    pub fn clear_inputs(&mut self) {
+        self.inputs.clear();
     }
 }
 
 impl UI {
-    pub fn handle_event(&mut self, key: Key) {
-        self.events.push(Event::Key(key));
+    pub fn new(area: Rect) -> Self {
+        Self {
+            area,
+            ..Default::default()
+        }
+    }
+
+    pub fn with_area(mut self, area: Rect) -> Self {
+        self.area = area;
+        self
+    }
+
+    pub fn area(&self) -> Rect {
+        self.area
     }
 }
 
 impl UI {
-    pub fn shortcuts(&mut self) -> Response {
-        widget::Shortcuts::new().ui(self)
+    pub fn add(&mut self, frame: &mut Frame, widget: impl Widget) -> Response {
+        widget.ui(self, frame)
     }
 
-    pub fn textview(&mut self, _text: String) -> Response {
-        widget::TextView::new().ui(self)
+    pub fn shortcuts(
+        &mut self,
+        frame: &mut Frame,
+        shortcuts: &[(String, String)],
+        divider: char,
+    ) -> Response {
+        widget::Shortcuts::new(shortcuts, divider).ui(self, frame)
+    }
+
+    pub fn textview(&mut self, frame: &mut Frame, text: String) -> Response {
+        widget::TextView::new(text).ui(self, frame)
     }
 }
 
 mod widget {
+    use ratatui::style::Stylize;
+    use ratatui::text::Text;
+    use ratatui::widgets::Row;
+    use ratatui::Frame;
+    use ratatui::{layout::Constraint, widgets::Paragraph};
+
+    use crate::ui::theme::style;
+
     use super::{Response, Widget, UI};
 
-    pub struct TextView {}
+    pub struct TextView {
+        text: String,
+    }
 
     impl TextView {
-        pub fn new() -> Self {
-            Self {}
+        pub fn new(text: impl ToString) -> Self {
+            Self {
+                text: text.to_string(),
+            }
         }
     }
 
     impl Widget for TextView {
-        fn ui(self, _ui: &mut UI) -> Response {
-            // Actually render
+        fn ui(self, ui: &mut UI, frame: &mut Frame) -> Response {
+            frame.render_widget(Paragraph::new(self.text), ui.area());
             Response {}
         }
     }
 
-    pub struct Shortcuts {}
+    pub struct Shortcuts {
+        pub shortcuts: Vec<(String, String)>,
+        pub divider: char,
+    }
 
     impl Shortcuts {
-        pub fn new() -> Self {
-            Self {}
+        pub fn new(shortcuts: &[(String, String)], divider: char) -> Self {
+            Self {
+                shortcuts: shortcuts.to_vec(),
+                divider,
+            }
         }
     }
 
     impl Widget for Shortcuts {
-        fn ui(self, _ui: &mut UI) -> Response {
-            // Actually render
+        fn ui(self, ui: &mut UI, frame: &mut Frame) -> Response {
+            use ratatui::widgets::Table;
+
+            let mut shortcuts = self.shortcuts.iter().peekable();
+            let mut row = vec![];
+
+            while let Some(shortcut) = shortcuts.next() {
+                let short = Text::from(shortcut.0.clone()).style(ui.theme.shortcuts_keys_style);
+                let long = Text::from(shortcut.1.clone()).style(ui.theme.shortcuts_action_style);
+                let spacer = Text::from(String::new());
+                let divider = Text::from(format!(" {} ", self.divider)).style(style::gray().dim());
+
+                row.push((shortcut.0.chars().count(), short));
+                row.push((1, spacer));
+                row.push((shortcut.1.chars().count(), long));
+
+                if shortcuts.peek().is_some() {
+                    row.push((3, divider));
+                }
+            }
+
+            let row_copy = row.clone();
+            let row: Vec<Text<'_>> = row_copy
+                .clone()
+                .iter()
+                .map(|(_, text)| text.clone())
+                .collect();
+            let widths: Vec<Constraint> = row_copy
+                .clone()
+                .iter()
+                .map(|(width, _)| Constraint::Length(*width as u16))
+                .collect();
+
+            let table = Table::new([Row::new(row)], widths).column_spacing(0);
+            frame.render_widget(table, ui.area());
+
             Response {}
         }
     }
