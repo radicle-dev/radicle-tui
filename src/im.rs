@@ -28,7 +28,7 @@ pub trait App {
     type State;
     type Message;
 
-    fn render(&self, ui: &mut UI, frame: &mut Frame, state: &Self::State) -> Result<()>;
+    fn render(&self, ui: &mut Ui, frame: &mut Frame, state: &Self::State) -> Result<()>;
 }
 
 pub async fn run_app<S, M, P>(
@@ -82,7 +82,7 @@ impl Frontend {
         let mut events_rx = terminal::events();
 
         let mut state = state_rx.recv().await.unwrap();
-        let mut ui = UI::default();
+        let mut ui = Ui::default();
 
         let result: anyhow::Result<Interrupted<P>> = loop {
             tokio::select! {
@@ -141,11 +141,11 @@ impl<R> InnerResponse<R> {
 }
 
 pub trait Widget {
-    fn ui(self, ui: &mut UI, frame: &mut Frame) -> Response;
+    fn ui(self, ui: &mut Ui, frame: &mut Frame) -> Response;
 }
 
 #[derive(Default, Clone, Debug)]
-pub struct UI {
+pub struct Ui {
     pub(crate) inputs: VecDeque<Key>,
     pub(crate) theme: Theme,
     pub(crate) area: Rect,
@@ -153,7 +153,7 @@ pub struct UI {
     next_area: usize,
 }
 
-impl UI {
+impl Ui {
     pub fn input(&mut self, f: impl Fn(Key) -> bool) -> bool {
         self.inputs.iter().find(|key| f(**key)).is_some()
     }
@@ -171,7 +171,7 @@ impl UI {
     }
 }
 
-impl UI {
+impl Ui {
     pub fn new(area: Rect) -> Self {
         Self {
             area,
@@ -205,13 +205,13 @@ impl UI {
     }
 }
 
-impl UI {
+impl Ui {
     pub fn add(&mut self, frame: &mut Frame, widget: impl Widget) -> Response {
         widget.ui(self, frame)
     }
 
     pub fn child_ui(&mut self, area: Rect, layout: Layout) -> Self {
-        UI::default()
+        Ui::default()
             .with_area(area)
             .with_layout(layout)
             .with_inputs(self.inputs.clone())
@@ -237,7 +237,7 @@ impl UI {
     }
 }
 
-impl UI {
+impl Ui {
     pub fn shortcuts(
         &mut self,
         frame: &mut Frame,
@@ -284,7 +284,7 @@ pub mod widget {
 
     use crate::ui::theme::style;
 
-    use super::{Response, Widget, UI};
+    use super::{Response, Widget, Ui};
 
     pub struct TextView {
         text: String,
@@ -299,7 +299,7 @@ pub mod widget {
     }
 
     impl Widget for TextView {
-        fn ui(self, ui: &mut UI, frame: &mut Frame) -> Response {
+        fn ui(self, ui: &mut Ui, frame: &mut Frame) -> Response {
             let area = ui.next_area().unwrap_or_default();
 
             frame.render_widget(Paragraph::new(self.text), area);
@@ -422,7 +422,7 @@ pub mod widget {
     }
 
     impl<'a> TextEdit<'a> {
-        pub fn show(self, ui: &mut UI, frame: &mut Frame) -> TextEditOutput {
+        pub fn show(self, ui: &mut Ui, frame: &mut Frame) -> TextEditOutput {
             let mut response = Response::default();
 
             let area = ui.next_area().unwrap_or_default();
@@ -518,7 +518,7 @@ pub mod widget {
     }
 
     impl<'a> Widget for TextEdit<'a> {
-        fn ui(self, ui: &mut UI, frame: &mut Frame) -> Response {
+        fn ui(self, ui: &mut Ui, frame: &mut Frame) -> Response {
             self.show(ui, frame).response
         }
     }
@@ -538,7 +538,7 @@ pub mod widget {
     }
 
     impl Widget for Shortcuts {
-        fn ui(self, ui: &mut UI, frame: &mut Frame) -> Response {
+        fn ui(self, ui: &mut Ui, frame: &mut Frame) -> Response {
             use ratatui::widgets::Table;
 
             let mut shortcuts = self.shortcuts.iter().peekable();
