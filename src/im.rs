@@ -4,7 +4,7 @@ use std::time::Duration;
 
 use anyhow::Result;
 
-use ratatui::layout::Rect;
+use ratatui::layout::{Layout, Rect};
 use tokio::sync::broadcast;
 use tokio::sync::mpsc::UnboundedReceiver;
 
@@ -120,7 +120,24 @@ impl Frontend {
     }
 }
 
+#[derive(Debug)]
 pub struct Response {}
+
+#[derive(Debug)]
+pub struct InnerResponse<R> {
+    /// What the user closure returned.
+    pub inner: R,
+
+    /// The response of the area.
+    pub response: Response,
+}
+
+impl<R> InnerResponse<R> {
+    #[inline]
+    pub fn new(inner: R, response: Response) -> Self {
+        Self { inner, response }
+    }
+}
 
 pub trait Widget {
     fn ui(self, ui: &mut UI, frame: &mut Frame) -> Response;
@@ -131,6 +148,7 @@ pub struct UI {
     pub(crate) inputs: VecDeque<Key>,
     pub(crate) theme: Theme,
     pub(crate) area: Rect,
+    pub(crate) layout: Layout,
 }
 
 impl UI {
@@ -160,6 +178,11 @@ impl UI {
         self
     }
 
+    pub fn with_layout(mut self, layout: Layout) -> Self {
+        self.layout = layout;
+        self
+    }
+
     pub fn area(&self) -> Rect {
         self.area
     }
@@ -170,6 +193,31 @@ impl UI {
         widget.ui(self, frame)
     }
 
+    pub fn child_ui(&mut self, area: Rect, layout: Layout) -> Self {
+        UI::default().with_area(area).with_layout(layout)
+    }
+
+    pub fn build_layout<R>(
+        &mut self,
+        layout: Layout,
+        add_contents: impl FnOnce(&mut Self) -> R,
+    ) -> InnerResponse<R> {
+        self.build_layout_dyn(layout, Box::new(add_contents))
+    }
+
+    pub fn build_layout_dyn<'a, R>(
+        &mut self,
+        layout: Layout,
+        add_contents: Box<dyn FnOnce(&mut Self) -> R + 'a>,
+    ) -> InnerResponse<R> {
+        let mut child_ui = self.child_ui(self.area(), layout);
+        let inner = add_contents(&mut child_ui);
+
+        InnerResponse::new(inner, Response {})
+    }
+}
+
+impl UI {
     pub fn shortcuts(
         &mut self,
         frame: &mut Frame,
