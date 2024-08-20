@@ -120,8 +120,10 @@ impl Frontend {
     }
 }
 
-#[derive(Debug)]
-pub struct Response {}
+#[derive(Default, Debug)]
+pub struct Response {
+    pub changed: bool,
+}
 
 #[derive(Debug)]
 pub struct InnerResponse<R> {
@@ -154,6 +156,10 @@ pub struct UI {
 impl UI {
     pub fn input(&mut self, f: impl Fn(Key) -> bool) -> bool {
         self.inputs.iter().find(|key| f(**key)).is_some()
+    }
+
+    pub fn input_with_key(&mut self, f: impl Fn(Key) -> bool) -> Option<Key> {
+        self.inputs.iter().find(|key| f(**key)).copied()
     }
 
     pub fn store_input(&mut self, key: Key) {
@@ -227,7 +233,7 @@ impl UI {
         let mut child_ui = self.child_ui(self.area(), layout);
         let inner = add_contents(&mut child_ui);
 
-        InnerResponse::new(inner, Response {})
+        InnerResponse::new(inner, Response::default())
     }
 }
 
@@ -241,17 +247,40 @@ impl UI {
         widget::Shortcuts::new(shortcuts, divider).ui(self, frame)
     }
 
-    pub fn textview(&mut self, frame: &mut Frame, text: String) -> Response {
+    pub fn text_view(&mut self, frame: &mut Frame, text: String) -> Response {
         widget::TextView::new(text).ui(self, frame)
+    }
+
+    pub fn text_edit_singleline(
+        &mut self,
+        frame: &mut Frame,
+        text: &mut String,
+        cursor: &mut usize,
+    ) -> Response {
+        widget::TextEdit::new(text, cursor).ui(self, frame)
+    }
+
+    pub fn text_edit_labeled_singleline(
+        &mut self,
+        frame: &mut Frame,
+        text: &mut String,
+        cursor: &mut usize,
+        label: impl ToString,
+    ) -> Response {
+        widget::TextEdit::new(text, cursor)
+            .with_label(label)
+            .ui(self, frame)
     }
 }
 
-mod widget {
+pub mod widget {
+    use ratatui::layout::Layout;
     use ratatui::style::Stylize;
-    use ratatui::text::Text;
+    use ratatui::text::{Line, Span, Text};
     use ratatui::widgets::Row;
     use ratatui::Frame;
     use ratatui::{layout::Constraint, widgets::Paragraph};
+    use termion::event::Key;
 
     use crate::ui::theme::style;
 
@@ -275,7 +304,222 @@ mod widget {
 
             frame.render_widget(Paragraph::new(self.text), area);
 
-            Response {}
+            Response::default()
+        }
+    }
+
+    #[derive(Clone, Debug)]
+    pub struct TextEditState {
+        pub text: String,
+        pub cursor: usize,
+    }
+
+    impl TextEditState {
+        fn move_cursor_left(&mut self) {
+            let cursor_moved_left = self.cursor.saturating_sub(1);
+            self.cursor = self.clamp_cursor(cursor_moved_left);
+        }
+
+        fn move_cursor_right(&mut self) {
+            let cursor_moved_right = self.cursor.saturating_add(1);
+            self.cursor = self.clamp_cursor(cursor_moved_right);
+        }
+
+        fn enter_char(&mut self, new_char: char) {
+            self.text = self.text.clone();
+            self.text.insert(self.cursor, new_char);
+            self.move_cursor_right();
+        }
+
+        fn delete_char_right(&mut self) {
+            self.text = self.text.clone();
+
+            // Method "remove" is not used on the saved text for deleting the selected char.
+            // Reason: Using remove on String works on bytes instead of the chars.
+            // Using remove would require special care because of char boundaries.
+
+            let current_index = self.cursor;
+            let from_left_to_current_index = current_index;
+
+            // Getting all characters before the selected character.
+            let before_char_to_delete = self.text.chars().take(from_left_to_current_index);
+            // Getting all characters after selected character.
+            let after_char_to_delete = self.text.chars().skip(current_index.saturating_add(1));
+
+            // Put all characters together except the selected one.
+            // By leaving the selected one out, it is forgotten and therefore deleted.
+            self.text = before_char_to_delete.chain(after_char_to_delete).collect();
+        }
+
+        fn delete_char_left(&mut self) {
+            self.text = self.text.clone();
+
+            let is_not_cursor_leftmost = self.cursor != 0;
+            if is_not_cursor_leftmost {
+                // Method "remove" is not used on the saved text for deleting the selected char.
+                // Reason: Using remove on String works on bytes instead of the chars.
+                // Using remove would require special care because of char boundaries.
+
+                let current_index = self.cursor;
+                let from_left_to_current_index = current_index - 1;
+
+                // Getting all characters before the selected character.
+                let before_char_to_delete = self.text.chars().take(from_left_to_current_index);
+                // Getting all characters after selected character.
+                let after_char_to_delete = self.text.chars().skip(current_index);
+
+                // Put all characters together except the selected one.
+                // By leaving the selected one out, it is forgotten and therefore deleted.
+                self.text = before_char_to_delete.chain(after_char_to_delete).collect();
+                self.move_cursor_left();
+            }
+        }
+
+        fn clamp_cursor(&self, new_cursor_pos: usize) -> usize {
+            new_cursor_pos.clamp(0, self.text.clone().len())
+        }
+    }
+
+    pub struct TextEditOutput {
+        pub response: Response,
+        pub state: TextEditState,
+    }
+
+    pub struct TextEdit<'a> {
+        text: &'a mut String,
+        cursor: &'a mut usize,
+        label: Option<String>,
+        inline_label: bool,
+        show_cursor: bool,
+        dim: bool,
+    }
+
+    impl<'a> TextEdit<'a> {
+        /// # Example
+        /// 
+        /// ```
+        /// let mut state = TextEditState::default();
+        /// let output = im::widget::TextEdit::new(&mut text, &mut cursor).show(ui, frame);
+        /// if output.response.changed {
+        ///     state = output.state;
+        /// }
+        /// ```
+        pub fn new(text: &'a mut String, cursor: &'a mut usize) -> Self {
+            Self {
+                text,
+                cursor,
+                label: None,
+                inline_label: true,
+                show_cursor: true,
+                dim: true,
+            }
+        }
+
+        pub fn with_label(mut self, label: impl ToString) -> Self {
+            self.label = Some(label.to_string());
+            self
+        }
+    }
+
+    impl<'a> TextEdit<'a> {
+        pub fn show(self, ui: &mut UI, frame: &mut Frame) -> TextEditOutput {
+            let mut response = Response::default();
+
+            let area = ui.next_area().unwrap_or_default();
+            let layout = Layout::vertical(Constraint::from_lengths([1, 1])).split(area);
+
+            let mut state = TextEditState {
+                text: self.text.clone(),
+                cursor: *self.cursor,
+            };
+
+            // let focus = !render.focus;
+            let focus = true;
+
+            // let input = self.text.as_str();
+            let label_content = format!(" {} ", self.label.unwrap_or_default());
+            let overline = String::from("▔").repeat(area.width as usize);
+            let cursor_pos = *self.cursor as u16;
+
+            if let Some(key) = ui.input_with_key(|_| true) {
+                match key {
+                    Key::Char(to_insert)
+                        if (key != Key::Alt('\n'))
+                            && (key != Key::Char('\n'))
+                            && (key != Key::Ctrl('\n')) =>
+                    {
+                        state.enter_char(to_insert);
+                    }
+                    Key::Backspace => {
+                        state.delete_char_left();
+                    }
+                    Key::Delete => {
+                        state.delete_char_right();
+                    }
+                    Key::Left => {
+                        state.move_cursor_left();
+                    }
+                    Key::Right => {
+                        state.move_cursor_right();
+                    }
+                    _ => {}
+                }
+                response.changed = true;
+            }
+
+            let (label, input, overline) = if !focus && self.dim {
+                (
+                    Span::from(label_content.clone()).magenta().dim().reversed(),
+                    Span::from(state.text.clone()).reset().dim(),
+                    Span::raw(overline).magenta().dim(),
+                )
+            } else {
+                (
+                    Span::from(label_content.clone()).magenta().reversed(),
+                    Span::from(state.text.clone()).reset(),
+                    Span::raw(overline).magenta(),
+                )
+            };
+
+            if self.inline_label {
+                let top_layout = Layout::horizontal([
+                    Constraint::Length(label_content.chars().count() as u16),
+                    Constraint::Length(1),
+                    Constraint::Min(1),
+                ])
+                .split(layout[0]);
+
+                let overline = Line::from([overline].to_vec());
+
+                frame.render_widget(label, top_layout[0]);
+                frame.render_widget(input, top_layout[2]);
+                frame.render_widget(overline, layout[1]);
+
+                if self.show_cursor {
+                    frame.set_cursor(top_layout[2].x + cursor_pos, top_layout[2].y)
+                }
+            } else {
+                let top = Line::from([input].to_vec());
+                let bottom = Line::from([label, overline].to_vec());
+
+                frame.render_widget(top, layout[0]);
+                frame.render_widget(bottom, layout[1]);
+
+                if self.show_cursor {
+                    frame.set_cursor(area.x + cursor_pos, area.y)
+                }
+            }
+
+            *self.text = state.text.clone();
+            *self.cursor = state.cursor;
+
+            TextEditOutput { response, state }
+        }
+    }
+
+    impl<'a> Widget for TextEdit<'a> {
+        fn ui(self, ui: &mut UI, frame: &mut Frame) -> Response {
+            self.show(ui, frame).response
         }
     }
 
@@ -331,7 +575,7 @@ mod widget {
             let area = ui.next_area().unwrap_or_default();
             frame.render_widget(table, area);
 
-            Response {}
+            Response::default()
         }
     }
 }
