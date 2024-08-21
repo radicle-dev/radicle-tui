@@ -19,6 +19,8 @@ use crate::task;
 use crate::task::Interrupted;
 use crate::terminal;
 use crate::ui::theme::Theme;
+use crate::ui::widget::container::Column;
+use crate::ui::widget::list::ToRow;
 use crate::Channel;
 
 const RENDERING_TICK_RATE: Duration = Duration::from_millis(250);
@@ -268,6 +270,19 @@ impl Ui {
 }
 
 impl Ui {
+    pub fn table<'a, R, const W: usize>(
+        &mut self,
+        frame: &mut Frame,
+        selected: &mut Option<usize>,
+        items: &'a Vec<R>,
+        columns: Vec<Column<'a>>,
+    ) -> Response
+    where
+        R: ToRow<W> + Clone,
+    {
+        widget::Table::new(selected, items, columns).ui(self, frame)
+    }
+
     pub fn shortcuts(
         &mut self,
         frame: &mut Frame,
@@ -304,15 +319,20 @@ impl Ui {
 }
 
 pub mod widget {
+    use std::cmp;
+
     use ratatui::layout::Layout;
-    use ratatui::style::Stylize;
+    use ratatui::style::{Style, Stylize};
     use ratatui::text::{Line, Span, Text};
-    use ratatui::widgets::Row;
+    use ratatui::widgets::{Row, Scrollbar, ScrollbarState};
     use ratatui::Frame;
     use ratatui::{layout::Constraint, widgets::Paragraph};
     use termion::event::Key;
 
     use crate::ui::theme::style;
+    use crate::ui::widget::container::Column;
+    use crate::ui::widget::list::ToRow;
+    use crate::ui::{layout, span};
 
     use super::{Context, InnerResponse, Response, Ui, Widget};
 
@@ -341,6 +361,272 @@ pub mod widget {
             let inner = add_contents(&mut ui);
 
             Some(InnerResponse::new(Some(inner), Response::default()))
+        }
+    }
+
+    #[derive(Clone, Debug)]
+    pub struct TableState<R> {
+        items: Vec<R>,
+        internal: ratatui::widgets::TableState,
+    }
+
+    impl<R> TableState<R>
+    where
+        R: Clone,
+    {
+        pub fn new(selected: Option<usize>, items: Vec<R>) -> Self {
+            let mut internal = ratatui::widgets::TableState::default();
+            internal.select(selected);
+
+            Self { items, internal }
+        }
+
+        pub fn items(&self) -> &Vec<R> {
+            &self.items
+        }
+
+        pub fn selected(&self) -> Option<usize> {
+            self.internal.selected()
+        }
+    }
+
+    impl<R> TableState<R>
+    where
+        R: Clone,
+    {
+        fn prev(&mut self) -> Option<usize> {
+            let selected = self
+                .internal
+                .selected()
+                .map(|current| current.saturating_sub(1));
+            self.select(selected);
+            selected
+        }
+
+        fn next(&mut self, len: usize) -> Option<usize> {
+            let selected = self.internal.selected().map(|current| {
+                if current < len.saturating_sub(1) {
+                    current.saturating_add(1)
+                } else {
+                    current
+                }
+            });
+            self.select(selected);
+            selected
+        }
+
+        fn prev_page(&mut self, page_size: usize) -> Option<usize> {
+            let selected = self
+                .internal
+                .selected()
+                .map(|current| current.saturating_sub(page_size));
+            self.select(selected);
+            selected
+        }
+
+        fn next_page(&mut self, len: usize, page_size: usize) -> Option<usize> {
+            let selected = self.internal.selected().map(|current| {
+                if current < len.saturating_sub(1) {
+                    cmp::min(current.saturating_add(page_size), len.saturating_sub(1))
+                } else {
+                    current
+                }
+            });
+            self.select(selected);
+            selected
+        }
+
+        fn begin(&mut self) {
+            self.select(Some(0));
+        }
+
+        fn end(&mut self, len: usize) {
+            self.select(Some(len.saturating_sub(1)));
+        }
+
+        fn select(&mut self, selected: Option<usize>) {
+            self.internal.select(selected);
+        }
+    }
+
+    pub struct Table<'a, R, const W: usize> {
+        items: &'a Vec<R>,
+        selected: &'a mut Option<usize>,
+        columns: Vec<Column<'a>>,
+        show_scrollbar: bool,
+        dim: bool,
+    }
+
+    impl<'a, R, const W: usize> Table<'a, R, W>
+    where
+        R: ToRow<W>,
+    {
+        pub fn new(
+            selected: &'a mut Option<usize>,
+            items: &'a Vec<R>,
+            columns: Vec<Column<'a>>,
+        ) -> Self {
+            Self {
+                items,
+                selected,
+                columns,
+                show_scrollbar: true,
+                dim: false,
+            }
+        }
+
+        pub fn dim(mut self, dim: bool) -> Self {
+            self.dim = dim;
+            self
+        }
+    }
+
+    impl<'a, R, const W: usize> Widget for Table<'a, R, W>
+    where
+        R: ToRow<W> + Clone,
+    {
+        fn ui(self, ui: &mut Ui, frame: &mut Frame) -> Response {
+            let mut response = Response::default();
+            let area = ui.next_area().unwrap_or_default();
+
+            let show_scrollbar = self.show_scrollbar && self.items.len() >= area.height.into();
+            let has_items = !self.items.is_empty();
+            let has_focus = true;
+
+            let mut state = TableState {
+                items: self.items.clone(),
+                internal: {
+                    let mut state = ratatui::widgets::TableState::default();
+                    state.select(self.selected.clone());
+                    state
+                },
+            };
+
+            if let Some(key) = ui.input_with_key(|_| true) {
+                let len = self.items.len();
+                let page_size = area.height as usize;
+
+                match key {
+                    Key::Up | Key::Char('k') => {
+                        state.prev();
+                    }
+                    Key::Down | Key::Char('j') => {
+                        state.next(len);
+                    }
+                    Key::PageUp => {
+                        state.prev_page(page_size);
+                    }
+                    Key::PageDown => {
+                        state.next_page(len, page_size);
+                    }
+                    Key::Home => {
+                        state.begin();
+                    }
+                    Key::End => {
+                        state.end(len);
+                    }
+                    _ => {}
+                }
+                response.changed = true;
+            }
+
+            let widths: Vec<Constraint> = self
+                .columns
+                .iter()
+                .filter_map(|c| {
+                    if !c.skip && c.displayed(area.width as usize) {
+                        Some(c.width)
+                    } else {
+                        None
+                    }
+                })
+                .collect();
+
+            if has_items {
+                let [table_area, scroller_area] = Layout::horizontal([
+                    Constraint::Min(1),
+                    if show_scrollbar {
+                        Constraint::Length(1)
+                    } else {
+                        Constraint::Length(0)
+                    },
+                ])
+                .areas(area);
+
+                let rows = self
+                    .items
+                    .iter()
+                    .map(|item| {
+                        let mut cells = vec![];
+                        let mut it = self.columns.iter();
+
+                        for cell in item.to_row() {
+                            if let Some(col) = it.next() {
+                                if !col.skip && col.displayed(area.width as usize) {
+                                    cells.push(cell.clone())
+                                }
+                            } else {
+                                continue;
+                            }
+                        }
+
+                        Row::new(cells)
+                    })
+                    .collect::<Vec<_>>();
+
+                let table = ratatui::widgets::Table::default()
+                    .rows(rows)
+                    .widths(widths)
+                    .column_spacing(1)
+                    .highlight_style(style::highlight(has_focus));
+
+                let table = if !has_focus && self.dim {
+                    table.dim()
+                } else {
+                    table
+                };
+
+                frame.render_stateful_widget(table, table_area, &mut state.internal);
+
+                let scroller = Scrollbar::default()
+                    .begin_symbol(None)
+                    .track_symbol(None)
+                    .end_symbol(None)
+                    .thumb_symbol("┃")
+                    .style(if has_focus {
+                        Style::default()
+                    } else {
+                        Style::default().dim()
+                    });
+
+                // In order to make the scrollbar work correctly towards the end of the list,
+                // we need to add a few percent of the total length.
+                let length_addition =
+                    self.items.len() * ((self.items.len() as f64).log2() as usize) / 100;
+
+                let mut scroller_state = ScrollbarState::default()
+                    .content_length(
+                        self.items
+                            .len()
+                            .saturating_sub(area.height.into())
+                            .saturating_add(length_addition),
+                    )
+                    .viewport_content_length(1)
+                    .position(state.internal.offset());
+                frame.render_stateful_widget(scroller, scroller_area, &mut scroller_state);
+            } else {
+                let center = layout::centered_rect(area, 50, 10);
+                let hint = Text::from(span::default("Nothing to show"))
+                    .centered()
+                    .light_magenta()
+                    .dim();
+
+                frame.render_widget(hint, center);
+            }
+
+            *self.selected = state.selected();
+
+            response
         }
     }
 
