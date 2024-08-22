@@ -362,7 +362,7 @@ impl Ui {
 pub mod widget {
     use std::cmp;
 
-    use ratatui::layout::{Layout, Rect};
+    use ratatui::layout::{Direction, Layout, Rect};
     use ratatui::style::{Style, Stylize};
     use ratatui::text::{Line, Span, Text};
     use ratatui::widgets::{Block, BorderType, Row, Scrollbar, ScrollbarState};
@@ -370,6 +370,7 @@ pub mod widget {
     use ratatui::{layout::Constraint, widgets::Paragraph};
     use termion::event::Key;
 
+    use crate::ui::ext::{FooterBlock, FooterBlockType, HeaderBlock};
     use crate::ui::theme::style;
     use crate::ui::widget::container::Column;
     use crate::ui::widget::list::ToRow;
@@ -695,6 +696,10 @@ pub mod widget {
         fn ui(self, ui: &mut Ui, frame: &mut Frame) -> Response {
             let area = ui.next_area().unwrap_or_default();
             let area = render_block(frame, area, self.borders, ui.theme.border_style);
+            let area = Rect {
+                width: area.width - 1,
+                ..area
+            };
 
             let widths = self
                 .columns
@@ -704,17 +709,6 @@ pub mod widget {
                     _ => c.width,
                 })
                 .collect::<Vec<_>>();
-
-            // let layout = Layout::horizontal(widths).split(area);
-            // let cells = self
-            //     .columns
-            //     .iter()
-            //     .map(|c| c.text.clone())
-            //     .zip(layout.iter())
-            //     .collect::<Vec<_>>();
-
-            // let last = cells.len().saturating_sub(1);
-            // let len = cells.len();
 
             let cells = self
                 .columns
@@ -1043,7 +1037,48 @@ pub mod widget {
 
                     block.inner(area)
                 }
-                _ => area,
+                Borders::Top => {
+                    let block = HeaderBlock::default()
+                        .border_style(style)
+                        .border_type(BorderType::Rounded)
+                        .borders(ratatui::widgets::Borders::ALL);
+                    frame.render_widget(block, area);
+
+                    let areas = Layout::default()
+                        .direction(Direction::Vertical)
+                        .constraints(vec![Constraint::Min(1)])
+                        .vertical_margin(1)
+                        .horizontal_margin(1)
+                        .split(area);
+
+                    areas[0]
+                }
+                Borders::Sides => {
+                    let block = Block::default()
+                        .border_style(style)
+                        .border_type(BorderType::Rounded)
+                        .borders(
+                            ratatui::widgets::Borders::LEFT | ratatui::widgets::Borders::RIGHT,
+                        );
+                    frame.render_widget(block.clone(), area);
+
+                    block.inner(area)
+                }
+                Borders::Bottom => {
+                    let areas = Layout::default()
+                        .direction(Direction::Vertical)
+                        .constraints(vec![Constraint::Min(1)])
+                        .vertical_margin(1)
+                        .horizontal_margin(1)
+                        .split(area);
+
+                    let footer_block = FooterBlock::default()
+                        .border_style(style)
+                        .block_type(FooterBlockType::Single);
+                    frame.render_widget(footer_block, area);
+
+                    areas[0]
+                }
             }
         } else {
             area
