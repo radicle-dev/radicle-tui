@@ -23,6 +23,8 @@ use crate::ui::widget::container::Column;
 use crate::ui::widget::list::ToRow;
 use crate::Channel;
 
+use self::widget::Widget;
+
 const RENDERING_TICK_RATE: Duration = Duration::from_millis(250);
 const INLINE_HEIGHT: usize = 20;
 
@@ -180,8 +182,9 @@ impl Context {
     }
 }
 
-pub trait Widget {
-    fn ui(self, ui: &mut Ui, frame: &mut Frame) -> Response;
+pub enum Border {
+    Single,
+    Sequence { separator: bool },
 }
 
 #[derive(Default, Clone, Debug)]
@@ -267,6 +270,25 @@ impl Ui {
 
         InnerResponse::new(inner, Response::default())
     }
+
+    pub fn block<R>(
+        &mut self,
+        layout: Layout,
+        add_contents: impl FnOnce(&mut Self) -> R,
+    ) -> InnerResponse<R> {
+        self.block_dyn(layout, Box::new(add_contents))
+    }
+
+    pub fn block_dyn<'a, R>(
+        &mut self,
+        layout: Layout,
+        add_contents: Box<dyn FnOnce(&mut Self) -> R + 'a>,
+    ) -> InnerResponse<R> {
+        let mut child_ui = self.child_ui(self.area(), layout);
+        let inner = add_contents(&mut child_ui);
+
+        InnerResponse::new(inner, Response::default())
+    }
 }
 
 impl Ui {
@@ -276,11 +298,12 @@ impl Ui {
         selected: &mut Option<usize>,
         items: &'a Vec<R>,
         columns: Vec<Column<'a>>,
+        border: Option<Border>,
     ) -> Response
     where
         R: ToRow<W> + Clone,
     {
-        widget::Table::new(selected, items, columns).ui(self, frame)
+        widget::Table::new(selected, items, columns, border).ui(self, frame)
     }
 
     pub fn shortcuts(
@@ -292,8 +315,13 @@ impl Ui {
         widget::Shortcuts::new(shortcuts, divider).ui(self, frame)
     }
 
-    pub fn text_view(&mut self, frame: &mut Frame, text: String) -> Response {
-        widget::TextView::new(text).ui(self, frame)
+    pub fn text_view(
+        &mut self,
+        frame: &mut Frame,
+        text: String,
+        border: Option<Border>,
+    ) -> Response {
+        widget::TextView::new(text, border).ui(self, frame)
     }
 
     pub fn text_edit_singleline(
@@ -301,8 +329,9 @@ impl Ui {
         frame: &mut Frame,
         text: &mut String,
         cursor: &mut usize,
+        border: Option<Border>,
     ) -> Response {
-        widget::TextEdit::new(text, cursor).ui(self, frame)
+        widget::TextEdit::new(text, cursor, border).ui(self, frame)
     }
 
     pub fn text_edit_labeled_singleline(
@@ -311,8 +340,9 @@ impl Ui {
         text: &mut String,
         cursor: &mut usize,
         label: impl ToString,
+        border: Option<Border>,
     ) -> Response {
-        widget::TextEdit::new(text, cursor)
+        widget::TextEdit::new(text, cursor, border)
             .with_label(label)
             .ui(self, frame)
     }
@@ -321,10 +351,10 @@ impl Ui {
 pub mod widget {
     use std::cmp;
 
-    use ratatui::layout::Layout;
+    use ratatui::layout::{Layout, Rect};
     use ratatui::style::{Style, Stylize};
     use ratatui::text::{Line, Span, Text};
-    use ratatui::widgets::{Row, Scrollbar, ScrollbarState};
+    use ratatui::widgets::{Block, BorderType, Borders, Row, Scrollbar, ScrollbarState};
     use ratatui::Frame;
     use ratatui::{layout::Constraint, widgets::Paragraph};
     use termion::event::Key;
@@ -334,7 +364,11 @@ pub mod widget {
     use crate::ui::widget::list::ToRow;
     use crate::ui::{layout, span};
 
-    use super::{Context, InnerResponse, Response, Ui, Widget};
+    use super::{Border, Context, InnerResponse, Response, Ui};
+
+    pub trait Widget {
+        fn ui(self, ui: &mut Ui, frame: &mut Frame) -> Response;
+    }
 
     #[derive(Default)]
     pub struct Window {}
@@ -453,6 +487,7 @@ pub mod widget {
         items: &'a Vec<R>,
         selected: &'a mut Option<usize>,
         columns: Vec<Column<'a>>,
+        border: Option<Border>,
         show_scrollbar: bool,
         dim: bool,
     }
@@ -465,11 +500,13 @@ pub mod widget {
             selected: &'a mut Option<usize>,
             items: &'a Vec<R>,
             columns: Vec<Column<'a>>,
+            border: Option<Border>,
         ) -> Self {
             Self {
                 items,
                 selected,
                 columns,
+                border,
                 show_scrollbar: true,
                 dim: false,
             }
@@ -501,6 +538,8 @@ pub mod widget {
                     state
                 },
             };
+
+            let area = render_block(frame, area, self.border, ui.theme.border_style);
 
             if let Some(key) = ui.input_with_key(|_| true) {
                 let len = self.items.len();
@@ -632,12 +671,14 @@ pub mod widget {
 
     pub struct TextView {
         text: String,
+        border: Option<Border>,
     }
 
     impl TextView {
-        pub fn new(text: impl ToString) -> Self {
+        pub fn new(text: impl ToString, border: Option<Border>) -> Self {
             Self {
                 text: text.to_string(),
+                border,
             }
         }
     }
@@ -645,6 +686,7 @@ pub mod widget {
     impl Widget for TextView {
         fn ui(self, ui: &mut Ui, frame: &mut Frame) -> Response {
             let area = ui.next_area().unwrap_or_default();
+            let area = render_block(frame, area, self.border, ui.theme.border_style);
 
             frame.render_widget(Paragraph::new(self.text), area);
 
@@ -732,6 +774,7 @@ pub mod widget {
     pub struct TextEdit<'a> {
         text: &'a mut String,
         cursor: &'a mut usize,
+        border: Option<Border>,
         label: Option<String>,
         inline_label: bool,
         show_cursor: bool,
@@ -748,11 +791,12 @@ pub mod widget {
         ///     state = output.state;
         /// }
         /// ```
-        pub fn new(text: &'a mut String, cursor: &'a mut usize) -> Self {
+        pub fn new(text: &'a mut String, cursor: &'a mut usize, border: Option<Border>) -> Self {
             Self {
                 text,
                 cursor,
                 label: None,
+                border,
                 inline_label: true,
                 show_cursor: true,
                 dim: true,
@@ -770,6 +814,8 @@ pub mod widget {
             let mut response = Response::default();
 
             let area = ui.next_area().unwrap_or_default();
+            let area = render_block(frame, area, self.border, ui.theme.border_style);
+
             let layout = Layout::vertical(Constraint::from_lengths([1, 1])).split(area);
 
             let mut state = TextEditState {
@@ -920,6 +966,25 @@ pub mod widget {
             frame.render_widget(table, area);
 
             Response::default()
+        }
+    }
+
+    fn render_block(frame: &mut Frame, area: Rect, border: Option<Border>, style: Style) -> Rect {
+        if let Some(border) = border {
+            match border {
+                Border::Single => {
+                    let block = Block::default()
+                        .border_style(style)
+                        .border_type(BorderType::Rounded)
+                        .borders(Borders::ALL);
+                    frame.render_widget(block.clone(), area);
+
+                    block.inner(area)
+                }
+                _ => area,
+            }
+        } else {
+            area
         }
     }
 }
