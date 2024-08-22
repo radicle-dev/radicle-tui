@@ -4,12 +4,12 @@ use std::time::Duration;
 
 use anyhow::Result;
 
-use ratatui::layout::{Layout, Rect};
 use tokio::sync::broadcast;
 use tokio::sync::mpsc::UnboundedReceiver;
 
 use termion::event::Key;
 
+use ratatui::layout::{Layout, Rect};
 use ratatui::Frame;
 
 use crate::event::Event;
@@ -182,9 +182,11 @@ impl Context {
     }
 }
 
-pub enum Border {
-    Single,
-    Sequence { separator: bool },
+pub enum Borders {
+    All,
+    Top,
+    Sides,
+    Bottom,
 }
 
 #[derive(Default, Clone, Debug)]
@@ -298,12 +300,12 @@ impl Ui {
         selected: &mut Option<usize>,
         items: &'a Vec<R>,
         columns: Vec<Column<'a>>,
-        border: Option<Border>,
+        borders: Option<Borders>,
     ) -> Response
     where
         R: ToRow<W> + Clone,
     {
-        widget::Table::new(selected, items, columns, border).ui(self, frame)
+        widget::Table::new(selected, items, columns, borders).ui(self, frame)
     }
 
     pub fn shortcuts(
@@ -319,18 +321,18 @@ impl Ui {
         &mut self,
         frame: &mut Frame,
         columns: Vec<Column<'a>>,
-        border: Option<Border>,
+        borders: Option<Borders>,
     ) -> Response {
-        widget::Columns::new(columns, border).ui(self, frame)
+        widget::Columns::new(columns, borders).ui(self, frame)
     }
 
     pub fn text_view(
         &mut self,
         frame: &mut Frame,
         text: String,
-        border: Option<Border>,
+        borders: Option<Borders>,
     ) -> Response {
-        widget::TextView::new(text, border).ui(self, frame)
+        widget::TextView::new(text, borders).ui(self, frame)
     }
 
     pub fn text_edit_singleline(
@@ -338,9 +340,9 @@ impl Ui {
         frame: &mut Frame,
         text: &mut String,
         cursor: &mut usize,
-        border: Option<Border>,
+        borders: Option<Borders>,
     ) -> Response {
-        widget::TextEdit::new(text, cursor, border).ui(self, frame)
+        widget::TextEdit::new(text, cursor, borders).ui(self, frame)
     }
 
     pub fn text_edit_labeled_singleline(
@@ -349,7 +351,7 @@ impl Ui {
         text: &mut String,
         cursor: &mut usize,
         label: impl ToString,
-        border: Option<Border>,
+        border: Option<Borders>,
     ) -> Response {
         widget::TextEdit::new(text, cursor, border)
             .with_label(label)
@@ -363,7 +365,7 @@ pub mod widget {
     use ratatui::layout::{Layout, Rect};
     use ratatui::style::{Style, Stylize};
     use ratatui::text::{Line, Span, Text};
-    use ratatui::widgets::{Block, BorderType, Borders, Row, Scrollbar, ScrollbarState};
+    use ratatui::widgets::{Block, BorderType, Row, Scrollbar, ScrollbarState};
     use ratatui::Frame;
     use ratatui::{layout::Constraint, widgets::Paragraph};
     use termion::event::Key;
@@ -373,7 +375,7 @@ pub mod widget {
     use crate::ui::widget::list::ToRow;
     use crate::ui::{layout, span};
 
-    use super::{Border, Context, InnerResponse, Response, Ui};
+    use super::{Borders, Context, InnerResponse, Response, Ui};
 
     pub trait Widget {
         fn ui(self, ui: &mut Ui, frame: &mut Frame) -> Response;
@@ -496,7 +498,7 @@ pub mod widget {
         items: &'a Vec<R>,
         selected: &'a mut Option<usize>,
         columns: Vec<Column<'a>>,
-        border: Option<Border>,
+        borders: Option<Borders>,
         show_scrollbar: bool,
         dim: bool,
     }
@@ -509,13 +511,13 @@ pub mod widget {
             selected: &'a mut Option<usize>,
             items: &'a Vec<R>,
             columns: Vec<Column<'a>>,
-            border: Option<Border>,
+            borders: Option<Borders>,
         ) -> Self {
             Self {
                 items,
                 selected,
                 columns,
-                border,
+                borders,
                 show_scrollbar: true,
                 dim: false,
             }
@@ -548,7 +550,7 @@ pub mod widget {
                 },
             };
 
-            let area = render_block(frame, area, self.border, ui.theme.border_style);
+            let area = render_block(frame, area, self.borders, ui.theme.border_style);
 
             if let Some(key) = ui.input_with_key(|_| true) {
                 let len = self.items.len();
@@ -680,19 +682,19 @@ pub mod widget {
 
     pub struct Columns<'a> {
         columns: Vec<Column<'a>>,
-        border: Option<Border>,
+        borders: Option<Borders>,
     }
 
     impl<'a> Columns<'a> {
-        pub fn new(columns: Vec<Column<'a>>, border: Option<Border>) -> Self {
-            Self { columns, border }
+        pub fn new(columns: Vec<Column<'a>>, borders: Option<Borders>) -> Self {
+            Self { columns, borders }
         }
     }
 
     impl<'a> Widget for Columns<'a> {
         fn ui(self, ui: &mut Ui, frame: &mut Frame) -> Response {
             let area = ui.next_area().unwrap_or_default();
-            let area = render_block(frame, area, self.border, ui.theme.border_style);
+            let area = render_block(frame, area, self.borders, ui.theme.border_style);
 
             let widths = self
                 .columns
@@ -731,14 +733,14 @@ pub mod widget {
 
     pub struct TextView {
         text: String,
-        border: Option<Border>,
+        borders: Option<Borders>,
     }
 
     impl TextView {
-        pub fn new(text: impl ToString, border: Option<Border>) -> Self {
+        pub fn new(text: impl ToString, borders: Option<Borders>) -> Self {
             Self {
                 text: text.to_string(),
-                border,
+                borders,
             }
         }
     }
@@ -746,7 +748,7 @@ pub mod widget {
     impl Widget for TextView {
         fn ui(self, ui: &mut Ui, frame: &mut Frame) -> Response {
             let area = ui.next_area().unwrap_or_default();
-            let area = render_block(frame, area, self.border, ui.theme.border_style);
+            let area = render_block(frame, area, self.borders, ui.theme.border_style);
 
             frame.render_widget(Paragraph::new(self.text), area);
 
@@ -834,7 +836,7 @@ pub mod widget {
     pub struct TextEdit<'a> {
         text: &'a mut String,
         cursor: &'a mut usize,
-        border: Option<Border>,
+        borders: Option<Borders>,
         label: Option<String>,
         inline_label: bool,
         show_cursor: bool,
@@ -851,12 +853,12 @@ pub mod widget {
         ///     state = output.state;
         /// }
         /// ```
-        pub fn new(text: &'a mut String, cursor: &'a mut usize, border: Option<Border>) -> Self {
+        pub fn new(text: &'a mut String, cursor: &'a mut usize, borders: Option<Borders>) -> Self {
             Self {
                 text,
                 cursor,
                 label: None,
-                border,
+                borders,
                 inline_label: true,
                 show_cursor: true,
                 dim: true,
@@ -874,7 +876,7 @@ pub mod widget {
             let mut response = Response::default();
 
             let area = ui.next_area().unwrap_or_default();
-            let area = render_block(frame, area, self.border, ui.theme.border_style);
+            let area = render_block(frame, area, self.borders, ui.theme.border_style);
 
             let layout = Layout::vertical(Constraint::from_lengths([1, 1])).split(area);
 
@@ -1029,14 +1031,14 @@ pub mod widget {
         }
     }
 
-    fn render_block(frame: &mut Frame, area: Rect, border: Option<Border>, style: Style) -> Rect {
-        if let Some(border) = border {
+    fn render_block(frame: &mut Frame, area: Rect, borders: Option<Borders>, style: Style) -> Rect {
+        if let Some(border) = borders {
             match border {
-                Border::Single => {
+                Borders::All => {
                     let block = Block::default()
                         .border_style(style)
                         .border_type(BorderType::Rounded)
-                        .borders(Borders::ALL);
+                        .borders(ratatui::widgets::Borders::ALL);
                     frame.render_widget(block.clone(), area);
 
                     block.inner(area)
