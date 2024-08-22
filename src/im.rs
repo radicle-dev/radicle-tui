@@ -315,6 +315,15 @@ impl Ui {
         widget::Shortcuts::new(shortcuts, divider).ui(self, frame)
     }
 
+    pub fn columns<'a>(
+        &mut self,
+        frame: &mut Frame,
+        columns: Vec<Column<'a>>,
+        border: Option<Border>,
+    ) -> Response {
+        widget::Columns::new(columns, border).ui(self, frame)
+    }
+
     pub fn text_view(
         &mut self,
         frame: &mut Frame,
@@ -666,6 +675,57 @@ pub mod widget {
             *self.selected = state.selected();
 
             response
+        }
+    }
+
+    pub struct Columns<'a> {
+        columns: Vec<Column<'a>>,
+        border: Option<Border>,
+    }
+
+    impl<'a> Columns<'a> {
+        pub fn new(columns: Vec<Column<'a>>, border: Option<Border>) -> Self {
+            Self { columns, border }
+        }
+    }
+
+    impl<'a> Widget for Columns<'a> {
+        fn ui(self, ui: &mut Ui, frame: &mut Frame) -> Response {
+            let area = ui.next_area().unwrap_or_default();
+            let area = render_block(frame, area, self.border, ui.theme.border_style);
+
+            let widths = self
+                .columns
+                .iter()
+                .map(|c| match c.width {
+                    Constraint::Min(min) => Constraint::Length(min.saturating_add(3)),
+                    _ => c.width,
+                })
+                .collect::<Vec<_>>();
+
+            // let layout = Layout::horizontal(widths).split(area);
+            // let cells = self
+            //     .columns
+            //     .iter()
+            //     .map(|c| c.text.clone())
+            //     .zip(layout.iter())
+            //     .collect::<Vec<_>>();
+
+            // let last = cells.len().saturating_sub(1);
+            // let len = cells.len();
+
+            let cells = self
+                .columns
+                .iter()
+                .map(|c| c.text.clone())
+                .collect::<Vec<_>>();
+
+            let table = ratatui::widgets::Table::default()
+                .header(Row::new(cells))
+                .widths(widths);
+            frame.render_widget(table, area);
+
+            Response::default()
         }
     }
 
