@@ -327,25 +327,6 @@ impl Ui {
 
         InnerResponse::new(inner, Response::default())
     }
-
-    pub fn block<R>(
-        &mut self,
-        layout: Layout,
-        add_contents: impl FnOnce(&mut Self) -> R,
-    ) -> InnerResponse<R> {
-        self.block_dyn(layout, Box::new(add_contents))
-    }
-
-    pub fn block_dyn<'a, R>(
-        &mut self,
-        layout: Layout,
-        add_contents: Box<dyn FnOnce(&mut Self) -> R + 'a>,
-    ) -> InnerResponse<R> {
-        let mut child_ui = self.child_ui(self.area(), layout);
-        let inner = add_contents(&mut child_ui);
-
-        InnerResponse::new(inner, Response::default())
-    }
 }
 
 impl Ui {
