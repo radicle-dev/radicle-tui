@@ -267,7 +267,8 @@ impl Ui {
         layout: Layout,
         add_contents: Box<dyn FnOnce(&mut Self) -> R + 'a>,
     ) -> InnerResponse<R> {
-        let mut child_ui = self.child_ui(self.area(), layout);
+        let area = self.next_area().unwrap_or_default();
+        let mut child_ui = self.child_ui(area, layout);
         let inner = add_contents(&mut child_ui);
 
         InnerResponse::new(inner, Response::default())
@@ -402,7 +403,8 @@ pub mod widget {
         ) -> Option<InnerResponse<Option<R>>> {
             let mut ui = Ui::default()
                 .with_area(ctx.frame_size())
-                .with_ctx(ctx.clone());
+                .with_ctx(ctx.clone())
+                .with_layout(Layout::horizontal([Constraint::Min(1)]));
 
             let inner = add_contents(&mut ui);
 
@@ -652,18 +654,15 @@ pub mod widget {
 
                 // In order to make the scrollbar work correctly towards the end of the list,
                 // we need to add a few percent of the total length.
-                let length_addition =
+                let virtual_length =
                     self.items.len() * ((self.items.len() as f64).log2() as usize) / 100;
+                let content_length = area.height as usize + virtual_length;
 
                 let mut scroller_state = ScrollbarState::default()
-                    .content_length(
-                        self.items
-                            .len()
-                            .saturating_sub(area.height.into())
-                            .saturating_add(length_addition),
-                    )
+                    .content_length(self.items.len().saturating_sub(content_length))
                     .viewport_content_length(1)
                     .position(state.internal.offset());
+
                 frame.render_stateful_widget(scroller, scroller_area, &mut scroller_state);
             } else {
                 let center = layout::centered_rect(area, 50, 10);
