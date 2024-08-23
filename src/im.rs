@@ -1,5 +1,6 @@
 use std::collections::VecDeque;
 use std::fmt::Debug;
+use std::rc::Rc;
 use std::time::Duration;
 
 use anyhow::Result;
@@ -9,7 +10,7 @@ use tokio::sync::mpsc::UnboundedReceiver;
 
 use termion::event::Key;
 
-use ratatui::layout::{Layout, Rect};
+use ratatui::layout::{Constraint, Rect};
 use ratatui::Frame;
 
 use crate::event::Event;
@@ -190,6 +191,58 @@ pub enum Borders {
     BottomSides,
 }
 
+#[derive(Clone, Default, Debug)]
+pub enum Layout {
+    #[default]
+    None,
+    Wrapped {
+        internal: ratatui::layout::Layout,
+    },
+    Expandable3 {
+        left_only: bool,
+    },
+}
+
+impl From<ratatui::layout::Layout> for Layout {
+    fn from(layout: ratatui::layout::Layout) -> Self {
+        Layout::Wrapped { internal: layout }
+    }
+}
+
+impl Layout {
+    pub fn split(&self, area: Rect) -> Rc<[Rect]> {
+        match self {
+            Layout::None => Rc::new([]),
+            Layout::Wrapped { internal } => internal.split(area),
+            Layout::Expandable3 { left_only } => {
+                use ratatui::layout::Layout;
+
+                if *left_only {
+                    [area].into()
+                } else if area.width <= 140 {
+                    let [left, right] = Layout::horizontal([
+                        Constraint::Percentage(50),
+                        Constraint::Percentage(50),
+                    ])
+                    .areas(area);
+                    let [right_top, right_bottom] =
+                        Layout::vertical([Constraint::Percentage(65), Constraint::Percentage(35)])
+                            .areas(right);
+
+                    [left, right_top, right_bottom].into()
+                } else {
+                    Layout::horizontal([
+                        Constraint::Percentage(33),
+                        Constraint::Percentage(33),
+                        Constraint::Percentage(33),
+                    ])
+                    .split(area)
+                }
+            }
+        }
+    }
+}
+
 #[derive(Default, Clone, Debug)]
 pub struct Ui {
     pub(crate) theme: Theme,
@@ -248,16 +301,16 @@ impl Ui {
         widget.ui(self, frame)
     }
 
-    pub fn child_ui(&mut self, area: Rect, layout: Layout) -> Self {
+    pub fn child_ui(&mut self, area: Rect, layout: impl Into<Layout>) -> Self {
         Ui::default()
             .with_area(area)
-            .with_layout(layout)
+            .with_layout(layout.into())
             .with_ctx(self.ctx.clone())
     }
 
     pub fn layout<R>(
         &mut self,
-        layout: Layout,
+        layout: impl Into<Layout>,
         add_contents: impl FnOnce(&mut Self) -> R,
     ) -> InnerResponse<R> {
         self.layout_dyn(layout, Box::new(add_contents))
@@ -265,7 +318,7 @@ impl Ui {
 
     pub fn layout_dyn<'a, R>(
         &mut self,
-        layout: Layout,
+        layout: impl Into<Layout>,
         add_contents: Box<dyn FnOnce(&mut Self) -> R + 'a>,
     ) -> InnerResponse<R> {
         let area = self.next_area().unwrap_or_default();
@@ -405,7 +458,7 @@ pub mod widget {
             let mut ui = Ui::default()
                 .with_area(ctx.frame_size())
                 .with_ctx(ctx.clone())
-                .with_layout(Layout::horizontal([Constraint::Min(1)]));
+                .with_layout(Layout::horizontal([Constraint::Min(1)]).into());
 
             let inner = add_contents(&mut ui);
 
