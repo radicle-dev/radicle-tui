@@ -336,7 +336,7 @@ impl<'a: 'static, S, M> View for Footer<S, M> {
 
         for (i, (cell, area)) in cells.into_iter().enumerate() {
             let block_type = match i {
-                0 if len == 1 => FooterBlockType::Single,
+                0 if len == 1 => FooterBlockType::Single { top: true },
                 0 => FooterBlockType::Begin,
                 _ if i == last => FooterBlockType::End,
                 _ => FooterBlockType::Repeat,

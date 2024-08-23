@@ -115,7 +115,7 @@ impl Widget for HeaderBlock {
 
 #[derive(Clone)]
 pub enum FooterBlockType {
-    Single,
+    Single { top: bool },
     Begin,
     End,
     Repeat,
@@ -138,8 +138,8 @@ pub struct FooterBlock {
 impl Default for FooterBlock {
     fn default() -> Self {
         Self {
-            block_type: FooterBlockType::Single,
-            borders: Self::borders(FooterBlockType::Single),
+            block_type: FooterBlockType::Single { top: true },
+            borders: Self::borders(FooterBlockType::Single { top: true }),
             border_style: Default::default(),
             border_type: BorderType::Rounded,
             style: Default::default(),
@@ -171,7 +171,14 @@ impl FooterBlock {
 
     fn borders(block_type: FooterBlockType) -> Borders {
         match block_type {
-            FooterBlockType::Single | FooterBlockType::Begin => Borders::ALL,
+            FooterBlockType::Single { top } => {
+                if top {
+                    Borders::ALL
+                } else {
+                    Borders::LEFT | Borders::RIGHT | Borders::BOTTOM
+                }
+            }
+            FooterBlockType::Begin => Borders::ALL,
             FooterBlockType::End | FooterBlockType::Repeat => {
                 Borders::TOP | Borders::RIGHT | Borders::BOTTOM
             }
