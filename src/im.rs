@@ -187,6 +187,7 @@ pub enum Borders {
     Top,
     Sides,
     Bottom,
+    BottomSides,
 }
 
 #[derive(Default, Clone, Debug)]
@@ -1073,10 +1074,27 @@ pub mod widget {
 
                     let footer_block = FooterBlock::default()
                         .border_style(style)
-                        .block_type(FooterBlockType::Single);
+                        .block_type(FooterBlockType::Single { top: true });
                     frame.render_widget(footer_block, area);
 
                     areas[0]
+                }
+                Borders::BottomSides => {
+                    let areas = Layout::default()
+                        .direction(Direction::Vertical)
+                        .constraints(vec![Constraint::Min(1)])
+                        .horizontal_margin(1)
+                        .split(area);
+
+                    let footer_block = FooterBlock::default()
+                        .border_style(style)
+                        .block_type(FooterBlockType::Single { top: false });
+                    frame.render_widget(footer_block, area);
+
+                    Rect {
+                        height: areas[0].height.saturating_sub(1),
+                        ..areas[0]
+                    }
                 }
             }
         } else {
