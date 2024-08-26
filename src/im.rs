@@ -184,6 +184,7 @@ impl Context {
 }
 
 pub enum Borders {
+    None,
     All,
     Top,
     Sides,
@@ -262,18 +263,26 @@ pub struct Ui {
     pub(crate) theme: Theme,
     pub(crate) area: Rect,
     pub(crate) layout: Layout,
-    focus: usize,
+    focus: Option<usize>,
     count: usize,
     ctx: Context,
 }
 
 impl Ui {
     pub fn input(&mut self, f: impl Fn(Key) -> bool) -> bool {
+        self.has_focus() && self.ctx.inputs.iter().find(|key| f(**key)).is_some()
+    }
+
+    pub fn input_global(&mut self, f: impl Fn(Key) -> bool) -> bool {
         self.ctx.inputs.iter().find(|key| f(**key)).is_some()
     }
 
     pub fn input_with_key(&mut self, f: impl Fn(Key) -> bool) -> Option<Key> {
-        self.ctx.inputs.iter().find(|key| f(**key)).copied()
+        if self.has_focus() {
+            self.ctx.inputs.iter().find(|key| f(**key)).copied()
+        } else {
+            None
+        }
     }
 }
 
@@ -304,19 +313,35 @@ impl Ui {
         self.area
     }
 
-    pub fn next_area(&mut self) -> Option<Rect> {
+    pub fn next_area(&mut self) -> Option<(Rect, bool)> {
+        let has_focus = self.focus.map(|focus| self.count == focus).unwrap_or(false);
         let rect = self.layout.split(self.area).get(self.count).cloned();
+
         self.count = self.count + 1;
-        rect
+
+        rect.map(|rect| (rect, has_focus))
+    }
+
+    pub fn current_area(&mut self) -> Option<(Rect, bool)> {
+        let count = self.count.saturating_sub(1);
+
+        let has_focus = self.focus.map(|focus| count == focus).unwrap_or(false);
+        let rect = self.layout.split(self.area).get(self.count).cloned();
+
+        rect.map(|rect| (rect, has_focus))
+    }
+
+    pub fn has_focus(&self) -> bool {
+        let count = self.count.saturating_sub(1);
+        self.focus.map(|focus| count == focus).unwrap_or(false)
     }
 
     pub fn count(&self) -> usize {
         self.count
     }
 
-    pub fn has_focus(&self) -> bool {
-        log::trace!("[Ui] Querying focus: {}, {}", self.count, self.focus);
-        self.count == self.focus
+    pub fn set_focus(&mut self, focus: Option<usize>) {
+        self.focus = focus;
     }
 }
 
@@ -345,7 +370,7 @@ impl Ui {
         layout: impl Into<Layout>,
         add_contents: Box<dyn FnOnce(&mut Self) -> R + 'a>,
     ) -> InnerResponse<R> {
-        let area = self.next_area().unwrap_or_default();
+        let (area, _) = self.next_area().unwrap_or_default();
         let mut child_ui = self.child_ui(area, layout);
         let inner = add_contents(&mut child_ui);
 
@@ -360,12 +385,13 @@ impl Ui {
         focus: &mut usize,
         add_contents: impl FnOnce(&mut Ui) -> R,
     ) -> InnerResponse<R> {
-        let area = self.next_area().unwrap_or_default();
+        let (area, _) = self.next_area().unwrap_or_default();
 
         let layout: Layout = layout.into();
         let len = layout.len();
 
         let mut child_ui = self.child_ui(area, layout);
+        child_ui.set_focus(Some(0));
 
         widget::Group::new(len, focus).show(&mut child_ui, add_contents)
     }
@@ -532,6 +558,8 @@ pub mod widget {
         ) -> InnerResponse<R> {
             let mut response = Response::default();
 
+            // let (_, has_focus) = ui.current_area().unwrap_or_default();
+
             let mut state = GroupState {
                 focus: *self.focus,
                 len: self.len,
@@ -542,18 +570,19 @@ pub mod widget {
                     Key::Char('\t') => {
                         state.focus =
                             cmp::min(state.focus.saturating_add(1), state.len.saturating_sub(1));
+                        response.changed = true;
                     }
                     Key::BackTab => {
                         state.focus = state.focus.saturating_sub(1);
+                        response.changed = true;
                     }
                     _ => {}
                 }
-                response.changed = true;
             }
             *self.focus = state.focus;
 
             let mut ui = Ui {
-                focus: state.focus,
+                focus: Some(state.focus),
                 ..ui.clone()
             };
 
@@ -690,8 +719,7 @@ pub mod widget {
         fn ui(self, ui: &mut Ui, frame: &mut Frame) -> Response {
             let mut response = Response::default();
 
-            let has_focus = ui.has_focus();
-            let area = ui.next_area().unwrap_or_default();
+            let (area, has_focus) = ui.next_area().unwrap_or_default();
 
             let show_scrollbar = self.show_scrollbar && self.items.len() >= area.height.into();
             let has_items = !self.items.is_empty();
@@ -851,8 +879,7 @@ pub mod widget {
 
     impl<'a> Widget for Columns<'a> {
         fn ui(self, ui: &mut Ui, frame: &mut Frame) -> Response {
-            let has_focus = ui.has_focus();
-            let area = ui.next_area().unwrap_or_default();
+            let (area, has_focus) = ui.next_area().unwrap_or_default();
 
             let border_style = if has_focus {
                 ui.theme.focus_border_style
@@ -906,8 +933,7 @@ pub mod widget {
 
     impl Widget for TextView {
         fn ui(self, ui: &mut Ui, frame: &mut Frame) -> Response {
-            let has_focus = ui.has_focus();
-            let area = ui.next_area().unwrap_or_default();
+            let (area, has_focus) = ui.next_area().unwrap_or_default();
 
             let border_style = if has_focus {
                 ui.theme.focus_border_style
@@ -1042,8 +1068,7 @@ pub mod widget {
         pub fn show(self, ui: &mut Ui, frame: &mut Frame) -> TextEditOutput {
             let mut response = Response::default();
 
-            let has_focus = ui.has_focus();
-            let area = ui.next_area().unwrap_or_default();
+            let (area, has_focus) = ui.next_area().unwrap_or_default();
 
             let border_style = if has_focus {
                 ui.theme.focus_border_style
@@ -1168,6 +1193,8 @@ pub mod widget {
         fn ui(self, ui: &mut Ui, frame: &mut Frame) -> Response {
             use ratatui::widgets::Table;
 
+            let (area, _) = ui.next_area().unwrap_or_default();
+
             let mut shortcuts = self.shortcuts.iter().peekable();
             let mut row = vec![];
 
@@ -1199,7 +1226,6 @@ pub mod widget {
                 .collect();
             let table = Table::new([Row::new(row)], widths).column_spacing(0);
 
-            let area = ui.next_area().unwrap_or_default();
             frame.render_widget(table, area);
 
             Response::default()
@@ -1209,6 +1235,7 @@ pub mod widget {
     fn render_block(frame: &mut Frame, area: Rect, borders: Option<Borders>, style: Style) -> Rect {
         if let Some(border) = borders {
             match border {
+                Borders::None => area,
                 Borders::All => {
                     let block = Block::default()
                         .border_style(style)
