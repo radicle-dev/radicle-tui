@@ -185,6 +185,7 @@ impl Context {
 
 pub enum Borders {
     None,
+    Spacer { top: usize, left: usize },
     All,
     Top,
     Sides,
@@ -1236,6 +1237,14 @@ pub mod widget {
         if let Some(border) = borders {
             match border {
                 Borders::None => area,
+                Borders::Spacer { top, left } => {
+                    let areas = Layout::horizontal([Constraint::Fill(1)])
+                        .vertical_margin(top as u16)
+                        .horizontal_margin(left as u16)
+                        .split(area);
+
+                    areas[0]
+                }
                 Borders::All => {
                     let block = Block::default()
                         .border_style(style)
