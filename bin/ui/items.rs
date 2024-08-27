@@ -817,6 +817,10 @@ impl PatchItemFilter {
     pub fn status(&self) -> Option<patch::Status> {
         self.status
     }
+
+    pub fn is_default(&self) -> bool {
+        *self == PatchItemFilter::default()
+    }
 }
 
 impl Filter<PatchItem> for PatchItemFilter {
@@ -899,11 +903,17 @@ impl FromStr for PatchItemFilter {
             }
         }
 
+        let search = if search.is_empty() {
+            None
+        } else {
+            Some(search)
+        };
+
         Ok(Self {
             status,
             authored,
             authors,
-            search: Some(search),
+            search,
         })
     }
 }

@@ -1,3 +1,5 @@
+#[path = "select/imui.rs"]
+mod imui;
 #[path = "select/ui.rs"]
 mod ui;
 
@@ -44,6 +46,39 @@ pub struct Context {
 
 pub struct App {
     context: Context,
+    im: bool,
+}
+
+impl App {
+    pub fn new(context: Context, im: bool) -> Self {
+        Self { context, im }
+    }
+
+    pub async fn run(&self) -> Result<Option<Selection>> {
+        if self.im {
+            let channel = Channel::default();
+            let tx = channel.tx.clone();
+            let state = imui::State::try_from(&self.context)?;
+
+            tui::run_im(channel, state, imui::App::new(tx)).await
+        } else {
+            let channel = Channel::default();
+            let tx = channel.tx.clone();
+            let state = State::try_from(&self.context)?;
+            let window = Window::default()
+                .page(AppPage::Browse, browser_page(&state, &channel))
+                .page(AppPage::Help, help_page(&state, &channel))
+                .to_widget(tx.clone())
+                .on_update(|state| {
+                    WindowProps::default()
+                        .current_page(state.pages.peek().unwrap_or(&AppPage::Browse).clone())
+                        .to_boxed_any()
+                        .into()
+                });
+
+            tui::run(channel, state, window).await
+        }
+    }
 }
 
 #[derive(Clone, Debug, Eq, PartialEq, Hash)]
@@ -170,31 +205,6 @@ impl store::State<Selection> for State {
                 None
             }
         }
-    }
-}
-
-impl App {
-    pub fn new(context: Context) -> Self {
-        Self { context }
-    }
-
-    pub async fn run(&self) -> Result<Option<Selection>> {
-        let channel = Channel::default();
-        let state = State::try_from(&self.context)?;
-        let tx = channel.tx.clone();
-
-        let window = Window::default()
-            .page(AppPage::Browse, browser_page(&state, &channel))
-            .page(AppPage::Help, help_page(&state, &channel))
-            .to_widget(tx.clone())
-            .on_update(|state| {
-                WindowProps::default()
-                    .current_page(state.pages.peek().unwrap_or(&AppPage::Browse).clone())
-                    .to_boxed_any()
-                    .into()
-            });
-
-        tui::run(channel, state, window).await
     }
 }
 

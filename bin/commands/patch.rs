@@ -167,7 +167,7 @@ pub async fn run(options: Options, ctx: impl terminal::Context) -> anyhow::Resul
                 mode: opts.mode,
                 filter: opts.filter.clone(),
             };
-            let output = select::App::new(context).run().await?;
+            let output = select::App::new(context, true).run().await?;
 
             let output = output
                 .map(|o| serde_json::to_string(&o).unwrap_or_default())
