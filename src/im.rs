@@ -1013,12 +1013,13 @@ pub mod widget {
                 // Put all characters together except the selected one.
                 // By leaving the selected one out, it is forgotten and therefore deleted.
                 self.text = before_char_to_delete.chain(after_char_to_delete).collect();
+
                 self.move_cursor_left();
             }
         }
 
         fn clamp_cursor(&self, new_cursor_pos: usize) -> usize {
-            new_cursor_pos.clamp(0, self.text.clone().len())
+            new_cursor_pos.clamp(0, self.text.len())
         }
     }
 
@@ -1082,7 +1083,7 @@ pub mod widget {
             let layout = Layout::vertical(Constraint::from_lengths([1, 1])).split(area);
 
             let mut state = TextEditState {
-                text: self.text.clone(),
+                text: self.text.to_string(),
                 cursor: *self.cursor,
             };
 
@@ -1093,32 +1094,6 @@ pub mod widget {
             let label_content = format!(" {} ", self.label.unwrap_or_default());
             let overline = String::from("▔").repeat(area.width as usize);
             let cursor_pos = *self.cursor as u16;
-
-            if let Some(key) = ui.input_with_key(|_| true) {
-                match key {
-                    Key::Char(to_insert)
-                        if (key != Key::Alt('\n'))
-                            && (key != Key::Char('\n'))
-                            && (key != Key::Ctrl('\n')) =>
-                    {
-                        state.enter_char(to_insert);
-                    }
-                    Key::Backspace => {
-                        state.delete_char_left();
-                    }
-                    Key::Delete => {
-                        state.delete_char_right();
-                    }
-                    Key::Left => {
-                        state.move_cursor_left();
-                    }
-                    Key::Right => {
-                        state.move_cursor_right();
-                    }
-                    _ => {}
-                }
-                response.changed = true;
-            }
 
             let (label, input, overline) = if !focus && self.dim {
                 (
@@ -1161,6 +1136,32 @@ pub mod widget {
                 if self.show_cursor {
                     frame.set_cursor(area.x + cursor_pos, area.y)
                 }
+            }
+
+            if let Some(key) = ui.input_with_key(|_| true) {
+                match key {
+                    Key::Char(to_insert)
+                        if (key != Key::Alt('\n'))
+                            && (key != Key::Char('\n'))
+                            && (key != Key::Ctrl('\n')) =>
+                    {
+                        state.enter_char(to_insert);
+                    }
+                    Key::Backspace => {
+                        state.delete_char_left();
+                    }
+                    Key::Delete => {
+                        state.delete_char_right();
+                    }
+                    Key::Left => {
+                        state.move_cursor_left();
+                    }
+                    Key::Right => {
+                        state.move_cursor_right();
+                    }
+                    _ => {}
+                }
+                response.changed = true;
             }
 
             *self.text = state.text.clone();
@@ -1317,5 +1318,107 @@ pub mod widget {
         } else {
             area
         }
+    }
+}
+
+/// A `BufferedValue` that writes updates to an internal
+/// buffer. This buffer can be applied or reset.
+///
+/// Reading from a `BufferedValue` will return the buffer if it's
+/// not empty. It will return the actual value otherwise.
+#[derive(Clone, Debug)]
+pub struct BufferedValue<T>
+where
+    T: Clone,
+{
+    value: T,
+    buffer: Option<T>,
+}
+
+impl<T> BufferedValue<T>
+where
+    T: Clone,
+{
+    pub fn new(value: T) -> Self {
+        Self {
+            value,
+            buffer: None,
+        }
+    }
+
+    pub fn apply(&mut self) {
+        if let Some(buffer) = self.buffer.clone() {
+            self.value = buffer;
+        }
+        self.buffer = None;
+    }
+
+    pub fn reset(&mut self) {
+        self.buffer = None;
+    }
+
+    pub fn write(&mut self, value: T) {
+        self.buffer = Some(value);
+    }
+
+    pub fn read(&self) -> T {
+        if let Some(buffer) = self.buffer.clone() {
+            buffer
+        } else {
+            self.value.clone()
+        }
+    }
+}
+
+#[cfg(test)]
+mod test {
+    use super::*;
+
+    #[test]
+    fn state_value_read_should_succeed() {
+        let value = BufferedValue::new(0);
+        assert_eq!(value.read(), 0);
+    }
+
+    #[test]
+    fn state_value_read_buffer_should_succeed() {
+        let mut value = BufferedValue::new(0);
+        value.write(1);
+
+        assert_eq!(value.read(), 1);
+    }
+
+    #[test]
+    fn state_value_apply_should_succeed() {
+        let mut value = BufferedValue::new(0);
+
+        value.write(1);
+        assert_eq!(value.read(), 1);
+
+        value.apply();
+        assert_eq!(value.read(), 1);
+    }
+
+    #[test]
+    fn state_value_reset_should_succeed() {
+        let mut value = BufferedValue::new(0);
+
+        value.write(1);
+        assert_eq!(value.read(), 1);
+
+        value.reset();
+        assert_eq!(value.read(), 0);
+    }
+
+    #[test]
+    fn state_value_reset_after_apply_should_succeed() {
+        let mut value = BufferedValue::new(0);
+
+        value.write(1);
+        assert_eq!(value.read(), 1);
+
+        value.apply();
+        value.reset();
+        assert_eq!(value.read(), 1);
     }
 }
