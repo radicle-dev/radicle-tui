@@ -3,6 +3,7 @@ pub mod layout;
 pub mod span;
 pub mod theme;
 pub mod widget;
+pub mod im;
 
 use std::fmt::Debug;
 use std::time::Duration;

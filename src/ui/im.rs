@@ -14,15 +14,12 @@ use ratatui::layout::{Constraint, Rect};
 use ratatui::Frame;
 
 use crate::event::Event;
-use crate::store;
 use crate::store::State;
-use crate::task;
 use crate::task::Interrupted;
 use crate::terminal;
 use crate::ui::theme::Theme;
 use crate::ui::widget::container::Column;
 use crate::ui::widget::list::ToRow;
-use crate::Channel;
 
 use self::widget::Widget;
 
@@ -36,41 +33,11 @@ pub trait App {
     fn update(&self, ui: &Context, frame: &mut Frame, state: &Self::State) -> Result<()>;
 }
 
-pub async fn run_app<S, M, P>(
-    channel: Channel<M>,
-    state: S,
-    app: impl App<State = S, Message = M>,
-) -> Result<Option<P>>
-where
-    S: State<P, Message = M> + Clone + Debug + Send + Sync + 'static,
-    M: 'static,
-    P: Clone + Debug + Send + Sync + 'static,
-{
-    let (terminator, mut interrupt_rx) = task::create_termination();
-
-    let (store, state_rx) = store::Store::<S, M, P>::new();
-    let frontend = Frontend::default();
-
-    tokio::try_join!(
-        store.main_loop(state, terminator, channel.rx, interrupt_rx.resubscribe()),
-        frontend.im_main_loop(app, state_rx, interrupt_rx.resubscribe()),
-    )?;
-
-    if let Ok(reason) = interrupt_rx.recv().await {
-        match reason {
-            Interrupted::User { payload } => Ok(payload),
-            Interrupted::OsSignal => anyhow::bail!("exited because of an os sig int"),
-        }
-    } else {
-        anyhow::bail!("exited because of an unexpected error");
-    }
-}
-
 #[derive(Default)]
 pub struct Frontend {}
 
 impl Frontend {
-    pub async fn im_main_loop<S, M, P>(
+    pub async fn main_loop<S, M, P>(
         self,
         app: impl App<State = S, Message = M>,
         mut state_rx: UnboundedReceiver<S>,

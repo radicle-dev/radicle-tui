@@ -1,5 +1,4 @@
 pub mod event;
-pub mod im;
 pub mod store;
 pub mod task;
 pub mod terminal;
@@ -18,6 +17,7 @@ use store::State;
 use task::Interrupted;
 use ui::widget::Widget;
 use ui::Frontend;
+use ui::im;
 
 /// An optional return value.
 #[derive(Clone, Debug)]
@@ -165,6 +165,36 @@ where
     tokio::try_join!(
         store.main_loop(state, terminator, channel.rx, interrupt_rx.resubscribe()),
         frontend.main_loop(root, state_rx, interrupt_rx.resubscribe()),
+    )?;
+
+    if let Ok(reason) = interrupt_rx.recv().await {
+        match reason {
+            Interrupted::User { payload } => Ok(payload),
+            Interrupted::OsSignal => anyhow::bail!("exited because of an os sig int"),
+        }
+    } else {
+        anyhow::bail!("exited because of an unexpected error");
+    }
+}
+
+pub async fn run_im<S, M, P>(
+    channel: Channel<M>,
+    state: S,
+    app: impl im::App<State = S, Message = M>,
+) -> Result<Option<P>>
+where
+    S: State<P, Message = M> + Clone + Debug + Send + Sync + 'static,
+    M: 'static,
+    P: Clone + Debug + Send + Sync + 'static,
+{
+    let (terminator, mut interrupt_rx) = task::create_termination();
+
+    let (store, state_rx) = store::Store::<S, M, P>::new();
+    let frontend = im::Frontend::default();
+
+    tokio::try_join!(
+        store.main_loop(state, terminator, channel.rx, interrupt_rx.resubscribe()),
+        frontend.main_loop(app, state_rx, interrupt_rx.resubscribe()),
     )?;
 
     if let Ok(reason) = interrupt_rx.recv().await {
