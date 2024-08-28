@@ -9,6 +9,7 @@ pub struct Theme {
     pub textview_style: Style,
     pub textview_scroll_style: Style,
     pub textview_focus_scroll_style: Style,
+    pub bar_on_black_style: Style,
     pub dim_no_focus: bool,
 }
 
@@ -28,6 +29,7 @@ impl Theme {
             textview_style: style::reset(),
             textview_scroll_style: style::cyan().dim(),
             textview_focus_scroll_style: style::cyan(),
+            bar_on_black_style: Style::default().on_gray(),
             dim_no_focus: false,
         }
     }
@@ -37,10 +39,11 @@ impl Theme {
             border_style: Style::default().fg(Color::Indexed(240)),
             focus_border_style: Style::default().fg(Color::Indexed(246)),
             shortcuts_keys_style: style::yellow().dim(),
-            shortcuts_action_style: style::gray(),
+            shortcuts_action_style: style::gray().dim(),
             textview_style: style::reset(),
             textview_scroll_style: style::cyan().dim(),
             textview_focus_scroll_style: style::cyan(),
+            bar_on_black_style: Style::default().on_black(),
             dim_no_focus: false,
         }
     }

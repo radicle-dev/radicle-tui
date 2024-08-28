@@ -5,6 +5,7 @@ use std::time::Duration;
 
 use anyhow::Result;
 
+use ratatui::text::Text;
 use tokio::sync::broadcast;
 use tokio::sync::mpsc::UnboundedReceiver;
 
@@ -228,7 +229,7 @@ impl Layout {
 
 #[derive(Default, Clone, Debug)]
 pub struct Ui {
-    pub(crate) theme: Theme,
+    pub theme: Theme,
     pub(crate) area: Rect,
     pub(crate) layout: Layout,
     focus: Option<usize>,
@@ -311,6 +312,14 @@ impl Ui {
     pub fn set_focus(&mut self, focus: Option<usize>) {
         self.focus = focus;
     }
+
+    pub fn focus_next(&mut self) {
+        if self.focus.is_none() {
+            self.focus = Some(0);
+        } else {
+            self.focus = Some(self.focus.unwrap().saturating_add(1));
+        }
+    }
 }
 
 impl Ui {
@@ -364,6 +373,16 @@ impl Ui {
         widget::Group::new(len, focus).show(&mut child_ui, add_contents)
     }
 
+    pub fn label<'a>(&mut self, frame: &mut Frame, content: impl Into<Text<'a>>) -> Response {
+        widget::Label::new(content).ui(self, frame)
+    }
+
+    pub fn overline<'a>(&mut self, frame: &mut Frame) -> Response {
+        // let overline = String::from("▔").repeat(256);
+        let overline = String::from("━").repeat(256);
+        self.label(frame, overline)
+    }
+
     pub fn table<'a, R, const W: usize>(
         &mut self,
         frame: &mut Frame,
@@ -396,13 +415,23 @@ impl Ui {
         widget::Columns::new(columns, borders).ui(self, frame)
     }
 
+    pub fn bar<'a>(
+        &mut self,
+        frame: &mut Frame,
+        columns: Vec<Column<'a>>,
+        borders: Option<Borders>,
+    ) -> Response {
+        widget::Bar::new(columns, borders).ui(self, frame)
+    }
+
     pub fn text_view(
         &mut self,
         frame: &mut Frame,
         text: String,
+        scroll: (usize, usize),
         borders: Option<Borders>,
     ) -> Response {
-        widget::TextView::new(text, borders).ui(self, frame)
+        widget::TextView::new(text, scroll, borders).ui(self, frame)
     }
 
     pub fn text_edit_singleline(
@@ -557,6 +586,29 @@ pub mod widget {
             let inner = add_contents(&mut ui);
 
             InnerResponse::new(inner, response)
+        }
+    }
+
+    pub struct Label<'a> {
+        content: Text<'a>,
+    }
+
+    impl<'a> Label<'a> {
+        pub fn new(content: impl Into<Text<'a>>) -> Self {
+            Self {
+                content: content.into(),
+            }
+        }
+    }
+
+    impl<'a> Widget for Label<'a> {
+        fn ui(self, ui: &mut Ui, frame: &mut Frame) -> Response {
+            let mut response = Response::default();
+
+            let (area, has_focus) = ui.next_area().unwrap_or_default();
+            frame.render_widget(self.content, area);
+
+            response
         }
     }
 
@@ -885,21 +937,18 @@ pub mod widget {
         }
     }
 
-    pub struct TextView {
-        text: String,
+    pub struct Bar<'a> {
+        columns: Vec<Column<'a>>,
         borders: Option<Borders>,
     }
 
-    impl TextView {
-        pub fn new(text: impl ToString, borders: Option<Borders>) -> Self {
-            Self {
-                text: text.to_string(),
-                borders,
-            }
+    impl<'a> Bar<'a> {
+        pub fn new(columns: Vec<Column<'a>>, borders: Option<Borders>) -> Self {
+            Self { columns, borders }
         }
     }
 
-    impl Widget for TextView {
+    impl<'a> Widget for Bar<'a> {
         fn ui(self, ui: &mut Ui, frame: &mut Frame) -> Response {
             let (area, has_focus) = ui.next_area().unwrap_or_default();
 
@@ -909,9 +958,109 @@ pub mod widget {
                 ui.theme.border_style
             };
 
-            let area = render_block(frame, area, self.borders, border_style);
+            let widths = self.columns.iter().map(|c| c.width).collect::<Vec<_>>();
+            let cells = self
+                .columns
+                .iter()
+                .map(|c| c.text.clone())
+                .collect::<Vec<_>>();
 
-            frame.render_widget(Paragraph::new(self.text), area);
+            let area = render_block(frame, area, self.borders, border_style);
+            let table = ratatui::widgets::Table::default()
+                .header(Row::new(cells))
+                .widths(widths)
+                .column_spacing(0);
+            frame.render_widget(table, area);
+
+            Response::default()
+        }
+    }
+
+    #[derive(Clone, Debug)]
+    pub struct TextViewState {
+        text: String,
+        scroll: (usize, usize),
+    }
+
+    impl TextViewState {
+        pub fn new(text: impl Into<String>, scroll: (usize, usize)) -> Self {
+            Self {
+                text: text.into(),
+                scroll,
+            }
+        }
+
+        pub fn scroll(&self) -> (usize, usize) {
+            self.scroll
+        }
+    }
+
+    pub struct TextView {
+        text: String,
+        borders: Option<Borders>,
+        scroll: (usize, usize),
+    }
+
+    impl TextView {
+        pub fn new(text: impl ToString, scroll: (usize, usize), borders: Option<Borders>) -> Self {
+            Self {
+                text: text.to_string(),
+                borders,
+                scroll,
+            }
+        }
+    }
+
+    impl Widget for TextView {
+        fn ui(self, ui: &mut Ui, frame: &mut Frame) -> Response {
+            let (area, has_focus) = ui.next_area().unwrap_or_default();
+
+            let show_scrollbar = true;
+            let border_style = if has_focus {
+                ui.theme.focus_border_style
+            } else {
+                ui.theme.border_style
+            };
+            let length = self.text.lines().count();
+            // let virtual_length = length * ((length as f64).log2() as usize) / 100;
+            // let content_length = area.height as usize + virtual_length;
+            // let content_length = length;
+            let content_length = area.height as usize;
+
+            let area = render_block(frame, area, self.borders, border_style);
+            let area = Rect {
+                x: area.x.saturating_add(1),
+                width: area.width.saturating_sub(1),
+                ..area
+            };
+            let [text_area, scroller_area] = Layout::horizontal([
+                Constraint::Min(1),
+                if show_scrollbar {
+                    Constraint::Length(1)
+                } else {
+                    Constraint::Length(0)
+                },
+            ])
+            .areas(area);
+
+            let scroller = Scrollbar::default()
+                .begin_symbol(None)
+                .track_symbol(None)
+                .end_symbol(None)
+                .thumb_symbol("┃")
+                .style(if has_focus {
+                    Style::default()
+                } else {
+                    Style::default().dim()
+                });
+
+            let mut scroller_state = ScrollbarState::default()
+                .content_length(length.saturating_sub(content_length))
+                .viewport_content_length(1)
+                .position(self.scroll.1);
+
+            frame.render_stateful_widget(scroller, scroller_area, &mut scroller_state);
+            frame.render_widget(Paragraph::new(self.text), text_area);
 
             Response::default()
         }
