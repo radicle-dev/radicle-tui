@@ -412,7 +412,7 @@ impl Ui {
     pub fn shortcuts(
         &mut self,
         frame: &mut Frame,
-        shortcuts: &[(String, String)],
+        shortcuts: &[(&str, &str)],
         divider: char,
     ) -> Response {
         widget::Shortcuts::new(shortcuts, divider).ui(self, frame)
@@ -1379,9 +1379,12 @@ pub mod widget {
     }
 
     impl Shortcuts {
-        pub fn new(shortcuts: &[(String, String)], divider: char) -> Self {
+        pub fn new(shortcuts: &[(&str, &str)], divider: char) -> Self {
             Self {
-                shortcuts: shortcuts.to_vec(),
+                shortcuts: shortcuts
+                    .iter()
+                    .map(|(s, a)| (s.to_string(), a.to_string()))
+                    .collect(),
                 divider,
             }
         }
