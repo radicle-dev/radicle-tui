@@ -986,14 +986,17 @@ pub mod widget {
                 ..area
             };
 
-            let widths = self
+            let widths: Vec<Constraint> = self
                 .columns
                 .iter()
-                .map(|c| match c.width {
-                    Constraint::Min(min) => Constraint::Length(min.saturating_add(3)),
-                    _ => c.width,
+                .filter_map(|c| {
+                    if !c.skip && c.displayed(area.width as usize) {
+                        Some(c.width)
+                    } else {
+                        None
+                    }
                 })
-                .collect::<Vec<_>>();
+                .collect();
 
             let cells = self
                 .columns
