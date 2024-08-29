@@ -868,14 +868,10 @@ pub mod widget {
                         Style::default().dim()
                     });
 
-                // In order to make the scrollbar work correctly towards the end of the list,
-                // we need to add a few percent of the total length.
-                let virtual_length =
-                    self.items.len() * ((self.items.len() as f64).log2() as usize) / 100;
-                let content_length = area.height as usize + virtual_length;
+                let content_length = self.items.len();
 
                 let mut scroller_state = ScrollbarState::default()
-                    .content_length(self.items.len().saturating_sub(content_length))
+                    .content_length(content_length)
                     .viewport_content_length(1)
                     .position(state.internal.offset());
 
