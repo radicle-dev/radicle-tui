@@ -22,7 +22,7 @@ use crate::ui::theme::Theme;
 use crate::ui::widget::container::Column;
 use crate::ui::widget::list::ToRow;
 
-use self::widget::Widget;
+use self::widget::{HeaderedTable, Widget};
 
 const RENDERING_TICK_RATE: Duration = Duration::from_millis(250);
 const INLINE_HEIGHT: usize = 20;
@@ -395,6 +395,19 @@ impl Ui {
         R: ToRow<W> + Clone,
     {
         widget::Table::new(selected, items, columns, borders).ui(self, frame)
+    }
+
+    pub fn headered_table<'a, R, const W: usize>(
+        &mut self,
+        frame: &mut Frame,
+        selected: &'a mut Option<usize>,
+        items: &'a Vec<R>,
+        header: impl IntoIterator<Item = Column<'a>>,
+    ) -> Response
+    where
+        R: ToRow<W> + Clone,
+    {
+        HeaderedTable::<R, W>::new(selected, items, header).ui(self, frame)
     }
 
     pub fn shortcuts(
@@ -881,6 +894,69 @@ pub mod widget {
             }
 
             *self.selected = state.selected();
+
+            response
+        }
+    }
+
+    pub struct HeaderedTable<'a, R, const W: usize> {
+        items: &'a Vec<R>,
+        selected: &'a mut Option<usize>,
+        header: Vec<Column<'a>>,
+    }
+
+    impl<'a, R, const W: usize> HeaderedTable<'a, R, W> {
+        pub fn new(
+            selected: &'a mut Option<usize>,
+            items: &'a Vec<R>,
+            header: impl IntoIterator<Item = Column<'a>>,
+        ) -> Self {
+            Self {
+                items,
+                selected,
+                header: header.into_iter().collect(),
+            }
+        }
+
+        pub fn items(&self) -> &Vec<R> {
+            &self.items
+        }
+    }
+
+    /// TODO(erikli): Implement `show` that returns an `InnerResponse` such that it can
+    /// used like a group.
+    impl<'a, R, const W: usize> Widget for HeaderedTable<'a, R, W>
+    where
+        R: ToRow<W> + Clone,
+    {
+        fn ui(self, ui: &mut Ui, frame: &mut Frame) -> Response {
+            let mut response = Response::default();
+
+            let (_, has_focus) = ui.current_area().unwrap_or_default();
+
+            ui.layout(
+                Layout::vertical([Constraint::Length(3), Constraint::Min(1)]),
+                |ui| {
+                    // TODO(erikli): Find better solution for border focus workaround or improve
+                    // interface for manually advancing / setting the focus index.
+                    if has_focus {
+                        ui.set_focus(Some(0));
+                    }
+                    ui.columns(frame, self.header.clone().to_vec(), Some(Borders::Top));
+
+                    if has_focus {
+                        ui.set_focus(Some(1));
+                    }
+                    let table = ui.table(
+                        frame,
+                        self.selected,
+                        &self.items,
+                        self.header.to_vec(),
+                        Some(Borders::BottomSides),
+                    );
+                    response.changed = table.changed | response.changed;
+                },
+            );
 
             response
         }
