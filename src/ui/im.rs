@@ -628,6 +628,15 @@ pub mod widget {
         internal: ratatui::widgets::TableState,
     }
 
+    impl<R> TableState<R> {
+        pub fn selected_item(&self) -> Option<&R> {
+            self.internal
+                .selected()
+                .as_ref()
+                .and_then(|selected| self.items.get(*selected))
+        }
+    }
+
     impl<R> TableState<R>
     where
         R: Clone,
