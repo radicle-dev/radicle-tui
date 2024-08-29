@@ -857,25 +857,26 @@ pub mod widget {
 
                 frame.render_stateful_widget(table, table_area, &mut state.internal);
 
-                let scroller = Scrollbar::default()
-                    .begin_symbol(None)
-                    .track_symbol(None)
-                    .end_symbol(None)
-                    .thumb_symbol("┃")
-                    .style(if has_focus {
-                        Style::default()
-                    } else {
-                        Style::default().dim()
-                    });
+                if show_scrollbar {
+                    let content_length = self.items.len();
+                    let scroller = Scrollbar::default()
+                        .begin_symbol(None)
+                        .track_symbol(None)
+                        .end_symbol(None)
+                        .thumb_symbol("┃")
+                        .style(if has_focus {
+                            Style::default()
+                        } else {
+                            Style::default().dim()
+                        });
 
-                let content_length = self.items.len();
+                    let mut state = ScrollbarState::default()
+                        .content_length(content_length)
+                        .viewport_content_length(1)
+                        .position(state.internal.offset());
 
-                let mut scroller_state = ScrollbarState::default()
-                    .content_length(content_length)
-                    .viewport_content_length(1)
-                    .position(state.internal.offset());
-
-                frame.render_stateful_widget(scroller, scroller_area, &mut scroller_state);
+                    frame.render_stateful_widget(scroller, scroller_area, &mut state);
+                }
             } else {
                 let center = layout::centered_rect(area, 50, 10);
                 let hint = Text::from(span::default("Nothing to show"))
