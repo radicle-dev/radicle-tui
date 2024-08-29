@@ -378,7 +378,6 @@ impl Ui {
     }
 
     pub fn overline<'a>(&mut self, frame: &mut Frame) -> Response {
-        // let overline = String::from("▔").repeat(256);
         let overline = String::from("━").repeat(256);
         self.label(frame, overline)
     }
@@ -441,7 +440,7 @@ impl Ui {
         &mut self,
         frame: &mut Frame,
         text: String,
-        scroll: (usize, usize),
+        scroll: &mut (usize, usize),
         borders: Option<Borders>,
     ) -> Response {
         widget::TextView::new(text, scroll, borders).ui(self, frame)
@@ -616,12 +615,10 @@ pub mod widget {
 
     impl<'a> Widget for Label<'a> {
         fn ui(self, ui: &mut Ui, frame: &mut Frame) -> Response {
-            let mut response = Response::default();
-
-            let (area, has_focus) = ui.next_area().unwrap_or_default();
+            let (area, _) = ui.next_area().unwrap_or_default();
             frame.render_widget(self.content, area);
 
-            response
+            Response::default()
         }
     }
 
@@ -1066,19 +1063,27 @@ pub mod widget {
             }
         }
 
+        pub fn text(&self) -> &String {
+            &self.text
+        }
+
         pub fn scroll(&self) -> (usize, usize) {
             self.scroll
         }
     }
 
-    pub struct TextView {
+    pub struct TextView<'a> {
         text: String,
         borders: Option<Borders>,
-        scroll: (usize, usize),
+        scroll: &'a mut (usize, usize),
     }
 
-    impl TextView {
-        pub fn new(text: impl ToString, scroll: (usize, usize), borders: Option<Borders>) -> Self {
+    impl<'a> TextView<'a> {
+        pub fn new(
+            text: impl ToString,
+            scroll: &'a mut (usize, usize),
+            borders: Option<Borders>,
+        ) -> Self {
             Self {
                 text: text.to_string(),
                 borders,
@@ -1087,7 +1092,7 @@ pub mod widget {
         }
     }
 
-    impl Widget for TextView {
+    impl<'a> Widget for TextView<'a> {
         fn ui(self, ui: &mut Ui, frame: &mut Frame) -> Response {
             let (area, has_focus) = ui.next_area().unwrap_or_default();
 
