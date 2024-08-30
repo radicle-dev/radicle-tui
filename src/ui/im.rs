@@ -359,7 +359,7 @@ impl Ui {
     pub fn group<R>(
         &mut self,
         layout: impl Into<Layout>,
-        focus: &mut usize,
+        focus: &mut Option<usize>,
         add_contents: impl FnOnce(&mut Ui) -> R,
     ) -> InnerResponse<R> {
         let (area, _) = self.next_area().unwrap_or_default();
@@ -525,30 +525,40 @@ pub mod widget {
     #[derive(Clone, Debug)]
     pub struct GroupState {
         len: usize,
-        focus: usize,
+        focus: Option<usize>,
     }
 
     impl GroupState {
-        pub fn new(len: usize, focus: usize) -> Self {
+        pub fn new(len: usize, focus: Option<usize>) -> Self {
             Self { len, focus }
         }
 
-        pub fn focus(&self) -> usize {
+        pub fn focus(&self) -> Option<usize> {
             self.focus
         }
 
         pub fn len(&self) -> usize {
             self.len
         }
+
+        pub fn focus_next(&mut self) {
+            self.focus = self
+                .focus
+                .map(|focus| cmp::min(focus.saturating_add(1), self.len.saturating_sub(1)))
+        }
+
+        pub fn focus_prev(&mut self) {
+            self.focus = self.focus.map(|focus| focus.saturating_sub(1))
+        }
     }
 
     pub struct Group<'a> {
-        focus: &'a mut usize,
+        focus: &'a mut Option<usize>,
         len: usize,
     }
 
     impl<'a> Group<'a> {
-        pub fn new(len: usize, focus: &'a mut usize) -> Self {
+        pub fn new(len: usize, focus: &'a mut Option<usize>) -> Self {
             Self { len, focus }
         }
 
@@ -577,12 +587,11 @@ pub mod widget {
             if let Some(key) = ui.input_with_key(|_| true) {
                 match key {
                     Key::Char('\t') => {
-                        state.focus =
-                            cmp::min(state.focus.saturating_add(1), state.len.saturating_sub(1));
+                        state.focus_next();
                         response.changed = true;
                     }
                     Key::BackTab => {
-                        state.focus = state.focus.saturating_sub(1);
+                        state.focus_prev();
                         response.changed = true;
                     }
                     _ => {}
@@ -591,7 +600,7 @@ pub mod widget {
             *self.focus = state.focus;
 
             let mut ui = Ui {
-                focus: Some(state.focus),
+                focus: state.focus,
                 ..ui.clone()
             };
 
