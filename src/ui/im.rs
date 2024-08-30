@@ -1070,14 +1070,14 @@ pub mod widget {
     #[derive(Clone, Debug)]
     pub struct TextViewState {
         text: String,
-        scroll: (usize, usize),
+        cursor: (usize, usize),
     }
 
     impl TextViewState {
-        pub fn new(text: impl Into<String>, scroll: (usize, usize)) -> Self {
+        pub fn new(text: impl Into<String>, cursor: (usize, usize)) -> Self {
             Self {
                 text: text.into(),
-                scroll,
+                cursor,
             }
         }
 
@@ -1085,33 +1085,75 @@ pub mod widget {
             &self.text
         }
 
-        pub fn scroll(&self) -> (usize, usize) {
-            self.scroll
+        pub fn cursor(&self) -> (usize, usize) {
+            self.cursor
+        }
+    }
+
+    impl TextViewState {
+        fn scroll_up(&mut self) {
+            self.cursor.0 = self.cursor.0.saturating_sub(1);
+        }
+
+        fn scroll_down(&mut self, len: usize, page_size: usize) {
+            let end = len.saturating_sub(page_size);
+            self.cursor.0 = std::cmp::min(self.cursor.0.saturating_add(1), end);
+        }
+
+        fn scroll_left(&mut self) {
+            self.cursor.1 = self.cursor.1.saturating_sub(3);
+        }
+
+        fn scroll_right(&mut self, max_line_length: usize) {
+            self.cursor.1 = std::cmp::min(
+                self.cursor.1.saturating_add(3),
+                max_line_length.saturating_add(3),
+            );
+        }
+
+        fn prev_page(&mut self, page_size: usize) {
+            self.cursor.0 = self.cursor.0.saturating_sub(page_size);
+        }
+
+        fn next_page(&mut self, len: usize, page_size: usize) {
+            let end = len.saturating_sub(page_size);
+
+            self.cursor.0 = std::cmp::min(self.cursor.0.saturating_add(page_size), end);
+        }
+
+        fn begin(&mut self) {
+            self.cursor.0 = 0;
+        }
+
+        fn end(&mut self, len: usize, page_size: usize) {
+            self.cursor.0 = len.saturating_sub(page_size);
         }
     }
 
     pub struct TextView<'a> {
         text: String,
         borders: Option<Borders>,
-        scroll: &'a mut (usize, usize),
+        cursor: &'a mut (usize, usize),
     }
 
     impl<'a> TextView<'a> {
         pub fn new(
             text: impl ToString,
-            scroll: &'a mut (usize, usize),
+            cursor: &'a mut (usize, usize),
             borders: Option<Borders>,
         ) -> Self {
             Self {
                 text: text.to_string(),
                 borders,
-                scroll,
+                cursor,
             }
         }
     }
 
     impl<'a> Widget for TextView<'a> {
         fn ui(self, ui: &mut Ui, frame: &mut Frame) -> Response {
+            let mut response = Response::default();
+
             let (area, has_focus) = ui.next_area().unwrap_or_default();
 
             let show_scrollbar = true;
@@ -1156,12 +1198,55 @@ pub mod widget {
             let mut scroller_state = ScrollbarState::default()
                 .content_length(length.saturating_sub(content_length))
                 .viewport_content_length(1)
-                .position(self.scroll.1);
+                .position(self.cursor.0);
 
             frame.render_stateful_widget(scroller, scroller_area, &mut scroller_state);
-            frame.render_widget(Paragraph::new(self.text), text_area);
+            frame.render_widget(
+                Paragraph::new(self.text.clone())
+                    .scroll((self.cursor.0 as u16, self.cursor.1 as u16)),
+                text_area,
+            );
 
-            Response::default()
+            let mut state = TextViewState::new(self.text.clone(), *self.cursor);
+
+            if let Some(key) = ui.input_with_key(|_| true) {
+                let lines = self.text.lines().clone();
+                let len = lines.clone().count();
+                let max_line_len = lines.map(|l| l.chars().count()).max().unwrap_or_default();
+                let page_size = area.height as usize;
+
+                match key {
+                    Key::Up | Key::Char('k') => {
+                        state.scroll_up();
+                    }
+                    Key::Down | Key::Char('j') => {
+                        state.scroll_down(len, page_size);
+                    }
+                    Key::Left | Key::Char('h') => {
+                        state.scroll_left();
+                    }
+                    Key::Right | Key::Char('l') => {
+                        state.scroll_right(max_line_len.saturating_sub(area.height.into()));
+                    }
+                    Key::PageUp => {
+                        state.prev_page(page_size);
+                    }
+                    Key::PageDown => {
+                        state.next_page(len, page_size);
+                    }
+                    Key::Home => {
+                        state.begin();
+                    }
+                    Key::End => {
+                        state.end(len, page_size);
+                    }
+                    _ => {}
+                }
+                *self.cursor = state.cursor;
+                response.changed = true;
+            }
+
+            response
         }
     }
 
