@@ -997,7 +997,7 @@ pub mod widget {
 
             let area = render_block(frame, area, self.borders, border_style);
             let area = Rect {
-                width: area.width - 1,
+                width: area.width.saturating_sub(1),
                 ..area
             };
 
