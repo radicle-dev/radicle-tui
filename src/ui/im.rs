@@ -577,8 +577,6 @@ pub mod widget {
         ) -> InnerResponse<R> {
             let mut response = Response::default();
 
-            // let (_, has_focus) = ui.current_area().unwrap_or_default();
-
             let mut state = GroupState {
                 focus: *self.focus,
                 len: self.len,
@@ -632,33 +630,16 @@ pub mod widget {
     }
 
     #[derive(Clone, Debug)]
-    pub struct TableState<R> {
-        items: Vec<R>,
+    pub struct TableState {
         internal: ratatui::widgets::TableState,
     }
 
-    impl<R> TableState<R> {
-        pub fn selected_item(&self) -> Option<&R> {
-            self.internal
-                .selected()
-                .as_ref()
-                .and_then(|selected| self.items.get(*selected))
-        }
-    }
-
-    impl<R> TableState<R>
-    where
-        R: Clone,
-    {
-        pub fn new(selected: Option<usize>, items: Vec<R>) -> Self {
+    impl TableState {
+        pub fn new(selected: Option<usize>) -> Self {
             let mut internal = ratatui::widgets::TableState::default();
             internal.select(selected);
 
-            Self { items, internal }
-        }
-
-        pub fn items(&self) -> &Vec<R> {
-            &self.items
+            Self { internal }
         }
 
         pub fn selected(&self) -> Option<usize> {
@@ -670,10 +651,7 @@ pub mod widget {
         }
     }
 
-    impl<R> TableState<R>
-    where
-        R: Clone,
-    {
+    impl TableState {
         fn prev(&mut self) -> Option<usize> {
             let selected = self
                 .internal
@@ -777,7 +755,6 @@ pub mod widget {
             let has_items = !self.items.is_empty();
 
             let mut state = TableState {
-                items: self.items.clone(),
                 internal: {
                     let mut state = ratatui::widgets::TableState::default();
                     state.select(self.selected.clone());
