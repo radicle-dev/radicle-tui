@@ -1387,15 +1387,11 @@ pub mod widget {
                 cursor: *self.cursor,
             };
 
-            // let focus = !render.focus;
-            let focus = true;
-
-            // let input = self.text.as_str();
             let label_content = format!(" {} ", self.label.unwrap_or_default());
             let overline = String::from("▔").repeat(area.width as usize);
             let cursor_pos = *self.cursor as u16;
 
-            let (label, input, overline) = if !focus && self.dim {
+            let (label, input, overline) = if !has_focus && self.dim {
                 (
                     Span::from(label_content.clone()).magenta().dim().reversed(),
                     Span::from(state.text.clone()).reset().dim(),
