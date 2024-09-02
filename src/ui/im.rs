@@ -664,6 +664,10 @@ pub mod widget {
         pub fn selected(&self) -> Option<usize> {
             self.internal.selected()
         }
+
+        pub fn select_first(&mut self) {
+            self.internal.select(Some(0));
+        }
     }
 
     impl<R> TableState<R>
