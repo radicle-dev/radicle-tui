@@ -811,15 +811,8 @@ pub mod widget {
                 .collect();
 
             if has_items {
-                let [table_area, scroller_area] = Layout::horizontal([
-                    Constraint::Min(1),
-                    if show_scrollbar {
-                        Constraint::Length(1)
-                    } else {
-                        Constraint::Length(0)
-                    },
-                ])
-                .areas(area);
+                let [table_area, scroller_area] =
+                    Layout::horizontal([Constraint::Min(1), Constraint::Length(1)]).areas(area);
 
                 let rows = self
                     .items
@@ -830,7 +823,7 @@ pub mod widget {
 
                         for cell in item.to_row() {
                             if let Some(col) = it.next() {
-                                if !col.skip && col.displayed(area.width as usize) {
+                                if !col.skip && col.displayed(table_area.width as usize) {
                                     cells.push(cell.clone())
                                 }
                             } else {
@@ -997,11 +990,13 @@ pub mod widget {
             let cells = self
                 .columns
                 .iter()
+                .filter(|c| !c.skip && c.displayed(area.width as usize))
                 .map(|c| c.text.clone())
                 .collect::<Vec<_>>();
 
             let table = ratatui::widgets::Table::default()
-                .header(Row::new(cells))
+                .column_spacing(1)
+                .rows([Row::new(cells)])
                 .widths(widths);
             frame.render_widget(table, area);
 

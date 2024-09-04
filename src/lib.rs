@@ -15,9 +15,9 @@ use anyhow::Result;
 
 use store::State;
 use task::Interrupted;
+use ui::im;
 use ui::widget::Widget;
 use ui::Frontend;
-use ui::im;
 
 /// An optional return value.
 #[derive(Clone, Debug)]
