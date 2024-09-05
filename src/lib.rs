@@ -16,8 +16,7 @@ use anyhow::Result;
 use store::State;
 use task::Interrupted;
 use ui::im;
-use ui::rm::widget::Widget;
-use ui::Frontend;
+use ui::rm;
 
 /// An optional return value.
 #[derive(Clone, Debug)]
@@ -151,7 +150,11 @@ impl<A> Default for Channel<A> {
 /// Initialize a `Store` with the `State` given and a `Frontend` with the `Widget` given,
 /// and run their main loops concurrently. Connect them to the `Channel` and also to
 /// an interrupt broadcast channel also initialized in this function.
-pub async fn run<S, M, P>(channel: Channel<M>, state: S, root: Widget<S, M>) -> Result<Option<P>>
+pub async fn rm<S, M, P>(
+    channel: Channel<M>,
+    state: S,
+    root: rm::widget::Widget<S, M>,
+) -> Result<Option<P>>
 where
     S: State<P, Message = M> + Clone + Debug + Send + Sync + 'static,
     M: 'static,
@@ -160,11 +163,11 @@ where
     let (terminator, mut interrupt_rx) = task::create_termination();
 
     let (store, state_rx) = store::Store::<S, M, P>::new();
-    let frontend = Frontend::default();
+    let frontend = rm::Frontend::default();
 
     tokio::try_join!(
-        store.main_loop(state, terminator, channel.rx, interrupt_rx.resubscribe()),
-        frontend.main_loop(root, state_rx, interrupt_rx.resubscribe()),
+        store.run(state, terminator, channel.rx, interrupt_rx.resubscribe()),
+        frontend.run(root, state_rx, interrupt_rx.resubscribe()),
     )?;
 
     if let Ok(reason) = interrupt_rx.recv().await {
@@ -177,7 +180,10 @@ where
     }
 }
 
-pub async fn run_im<S, M, P>(
+/// Initialize a `Store` with the `State` given and a `Frontend` with the `App` given,
+/// and run their main loops concurrently. Connect them to the `Channel` and also to
+/// an interrupt broadcast channel also initialized in this function.
+pub async fn im<S, M, P>(
     channel: Channel<M>,
     state: S,
     app: impl im::App<State = S, Message = M>,
@@ -193,8 +199,8 @@ where
     let frontend = im::Frontend::default();
 
     tokio::try_join!(
-        store.main_loop(state, terminator, channel.rx, interrupt_rx.resubscribe()),
-        frontend.main_loop(app, state_rx, interrupt_rx.resubscribe()),
+        store.run(state, terminator, channel.rx, interrupt_rx.resubscribe()),
+        frontend.run(app, state_rx, interrupt_rx.resubscribe()),
     )?;
 
     if let Ok(reason) = interrupt_rx.recv().await {

@@ -65,7 +65,7 @@ where
     /// from the frontend and update the applications' state accordingly. It will
     /// also tick with the defined `STORE_TICK_RATE`.
     /// Updated states are then being send to the state message channel.
-    pub async fn main_loop(
+    pub async fn run(
         self,
         mut state: S,
         mut terminator: Terminator<P>,

@@ -8,7 +8,7 @@ use ratatui::widgets::{Block, BorderType, Borders, Row};
 
 use crate::ui::ext::{FooterBlock, FooterBlockType, HeaderBlock};
 use crate::ui::theme::{style, Theme};
-use crate::ui::{RENDER_WIDTH_LARGE, RENDER_WIDTH_MEDIUM, RENDER_WIDTH_SMALL};
+use crate::ui::rm::{RENDER_WIDTH_LARGE, RENDER_WIDTH_MEDIUM, RENDER_WIDTH_SMALL};
 
 use super::{PredefinedLayout, RenderProps, View, ViewProps, ViewState, Widget};
 

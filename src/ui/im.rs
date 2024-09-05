@@ -40,7 +40,7 @@ pub trait App {
 pub struct Frontend {}
 
 impl Frontend {
-    pub async fn main_loop<S, M, P>(
+    pub async fn run<S, M, P>(
         self,
         app: impl App<State = S, Message = M>,
         mut state_rx: UnboundedReceiver<S>,

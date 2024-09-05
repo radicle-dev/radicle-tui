@@ -68,7 +68,7 @@ pub async fn main() -> Result<()> {
                 .into()
         });
 
-    tui::run(channel, state, scene).await?;
+    tui::rm(channel, state, scene).await?;
 
     Ok(())
 }

@@ -104,7 +104,7 @@ pub async fn main() -> Result<()> {
         })
         .on_update(|_| WindowProps::default().current_page(0).to_boxed_any().into());
 
-    tui::run(channel, state, window).await?;
+    tui::rm(channel, state, window).await?;
 
     Ok(())
 }
