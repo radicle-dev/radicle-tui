@@ -7,6 +7,9 @@ pub mod theme;
 
 use ratatui::layout::Constraint;
 use ratatui::text::Text;
+use ratatui::widgets::Cell;
+
+use tui_tree_widget::TreeItem;
 
 pub const RENDER_WIDTH_XSMALL: usize = 50;
 pub const RENDER_WIDTH_SMALL: usize = 70;
@@ -89,4 +92,17 @@ impl<'a> Column<'a> {
             true
         }
     }
+}
+
+/// Needs to be implemented for items that are supposed to be rendered in tables.
+pub trait ToRow<const W: usize> {
+    fn to_row(&self) -> [Cell; W];
+}
+
+/// Needs to be implemented for items that are supposed to be rendered in trees.
+pub trait ToTree<Id>
+where
+    Id: ToString,
+{
+    fn rows(&self) -> Vec<TreeItem<'_, Id>>;
 }

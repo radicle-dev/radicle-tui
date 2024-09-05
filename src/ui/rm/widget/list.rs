@@ -10,32 +10,17 @@ use ratatui::style::{Style, Stylize};
 use ratatui::symbols::border;
 use ratatui::text::Text;
 use ratatui::widgets::TableState;
-use ratatui::widgets::{
-    Block, Borders, Cell, Row, Scrollbar, ScrollbarOrientation, ScrollbarState,
-};
+use ratatui::widgets::{Block, Borders, Row, Scrollbar, ScrollbarOrientation, ScrollbarState};
 use ratatui::Frame;
 
-use tui_tree_widget::{TreeItem, TreeState};
+use tui_tree_widget::TreeState;
 
 use crate::ui::theme::style;
-use crate::ui::Column;
 use crate::ui::{layout, span};
+use crate::ui::{Column, ToRow, ToTree};
 
 use super::{utils, ViewProps, ViewState};
 use super::{RenderProps, View};
-
-/// Needs to be implemented for items that are supposed to be rendered in tables.
-pub trait ToRow<const W: usize> {
-    fn to_row(&self) -> [Cell; W];
-}
-
-/// Needs to be implemented for items that are supposed to be rendered in trees.
-pub trait ToTree<Id>
-where
-    Id: ToString,
-{
-    fn rows(&self) -> Vec<TreeItem<'_, Id>>;
-}
 
 #[derive(Clone, Debug)]
 pub struct TableProps<'a, R, const W: usize>
