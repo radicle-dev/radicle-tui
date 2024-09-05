@@ -2,8 +2,6 @@ use std::str::FromStr;
 
 use anyhow::Result;
 
-use tokio::sync::mpsc::UnboundedSender;
-
 use termion::event::Key;
 
 use ratatui::layout::{Constraint, Layout};
@@ -13,8 +11,8 @@ use ratatui::Frame;
 
 use radicle_tui as tui;
 
-use tui::ui::im;
 use tui::ui::im::widget::{GroupState, TableState, TextEditState, TextViewState, Window};
+use tui::ui::im::{self, Show};
 use tui::ui::im::{Borders, BufferedValue};
 use tui::ui::Column;
 use tui::{store, Exit};
@@ -89,7 +87,7 @@ pub struct Storage {
 }
 
 #[derive(Clone, Debug)]
-pub struct State {
+pub struct App {
     storage: Storage,
     mode: Mode,
     page: Page,
@@ -101,7 +99,7 @@ pub struct State {
     filter: PatchItemFilter,
 }
 
-impl State {
+impl App {
     pub fn selected_patch(&self) -> Option<&PatchItem> {
         let patches = self
             .storage
@@ -117,7 +115,7 @@ impl State {
     }
 }
 
-impl TryFrom<&Context> for State {
+impl TryFrom<&Context> for App {
     type Error = anyhow::Error;
 
     fn try_from(context: &Context) -> Result<Self, Self::Error> {
@@ -133,7 +131,7 @@ impl TryFrom<&Context> for State {
         }
         items.sort_by(|a, b| b.timestamp.cmp(&a.timestamp));
 
-        Ok(State {
+        Ok(App {
             storage: Storage {
                 patches: items.clone(),
             },
@@ -152,10 +150,10 @@ impl TryFrom<&Context> for State {
     }
 }
 
-impl store::State<Selection> for State {
-    type Message = Message;
+impl store::Update<Message> for App {
+    type Return = Selection;
 
-    fn update(&mut self, message: Self::Message) -> Option<tui::Exit<Selection>> {
+    fn update(&mut self, message: Message) -> Option<tui::Exit<Selection>> {
         log::debug!("[State] Received message: {:?}", message);
 
         match message {
@@ -228,30 +226,16 @@ impl store::State<Selection> for State {
     }
 }
 
-pub struct App {
-    sender: UnboundedSender<Message>,
-}
-
 impl App {
-    pub fn new(sender: UnboundedSender<Message>) -> Self {
-        Self { sender }
-    }
-
-    fn send(&self, message: Message) {
-        let _ = self.sender.send(message);
-    }
-}
-
-impl App {
-    pub fn show_patches(&self, frame: &mut Frame, ui: &mut im::Ui<Message>, state: &State) {
-        let patches = state
+    pub fn show_patches(&self, frame: &mut Frame, ui: &mut im::Ui<Message>) {
+        let patches = self
             .storage
             .patches
             .iter()
-            .filter(|patch| state.filter.matches(patch))
+            .filter(|patch| self.filter.matches(patch))
             .cloned()
             .collect::<Vec<_>>();
-        let mut selected = state.patches.selected();
+        let mut selected = self.patches.selected();
 
         let header = [
             Column::new(Span::raw(" ● ").bold(), Constraint::Length(3)),
@@ -267,28 +251,23 @@ impl App {
 
         let table = ui.headered_table(frame, &mut selected, &patches, header);
         if table.changed {
-            self.send(Message::PatchesChanged {
+            ui.send_message(Message::PatchesChanged {
                 state: TableState::new(selected),
             });
         }
 
         // TODO(erikli): Should only work if table has focus
         if ui.input_global(|key| key == Key::Char('/')) {
-            self.send(Message::ShowSearch);
+            ui.send_message(Message::ShowSearch);
         }
     }
 
-    pub fn show_search_text_edit(
-        &self,
-        frame: &mut Frame,
-        ui: &mut im::Ui<Message>,
-        state: &State,
-    ) {
+    pub fn show_search_text_edit(&self, frame: &mut Frame, ui: &mut im::Ui<Message>) {
         let (mut search_text, mut search_cursor) = (
-            state.search.clone().read().text,
-            state.search.clone().read().cursor,
+            self.search.clone().read().text,
+            self.search.clone().read().cursor,
         );
-        let mut search = state.search.clone();
+        let mut search = self.search.clone();
 
         let text_edit = ui.text_edit_labeled_singleline(
             frame,
@@ -303,29 +282,26 @@ impl App {
                 text: search_text,
                 cursor: search_cursor,
             });
-            self.send(Message::UpdateSearch { search });
+            ui.send_message(Message::UpdateSearch { search });
         }
 
         if ui.input_global(|key| key == Key::Esc) {
-            self.send(Message::HideSearch { apply: false });
+            ui.send_message(Message::HideSearch { apply: false });
         }
         if ui.input_global(|key| key == Key::Char('\n')) {
-            self.send(Message::HideSearch { apply: true });
+            ui.send_message(Message::HideSearch { apply: true });
         }
     }
 }
 
-impl im::App for App {
-    type State = State;
-    type Message = Message;
-
-    fn update(&self, ctx: &im::Context<Message>, frame: &mut Frame, state: &State) -> Result<()> {
+impl Show<Message> for App {
+    fn show(&self, ctx: &im::Context<Message>, frame: &mut Frame) -> Result<()> {
         Window::default().show(ctx, |ui| {
-            match state.page {
+            match self.page {
                 Page::Main => {
-                    let show_search = state.show_search;
+                    let show_search = self.show_search;
                     let mut page_focus = if show_search { Some(1) } else { Some(0) };
-                    let mut group_focus = state.main_group.focus();
+                    let mut group_focus = self.main_group.focus();
 
                     ui.group(
                         Layout::vertical([Constraint::Fill(1), Constraint::Length(2)]),
@@ -335,7 +311,7 @@ impl im::App for App {
                                 im::Layout::Expandable3 { left_only: true },
                                 &mut group_focus,
                                 |ui| {
-                                    self.show_patches(frame, ui, state);
+                                    self.show_patches(frame, ui);
 
                                     ui.text_view(
                                         frame,
@@ -352,19 +328,19 @@ impl im::App for App {
                                 },
                             );
                             if group.response.changed {
-                                self.send(Message::MainGroupChanged {
+                                ui.send_message(Message::MainGroupChanged {
                                     state: GroupState::new(3, group_focus),
                                 });
                             }
 
                             if show_search {
-                                self.show_search_text_edit(frame, ui, state);
+                                self.show_search_text_edit(frame, ui);
                             } else {
                                 ui.layout(Layout::vertical([1, 1]), |ui| {
                                     ui.bar(
                                         frame,
                                         match group_focus {
-                                            Some(0) => browser_context(ui, state),
+                                            Some(0) => browser_context(ui, self),
                                             _ => default_context(ui),
                                         },
                                         Some(Borders::None),
@@ -372,7 +348,7 @@ impl im::App for App {
 
                                     ui.shortcuts(
                                         frame,
-                                        &match state.mode {
+                                        &match self.mode {
                                             Mode::Id => {
                                                 [("enter", "select"), ("/", "search")].to_vec()
                                             }
@@ -390,21 +366,21 @@ impl im::App for App {
                                 });
 
                                 if ui.input_global(|key| key == Key::Esc) {
-                                    self.send(Message::Quit);
+                                    ui.send_message(Message::Quit);
                                 }
                                 if ui.input_global(|key| key == Key::Char('?')) {
-                                    self.send(Message::PageChanged { page: Page::Help });
+                                    ui.send_message(Message::PageChanged { page: Page::Help });
                                 }
                                 if ui.input_global(|key| key == Key::Char('\n')) {
-                                    self.send(Message::ExitFromMode);
+                                    ui.send_message(Message::ExitFromMode);
                                 }
                                 if ui.input_global(|key| key == Key::Char('d')) {
-                                    self.send(Message::Exit {
+                                    ui.send_message(Message::Exit {
                                         operation: Some(PatchOperation::Diff),
                                     });
                                 }
                                 if ui.input_global(|key| key == Key::Char('c')) {
-                                    self.send(Message::Exit {
+                                    ui.send_message(Message::Exit {
                                         operation: Some(PatchOperation::Checkout),
                                     });
                                 }
@@ -414,7 +390,7 @@ impl im::App for App {
                 }
 
                 Page::Help => {
-                    let mut cursor = state.help.cursor();
+                    let mut cursor = self.help.cursor();
 
                     let layout = Layout::vertical([
                         Constraint::Length(3),
@@ -434,13 +410,13 @@ impl im::App for App {
                         ui.set_focus(Some(1));
                         let text_view = ui.text_view(
                             frame,
-                            state.help.text().to_string(),
+                            self.help.text().to_string(),
                             &mut cursor,
                             Some(Borders::BottomSides),
                         );
                         if text_view.changed {
-                            self.send(Message::HelpChanged {
-                                state: TextViewState::new(state.help.text().to_string(), cursor),
+                            ui.send_message(Message::HelpChanged {
+                                state: TextViewState::new(self.help.text().to_string(), cursor),
                             })
                         }
 
@@ -470,15 +446,15 @@ impl im::App for App {
                     });
 
                     if ui.input_global(|key| key == Key::Char('?')) {
-                        self.send(Message::PageChanged { page: Page::Main });
+                        ui.send_message(Message::PageChanged { page: Page::Main });
                     }
                     if ui.input_global(|key| key == Key::Esc) {
-                        self.send(Message::Quit);
+                        ui.send_message(Message::Quit);
                     }
                 }
             }
             if ui.input_global(|key| key == Key::Ctrl('c')) {
-                self.send(Message::Quit);
+                ui.send_message(Message::Quit);
             }
         });
 
@@ -486,14 +462,14 @@ impl im::App for App {
     }
 }
 
-fn browser_context<'a>(ui: &im::Ui<Message>, state: &'a State) -> Vec<Column<'a>> {
-    let search = state.search.read().text;
-    let total_count = state.storage.patches.len();
-    let filtered_count = state
+fn browser_context<'a>(ui: &im::Ui<Message>, app: &'a App) -> Vec<Column<'a>> {
+    let search = app.search.read().text;
+    let total_count = app.storage.patches.len();
+    let filtered_count = app
         .storage
         .patches
         .iter()
-        .filter(|patch| state.filter.matches(patch))
+        .filter(|patch| app.filter.matches(patch))
         .collect::<Vec<_>>()
         .len();
     let experimental = false;
@@ -526,23 +502,23 @@ fn browser_context<'a>(ui: &im::Ui<Message>, state: &'a State) -> Vec<Column<'a>
         .to_vec()
     } else {
         let filtered_counts = format!(" {filtered_count}/{total_count} ");
-        let state_counts = state
-            .storage
-            .patches
-            .iter()
-            .fold((0, 0, 0, 0), |counts, patch| match patch.state {
-                radicle::patch::State::Draft => (counts.0 + 1, counts.1, counts.2, counts.3),
-                radicle::patch::State::Open { conflicts: _ } => {
-                    (counts.0, counts.1 + 1, counts.2, counts.3)
-                }
-                radicle::patch::State::Archived => (counts.0, counts.1, counts.2 + 1, counts.3),
-                radicle::patch::State::Merged {
-                    revision: _,
-                    commit: _,
-                } => (counts.0, counts.1, counts.2, counts.3 + 1),
-            });
+        let state_counts =
+            app.storage
+                .patches
+                .iter()
+                .fold((0, 0, 0, 0), |counts, patch| match patch.state {
+                    radicle::patch::State::Draft => (counts.0 + 1, counts.1, counts.2, counts.3),
+                    radicle::patch::State::Open { conflicts: _ } => {
+                        (counts.0, counts.1 + 1, counts.2, counts.3)
+                    }
+                    radicle::patch::State::Archived => (counts.0, counts.1, counts.2 + 1, counts.3),
+                    radicle::patch::State::Merged {
+                        revision: _,
+                        commit: _,
+                    } => (counts.0, counts.1, counts.2, counts.3 + 1),
+                });
 
-        if state.filter.is_default() {
+        if app.filter.is_default() {
             let draft = format!(" {} ", state_counts.0);
             let open = format!(" {} ", state_counts.1);
             let archived = format!(" {} ", state_counts.2);

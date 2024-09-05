@@ -60,10 +60,9 @@ impl App {
     pub async fn run(&self) -> Result<Option<Selection>> {
         if self.im {
             let channel = Channel::default();
-            let tx = channel.tx.clone();
-            let state = imui::State::try_from(&self.context)?;
+            let state = imui::App::try_from(&self.context)?;
 
-            tui::im(channel, state, imui::App::new(tx)).await
+            tui::im(channel, state).await
         } else {
             let channel = Channel::default();
             let tx = channel.tx.clone();
@@ -131,6 +130,7 @@ impl TryFrom<&Context> for State {
     }
 }
 
+#[derive(Clone, Debug)]
 pub enum Message {
     Quit,
     Exit { operation: Option<PatchOperation> },
@@ -145,8 +145,8 @@ pub enum Message {
     ScrollHelp { state: TextViewState },
 }
 
-impl store::State<Selection> for State {
-    type Message = Message;
+impl store::Update<Message> for State {
+    type Return = Selection;
 
     fn update(&mut self, message: Message) -> Option<Exit<Selection>> {
         match message {

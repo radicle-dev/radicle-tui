@@ -234,6 +234,7 @@ impl TryFrom<(&Context, &TerminalInfo)> for State {
     }
 }
 
+#[derive(Clone, Debug)]
 pub enum Message {
     Quit,
     Exit { operation: Option<IssueOperation> },
@@ -252,8 +253,8 @@ pub enum Message {
     ScrollHelp { state: TextViewState },
 }
 
-impl store::State<Selection> for State {
-    type Message = Message;
+impl store::Update<Message> for State {
+    type Return = Selection;
 
     fn update(&mut self, message: Message) -> Option<Exit<Selection>> {
         match message {
