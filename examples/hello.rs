@@ -28,18 +28,19 @@ const ALIEN: &str = r#"
 "#;
 
 #[derive(Clone, Debug)]
-struct State {
+struct App {
     alien: String,
 }
 
+#[derive(Clone, Debug)]
 enum Message {
     Quit,
 }
 
-impl store::State<()> for State {
-    type Message = Message;
+impl store::Update<Message> for App {
+    type Return = ();
 
-    fn update(&mut self, message: Self::Message) -> Option<tui::Exit<()>> {
+    fn update(&mut self, message: Message) -> Option<tui::Exit<()>> {
         match message {
             Message::Quit => Some(Exit { value: None }),
         }
@@ -50,7 +51,7 @@ impl store::State<()> for State {
 pub async fn main() -> Result<()> {
     let channel = Channel::default();
     let sender = channel.tx.clone();
-    let state = State {
+    let app = App {
         alien: ALIEN.to_string(),
     };
 
@@ -60,15 +61,15 @@ pub async fn main() -> Result<()> {
             Key::Char('q') => Some(Message::Quit),
             _ => None,
         })
-        .on_update(|state: &State| {
+        .on_update(|app: &App| {
             TextAreaProps::default()
-                .content(Text::styled(state.alien.clone(), Color::Rgb(85, 85, 255)))
+                .content(Text::styled(app.alien.clone(), Color::Rgb(85, 85, 255)))
                 .handle_keys(false)
                 .to_boxed_any()
                 .into()
         });
 
-    tui::rm(channel, state, scene).await?;
+    tui::rm(channel, app, scene).await?;
 
     Ok(())
 }

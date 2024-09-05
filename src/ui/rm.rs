@@ -7,7 +7,7 @@ use tokio::sync::broadcast;
 use tokio::sync::mpsc::UnboundedReceiver;
 
 use crate::event::Event;
-use crate::store::State;
+use crate::store::Update;
 use crate::task::Interrupted;
 use crate::terminal;
 use crate::ui::rm::widget::RenderProps;
@@ -39,16 +39,16 @@ impl Frontend {
     ///
     /// Interrupt messages are being sent to broadcast channel for retrieving the
     /// application kill signal.
-    pub async fn run<S, M, P>(
+    pub async fn run<S, M, R>(
         self,
         mut root: Widget<S, M>,
         mut state_rx: UnboundedReceiver<S>,
-        mut interrupt_rx: broadcast::Receiver<Interrupted<P>>,
-    ) -> anyhow::Result<Interrupted<P>>
+        mut interrupt_rx: broadcast::Receiver<Interrupted<R>>,
+    ) -> anyhow::Result<Interrupted<R>>
     where
-        S: State<P> + 'static,
+        S: Update<M, Return = R> + 'static,
         M: 'static,
-        P: Clone + Send + Sync + Debug,
+        R: Clone + Send + Sync + Debug,
     {
         let mut ticker = tokio::time::interval(RENDERING_TICK_RATE);
 
@@ -62,7 +62,7 @@ impl Frontend {
             root
         };
 
-        let result: anyhow::Result<Interrupted<P>> = loop {
+        let result: anyhow::Result<Interrupted<R>> = loop {
             tokio::select! {
                 // Tick to terminate the select every N milliseconds
                 _ = ticker.tick() => (),

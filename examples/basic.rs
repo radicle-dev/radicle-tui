@@ -25,19 +25,20 @@ mollit anim id est laborum.
 "#;
 
 #[derive(Clone, Debug)]
-struct State {
+struct App {
     content: String,
 }
 
+#[derive(Clone, Debug)]
 enum Message {
     Quit,
     ReverseContent,
 }
 
-impl store::State<()> for State {
-    type Message = Message;
+impl store::Update<Message> for App {
+    type Return = ();
 
-    fn update(&mut self, message: Self::Message) -> Option<tui::Exit<()>> {
+    fn update(&mut self, message: Message) -> Option<tui::Exit<()>> {
         match message {
             Message::Quit => Some(Exit { value: None }),
             Message::ReverseContent => {
@@ -52,48 +53,49 @@ impl store::State<()> for State {
 pub async fn main() -> Result<()> {
     let channel = Channel::default();
     let sender = channel.tx.clone();
-    let state = State {
+    let app = App {
         content: CONTENT.to_string(),
     };
 
-    let page = Page::default()
-        .content(
-            Container::default()
-                .header(Header::default().to_widget(sender.clone()).on_update(|_| {
-                    HeaderProps::default()
-                        .columns(vec![
-                            Column::new("", Constraint::Length(0)),
-                            Column::new(
-                                "The standard Lorem Ipsum passage, used since the 1500s",
-                                Constraint::Fill(1),
-                            ),
-                        ])
-                        .to_boxed_any()
-                        .into()
-                }))
-                .content(TextView::default().to_widget(sender.clone()).on_update(
-                    |state: &State| {
-                        let content = state.content.clone();
-                        TextViewProps::default()
-                            .state(Some(TextViewState::default().content(content)))
-                            .handle_keys(false)
+    let page =
+        Page::default()
+            .content(
+                Container::default()
+                    .header(Header::default().to_widget(sender.clone()).on_update(|_| {
+                        HeaderProps::default()
+                            .columns(vec![
+                                Column::new("", Constraint::Length(0)),
+                                Column::new(
+                                    "The standard Lorem Ipsum passage, used since the 1500s",
+                                    Constraint::Fill(1),
+                                ),
+                            ])
                             .to_boxed_any()
                             .into()
-                    },
-                ))
-                .to_widget(sender.clone()),
-        )
-        .shortcuts(
-            Shortcuts::default()
-                .to_widget(sender.clone())
-                .on_update(|_| {
-                    ShortcutsProps::default()
-                        .shortcuts(&[("q", "quit"), ("r", "reverse")])
-                        .to_boxed_any()
-                        .into()
-                }),
-        )
-        .to_widget(sender.clone());
+                    }))
+                    .content(TextView::default().to_widget(sender.clone()).on_update(
+                        |app: &App| {
+                            let content = app.content.clone();
+                            TextViewProps::default()
+                                .state(Some(TextViewState::default().content(content)))
+                                .handle_keys(false)
+                                .to_boxed_any()
+                                .into()
+                        },
+                    ))
+                    .to_widget(sender.clone()),
+            )
+            .shortcuts(
+                Shortcuts::default()
+                    .to_widget(sender.clone())
+                    .on_update(|_| {
+                        ShortcutsProps::default()
+                            .shortcuts(&[("q", "quit"), ("r", "reverse")])
+                            .to_boxed_any()
+                            .into()
+                    }),
+            )
+            .to_widget(sender.clone());
 
     let window = Window::default()
         .page(0, page)
@@ -105,7 +107,7 @@ pub async fn main() -> Result<()> {
         })
         .on_update(|_| WindowProps::default().current_page(0).to_boxed_any().into());
 
-    tui::rm(channel, state, window).await?;
+    tui::rm(channel, app, window).await?;
 
     Ok(())
 }

@@ -13,9 +13,10 @@ use serde::ser::{Serialize, SerializeStruct, Serializer};
 
 use anyhow::Result;
 
-use store::State;
+use store::Update;
 use task::Interrupted;
 use ui::im;
+use ui::im::Show;
 use ui::rm;
 
 /// An optional return value.
@@ -156,8 +157,8 @@ pub async fn rm<S, M, P>(
     root: rm::widget::Widget<S, M>,
 ) -> Result<Option<P>>
 where
-    S: State<P, Message = M> + Clone + Debug + Send + Sync + 'static,
-    M: 'static,
+    S: Update<M, Return = P> + Clone + Debug + Send + Sync + 'static,
+    M: Debug + Send + Sync + 'static,
     P: Clone + Debug + Send + Sync + 'static,
 {
     let (terminator, mut interrupt_rx) = task::create_termination();
@@ -186,11 +187,11 @@ where
 pub async fn im<S, M, P>(
     channel: Channel<M>,
     state: S,
-    app: impl im::App<State = S, Message = M>,
+    // app: impl im::App<State = S, Message = M>,
 ) -> Result<Option<P>>
 where
-    S: State<P, Message = M> + Clone + Debug + Send + Sync + 'static,
-    M: Clone + 'static,
+    S: Update<M, Return = P> + Show<M> + Clone + Debug + Send + Sync + 'static,
+    M: Clone + Debug + Send + Sync + 'static,
     P: Clone + Debug + Send + Sync + 'static,
 {
     let (terminator, mut interrupt_rx) = task::create_termination();
@@ -201,7 +202,7 @@ where
 
     tokio::try_join!(
         store.run(state, terminator, channel.rx, interrupt_rx.resubscribe()),
-        frontend.run(app, state_tx, state_rx, interrupt_rx.resubscribe()),
+        frontend.run(state_tx, state_rx, interrupt_rx.resubscribe()),
     )?;
 
     if let Ok(reason) = interrupt_rx.recv().await {

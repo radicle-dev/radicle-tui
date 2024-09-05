@@ -17,7 +17,7 @@ use ratatui::layout::{Constraint, Rect};
 use ratatui::Frame;
 
 use crate::event::Event;
-use crate::store::State;
+use crate::store::Update;
 use crate::task::Interrupted;
 use crate::terminal;
 use crate::ui::theme::Theme;
@@ -28,16 +28,8 @@ use crate::ui::im::widget::{HeaderedTable, Widget};
 const RENDERING_TICK_RATE: Duration = Duration::from_millis(250);
 const INLINE_HEIGHT: usize = 20;
 
-pub trait App {
-    type State;
-    type Message;
-
-    fn update(
-        &self,
-        ctx: &Context<Self::Message>,
-        frame: &mut Frame,
-        state: &Self::State,
-    ) -> Result<()>;
+pub trait Show<M> {
+    fn show(&self, ctx: &Context<M>, frame: &mut Frame) -> Result<()>;
 }
 
 #[derive(Default)]
@@ -46,14 +38,13 @@ pub struct Frontend {}
 impl Frontend {
     pub async fn run<S, M, P>(
         self,
-        app: impl App<State = S, Message = M>,
         state_tx: UnboundedSender<M>,
         mut state_rx: UnboundedReceiver<S>,
         mut interrupt_rx: broadcast::Receiver<Interrupted<P>>,
     ) -> anyhow::Result<Interrupted<P>>
     where
-        S: State<P> + 'static,
-        M: Clone + 'static,
+        S: Update<M, Return = P> + Show<M>,
+        M: Clone,
         P: Clone + Send + Sync + Debug,
     {
         let mut ticker = tokio::time::interval(RENDERING_TICK_RATE);
@@ -87,7 +78,7 @@ impl Frontend {
             terminal.draw(|frame| {
                 let ctx = ctx.clone().with_frame_size(frame.size());
 
-                if let Err(err) = app.update(&ctx, frame, &state) {
+                if let Err(err) = state.show(&ctx, frame) {
                     log::warn!("Drawing failed: {}", err);
                 }
             })?;
