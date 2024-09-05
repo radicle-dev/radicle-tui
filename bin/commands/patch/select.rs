@@ -62,7 +62,7 @@ impl App {
             let tx = channel.tx.clone();
             let state = imui::State::try_from(&self.context)?;
 
-            tui::run_im(channel, state, imui::App::new(tx)).await
+            tui::im(channel, state, imui::App::new(tx)).await
         } else {
             let channel = Channel::default();
             let tx = channel.tx.clone();
@@ -78,7 +78,7 @@ impl App {
                         .into()
                 });
 
-            tui::run(channel, state, window).await
+            tui::rm(channel, state, window).await
         }
     }
 }

@@ -368,7 +368,7 @@ impl App {
                     .into()
             });
 
-        tui::run(channel, state, window).await
+        tui::rm(channel, state, window).await
     }
 }
 
