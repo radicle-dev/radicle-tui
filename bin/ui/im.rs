@@ -14,7 +14,7 @@ pub struct UiExt<'a>(&'a mut Ui);
 
 impl<'a> UiExt<'a> {
     pub fn new(ui: &'a mut Ui) -> Self {
-        Self { 0: ui }
+        Self(ui)
     }
 }
 
@@ -26,6 +26,7 @@ impl<'a> From<&'a mut Ui> for UiExt<'a> {
 
 #[allow(dead_code)]
 impl<'a> UiExt<'a> {
+    #[allow(clippy::too_many_arguments)]
     pub fn browser<R, const W: usize>(
         &mut self,
         frame: &mut Frame,
@@ -39,8 +40,7 @@ impl<'a> UiExt<'a> {
     where
         R: ToRow<W> + Clone,
     {
-        Browser::<R, W>::new(selected, items, header, footer, show_search, search)
-            .ui(&mut self.0, frame)
+        Browser::<R, W>::new(selected, items, header, footer, show_search, search).ui(self.0, frame)
     }
 }
 
@@ -97,7 +97,7 @@ impl<'a, R, const W: usize> Browser<'a, R, W> {
     }
 
     pub fn items(&self) -> &Vec<R> {
-        &self.items
+        self.items
     }
 }
 
@@ -133,7 +133,7 @@ where
                 let table = ui.table(
                     frame,
                     self.selected,
-                    &self.items,
+                    self.items,
                     self.header.to_vec(),
                     if *self.show_search {
                         Some(Borders::BottomSides)
@@ -141,7 +141,7 @@ where
                         Some(Borders::Sides)
                     },
                 );
-                response.changed = table.changed | response.changed;
+                response.changed |= table.changed;
 
                 if *self.show_search {
                     if has_focus {
@@ -155,7 +155,7 @@ where
                         Some(Borders::Spacer { top: 0, left: 1 }),
                     );
                     self.search.write(TextEditState { text, cursor });
-                    response.changed = text_edit.changed | response.changed;
+                    response.changed |= text_edit.changed;
                 } else {
                     if has_focus {
                         ui.set_focus(Some(2));

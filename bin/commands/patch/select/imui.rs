@@ -91,23 +91,14 @@ pub struct Storage {
 
 #[derive(Clone, Debug)]
 pub struct State {
-    ///
     storage: Storage,
-    ///
     mode: Mode,
-    ///
     page: Page,
-    ///
     main_group: GroupState,
-    ///
     patches: TableState,
-    ///
     search: BufferedValue<TextEditState>,
-    ///
     show_search: bool,
-    ///
     help: TextViewState,
-    ///
     filter: PatchItemFilter,
 }
 
