@@ -11,8 +11,8 @@ use ratatui::Frame;
 use radicle_tui as tui;
 
 use tui::store;
+use tui::ui::rm::widget::{RenderProps, View, ViewProps};
 use tui::ui::theme::style;
-use tui::ui::widget::{RenderProps, View, ViewProps};
 use tui::ui::{layout, span};
 
 use super::format;

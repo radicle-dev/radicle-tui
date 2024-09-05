@@ -12,14 +12,14 @@ use ratatui::text::{Line, Text};
 
 use radicle_tui as tui;
 
-use tui::ui::span;
-use tui::ui::widget::container::{
+use tui::ui::rm::widget::container::{
     Column, Container, ContainerProps, Footer, FooterProps, Header, HeaderProps,
 };
-use tui::ui::widget::input::{TextField, TextFieldProps};
-use tui::ui::widget::list::{Table, TableProps};
-use tui::ui::widget::{self, ViewProps};
-use tui::ui::widget::{RenderProps, ToWidget, View};
+use tui::ui::rm::widget::input::{TextField, TextFieldProps};
+use tui::ui::rm::widget::list::{Table, TableProps};
+use tui::ui::rm::widget::{self, ViewProps};
+use tui::ui::rm::widget::{RenderProps, ToWidget, View};
+use tui::ui::span;
 
 use tui::{BoxedAny, Selection};
 

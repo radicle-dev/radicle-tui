@@ -22,22 +22,24 @@ use radicle_tui as tui;
 
 use tui::store;
 use tui::store::StateValue;
-use tui::ui::span;
-use tui::ui::theme::Theme;
-use tui::ui::widget::container::{
+use tui::ui::rm::widget::container::{
     Column, Container, ContainerProps, Footer, FooterProps, Header, HeaderProps, SectionGroup,
     SectionGroupProps, SplitContainer, SplitContainerFocus, SplitContainerProps,
 };
-use tui::ui::widget::input::{TextView, TextViewProps, TextViewState};
-use tui::ui::widget::list::{Tree, TreeProps};
-use tui::ui::widget::window::{Page, PageProps, Shortcuts, ShortcutsProps, Window, WindowProps};
-use tui::ui::widget::{PredefinedLayout, ToWidget, Widget};
+use tui::ui::rm::widget::input::{TextView, TextViewProps, TextViewState};
+use tui::ui::rm::widget::list::{Tree, TreeProps};
+use tui::ui::rm::widget::window::{
+    Page, PageProps, Shortcuts, ShortcutsProps, Window, WindowProps,
+};
+use tui::ui::rm::widget::{PredefinedLayout, ToWidget, Widget};
+use tui::ui::span;
+use tui::ui::theme::Theme;
 use tui::{BoxedAny, Channel, Exit, PageStack};
 
 use crate::cob::issue;
 use crate::settings::{self, ThemeBundle, ThemeMode};
 use crate::ui::items::{CommentItem, IssueItem, IssueItemFilter};
-use crate::ui::widget::{BrowserState, IssueDetails, IssueDetailsProps};
+use crate::ui::rm::{BrowserState, IssueDetails, IssueDetailsProps};
 use crate::ui::TerminalInfo;
 
 use self::ui::{Browser, BrowserProps};

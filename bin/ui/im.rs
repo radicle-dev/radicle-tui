@@ -7,8 +7,8 @@ use radicle_tui as tui;
 
 use tui::ui::im::widget::{TableState, TextEditState, Widget};
 use tui::ui::im::{Borders, BufferedValue, Response, Ui};
-use tui::ui::widget::container::Column;
-use tui::ui::widget::list::ToRow;
+use tui::ui::rm::widget::container::Column;
+use tui::ui::rm::widget::list::ToRow;
 
 pub struct UiExt<'a>(&'a mut Ui);
 

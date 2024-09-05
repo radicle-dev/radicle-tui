@@ -28,9 +28,9 @@ use tui_tree_widget::TreeItem;
 
 use radicle_tui as tui;
 
+use tui::ui::rm::widget::list::{ToRow, ToTree};
 use tui::ui::span;
 use tui::ui::theme::style;
-use tui::ui::widget::list::{ToRow, ToTree};
 
 use super::super::git;
 use super::format;

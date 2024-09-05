@@ -13,7 +13,7 @@ use ratatui::Frame;
 
 use radicle_tui as tui;
 
-use tui::ui::widget::container::Column;
+use tui::ui::rm::widget::container::Column;
 use tui::{store, Exit};
 
 use tui::ui::im;

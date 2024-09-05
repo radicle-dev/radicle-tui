@@ -1,7 +1,7 @@
 pub mod format;
 pub mod im;
 pub mod items;
-pub mod widget;
+pub mod rm;
 
 #[derive(Clone, Debug)]
 pub struct TerminalInfo {

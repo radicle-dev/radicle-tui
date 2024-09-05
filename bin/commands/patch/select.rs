@@ -1,15 +1,13 @@
 #[path = "select/imui.rs"]
 mod imui;
-#[path = "select/ui.rs"]
-mod ui;
+#[path = "select/rmui.rs"]
+mod rmui;
 
 use std::str::FromStr;
 
 use anyhow::Result;
 
-use radicle::patch::PatchId;
-use radicle::storage::git::Repository;
-use radicle::Profile;
+use termion::event::Key;
 
 use radicle_tui as tui;
 
@@ -17,23 +15,27 @@ use ratatui::layout::Constraint;
 use ratatui::style::Stylize;
 use ratatui::text::Text;
 
-use termion::event::Key;
 use tui::store;
+use tui::ui::rm::widget::container::{Column, Container, Footer, FooterProps, Header, HeaderProps};
+use tui::ui::rm::widget::input::{TextView, TextViewProps, TextViewState};
+use tui::ui::rm::widget::window::{
+    Page, PageProps, Shortcuts, ShortcutsProps, Window, WindowProps,
+};
+use tui::ui::rm::widget::{ToWidget, Widget};
 use tui::ui::span;
-use tui::ui::widget::container::{Column, Container, Footer, FooterProps, Header, HeaderProps};
-use tui::ui::widget::input::{TextView, TextViewProps, TextViewState};
-use tui::ui::widget::window::{Page, PageProps, Shortcuts, ShortcutsProps, Window, WindowProps};
-use tui::ui::widget::{ToWidget, Widget};
 
 use tui::{BoxedAny, Channel, Exit, PageStack};
 
-use self::ui::{Browser, BrowserProps};
+use radicle::patch::PatchId;
+use radicle::storage::git::Repository;
+use radicle::Profile;
 
+use self::rmui::{Browser, BrowserProps};
 use super::common::{Mode, PatchOperation};
 
 use crate::cob::patch;
 use crate::ui::items::{PatchItem, PatchItemFilter};
-use crate::ui::widget::BrowserState;
+use crate::ui::rm::BrowserState;
 
 type Selection = tui::Selection<PatchId>;
 
