@@ -8,8 +8,8 @@ use ratatui::text::Text;
 use radicle_tui as tui;
 
 use tui::store;
-use tui::ui::widget::input::{TextArea, TextAreaProps};
-use tui::ui::widget::ToWidget;
+use tui::ui::rm::widget::input::{TextArea, TextAreaProps};
+use tui::ui::rm::widget::ToWidget;
 use tui::{BoxedAny, Channel, Exit};
 
 const ALIEN: &str = r#"

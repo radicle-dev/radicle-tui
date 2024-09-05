@@ -7,10 +7,10 @@ use ratatui::layout::Constraint;
 use radicle_tui as tui;
 
 use tui::store;
-use tui::ui::widget::container::{Column, Container, Header, HeaderProps};
-use tui::ui::widget::input::{TextView, TextViewProps, TextViewState};
-use tui::ui::widget::window::{Page, Shortcuts, ShortcutsProps, Window, WindowProps};
-use tui::ui::widget::ToWidget;
+use tui::ui::rm::widget::container::{Column, Container, Header, HeaderProps};
+use tui::ui::rm::widget::input::{TextView, TextViewProps, TextViewState};
+use tui::ui::rm::widget::window::{Page, Shortcuts, ShortcutsProps, Window, WindowProps};
+use tui::ui::rm::widget::ToWidget;
 use tui::{BoxedAny, Channel, Exit};
 
 const CONTENT: &str = r#"

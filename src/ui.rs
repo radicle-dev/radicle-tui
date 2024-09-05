@@ -1,9 +1,9 @@
 pub mod ext;
 pub mod im;
 pub mod layout;
+pub mod rm;
 pub mod span;
 pub mod theme;
-pub mod widget;
 
 use std::fmt::Debug;
 use std::time::Duration;
@@ -11,9 +11,8 @@ use std::time::Duration;
 use tokio::sync::broadcast;
 use tokio::sync::mpsc::UnboundedReceiver;
 
-use crate::ui::widget::RenderProps;
-
-use self::widget::Widget;
+use self::rm::widget::RenderProps;
+use self::rm::widget::Widget;
 
 use super::event::Event;
 use super::store::State;

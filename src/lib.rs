@@ -16,7 +16,7 @@ use anyhow::Result;
 use store::State;
 use task::Interrupted;
 use ui::im;
-use ui::widget::Widget;
+use ui::rm::widget::Widget;
 use ui::Frontend;
 
 /// An optional return value.
