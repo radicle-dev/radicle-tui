@@ -16,7 +16,9 @@ use crate::ui::{Column, ToRow};
 use super::{Borders, Context, InnerResponse, Response, Ui};
 
 pub trait Widget {
-    fn ui(self, ui: &mut Ui, frame: &mut Frame) -> Response;
+    fn ui<M>(self, ui: &mut Ui<M>, frame: &mut Frame) -> Response
+    where
+        M: Clone;
 }
 
 #[derive(Default)]
@@ -24,19 +26,25 @@ pub struct Window {}
 
 impl Window {
     #[inline]
-    pub fn show<R>(
+    pub fn show<M, R>(
         self,
-        ctx: &Context,
-        add_contents: impl FnOnce(&mut Ui) -> R,
-    ) -> Option<InnerResponse<Option<R>>> {
+        ctx: &Context<M>,
+        add_contents: impl FnOnce(&mut Ui<M>) -> R,
+    ) -> Option<InnerResponse<Option<R>>>
+    where
+        M: Clone,
+    {
         self.show_dyn(ctx, Box::new(add_contents))
     }
 
-    fn show_dyn<'c, R>(
+    fn show_dyn<'c, M, R>(
         self,
-        ctx: &Context,
-        add_contents: Box<dyn FnOnce(&mut Ui) -> R + 'c>,
-    ) -> Option<InnerResponse<Option<R>>> {
+        ctx: &Context<M>,
+        add_contents: Box<dyn FnOnce(&mut Ui<M>) -> R + 'c>,
+    ) -> Option<InnerResponse<Option<R>>>
+    where
+        M: Clone,
+    {
         let mut ui = Ui::default()
             .with_area(ctx.frame_size())
             .with_ctx(ctx.clone())
@@ -92,15 +100,25 @@ impl<'a> Group<'a> {
         Self { len, focus }
     }
 
-    pub fn show<R>(self, ui: &mut Ui, add_contents: impl FnOnce(&mut Ui) -> R) -> InnerResponse<R> {
+    pub fn show<M, R>(
+        self,
+        ui: &mut Ui<M>,
+        add_contents: impl FnOnce(&mut Ui<M>) -> R,
+    ) -> InnerResponse<R>
+    where
+        M: Clone,
+    {
         self.show_dyn(ui, Box::new(add_contents))
     }
 
-    pub fn show_dyn<'c, R>(
+    pub fn show_dyn<'c, M, R>(
         self,
-        ui: &mut Ui,
-        add_contents: Box<dyn FnOnce(&mut Ui) -> R + 'c>,
-    ) -> InnerResponse<R> {
+        ui: &mut Ui<M>,
+        add_contents: Box<dyn FnOnce(&mut Ui<M>) -> R + 'c>,
+    ) -> InnerResponse<R>
+    where
+        M: Clone,
+    {
         let mut response = Response::default();
 
         let mut state = GroupState {
@@ -147,7 +165,7 @@ impl<'a> Label<'a> {
 }
 
 impl<'a> Widget for Label<'a> {
-    fn ui(self, ui: &mut Ui, frame: &mut Frame) -> Response {
+    fn ui<M>(self, ui: &mut Ui<M>, frame: &mut Frame) -> Response {
         let (area, _) = ui.next_area().unwrap_or_default();
         frame.render_widget(self.content, area);
 
@@ -272,7 +290,10 @@ impl<'a, R, const W: usize> Widget for Table<'a, R, W>
 where
     R: ToRow<W> + Clone,
 {
-    fn ui(self, ui: &mut Ui, frame: &mut Frame) -> Response {
+    fn ui<M>(self, ui: &mut Ui<M>, frame: &mut Frame) -> Response
+    where
+        M: Clone,
+    {
         let mut response = Response::default();
 
         let (area, has_focus) = ui.next_area().unwrap_or_default();
@@ -441,7 +462,10 @@ impl<'a, R, const W: usize> Widget for HeaderedTable<'a, R, W>
 where
     R: ToRow<W> + Clone,
 {
-    fn ui(self, ui: &mut Ui, frame: &mut Frame) -> Response {
+    fn ui<M>(self, ui: &mut Ui<M>, frame: &mut Frame) -> Response
+    where
+        M: Clone,
+    {
         let mut response = Response::default();
 
         let (_, has_focus) = ui.current_area().unwrap_or_default();
@@ -486,7 +510,10 @@ impl<'a> Columns<'a> {
 }
 
 impl<'a> Widget for Columns<'a> {
-    fn ui(self, ui: &mut Ui, frame: &mut Frame) -> Response {
+    fn ui<M>(self, ui: &mut Ui<M>, frame: &mut Frame) -> Response
+    where
+        M: Clone,
+    {
         let (area, has_focus) = ui.next_area().unwrap_or_default();
 
         let border_style = if has_focus {
@@ -542,7 +569,10 @@ impl<'a> Bar<'a> {
 }
 
 impl<'a> Widget for Bar<'a> {
-    fn ui(self, ui: &mut Ui, frame: &mut Frame) -> Response {
+    fn ui<M>(self, ui: &mut Ui<M>, frame: &mut Frame) -> Response
+    where
+        M: Clone,
+    {
         let (area, has_focus) = ui.next_area().unwrap_or_default();
 
         let border_style = if has_focus {
@@ -653,7 +683,10 @@ impl<'a> TextView<'a> {
 }
 
 impl<'a> Widget for TextView<'a> {
-    fn ui(self, ui: &mut Ui, frame: &mut Frame) -> Response {
+    fn ui<M>(self, ui: &mut Ui<M>, frame: &mut Frame) -> Response
+    where
+        M: Clone,
+    {
         let mut response = Response::default();
 
         let (area, has_focus) = ui.next_area().unwrap_or_default();
@@ -868,7 +901,10 @@ impl<'a> TextEdit<'a> {
 }
 
 impl<'a> TextEdit<'a> {
-    pub fn show(self, ui: &mut Ui, frame: &mut Frame) -> TextEditOutput {
+    pub fn show<M>(self, ui: &mut Ui<M>, frame: &mut Frame) -> TextEditOutput
+    where
+        M: Clone,
+    {
         let mut response = Response::default();
 
         let (area, has_focus) = ui.next_area().unwrap_or_default();
@@ -969,7 +1005,10 @@ impl<'a> TextEdit<'a> {
 }
 
 impl<'a> Widget for TextEdit<'a> {
-    fn ui(self, ui: &mut Ui, frame: &mut Frame) -> Response {
+    fn ui<M>(self, ui: &mut Ui<M>, frame: &mut Frame) -> Response
+    where
+        M: Clone,
+    {
         self.show(ui, frame).response
     }
 }
@@ -992,7 +1031,10 @@ impl Shortcuts {
 }
 
 impl Widget for Shortcuts {
-    fn ui(self, ui: &mut Ui, frame: &mut Frame) -> Response {
+    fn ui<M>(self, ui: &mut Ui<M>, frame: &mut Frame) -> Response
+    where
+        M: Clone,
+    {
         use ratatui::widgets::Table;
 
         let (area, _) = ui.next_area().unwrap_or_default();

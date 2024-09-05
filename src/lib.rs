@@ -190,17 +190,18 @@ pub async fn im<S, M, P>(
 ) -> Result<Option<P>>
 where
     S: State<P, Message = M> + Clone + Debug + Send + Sync + 'static,
-    M: 'static,
+    M: Clone + 'static,
     P: Clone + Debug + Send + Sync + 'static,
 {
     let (terminator, mut interrupt_rx) = task::create_termination();
 
+    let state_tx = channel.tx.clone();
     let (store, state_rx) = store::Store::<S, M, P>::new();
     let frontend = im::Frontend::default();
 
     tokio::try_join!(
         store.run(state, terminator, channel.rx, interrupt_rx.resubscribe()),
-        frontend.run(app, state_rx, interrupt_rx.resubscribe()),
+        frontend.run(app, state_tx, state_rx, interrupt_rx.resubscribe()),
     )?;
 
     if let Ok(reason) = interrupt_rx.recv().await {

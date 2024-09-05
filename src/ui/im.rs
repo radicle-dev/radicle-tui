@@ -9,7 +9,7 @@ use anyhow::Result;
 
 use ratatui::text::Text;
 use tokio::sync::broadcast;
-use tokio::sync::mpsc::UnboundedReceiver;
+use tokio::sync::mpsc::{UnboundedReceiver, UnboundedSender};
 
 use termion::event::Key;
 
@@ -32,7 +32,12 @@ pub trait App {
     type State;
     type Message;
 
-    fn update(&self, ui: &Context, frame: &mut Frame, state: &Self::State) -> Result<()>;
+    fn update(
+        &self,
+        ctx: &Context<Self::Message>,
+        frame: &mut Frame,
+        state: &Self::State,
+    ) -> Result<()>;
 }
 
 #[derive(Default)]
@@ -42,12 +47,13 @@ impl Frontend {
     pub async fn run<S, M, P>(
         self,
         app: impl App<State = S, Message = M>,
+        state_tx: UnboundedSender<M>,
         mut state_rx: UnboundedReceiver<S>,
         mut interrupt_rx: broadcast::Receiver<Interrupted<P>>,
     ) -> anyhow::Result<Interrupted<P>>
     where
         S: State<P> + 'static,
-        M: 'static,
+        M: Clone + 'static,
         P: Clone + Send + Sync + Debug,
     {
         let mut ticker = tokio::time::interval(RENDERING_TICK_RATE);
@@ -56,7 +62,7 @@ impl Frontend {
         let mut events_rx = terminal::events();
 
         let mut state = state_rx.recv().await.unwrap();
-        let mut ctx = Context::default();
+        let mut ctx = Context::default().with_sender(state_tx);
 
         let result: anyhow::Result<Interrupted<P>> = loop {
             tokio::select! {
@@ -115,17 +121,28 @@ impl<R> InnerResponse<R> {
     }
 }
 
-#[derive(Clone, Default, Debug)]
-pub struct Context {
+#[derive(Clone, Debug)]
+pub struct Context<M> {
     pub(crate) inputs: VecDeque<Key>,
-    frame_size: Rect,
+    pub(crate) frame_size: Rect,
+    pub(crate) sender: Option<UnboundedSender<M>>,
 }
 
-impl Context {
-    pub fn new(frame_size: Rect) -> Self {
+impl<M> Default for Context<M> {
+    fn default() -> Self {
         Self {
             inputs: VecDeque::default(),
+            frame_size: Rect::default(),
+            sender: None,
+        }
+    }
+}
+
+impl<M> Context<M> {
+    pub fn new(frame_size: Rect) -> Self {
+        Self {
             frame_size,
+            ..Default::default()
         }
     }
 
@@ -136,6 +153,11 @@ impl Context {
 
     pub fn with_frame_size(mut self, frame_size: Rect) -> Self {
         self.frame_size = frame_size;
+        self
+    }
+
+    pub fn with_sender(mut self, sender: UnboundedSender<M>) -> Self {
+        self.sender = Some(sender);
         self
     }
 
@@ -232,17 +254,17 @@ impl Layout {
     }
 }
 
-#[derive(Default, Clone, Debug)]
-pub struct Ui {
+#[derive(Clone, Debug)]
+pub struct Ui<M> {
     pub theme: Theme,
     pub(crate) area: Rect,
     pub(crate) layout: Layout,
     focus: Option<usize>,
     count: usize,
-    ctx: Context,
+    ctx: Context<M>,
 }
 
-impl Ui {
+impl<M> Ui<M> {
     pub fn input(&mut self, f: impl Fn(Key) -> bool) -> bool {
         self.has_focus() && self.ctx.inputs.iter().any(|key| f(*key))
     }
@@ -260,7 +282,20 @@ impl Ui {
     }
 }
 
-impl Ui {
+impl<M> Default for Ui<M> {
+    fn default() -> Self {
+        Self {
+            theme: Theme::default(),
+            area: Rect::default(),
+            layout: Layout::default(),
+            focus: None,
+            count: 0,
+            ctx: Context::default(),
+        }
+    }
+}
+
+impl<M> Ui<M> {
     pub fn new(area: Rect) -> Self {
         Self {
             area,
@@ -278,10 +313,15 @@ impl Ui {
         self
     }
 
-    pub fn with_ctx(mut self, ctx: Context) -> Self {
+    pub fn with_ctx(mut self, ctx: Context<M>) -> Self {
         self.ctx = ctx;
         self
     }
+
+    // pub fn with_sender(mut self, sender: UnboundedSender<M>) -> Self {
+    //     self.sender = Some(sender);
+    //     self
+    // }
 
     pub fn area(&self) -> Rect {
         self.area
@@ -325,9 +365,18 @@ impl Ui {
             self.focus = Some(self.focus.unwrap().saturating_add(1));
         }
     }
+
+    pub fn send_message(&self, message: M) {
+        if let Some(sender) = &self.ctx.sender {
+            let _ = sender.send(message);
+        }
+    }
 }
 
-impl Ui {
+impl<M> Ui<M>
+where
+    M: Clone,
+{
     pub fn add(&mut self, frame: &mut Frame, widget: impl Widget) -> Response {
         widget.ui(self, frame)
     }
@@ -360,12 +409,15 @@ impl Ui {
     }
 }
 
-impl Ui {
+impl<M> Ui<M>
+where
+    M: Clone,
+{
     pub fn group<R>(
         &mut self,
         layout: impl Into<Layout>,
         focus: &mut Option<usize>,
-        add_contents: impl FnOnce(&mut Ui) -> R,
+        add_contents: impl FnOnce(&mut Ui<M>) -> R,
     ) -> InnerResponse<R> {
         let (area, _) = self.next_area().unwrap_or_default();
 
