@@ -13,12 +13,11 @@ use ratatui::Frame;
 
 use radicle_tui as tui;
 
-use tui::ui::rm::widget::container::Column;
-use tui::{store, Exit};
-
 use tui::ui::im;
 use tui::ui::im::widget::{GroupState, TableState, TextEditState, TextViewState, Window};
 use tui::ui::im::{Borders, BufferedValue};
+use tui::ui::Column;
+use tui::{store, Exit};
 
 use crate::cob::patch;
 use crate::tui_patch::common::{Mode, PatchOperation};

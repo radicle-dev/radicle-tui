@@ -22,15 +22,14 @@ use radicle_tui as tui;
 
 use tui::store;
 use tui::store::StateValue;
-use tui::ui::rm::widget::container::{Column, Container, Footer, FooterProps, Header, HeaderProps};
-use tui::ui::rm::widget::input::TextView;
-use tui::ui::rm::widget::input::TextViewProps;
-use tui::ui::rm::widget::input::TextViewState;
+use tui::ui::rm::widget::container::{Container, Footer, FooterProps, Header, HeaderProps};
+use tui::ui::rm::widget::input::{TextView, TextViewProps, TextViewState};
 use tui::ui::rm::widget::window::{
     Page, PageProps, Shortcuts, ShortcutsProps, Window, WindowProps,
 };
 use tui::ui::rm::widget::{ToWidget, Widget};
 use tui::ui::span;
+use tui::ui::Column;
 use tui::{BoxedAny, Channel, Exit, PageStack};
 
 use crate::cob::inbox;

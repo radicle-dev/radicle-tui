@@ -23,7 +23,7 @@ use radicle_tui as tui;
 use tui::store;
 use tui::store::StateValue;
 use tui::ui::rm::widget::container::{
-    Column, Container, ContainerProps, Footer, FooterProps, Header, HeaderProps, SectionGroup,
+    Container, ContainerProps, Footer, FooterProps, Header, HeaderProps, SectionGroup,
     SectionGroupProps, SplitContainer, SplitContainerFocus, SplitContainerProps,
 };
 use tui::ui::rm::widget::input::{TextView, TextViewProps, TextViewState};
@@ -34,6 +34,7 @@ use tui::ui::rm::widget::window::{
 use tui::ui::rm::widget::{PredefinedLayout, ToWidget, Widget};
 use tui::ui::span;
 use tui::ui::theme::Theme;
+use tui::ui::Column;
 use tui::{BoxedAny, Channel, Exit, PageStack};
 
 use crate::cob::issue;
