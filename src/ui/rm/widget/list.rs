@@ -18,10 +18,11 @@ use ratatui::Frame;
 use tui_tree_widget::{TreeItem, TreeState};
 
 use crate::ui::theme::style;
+use crate::ui::Column;
 use crate::ui::{layout, span};
 
-use super::{container::Column, RenderProps, View};
 use super::{utils, ViewProps, ViewState};
+use super::{RenderProps, View};
 
 /// Needs to be implemented for items that are supposed to be rendered in tables.
 pub trait ToRow<const W: usize> {

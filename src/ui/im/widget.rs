@@ -9,9 +9,9 @@ use ratatui::{layout::Constraint, widgets::Paragraph};
 use termion::event::Key;
 
 use crate::ui::ext::{FooterBlock, FooterBlockType, HeaderBlock};
-use crate::ui::rm::widget::container::Column;
 use crate::ui::rm::widget::list::ToRow;
 use crate::ui::theme::style;
+use crate::ui::Column;
 use crate::ui::{layout, span};
 
 use super::{Borders, Context, InnerResponse, Response, Ui};

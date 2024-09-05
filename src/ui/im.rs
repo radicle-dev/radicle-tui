@@ -20,9 +20,9 @@ use crate::event::Event;
 use crate::store::State;
 use crate::task::Interrupted;
 use crate::terminal;
-use crate::ui::rm::widget::container::Column;
 use crate::ui::rm::widget::list::ToRow;
 use crate::ui::theme::Theme;
+use crate::ui::Column;
 
 use crate::ui::im::widget::{HeaderedTable, Widget};
 
