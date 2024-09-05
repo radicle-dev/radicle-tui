@@ -9,22 +9,25 @@ use tui::ui::im::widget::{TableState, TextEditState, Widget};
 use tui::ui::im::{Borders, BufferedValue, Response, Ui};
 use tui::ui::{Column, ToRow};
 
-pub struct UiExt<'a>(&'a mut Ui);
+pub struct UiExt<'a, M>(&'a mut Ui<M>);
 
-impl<'a> UiExt<'a> {
-    pub fn new(ui: &'a mut Ui) -> Self {
+impl<'a, M> UiExt<'a, M> {
+    pub fn new(ui: &'a mut Ui<M>) -> Self {
         Self(ui)
     }
 }
 
-impl<'a> From<&'a mut Ui> for UiExt<'a> {
-    fn from(ui: &'a mut Ui) -> Self {
+impl<'a, M> From<&'a mut Ui<M>> for UiExt<'a, M> {
+    fn from(ui: &'a mut Ui<M>) -> Self {
         Self::new(ui)
     }
 }
 
 #[allow(dead_code)]
-impl<'a> UiExt<'a> {
+impl<'a, M> UiExt<'a, M>
+where
+    M: Clone,
+{
     #[allow(clippy::too_many_arguments)]
     pub fn browser<R, const W: usize>(
         &mut self,
@@ -106,7 +109,10 @@ impl<'a, R, const W: usize> Widget for Browser<'a, R, W>
 where
     R: ToRow<W> + Clone,
 {
-    fn ui(self, ui: &mut Ui, frame: &mut Frame) -> Response {
+    fn ui<M>(self, ui: &mut Ui<M>, frame: &mut Frame) -> Response
+    where
+        M: Clone,
+    {
         let mut response = Response::default();
 
         let (_, has_focus) = ui.current_area().unwrap_or_default();

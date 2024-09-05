@@ -49,7 +49,7 @@ const HELP: &str = r#"# Generic keybindings
 Pattern:    is:<state> | is:authored | authors:[<did>, <did>] | <search>
 Example:    is:open is:authored improve"#;
 
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub enum Message {
     Quit,
     Exit {
@@ -243,7 +243,7 @@ impl App {
 }
 
 impl App {
-    pub fn show_patches(&self, frame: &mut Frame, ui: &mut im::Ui, state: &State) {
+    pub fn show_patches(&self, frame: &mut Frame, ui: &mut im::Ui<Message>, state: &State) {
         let patches = state
             .storage
             .patches
@@ -278,7 +278,12 @@ impl App {
         }
     }
 
-    pub fn show_search_text_edit(&self, frame: &mut Frame, ui: &mut im::Ui, state: &State) {
+    pub fn show_search_text_edit(
+        &self,
+        frame: &mut Frame,
+        ui: &mut im::Ui<Message>,
+        state: &State,
+    ) {
         let (mut search_text, mut search_cursor) = (
             state.search.clone().read().text,
             state.search.clone().read().cursor,
@@ -314,7 +319,7 @@ impl im::App for App {
     type State = State;
     type Message = Message;
 
-    fn update(&self, ctx: &im::Context, frame: &mut Frame, state: &Self::State) -> Result<()> {
+    fn update(&self, ctx: &im::Context<Message>, frame: &mut Frame, state: &State) -> Result<()> {
         Window::default().show(ctx, |ui| {
             match state.page {
                 Page::Main => {
@@ -481,7 +486,7 @@ impl im::App for App {
     }
 }
 
-fn browser_context<'a>(ui: &im::Ui, state: &'a State) -> Vec<Column<'a>> {
+fn browser_context<'a>(ui: &im::Ui<Message>, state: &'a State) -> Vec<Column<'a>> {
     let search = state.search.read().text;
     let total_count = state.storage.patches.len();
     let filtered_count = state
@@ -644,7 +649,7 @@ fn browser_context<'a>(ui: &im::Ui, state: &'a State) -> Vec<Column<'a>> {
     }
 }
 
-fn default_context<'a>(ui: &im::Ui) -> Vec<Column<'a>> {
+fn default_context<'a>(ui: &im::Ui<Message>) -> Vec<Column<'a>> {
     [
         Column::new(
             Span::raw(" ".to_string())
