@@ -68,6 +68,10 @@ impl GroupState {
         self.len
     }
 
+    pub fn is_empty(&self) -> bool {
+        self.len == 0
+    }
+
     pub fn focus_next(&mut self) {
         self.focus = self
             .focus
@@ -280,7 +284,7 @@ where
         let mut state = TableState {
             internal: {
                 let mut state = ratatui::widgets::TableState::default();
-                state.select(self.selected.clone());
+                state.select(*self.selected);
                 state
             },
         };
@@ -428,7 +432,7 @@ impl<'a, R, const W: usize> HeaderedTable<'a, R, W> {
     }
 
     pub fn items(&self) -> &Vec<R> {
-        &self.items
+        self.items
     }
 }
 
@@ -459,11 +463,11 @@ where
                 let table = ui.table(
                     frame,
                     self.selected,
-                    &self.items,
+                    self.items,
                     self.header.to_vec(),
                     Some(Borders::BottomSides),
                 );
-                response.changed = table.changed | response.changed;
+                response.changed |= table.changed;
             },
         );
 

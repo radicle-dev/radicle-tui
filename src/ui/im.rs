@@ -141,7 +141,7 @@ impl Context {
     }
 
     pub fn frame_size(&self) -> Rect {
-        self.frame_size.clone()
+        self.frame_size
     }
 
     pub fn store_input(&mut self, key: Key) {
@@ -196,6 +196,10 @@ impl Layout {
         }
     }
 
+    pub fn is_empty(&self) -> bool {
+        self.len() == 0
+    }
+
     pub fn split(&self, area: Rect) -> Rc<[Rect]> {
         match self {
             Layout::None => Rc::new([]),
@@ -241,11 +245,11 @@ pub struct Ui {
 
 impl Ui {
     pub fn input(&mut self, f: impl Fn(Key) -> bool) -> bool {
-        self.has_focus() && self.ctx.inputs.iter().find(|key| f(**key)).is_some()
+        self.has_focus() && self.ctx.inputs.iter().any(|key| f(*key))
     }
 
     pub fn input_global(&mut self, f: impl Fn(Key) -> bool) -> bool {
-        self.ctx.inputs.iter().find(|key| f(**key)).is_some()
+        self.ctx.inputs.iter().any(|key| f(*key))
     }
 
     pub fn input_with_key(&mut self, f: impl Fn(Key) -> bool) -> Option<Key> {
@@ -288,7 +292,7 @@ impl Ui {
         let has_focus = self.focus.map(|focus| self.count == focus).unwrap_or(false);
         let rect = self.layout.split(self.area).get(self.count).cloned();
 
-        self.count = self.count + 1;
+        self.count += 1;
 
         rect.map(|rect| (rect, has_focus))
     }
@@ -379,7 +383,7 @@ impl Ui {
         widget::Label::new(content).ui(self, frame)
     }
 
-    pub fn overline<'a>(&mut self, frame: &mut Frame) -> Response {
+    pub fn overline(&mut self, frame: &mut Frame) -> Response {
         let overline = String::from("━").repeat(256);
         self.label(frame, overline)
     }
@@ -420,19 +424,19 @@ impl Ui {
         widget::Shortcuts::new(shortcuts, divider).ui(self, frame)
     }
 
-    pub fn columns<'a>(
+    pub fn columns(
         &mut self,
         frame: &mut Frame,
-        columns: Vec<Column<'a>>,
+        columns: Vec<Column<'_>>,
         borders: Option<Borders>,
     ) -> Response {
         widget::Columns::new(columns, borders).ui(self, frame)
     }
 
-    pub fn bar<'a>(
+    pub fn bar(
         &mut self,
         frame: &mut Frame,
-        columns: Vec<Column<'a>>,
+        columns: Vec<Column<'_>>,
         borders: Option<Borders>,
     ) -> Response {
         widget::Bar::new(columns, borders).ui(self, frame)
