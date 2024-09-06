@@ -11,10 +11,11 @@ use ratatui::Frame;
 
 use radicle_tui as tui;
 
+use tui::ui::im;
 use tui::ui::im::widget::{GroupState, TableState, TextEditState, TextViewState, Window};
-use tui::ui::im::{self, Show};
-use tui::ui::im::{Borders, BufferedValue};
-use tui::ui::Column;
+use tui::ui::im::Borders;
+use tui::ui::im::Show;
+use tui::ui::{BufferedValue, Column};
 use tui::{store, Exit};
 
 use crate::cob::patch;
@@ -97,22 +98,6 @@ pub struct App {
     show_search: bool,
     help: TextViewState,
     filter: PatchItemFilter,
-}
-
-impl App {
-    pub fn selected_patch(&self) -> Option<&PatchItem> {
-        let patches = self
-            .storage
-            .patches
-            .iter()
-            .filter(|patch| self.filter.matches(patch))
-            .collect::<Vec<_>>();
-
-        self.patches
-            .selected()
-            .and_then(|selected| patches.get(selected))
-            .copied()
-    }
 }
 
 impl TryFrom<&Context> for App {
@@ -222,74 +207,6 @@ impl store::Update<Message> for App {
                 self.help = state;
                 None
             }
-        }
-    }
-}
-
-impl App {
-    pub fn show_patches(&self, frame: &mut Frame, ui: &mut im::Ui<Message>) {
-        let patches = self
-            .storage
-            .patches
-            .iter()
-            .filter(|patch| self.filter.matches(patch))
-            .cloned()
-            .collect::<Vec<_>>();
-        let mut selected = self.patches.selected();
-
-        let header = [
-            Column::new(Span::raw(" ● ").bold(), Constraint::Length(3)),
-            Column::new(Span::raw("ID").bold(), Constraint::Length(8)),
-            Column::new(Span::raw("Title").bold(), Constraint::Fill(1)),
-            Column::new(Span::raw("Author").bold(), Constraint::Length(16)).hide_small(),
-            Column::new("", Constraint::Length(16)).hide_medium(),
-            Column::new(Span::raw("Head").bold(), Constraint::Length(8)).hide_small(),
-            Column::new(Span::raw("+").bold(), Constraint::Length(6)).hide_small(),
-            Column::new(Span::raw("-").bold(), Constraint::Length(6)).hide_small(),
-            Column::new(Span::raw("Updated").bold(), Constraint::Length(16)).hide_small(),
-        ];
-
-        let table = ui.headered_table(frame, &mut selected, &patches, header);
-        if table.changed {
-            ui.send_message(Message::PatchesChanged {
-                state: TableState::new(selected),
-            });
-        }
-
-        // TODO(erikli): Should only work if table has focus
-        if ui.input_global(|key| key == Key::Char('/')) {
-            ui.send_message(Message::ShowSearch);
-        }
-    }
-
-    pub fn show_search_text_edit(&self, frame: &mut Frame, ui: &mut im::Ui<Message>) {
-        let (mut search_text, mut search_cursor) = (
-            self.search.clone().read().text,
-            self.search.clone().read().cursor,
-        );
-        let mut search = self.search.clone();
-
-        let text_edit = ui.text_edit_labeled_singleline(
-            frame,
-            &mut search_text,
-            &mut search_cursor,
-            "Search".to_string(),
-            Some(Borders::Spacer { top: 0, left: 0 }),
-        );
-
-        if text_edit.changed {
-            search.write(TextEditState {
-                text: search_text,
-                cursor: search_cursor,
-            });
-            ui.send_message(Message::UpdateSearch { search });
-        }
-
-        if ui.input_global(|key| key == Key::Esc) {
-            ui.send_message(Message::HideSearch { apply: false });
-        }
-        if ui.input_global(|key| key == Key::Char('\n')) {
-            ui.send_message(Message::HideSearch { apply: true });
         }
     }
 }
@@ -459,6 +376,90 @@ impl Show<Message> for App {
         });
 
         Ok(())
+    }
+}
+
+impl App {
+    pub fn show_patches(&self, frame: &mut Frame, ui: &mut im::Ui<Message>) {
+        let patches = self
+            .storage
+            .patches
+            .iter()
+            .filter(|patch| self.filter.matches(patch))
+            .cloned()
+            .collect::<Vec<_>>();
+        let mut selected = self.patches.selected();
+
+        let header = [
+            Column::new(Span::raw(" ● ").bold(), Constraint::Length(3)),
+            Column::new(Span::raw("ID").bold(), Constraint::Length(8)),
+            Column::new(Span::raw("Title").bold(), Constraint::Fill(1)),
+            Column::new(Span::raw("Author").bold(), Constraint::Length(16)).hide_small(),
+            Column::new("", Constraint::Length(16)).hide_medium(),
+            Column::new(Span::raw("Head").bold(), Constraint::Length(8)).hide_small(),
+            Column::new(Span::raw("+").bold(), Constraint::Length(6)).hide_small(),
+            Column::new(Span::raw("-").bold(), Constraint::Length(6)).hide_small(),
+            Column::new(Span::raw("Updated").bold(), Constraint::Length(16)).hide_small(),
+        ];
+
+        let table = ui.headered_table(frame, &mut selected, &patches, header);
+        if table.changed {
+            ui.send_message(Message::PatchesChanged {
+                state: TableState::new(selected),
+            });
+        }
+
+        // TODO(erikli): Should only work if table has focus
+        if ui.input_global(|key| key == Key::Char('/')) {
+            ui.send_message(Message::ShowSearch);
+        }
+    }
+
+    pub fn show_search_text_edit(&self, frame: &mut Frame, ui: &mut im::Ui<Message>) {
+        let (mut search_text, mut search_cursor) = (
+            self.search.clone().read().text,
+            self.search.clone().read().cursor,
+        );
+        let mut search = self.search.clone();
+
+        let text_edit = ui.text_edit_labeled_singleline(
+            frame,
+            &mut search_text,
+            &mut search_cursor,
+            "Search".to_string(),
+            Some(Borders::Spacer { top: 0, left: 0 }),
+        );
+
+        if text_edit.changed {
+            search.write(TextEditState {
+                text: search_text,
+                cursor: search_cursor,
+            });
+            ui.send_message(Message::UpdateSearch { search });
+        }
+
+        if ui.input_global(|key| key == Key::Esc) {
+            ui.send_message(Message::HideSearch { apply: false });
+        }
+        if ui.input_global(|key| key == Key::Char('\n')) {
+            ui.send_message(Message::HideSearch { apply: true });
+        }
+    }
+}
+
+impl App {
+    pub fn selected_patch(&self) -> Option<&PatchItem> {
+        let patches = self
+            .storage
+            .patches
+            .iter()
+            .filter(|patch| self.filter.matches(patch))
+            .collect::<Vec<_>>();
+
+        self.patches
+            .selected()
+            .and_then(|selected| patches.get(selected))
+            .copied()
     }
 }
 

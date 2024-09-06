@@ -21,7 +21,6 @@ use radicle::Profile;
 use radicle_tui as tui;
 
 use tui::store;
-use tui::store::StateValue;
 use tui::ui::rm::widget::container::{
     Container, ContainerProps, Footer, FooterProps, Header, HeaderProps, SectionGroup,
     SectionGroupProps, SplitContainer, SplitContainerFocus, SplitContainerProps,
@@ -32,9 +31,9 @@ use tui::ui::rm::widget::window::{
     Page, PageProps, Shortcuts, ShortcutsProps, Window, WindowProps,
 };
 use tui::ui::rm::widget::{PredefinedLayout, ToWidget, Widget};
-use tui::ui::span;
 use tui::ui::theme::Theme;
 use tui::ui::Column;
+use tui::ui::{span, BufferedValue};
 use tui::{BoxedAny, Channel, Exit, PageStack};
 
 use crate::cob::issue;
@@ -177,7 +176,7 @@ impl TryFrom<(&Context, &TerminalInfo)> for State {
         let settings = settings::Settings::default();
 
         let issues = issue::all(&context.profile, &context.repository)?;
-        let search = StateValue::new(context.filter.to_string());
+        let search = BufferedValue::new(context.filter.to_string());
         let filter = IssueItemFilter::from_str(&search.read()).unwrap_or_default();
 
         let default_bundle = ThemeBundle::default();

@@ -22,7 +22,7 @@ use tui::ui::rm::widget::window::{
     Page, PageProps, Shortcuts, ShortcutsProps, Window, WindowProps,
 };
 use tui::ui::rm::widget::{ToWidget, Widget};
-use tui::ui::span;
+use tui::ui::{span, BufferedValue};
 use tui::ui::Column;
 
 use tui::{BoxedAny, Channel, Exit, PageStack};
@@ -107,7 +107,7 @@ impl TryFrom<&Context> for State {
 
     fn try_from(context: &Context) -> Result<Self, Self::Error> {
         let patches = patch::all(&context.profile, &context.repository)?;
-        let search = store::StateValue::new(context.filter.to_string());
+        let search = BufferedValue::new(context.filter.to_string());
         let filter = PatchItemFilter::from_str(&context.filter.to_string()).unwrap_or_default();
 
         // Convert into UI items

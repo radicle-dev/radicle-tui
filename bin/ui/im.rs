@@ -6,8 +6,8 @@ use ratatui::Frame;
 use radicle_tui as tui;
 
 use tui::ui::im::widget::{TableState, TextEditState, Widget};
-use tui::ui::im::{Borders, BufferedValue, Response, Ui};
-use tui::ui::{Column, ToRow};
+use tui::ui::im::{Borders, Response, Ui};
+use tui::ui::{BufferedValue, Column, ToRow};
 
 pub struct UiExt<'a, M>(&'a mut Ui<M>);
 

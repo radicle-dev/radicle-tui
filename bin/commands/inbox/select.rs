@@ -21,7 +21,6 @@ use radicle::Profile;
 use radicle_tui as tui;
 
 use tui::store;
-use tui::store::StateValue;
 use tui::ui::rm::widget::container::{Container, Footer, FooterProps, Header, HeaderProps};
 use tui::ui::rm::widget::input::{TextView, TextViewProps, TextViewState};
 use tui::ui::rm::widget::window::{
@@ -29,6 +28,7 @@ use tui::ui::rm::widget::window::{
 };
 use tui::ui::rm::widget::{ToWidget, Widget};
 use tui::ui::span;
+use tui::ui::BufferedValue;
 use tui::ui::Column;
 use tui::{BoxedAny, Channel, Exit, PageStack};
 
@@ -67,7 +67,7 @@ pub struct BrowserState {
     items: Vec<NotificationItem>,
     selected: Option<usize>,
     filter: NotificationItemFilter,
-    search: store::StateValue<String>,
+    search: BufferedValue<String>,
     show_search: bool,
 }
 
@@ -102,7 +102,7 @@ impl TryFrom<&Context> for State {
         let doc = context.repository.identity_doc()?;
         let project = doc.project()?;
 
-        let search = StateValue::new(String::new());
+        let search = BufferedValue::new(String::new());
         let filter = NotificationItemFilter::from_str(&search.read()).unwrap_or_default();
 
         let mut notifications = match &context.mode.repository() {

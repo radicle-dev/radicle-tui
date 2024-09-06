@@ -10,10 +10,9 @@ use ratatui::Frame;
 
 use radicle_tui as tui;
 
-use tui::store;
 use tui::ui::rm::widget::{RenderProps, View, ViewProps};
 use tui::ui::theme::style;
-use tui::ui::{layout, span};
+use tui::ui::{layout, span, BufferedValue};
 
 use super::format;
 use super::items::IssueItem;
@@ -29,7 +28,7 @@ pub struct BrowserState<I, F> {
     items: Vec<I>,
     selected: Option<usize>,
     filter: F,
-    search: store::StateValue<String>,
+    search: BufferedValue<String>,
     show_search: bool,
 }
 
@@ -43,7 +42,7 @@ where
             items: vec![],
             selected: None,
             filter: F::default(),
-            search: store::StateValue::new(String::default()),
+            search: BufferedValue::new(String::default()),
             show_search: false,
         }
     }
@@ -54,7 +53,7 @@ where
     I: Clone,
     F: Filter<I> + Default + FromStr,
 {
-    pub fn build(items: Vec<I>, filter: F, search: store::StateValue<String>) -> Self {
+    pub fn build(items: Vec<I>, filter: F, search: BufferedValue<String>) -> Self {
         let selected = items.first().map(|_| 0);
 
         Self {
