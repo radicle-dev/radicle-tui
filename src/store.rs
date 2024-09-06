@@ -11,8 +11,8 @@ use super::task::{Interrupted, Terminator};
 
 const STORE_TICK_RATE: Duration = Duration::from_millis(1000);
 
-/// The `State` known to the application store. It handles user-defined
-/// application messages as well as ticks.
+/// The main state trait for the ability to update an applications' state.
+/// Implementations should handle user-defined application messages as well as ticks.
 pub trait Update<M> {
     type Return;
 

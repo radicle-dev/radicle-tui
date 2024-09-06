@@ -28,6 +28,7 @@ use crate::ui::im::widget::{HeaderedTable, Widget};
 const RENDERING_TICK_RATE: Duration = Duration::from_millis(250);
 const INLINE_HEIGHT: usize = 20;
 
+/// The main UI trait for the ability to render an application.
 pub trait Show<M> {
     fn show(&self, ctx: &Context<M>, frame: &mut Frame) -> Result<()>;
 }
@@ -112,10 +113,15 @@ impl<R> InnerResponse<R> {
     }
 }
 
+/// A `Context` is held by the `Ui` and reflects the environment a `Ui` runs in.
 #[derive(Clone, Debug)]
 pub struct Context<M> {
-    pub(crate) inputs: VecDeque<Key>,
+    /// Currently captured user inputs. Inputs that where stored via `store_input`
+    /// need to be cleared manually via `clear_inputs` (usually for each frame drawn).
+    inputs: VecDeque<Key>,
+    /// Current frame of the application.
     pub(crate) frame_size: Rect,
+    /// The message sender used by the `Ui` to send application messages.
     pub(crate) sender: Option<UnboundedSender<M>>,
 }
 
@@ -165,6 +171,7 @@ impl<M> Context<M> {
     }
 }
 
+/// `Borders` defines which borders should be drawn around a widget.
 pub enum Borders {
     None,
     Spacer { top: usize, left: usize },
@@ -175,6 +182,9 @@ pub enum Borders {
     BottomSides,
 }
 
+/// A `Layout` is used to support pre-defined layouts. It either represents
+/// such a predefined layout or a wrapped `ratatui` layout. It's used internally
+/// but can be build from a `ratatui` layout.
 #[derive(Clone, Default, Debug)]
 pub enum Layout {
     #[default]
@@ -245,14 +255,24 @@ impl Layout {
     }
 }
 
+/// The `Ui` is the main frontend component that provides render and user-input capture
+/// capabilities. An application consists of at least 1 root `Ui`. An `Ui` can build child
+/// `Ui`s that partially inherit attributes.
 #[derive(Clone, Debug)]
 pub struct Ui<M> {
-    pub theme: Theme,
-    pub(crate) area: Rect,
-    pub(crate) layout: Layout,
-    focus: Option<usize>,
-    count: usize,
+    /// The context this runs in: frame sizes, captured user-inputs etc.
     ctx: Context<M>,
+    /// The UI theme.
+    theme: Theme,
+    /// The area this can render in.
+    area: Rect,
+    /// The layout used to calculate the next area to draw.
+    layout: Layout,
+    /// Currently focused area.
+    focus: Option<usize>,
+    /// Current rendering counter that is increased whenever the next area to draw
+    /// on is requested.
+    count: usize,
 }
 
 impl<M> Ui<M> {
@@ -309,10 +329,9 @@ impl<M> Ui<M> {
         self
     }
 
-    // pub fn with_sender(mut self, sender: UnboundedSender<M>) -> Self {
-    //     self.sender = Some(sender);
-    //     self
-    // }
+    pub fn theme(&self) -> &Theme {
+        &self.theme
+    }
 
     pub fn area(&self) -> Rect {
         self.area
