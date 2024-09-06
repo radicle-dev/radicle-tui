@@ -343,7 +343,7 @@ impl Show<Message> for App {
                                 Column::new(
                                     Span::raw(" ".to_string())
                                         .into_left_aligned_line()
-                                        .style(ui.theme.bar_on_black_style),
+                                        .style(ui.theme().bar_on_black_style),
                                     Constraint::Fill(1),
                                 ),
                                 Column::new(
@@ -532,25 +532,25 @@ fn browser_context<'a>(ui: &im::Ui<Message>, app: &'a App) -> Vec<Column<'a>> {
                 Column::new(
                     Span::raw(format!(" {search} "))
                         .into_left_aligned_line()
-                        .style(ui.theme.bar_on_black_style),
+                        .style(ui.theme().bar_on_black_style),
                     Constraint::Fill(1),
                 ),
                 Column::new(
                     Span::raw("●")
-                        .style(ui.theme.bar_on_black_style)
+                        .style(ui.theme().bar_on_black_style)
                         .dim()
                         .bold(),
                     Constraint::Length(1),
                 ),
                 Column::new(
                     Span::raw(draft.clone())
-                        .style(ui.theme.bar_on_black_style)
+                        .style(ui.theme().bar_on_black_style)
                         .dim(),
                     Constraint::Length(draft.chars().count() as u16),
                 ),
                 Column::new(
                     Span::raw("●")
-                        .style(ui.theme.bar_on_black_style)
+                        .style(ui.theme().bar_on_black_style)
                         .green()
                         .dim()
                         .bold(),
@@ -558,13 +558,13 @@ fn browser_context<'a>(ui: &im::Ui<Message>, app: &'a App) -> Vec<Column<'a>> {
                 ),
                 Column::new(
                     Span::raw(open.clone())
-                        .style(ui.theme.bar_on_black_style)
+                        .style(ui.theme().bar_on_black_style)
                         .dim(),
                     Constraint::Length(open.chars().count() as u16),
                 ),
                 Column::new(
                     Span::raw("●")
-                        .style(ui.theme.bar_on_black_style)
+                        .style(ui.theme().bar_on_black_style)
                         .yellow()
                         .dim()
                         .bold(),
@@ -572,13 +572,13 @@ fn browser_context<'a>(ui: &im::Ui<Message>, app: &'a App) -> Vec<Column<'a>> {
                 ),
                 Column::new(
                     Span::raw(archived.clone())
-                        .style(ui.theme.bar_on_black_style)
+                        .style(ui.theme().bar_on_black_style)
                         .dim(),
                     Constraint::Length(archived.chars().count() as u16),
                 ),
                 Column::new(
                     Span::raw("✔")
-                        .style(ui.theme.bar_on_black_style)
+                        .style(ui.theme().bar_on_black_style)
                         .magenta()
                         .dim()
                         .bold(),
@@ -586,7 +586,7 @@ fn browser_context<'a>(ui: &im::Ui<Message>, app: &'a App) -> Vec<Column<'a>> {
                 ),
                 Column::new(
                     Span::raw(merged.clone())
-                        .style(ui.theme.bar_on_black_style)
+                        .style(ui.theme().bar_on_black_style)
                         .dim(),
                     Constraint::Length(merged.chars().count() as u16),
                 ),
@@ -609,7 +609,7 @@ fn browser_context<'a>(ui: &im::Ui<Message>, app: &'a App) -> Vec<Column<'a>> {
                 Column::new(
                     Span::raw(format!(" {search} "))
                         .into_left_aligned_line()
-                        .style(ui.theme.bar_on_black_style),
+                        .style(ui.theme().bar_on_black_style),
                     Constraint::Fill(1),
                 ),
                 Column::new(
@@ -631,7 +631,7 @@ fn default_context<'a>(ui: &im::Ui<Message>) -> Vec<Column<'a>> {
         Column::new(
             Span::raw(" ".to_string())
                 .into_left_aligned_line()
-                .style(ui.theme.bar_on_black_style),
+                .style(ui.theme().bar_on_black_style),
             Constraint::Fill(1),
         ),
         Column::new(
