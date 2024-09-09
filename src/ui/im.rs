@@ -25,6 +25,8 @@ use crate::ui::{Column, ToRow};
 
 use crate::ui::im::widget::{HeaderedTable, Widget};
 
+use self::widget::AddContentFn;
+
 const RENDERING_TICK_RATE: Duration = Duration::from_millis(250);
 
 /// The main UI trait for the ability to render an application.
@@ -406,10 +408,10 @@ where
         self.layout_dyn(layout, Box::new(add_contents))
     }
 
-    pub fn layout_dyn<'a, R>(
+    pub fn layout_dyn<R>(
         &mut self,
         layout: impl Into<Layout>,
-        add_contents: Box<dyn FnOnce(&mut Self) -> R + 'a>,
+        add_contents: Box<AddContentFn<M, R>>,
     ) -> InnerResponse<R> {
         let (area, _) = self.next_area().unwrap_or_default();
         let mut child_ui = self.child_ui(area, layout);

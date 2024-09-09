@@ -15,6 +15,8 @@ use crate::ui::{Column, ToRow};
 
 use super::{Borders, Context, InnerResponse, Response, Ui};
 
+pub type AddContentFn<'a, M, R> = dyn FnOnce(&mut Ui<M>) -> R + 'a;
+
 pub trait Widget {
     fn ui<M>(self, ui: &mut Ui<M>, frame: &mut Frame) -> Response
     where
@@ -37,10 +39,10 @@ impl Window {
         self.show_dyn(ctx, Box::new(add_contents))
     }
 
-    fn show_dyn<'c, M, R>(
+    fn show_dyn<M, R>(
         self,
         ctx: &Context<M>,
-        add_contents: Box<dyn FnOnce(&mut Ui<M>) -> R + 'c>,
+        add_contents: Box<AddContentFn<M, R>>,
     ) -> Option<InnerResponse<Option<R>>>
     where
         M: Clone,
@@ -111,10 +113,10 @@ impl<'a> Group<'a> {
         self.show_dyn(ui, Box::new(add_contents))
     }
 
-    pub fn show_dyn<'c, M, R>(
+    pub fn show_dyn<M, R>(
         self,
         ui: &mut Ui<M>,
-        add_contents: Box<dyn FnOnce(&mut Ui<M>) -> R + 'c>,
+        add_contents: Box<AddContentFn<M, R>>,
     ) -> InnerResponse<R>
     where
         M: Clone,
