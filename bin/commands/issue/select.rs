@@ -6,6 +6,7 @@ use std::str::FromStr;
 
 use anyhow::{bail, Result};
 
+use ratatui::Viewport;
 use termion::event::Key;
 
 use ratatui::layout::Constraint;
@@ -369,7 +370,7 @@ impl App {
                     .into()
             });
 
-        tui::rm(channel, state, window).await
+        tui::rm(state, window, Viewport::Inline(20), channel).await
     }
 }
 

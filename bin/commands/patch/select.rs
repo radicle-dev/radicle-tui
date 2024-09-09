@@ -7,6 +7,7 @@ use std::str::FromStr;
 
 use anyhow::Result;
 
+use ratatui::Viewport;
 use termion::event::Key;
 
 use radicle_tui as tui;
@@ -22,8 +23,8 @@ use tui::ui::rm::widget::window::{
     Page, PageProps, Shortcuts, ShortcutsProps, Window, WindowProps,
 };
 use tui::ui::rm::widget::{ToWidget, Widget};
-use tui::ui::{span, BufferedValue};
 use tui::ui::Column;
+use tui::ui::{span, BufferedValue};
 
 use tui::{BoxedAny, Channel, Exit, PageStack};
 
@@ -58,11 +59,13 @@ impl App {
     }
 
     pub async fn run(&self) -> Result<Option<Selection>> {
+        let viewport = Viewport::Inline(20);
+
         if self.im {
             let channel = Channel::default();
             let state = imui::App::try_from(&self.context)?;
 
-            tui::im(channel, state).await
+            tui::im(state, viewport, channel).await
         } else {
             let channel = Channel::default();
             let tx = channel.tx.clone();
@@ -78,7 +81,7 @@ impl App {
                         .into()
                 });
 
-            tui::rm(channel, state, window).await
+            tui::rm(state, window, viewport, channel).await
         }
     }
 }
