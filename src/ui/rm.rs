@@ -3,6 +3,7 @@ pub mod widget;
 use std::fmt::Debug;
 use std::time::Duration;
 
+use ratatui::Viewport;
 use tokio::sync::broadcast;
 use tokio::sync::mpsc::UnboundedReceiver;
 
@@ -14,7 +15,6 @@ use crate::ui::rm::widget::RenderProps;
 use crate::ui::rm::widget::Widget;
 
 const RENDERING_TICK_RATE: Duration = Duration::from_millis(250);
-const INLINE_HEIGHT: usize = 20;
 
 /// The `Frontend` runs an applications' view concurrently. It handles
 /// terminal events as well as state updates and renders the view accordingly.
@@ -44,6 +44,7 @@ impl Frontend {
         mut root: Widget<S, M>,
         mut state_rx: UnboundedReceiver<S>,
         mut interrupt_rx: broadcast::Receiver<Interrupted<R>>,
+        viewport: Viewport,
     ) -> anyhow::Result<Interrupted<R>>
     where
         S: Update<M, Return = R> + 'static,
@@ -52,7 +53,7 @@ impl Frontend {
     {
         let mut ticker = tokio::time::interval(RENDERING_TICK_RATE);
 
-        let mut terminal = terminal::setup(INLINE_HEIGHT)?;
+        let mut terminal = terminal::setup(viewport)?;
         let mut events_rx = terminal::events();
 
         let mut root = {

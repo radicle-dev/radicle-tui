@@ -1,5 +1,6 @@
 use anyhow::Result;
 
+use ratatui::Viewport;
 use termion::event::Key;
 
 use ratatui::style::Color;
@@ -69,7 +70,7 @@ pub async fn main() -> Result<()> {
                 .into()
         });
 
-    tui::rm(channel, app, scene).await?;
+    tui::rm(app, scene, Viewport::default(), channel).await?;
 
     Ok(())
 }

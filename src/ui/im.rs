@@ -14,7 +14,7 @@ use tokio::sync::mpsc::{UnboundedReceiver, UnboundedSender};
 use termion::event::Key;
 
 use ratatui::layout::{Constraint, Rect};
-use ratatui::Frame;
+use ratatui::{Frame, Viewport};
 
 use crate::event::Event;
 use crate::store::Update;
@@ -26,7 +26,6 @@ use crate::ui::{Column, ToRow};
 use crate::ui::im::widget::{HeaderedTable, Widget};
 
 const RENDERING_TICK_RATE: Duration = Duration::from_millis(250);
-const INLINE_HEIGHT: usize = 20;
 
 /// The main UI trait for the ability to render an application.
 pub trait Show<M> {
@@ -42,6 +41,7 @@ impl Frontend {
         state_tx: UnboundedSender<M>,
         mut state_rx: UnboundedReceiver<S>,
         mut interrupt_rx: broadcast::Receiver<Interrupted<P>>,
+        viewport: Viewport,
     ) -> anyhow::Result<Interrupted<P>>
     where
         S: Update<M, Return = P> + Show<M>,
@@ -50,7 +50,7 @@ impl Frontend {
     {
         let mut ticker = tokio::time::interval(RENDERING_TICK_RATE);
 
-        let mut terminal = terminal::setup(INLINE_HEIGHT)?;
+        let mut terminal = terminal::setup(viewport)?;
         let mut events_rx = terminal::events();
 
         let mut state = state_rx.recv().await.unwrap();

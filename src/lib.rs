@@ -7,6 +7,7 @@ pub mod ui;
 use std::any::Any;
 use std::fmt::Debug;
 
+use ratatui::Viewport;
 use tokio::sync::mpsc::{self, UnboundedReceiver, UnboundedSender};
 
 use serde::ser::{Serialize, SerializeStruct, Serializer};
@@ -152,9 +153,10 @@ impl<A> Default for Channel<A> {
 /// and run their main loops concurrently. Connect them to the `Channel` and also to
 /// an interrupt broadcast channel also initialized in this function.
 pub async fn rm<S, M, P>(
-    channel: Channel<M>,
     state: S,
     root: rm::widget::Widget<S, M>,
+    viewport: Viewport,
+    channel: Channel<M>,
 ) -> Result<Option<P>>
 where
     S: Update<M, Return = P> + Clone + Debug + Send + Sync + 'static,
@@ -168,7 +170,7 @@ where
 
     tokio::try_join!(
         store.run(state, terminator, channel.rx, interrupt_rx.resubscribe()),
-        frontend.run(root, state_rx, interrupt_rx.resubscribe()),
+        frontend.run(root, state_rx, interrupt_rx.resubscribe(), viewport),
     )?;
 
     if let Ok(reason) = interrupt_rx.recv().await {
@@ -184,11 +186,7 @@ where
 /// Initialize a `Store` with the `State` given and a `Frontend` with the `App` given,
 /// and run their main loops concurrently. Connect them to the `Channel` and also to
 /// an interrupt broadcast channel also initialized in this function.
-pub async fn im<S, M, P>(
-    channel: Channel<M>,
-    state: S,
-    // app: impl im::App<State = S, Message = M>,
-) -> Result<Option<P>>
+pub async fn im<S, M, P>(state: S, viewport: Viewport, channel: Channel<M>) -> Result<Option<P>>
 where
     S: Update<M, Return = P> + Show<M> + Clone + Debug + Send + Sync + 'static,
     M: Clone + Debug + Send + Sync + 'static,
@@ -202,7 +200,7 @@ where
 
     tokio::try_join!(
         store.run(state, terminator, channel.rx, interrupt_rx.resubscribe()),
-        frontend.run(state_tx, state_rx, interrupt_rx.resubscribe()),
+        frontend.run(state_tx, state_rx, interrupt_rx.resubscribe(), viewport),
     )?;
 
     if let Ok(reason) = interrupt_rx.recv().await {

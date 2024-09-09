@@ -1,5 +1,6 @@
 use anyhow::Result;
 
+use ratatui::Viewport;
 use termion::event::Key;
 
 use ratatui::layout::Constraint;
@@ -107,7 +108,7 @@ pub async fn main() -> Result<()> {
         })
         .on_update(|_| WindowProps::default().current_page(0).to_boxed_any().into());
 
-    tui::rm(channel, app, window).await?;
+    tui::rm(app, window, Viewport::default(), channel).await?;
 
     Ok(())
 }

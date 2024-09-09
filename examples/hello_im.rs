@@ -2,7 +2,7 @@ use anyhow::Result;
 
 use termion::event::Key;
 
-use ratatui::Frame;
+use ratatui::{Frame, Viewport};
 
 use radicle_tui as tui;
 
@@ -67,7 +67,7 @@ pub async fn main() -> Result<()> {
         alien: ALIEN.to_string(),
     };
 
-    tui::im(Channel::default(), app).await?;
+    tui::im(app, Viewport::default(), Channel::default()).await?;
 
     Ok(())
 }

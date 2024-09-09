@@ -93,16 +93,17 @@ impl<W: Write> ratatui::backend::Backend for TermionBackendExt<W> {
 }
 
 /// Setup a `Terminal` with inline viewport using the `termion` backend.
-pub fn setup(height: usize) -> anyhow::Result<Terminal<Backend>> {
+pub fn setup(viewport: Viewport) -> anyhow::Result<Terminal<Backend>> {
+    let is_fullscreen = viewport == Viewport::Fullscreen;
     let stdout = io::stdout().into_raw_mode()?;
-    let options = TerminalOptions {
-        viewport: Viewport::Inline(height as u16),
-    };
+    let options = TerminalOptions { viewport };
+    let mut terminal = Terminal::with_options(TermionBackendExt::new(stdout), options)?;
 
-    Ok(Terminal::with_options(
-        TermionBackendExt::new(stdout),
-        options,
-    )?)
+    if is_fullscreen {
+        terminal.clear()?;
+    }
+
+    Ok(terminal)
 }
 
 /// Restore the `Terminal` on quit.
