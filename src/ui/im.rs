@@ -7,7 +7,8 @@ use std::time::Duration;
 
 use anyhow::Result;
 
-use ratatui::text::Text;
+use ratatui::style::Stylize;
+use ratatui::text::{Span, Text};
 use tokio::sync::broadcast;
 use tokio::sync::mpsc::{UnboundedReceiver, UnboundedSender};
 
@@ -447,8 +448,16 @@ where
     }
 
     pub fn overline(&mut self, frame: &mut Frame) -> Response {
-        let overline = String::from("━").repeat(256);
-        self.label(frame, overline)
+        let overline = String::from("▔").repeat(256);
+        self.label(frame, Span::raw(overline).cyan())
+    }
+
+    pub fn separator(&mut self, frame: &mut Frame) -> Response {
+        let overline = String::from("─").repeat(256);
+        self.label(
+            frame,
+            Span::raw(overline).fg(self.theme.border_style.fg.unwrap_or_default()),
+        )
     }
 
     pub fn table<'a, R, const W: usize>(
