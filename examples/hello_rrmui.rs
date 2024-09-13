@@ -1,16 +1,17 @@
 use anyhow::Result;
 
+use ratatui::Viewport;
 use termion::event::Key;
 
-use ratatui::{Frame, Viewport};
+use ratatui::style::Color;
+use ratatui::text::Text;
 
 use radicle_tui as tui;
 
 use tui::store;
-use tui::ui::im::widget::Window;
-use tui::ui::im::Show;
-use tui::ui::im::{Borders, Context};
-use tui::{Channel, Exit};
+use tui::ui::rm::widget::input::{TextArea, TextAreaProps};
+use tui::ui::rm::widget::ToWidget;
+use tui::{BoxedAny, Channel, Exit};
 
 const ALIEN: &str = r#"
      ///             ///    ,---------------------------------. 
@@ -47,27 +48,29 @@ impl store::Update<Message> for App {
     }
 }
 
-impl Show<Message> for App {
-    fn show(&self, ctx: &Context<Message>, frame: &mut Frame) -> Result<()> {
-        Window::default().show(ctx, |ui| {
-            ui.text_view(frame, self.alien.clone(), &mut (0, 0), Some(Borders::None));
-
-            if ui.input_global(|key| key == Key::Char('q')) {
-                ui.send_message(Message::Quit);
-            }
-        });
-
-        Ok(())
-    }
-}
-
 #[tokio::main]
 pub async fn main() -> Result<()> {
+    let channel = Channel::default();
+    let sender = channel.tx.clone();
     let app = App {
         alien: ALIEN.to_string(),
     };
 
-    tui::im(app, Viewport::default(), Channel::default()).await?;
+    let scene = TextArea::default()
+        .to_widget(sender.clone())
+        .on_event(|key, _, _| match key {
+            Key::Char('q') => Some(Message::Quit),
+            _ => None,
+        })
+        .on_update(|app: &App| {
+            TextAreaProps::default()
+                .content(Text::styled(app.alien.clone(), Color::Rgb(85, 85, 255)))
+                .handle_keys(false)
+                .to_boxed_any()
+                .into()
+        });
+
+    tui::rm(app, scene, Viewport::default(), channel).await?;
 
     Ok(())
 }
