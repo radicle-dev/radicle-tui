@@ -235,9 +235,22 @@ pub trait View {
     fn render(&mut self, props: Option<&ViewProps>, render: RenderProps, frame: &mut Frame);
 }
 
-/// A `View` needs to wrapped into a `Widget` before being able to use with the
-/// framework. A `Widget` enhances a `View` with event and update callbacks and takes
+/// A `Widget` enhances a `View` with event and update callbacks and takes
 /// care of calling them before / after calling into the `View`.
+///
+/// In _retained mode_, a widget is defined by an implementation of the `View` trait
+/// and a `Widget` it is wrapped in. A `View` handles user-interactions, updates itself
+/// whenever the application state changed and renders itself frequently. A `Widget` adds
+/// additional support for properties and event, update and render callbacks. Properties
+/// define the data, configuration etc. of a widget. They are updated by the framework
+/// taking the properties built by the `on_update` callback. The `on_event` callback is
+/// used to emit application messages whenever a widget receives an event.
+
+/// The main idea is to build widgets that handle their specific events already,
+/// and that are updated with the properties built by the `on_update` callback.
+/// Custom logic is added by setting the `on_event` callback. E.g. the `Table` widget
+/// handles item selection already; items are set via the `on_update` callback and
+/// application messages are emitted via the `on_event` callback.
 pub struct Widget<S, M> {
     view: BoxedView<S, M>,
     props: Option<ViewProps>,
