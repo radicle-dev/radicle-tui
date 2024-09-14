@@ -75,7 +75,7 @@ following to the `inputs` set:
 inputs = {
     # Replace <Tag> with the specific tag to build
     radicle-tui = {
-        url = "git+https://seed.radicle.xyz/z3gqcJUoA1n9HaHKufZs5FCSGazv5.git?tag=<Tag>";
+        url = "git+https://seed.radicle.xyz/z39mP9rQAaGmERfUMPULfPUi473tY.git?tag=<Tag>";
     }
 }
 ```
@@ -84,7 +84,7 @@ inputs = {
 inputs = {
     # Replace <Commit SHA> with the specific commit to build
     rad-tui = {
-        url = "git+https://seed.radicle.xyz/z3gqcJUoA1n9HaHKufZs5FCSGazv5.git?rev=<Commit SHA>";
+        url = "git+https://seed.radicle.xyz/z39mP9rQAaGmERfUMPULfPUi473tY.git?rev=<Commit SHA>";
     }
 }
 ```
@@ -92,7 +92,9 @@ inputs = {
 Then in your `home.nix` you can add:
 
 ```
-home.packages.inputs.radicle-tui.packages.{system}.default
+home.packages = [
+  inputs.radicle-tui.packages.${system}.default
+];
 ```
 
 ### Usage
