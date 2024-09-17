@@ -105,7 +105,10 @@ impl TryFrom<&Context> for App {
 
     fn try_from(context: &Context) -> Result<Self, Self::Error> {
         let patches = patch::all(&context.profile, &context.repository)?;
-        let search = context.filter.to_string();
+        let search = {
+            let raw = context.filter.to_string();
+            raw.trim().to_string()
+        };
         let filter = PatchItemFilter::from_str(&context.filter.to_string()).unwrap_or_default();
 
         let mut items = vec![];
@@ -125,8 +128,8 @@ impl TryFrom<&Context> for App {
             main_group: GroupState::new(3, Some(0)),
             patches: TableState::new(Some(0)),
             search: BufferedValue::new(TextEditState {
-                text: search,
-                cursor: 0,
+                text: search.clone(),
+                cursor: search.len(),
             }),
             show_search: false,
             help: TextViewState::new(HELP, (0, 0)),
