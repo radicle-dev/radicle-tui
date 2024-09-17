@@ -1,5 +1,27 @@
 # Changelog
 
+## [0.5.0] - 2024-09-17
+
+### Added
+
+**Binary features**
+
+- immediate mode UI implementation of `patch select`
+
+**Library features**
+
+- Support for immediate mode UIs
+
+### Changed
+
+**Binary features**
+
+- `patch select` to run the immediate mode UI by default
+
+**Library features**
+
+- structure of UI modules to support both retained and immediate mode
+
 ## [0.4.0] - 2024-08-15
 
 ### Added
