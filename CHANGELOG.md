@@ -1,5 +1,14 @@
 # Changelog
 
+## [0.5.1] - 2024-09-18
+
+### Fixes
+
+**Library features**
+
+- Removes left-over code in basic example
+
+
 ## [0.5.0] - 2024-09-18
 
 ### Added
