@@ -6,8 +6,7 @@
 
 **Library features**
 
-- Removes left-over code in basic example
-
+- Removes leftover code in basic example
 
 ## [0.5.0] - 2024-09-18
 
