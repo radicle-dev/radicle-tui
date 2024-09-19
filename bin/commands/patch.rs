@@ -1,5 +1,7 @@
 #[path = "patch/common.rs"]
 mod common;
+#[path = "patch/review.rs"]
+mod review;
 #[path = "patch/select.rs"]
 mod select;
 
@@ -53,11 +55,13 @@ pub struct Options {
 }
 
 pub enum Operation {
+    Review,
     Select { opts: SelectOptions },
 }
 
 #[derive(PartialEq, Eq)]
 pub enum OperationName {
+    Review,
     Select,
 }
 
@@ -126,6 +130,7 @@ impl Args for Options {
 
                 Value(val) if op.is_none() => match val.to_string_lossy().as_ref() {
                     "select" => op = Some(OperationName::Select),
+                    "review" => op = Some(OperationName::Review),
                     unknown => anyhow::bail!("unknown operation '{}'", unknown),
                 },
                 _ => return Err(anyhow!(arg.unexpected())),
@@ -137,6 +142,7 @@ impl Args for Options {
         }
 
         let op = match op.ok_or_else(|| anyhow!("an operation must be provided"))? {
+            OperationName::Review => Operation::Review,
             OperationName::Select => Operation::Select { opts: select_opts },
         };
         Ok((Options { op, repo }, vec![]))
@@ -169,6 +175,26 @@ pub async fn run(options: Options, ctx: impl terminal::Context) -> anyhow::Resul
             };
             let output = select::App::new(context, true).run().await?;
 
+            let output = output
+                .map(|o| serde_json::to_string(&o).unwrap_or_default())
+                .unwrap_or_default();
+
+            log::info!("About to print to `stderr`: {}", output);
+            log::info!("Exiting patch selection interface..");
+
+            eprint!("{output}");
+        }
+        Operation::Review => {
+            let profile = ctx.profile()?;
+            let rid = options.repo.unwrap_or(rid);
+            let repository = profile.storage.repository(rid).unwrap();
+
+            if let Err(err) = crate::log::enable() {
+                println!("{}", err);
+            }
+            log::info!("Starting patch selection interface in project {}..", rid);
+
+            let output = review::Tui::new(profile, repository).run().await?;
             let output = output
                 .map(|o| serde_json::to_string(&o).unwrap_or_default())
                 .unwrap_or_default();
