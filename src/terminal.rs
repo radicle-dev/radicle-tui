@@ -1,5 +1,6 @@
 use std::io::{self, Write};
 use std::thread;
+use std::time::Instant;
 
 use termion::input::TermRead;
 use termion::raw::{IntoRawMode, RawTerminal};
@@ -119,10 +120,14 @@ pub fn events() -> mpsc::UnboundedReceiver<Event> {
     let (tx, rx) = mpsc::unbounded_channel();
     let events_tx = tx.clone();
     thread::spawn(move || {
+        let start = Instant::now();
         let stdin = io::stdin();
         for key in stdin.keys().flatten() {
-            if events_tx.send(Event::Key(key)).is_err() {
-                return;
+            // TODO(erikli): Remove this hack! Perhaps use `tokio::CancellationToken`?
+            if start.elapsed().as_millis() > 200 {
+                if events_tx.send(Event::Key(key)).is_err() {
+                    return;
+                }
             }
         }
     });
