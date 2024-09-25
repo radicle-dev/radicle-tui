@@ -54,18 +54,23 @@ impl Frontend {
         let mut ticker = tokio::time::interval(RENDERING_TICK_RATE);
 
         let mut terminal = terminal::setup(viewport)?;
-        let mut events_rx = terminal::events();
 
         let mut state = state_rx.recv().await.unwrap();
         let mut ctx = Context::default().with_sender(state_tx);
+
+        let mut events_rx = terminal::events();
 
         let result: anyhow::Result<Interrupted<P>> = loop {
             tokio::select! {
                 // Tick to terminate the select every N milliseconds
                 _ = ticker.tick() => (),
-                Some(event) = events_rx.recv() => match event {
-                    Event::Key(key) => ctx.store_input(key),
-                    Event::Resize => (),
+                Some(event) = events_rx.recv() => {
+                    log::info!("Received event: {:?}", event);
+
+                    match event {
+                        Event::Key(key) => ctx.store_input(key),
+                        Event::Resize => (),
+                    }
                 },
                 // Handle state updates
                 Some(s) = state_rx.recv() => {
@@ -73,6 +78,8 @@ impl Frontend {
                 },
                 // Catch and handle interrupt signal to gracefully shutdown
                 Ok(interrupted) = interrupt_rx.recv() => {
+                    log::info!("Received interrupt: {:?}", interrupted);
+
                     let size = terminal.get_frame().size();
                     let _ = terminal.set_cursor(size.x, size.y);
 
