@@ -21,6 +21,7 @@ use crate::event::Event;
 use crate::store::Update;
 use crate::task::Interrupted;
 use crate::terminal;
+use crate::terminal::Terminal;
 use crate::ui::theme::Theme;
 use crate::ui::{Column, ToRow};
 
@@ -53,20 +54,19 @@ impl Frontend {
     {
         let mut ticker = tokio::time::interval(RENDERING_TICK_RATE);
 
-        let mut terminal = terminal::setup(viewport)?;
+        let mut terminal = Terminal::try_from(viewport)?;
+        let mut events_rx = terminal::events();
 
         let mut state = state_rx.recv().await.unwrap();
         let mut ctx = Context::default().with_sender(state_tx);
-
-        let mut events_rx = terminal::events();
 
         let result: anyhow::Result<Interrupted<P>> = loop {
             tokio::select! {
                 // Tick to terminate the select every N milliseconds
                 _ = ticker.tick() => (),
+                // Handle input events
                 Some(event) = events_rx.recv() => {
                     log::info!("Received event: {:?}", event);
-
                     match event {
                         Event::Key(key) => ctx.store_input(key),
                         Event::Resize => (),
@@ -79,9 +79,7 @@ impl Frontend {
                 // Catch and handle interrupt signal to gracefully shutdown
                 Ok(interrupted) = interrupt_rx.recv() => {
                     log::info!("Received interrupt: {:?}", interrupted);
-
-                    let size = terminal.get_frame().size();
-                    let _ = terminal.set_cursor(size.x, size.y);
+                    terminal.restore()?;
 
                     break Ok(interrupted);
                 }
@@ -96,8 +94,7 @@ impl Frontend {
 
             ctx.clear_inputs();
         };
-
-        terminal::restore(&mut terminal)?;
+        terminal.restore()?;
 
         result
     }

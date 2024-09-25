@@ -2,17 +2,85 @@ use std::io::{self, Write};
 use std::thread;
 use std::time::Instant;
 
+use ratatui::termion::screen::{AlternateScreen, IntoAlternateScreen};
 use termion::input::TermRead;
 use termion::raw::{IntoRawMode, RawTerminal};
 
-use ratatui::prelude::*;
+use ratatui::{prelude::*, CompletedFrame};
 use ratatui::{TerminalOptions, Viewport};
 
 use tokio::sync::mpsc::{self};
 
 use super::event::Event;
 
-pub type Backend = TermionBackendExt<RawTerminal<io::Stdout>>;
+pub type Backend<S> = TermionBackendExt<S>;
+
+pub type InlineTerminal = ratatui::terminal::Terminal<Backend<RawTerminal<io::Stdout>>>;
+pub type FullscreenTerminal =
+    ratatui::terminal::Terminal<Backend<AlternateScreen<RawTerminal<io::Stdout>>>>;
+
+pub enum Terminal {
+    Inline(InlineTerminal),
+    Fullscreen(FullscreenTerminal),
+}
+
+impl Terminal {
+    pub fn restore(&mut self) -> io::Result<()> {
+        match self {
+            Terminal::Fullscreen(inner) => {
+                inner.clear()?;
+            }
+            Terminal::Inline(inner) => {
+                // TODO(erikli): Check if still needed.
+                let size = inner.get_frame().size();
+                inner.set_cursor(size.x, size.y)?;
+            }
+        }
+
+        Ok(())
+    }
+
+    pub fn draw<F>(&mut self, f: F) -> io::Result<CompletedFrame>
+    where
+        F: FnOnce(&mut Frame),
+    {
+        match self {
+            Terminal::Inline(inner) => inner.draw(f),
+            Terminal::Fullscreen(inner) => inner.draw(f),
+        }
+    }
+}
+
+impl TryFrom<Viewport> for Terminal {
+    type Error = anyhow::Error;
+
+    fn try_from(viewport: Viewport) -> Result<Self, Self::Error> {
+        match viewport {
+            Viewport::Fullscreen => {
+                let stdout = io::stdout().into_raw_mode()?.into_alternate_screen()?;
+                let options = TerminalOptions { viewport };
+                let mut terminal = ratatui::terminal::Terminal::with_options(
+                    TermionBackendExt::new(stdout),
+                    options,
+                )?;
+
+                terminal.clear()?;
+
+                Ok(Terminal::Fullscreen(terminal))
+            }
+            _ => {
+                let stdout = io::stdout().into_raw_mode()?;
+                let options = TerminalOptions { viewport };
+                let terminal = ratatui::terminal::Terminal::with_options(
+                    TermionBackendExt::new(stdout),
+                    options,
+                )?;
+
+                Ok(Terminal::Inline(terminal))
+            }
+        }
+    }
+}
 
 /// FIXME Remove workaround after a new `ratatui` version with
 /// https://github.com/ratatui-org/ratatui/pull/981/ included was released.
@@ -91,26 +159,6 @@ impl<W: Write> ratatui::backend::Backend for TermionBackendExt<W> {
     fn flush(&mut self) -> io::Result<()> {
         ratatui::backend::Backend::flush(&mut self.inner)
     }
-}
-
-/// Setup a `Terminal` with inline viewport using the `termion` backend.
-pub fn setup(viewport: Viewport) -> anyhow::Result<Terminal<Backend>> {
-    let is_fullscreen = viewport == Viewport::Fullscreen;
-    let stdout = io::stdout().into_raw_mode()?;
-    let options = TerminalOptions { viewport };
-    let mut terminal = Terminal::with_options(TermionBackendExt::new(stdout), options)?;
-
-    if is_fullscreen {
-        terminal.clear()?;
-    }
-
-    Ok(terminal)
-}
-
-/// Restore the `Terminal` on quit.
-pub fn restore(terminal: &mut Terminal<Backend>) -> anyhow::Result<()> {
-    terminal.clear()?;
-    Ok(())
 }
 
 /// Spawn one thread that polls `stdin` for new user input and another thread

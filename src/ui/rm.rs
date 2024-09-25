@@ -11,6 +11,7 @@ use crate::event::Event;
 use crate::store::Update;
 use crate::task::Interrupted;
 use crate::terminal;
+use crate::terminal::Terminal;
 use crate::ui::rm::widget::RenderProps;
 use crate::ui::rm::widget::Widget;
 
@@ -53,7 +54,7 @@ impl Frontend {
     {
         let mut ticker = tokio::time::interval(RENDERING_TICK_RATE);
 
-        let mut terminal = terminal::setup(viewport)?;
+        let mut terminal = Terminal::try_from(viewport)?;
         let mut events_rx = terminal::events();
 
         let mut root = {
@@ -67,6 +68,7 @@ impl Frontend {
             tokio::select! {
                 // Tick to terminate the select every N milliseconds
                 _ = ticker.tick() => (),
+                // Handle input events
                 Some(event) = events_rx.recv() => match event {
                     Event::Key(key) => root.handle_event(key),
                     Event::Resize => (),
@@ -77,16 +79,14 @@ impl Frontend {
                 },
                 // Catch and handle interrupt signal to gracefully shutdown
                 Ok(interrupted) = interrupt_rx.recv() => {
-                    let size = terminal.get_frame().size();
-                    let _ = terminal.set_cursor(size.x, size.y);
+                    terminal.restore()?;
 
                     break Ok(interrupted);
                 }
             }
             terminal.draw(|frame| root.render(RenderProps::from(frame.size()), frame))?;
         };
-
-        terminal::restore(&mut terminal)?;
+        terminal.restore()?;
 
         result
     }
