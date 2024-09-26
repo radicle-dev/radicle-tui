@@ -1,5 +1,23 @@
 # Changelog
 
+## [0.5.2] - Unreleased
+
+### Added
+
+**Library features**
+
+- Types for inline / fullscreen terminals
+
+### Changed
+
+- Update Radicle dependencies to latest versions
+
+### Fixes
+
+**Library features**
+
+- Terminal properties being written to `stdin` after returning from an external command by not processing `stdin` for 200ms
+
 ## [0.5.1] - 2024-09-18
 
 ### Fixes
