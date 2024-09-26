@@ -17,6 +17,7 @@ use radicle_cli::terminal::args::{Args, Error, Help};
 
 use crate::cob::patch;
 use crate::cob::patch::Filter;
+use crate::commands::tui_patch::review::ReviewAction;
 
 pub const HELP: Help = Help {
     name: "patch",
@@ -192,17 +193,36 @@ pub async fn run(options: Options, ctx: impl terminal::Context) -> anyhow::Resul
             if let Err(err) = crate::log::enable() {
                 println!("{}", err);
             }
-            log::info!("Starting patch selection interface in project {}..", rid);
+            log::info!("Starting patch review interface in project {}..", rid);
 
-            let output = review::Tui::new(profile, repository).run().await?;
-            let output = output
-                .map(|o| serde_json::to_string(&o).unwrap_or_default())
-                .unwrap_or_default();
+            let mut queue = vec![0, 1, 2];
 
-            log::info!("About to print to `stderr`: {}", output);
-            log::info!("Exiting patch selection interface..");
+            while !queue.is_empty() {
+                let selection = review::Tui::new(&profile, &repository).run().await?;
+                log::info!("Received selection from TUI: {:?}", selection);
 
-            eprint!("{output}");
+                if let Some(selection) = selection.as_ref() {
+                    match ReviewAction::try_from(selection.action)? {
+                        ReviewAction::Accept => {
+                            // brain accept
+                            queue.pop();
+                        }
+                        ReviewAction::Ignore => {
+                            // next hunk
+                            queue.pop();
+                        }
+                        ReviewAction::Comment => {
+                            radicle_cli::terminal::Editor::new()
+                                .extension("diff")
+                                .edit(String::new())?;
+
+                            queue.pop();
+                        }
+                    }
+                } else {
+                    break;
+                }
+            }
         }
     }
 

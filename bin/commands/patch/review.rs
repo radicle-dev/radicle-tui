@@ -5,7 +5,6 @@ use termion::event::Key;
 use ratatui::layout::{Constraint, Layout};
 use ratatui::{Frame, Viewport};
 
-use radicle::patch::PatchId;
 use radicle::storage::git::Repository;
 use radicle::Profile;
 
@@ -16,26 +15,62 @@ use tui::ui::im::widget::{TextViewState, Window};
 use tui::ui::im::{Borders, Context, Show};
 use tui::{Channel, Exit};
 
-use crate::cob::patch;
-use crate::ui::items::PatchItem;
-
-type Selection = tui::Selection<PatchId>;
-
-pub struct Tui {
-    pub profile: Profile,
-    pub repository: Repository,
+/// The actions that a user can carry out on a review item.
+#[derive(Debug, Copy, Clone, PartialEq, Eq)]
+pub enum ReviewAction {
+    Accept,
+    Ignore,
+    Comment,
 }
 
-impl Tui {
-    pub fn new(profile: Profile, repository: Repository) -> Self {
+impl std::fmt::Display for ReviewAction {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::Accept => write!(f, "accept"),
+            Self::Ignore => write!(f, "ignore"),
+            Self::Comment => write!(f, "comment"),
+        }
+    }
+}
+
+impl TryFrom<&str> for ReviewAction {
+    type Error = anyhow::Error;
+
+    fn try_from(value: &str) -> Result<Self, Self::Error> {
+        match value {
+            "accept" => Ok(ReviewAction::Accept),
+            "ignore" => Ok(ReviewAction::Ignore),
+            "comment" => Ok(ReviewAction::Comment),
+            _ => anyhow::bail!("Unknown review action"),
+        }
+    }
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct Args(String);
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct Selection {
+    pub action: ReviewAction,
+    pub hunk: usize,
+    pub args: Option<Args>,
+}
+
+pub struct Tui<'a> {
+    pub _profile: &'a Profile,
+    pub _repository: &'a Repository,
+}
+
+impl<'a> Tui<'a> {
+    pub fn new(profile: &'a Profile, repository: &'a Repository) -> Self {
         Self {
-            profile,
-            repository,
+            _profile: profile,
+            _repository: repository,
         }
     }
 
     pub async fn run(&self) -> Result<Option<Selection>> {
-        let viewport = Viewport::Inline(20);
+        let viewport = Viewport::Fullscreen;
 
         let channel = Channel::default();
         let state = App::try_from(self)?;
@@ -47,6 +82,8 @@ impl Tui {
 #[derive(Clone, Debug)]
 pub enum Message {
     Quit,
+    Accept,
+    Comment,
     ShowMain,
     ShowHelp,
 }
@@ -68,21 +105,10 @@ pub struct App {
     help: HelpState,
 }
 
-impl TryFrom<&Tui> for App {
+impl<'a> TryFrom<&Tui<'a>> for App {
     type Error = anyhow::Error;
 
-    fn try_from(tui: &Tui) -> Result<Self, Self::Error> {
-        let patches = patch::all(&tui.profile, &tui.repository)?;
-
-        // Convert into UI items
-        let mut items = vec![];
-        for patch in patches {
-            if let Ok(item) = PatchItem::new(&tui.profile, &tui.repository, patch.clone()) {
-                items.push(item);
-            }
-        }
-        items.sort_by(|a, b| b.timestamp.cmp(&a.timestamp));
-
+    fn try_from(_tui: &Tui) -> Result<Self, Self::Error> {
         Ok(Self {
             page: AppPage::Main,
             help: HelpState {
@@ -95,9 +121,23 @@ impl TryFrom<&Tui> for App {
 impl store::Update<Message> for App {
     type Return = Selection;
 
-    fn update(&mut self, message: Message) -> Option<Exit<Selection>> {
+    fn update(&mut self, message: Message) -> Option<Exit<Self::Return>> {
         match message {
             Message::Quit => Some(Exit { value: None }),
+            Message::Accept => Some(Exit {
+                value: Some(Selection {
+                    action: ReviewAction::Accept,
+                    hunk: 0,
+                    args: None,
+                }),
+            }),
+            Message::Comment => Some(Exit {
+                value: Some(Selection {
+                    action: ReviewAction::Comment,
+                    hunk: 0,
+                    args: None,
+                }),
+            }),
             Message::ShowMain => {
                 self.page = AppPage::Main;
                 None
@@ -121,13 +161,33 @@ impl Show<Message> for App {
                         Layout::vertical([Constraint::Fill(1), Constraint::Length(1)]),
                         &mut page_focus,
                         |ui| {
-                            ui.text_view(frame, String::from("Review"), &mut (0, 0), Some(Borders::All));
-                            ui.shortcuts(frame, &[("q", "quit"), ("?", "help")], '∙');
+                            ui.text_view(
+                                frame,
+                                String::from("Review"),
+                                &mut (0, 0),
+                                Some(Borders::All),
+                            );
+                            ui.shortcuts(
+                                frame,
+                                &[
+                                    ("a", "accept"),
+                                    ("c", "comment"),
+                                    ("?", "help"),
+                                    ("q", "quit"),
+                                ],
+                                '∙',
+                            );
                         },
                     );
 
                     if ui.input_global(|key| key == Key::Char('?')) {
                         ui.send_message(Message::ShowHelp);
+                    }
+                    if ui.input_global(|key| key == Key::Char('a')) {
+                        ui.send_message(Message::Accept);
+                    }
+                    if ui.input_global(|key| key == Key::Char('c')) {
+                        ui.send_message(Message::Comment);
                     }
                 }
                 AppPage::Help => {
@@ -141,7 +201,7 @@ impl Show<Message> for App {
                                 &mut (0, 0),
                                 Some(Borders::All),
                             );
-                            ui.shortcuts(frame, &[("q", "quit"), ("?", "close")], '∙');
+                            ui.shortcuts(frame, &[("?", "close"), ("q", "quit")], '∙');
                         },
                     );
 
