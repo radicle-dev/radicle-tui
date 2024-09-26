@@ -1,3 +1,6 @@
+#[path = "review/builder.rs"]
+mod builder;
+
 use anyhow::Result;
 
 use termion::event::Key;
