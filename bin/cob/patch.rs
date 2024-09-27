@@ -80,7 +80,6 @@ pub fn all(profile: &Profile, repository: &Repository) -> Result<Vec<(PatchId, P
     Ok(patches.flatten().collect())
 }
 
-#[allow(dead_code)]
 pub fn find(profile: &Profile, repository: &Repository, id: &PatchId) -> Result<Option<Patch>> {
     let cache = profile.patches(repository)?;
     Ok(cache.get(id)?)

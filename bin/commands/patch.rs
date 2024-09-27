@@ -9,15 +9,20 @@ use std::ffi::OsString;
 
 use anyhow::anyhow;
 
+use radicle::crypto::Signer;
 use radicle::identity::RepoId;
 use radicle::patch::Status;
+use radicle::storage::WriteRepository;
 
+use radicle_cli::git::Rev;
 use radicle_cli::terminal;
-use radicle_cli::terminal::args::{Args, Error, Help};
+use radicle_cli::terminal::args::{string, Args, Error, Help};
 
 use crate::cob::patch;
 use crate::cob::patch::Filter;
 use crate::commands::tui_patch::review::ReviewAction;
+
+use crate::tui_patch::review::builder::{Brain, ReviewBuilder};
 
 pub const HELP: Help = Help {
     name: "patch",
@@ -56,20 +61,26 @@ pub struct Options {
 }
 
 pub enum Operation {
-    Review,
     Select { opts: SelectOptions },
+    Review { opts: ReviewOptions },
 }
 
 #[derive(PartialEq, Eq)]
 pub enum OperationName {
-    Review,
     Select,
+    Review,
 }
 
 #[derive(Debug, Default, Clone, PartialEq, Eq)]
 pub struct SelectOptions {
     mode: common::Mode,
     filter: patch::Filter,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ReviewOptions {
+    patch_id: Rev,
+    revision_id: Option<Rev>,
 }
 
 impl Args for Options {
@@ -80,6 +91,8 @@ impl Args for Options {
         let mut op: Option<OperationName> = None;
         let mut repo = None;
         let mut select_opts = SelectOptions::default();
+        let mut patch_id = None;
+        let mut revision_id = None;
 
         while let Some(arg) = parser.next()? {
             match arg {
@@ -121,19 +134,27 @@ impl Args for Options {
                         .filter
                         .with_author(terminal::args::did(&parser.value()?)?);
                 }
-
                 Long("repo") => {
                     let val = parser.value()?;
                     let rid = terminal::args::rid(&val)?;
 
                     repo = Some(rid);
                 }
+                Long("revision") => {
+                    let val = parser.value()?;
+                    let rev_id = terminal::args::rev(&val)?;
 
+                    revision_id = Some(rev_id);
+                }
                 Value(val) if op.is_none() => match val.to_string_lossy().as_ref() {
                     "select" => op = Some(OperationName::Select),
                     "review" => op = Some(OperationName::Review),
                     unknown => anyhow::bail!("unknown operation '{}'", unknown),
                 },
+                Value(val) if patch_id.is_none() => {
+                    let val = string(&val);
+                    patch_id = Some(Rev::from(val));
+                }
                 _ => return Err(anyhow!(arg.unexpected())),
             }
         }
@@ -143,7 +164,12 @@ impl Args for Options {
         }
 
         let op = match op.ok_or_else(|| anyhow!("an operation must be provided"))? {
-            OperationName::Review => Operation::Review,
+            OperationName::Review => Operation::Review {
+                opts: ReviewOptions {
+                    patch_id: patch_id.ok_or_else(|| anyhow!("a patch must be provided"))?,
+                    revision_id: revision_id,
+                },
+            },
             OperationName::Select => Operation::Select { opts: select_opts },
         };
         Ok((Options { op, repo }, vec![]))
@@ -185,38 +211,68 @@ pub async fn run(options: Options, ctx: impl terminal::Context) -> anyhow::Resul
 
             eprint!("{output}");
         }
-        Operation::Review => {
-            let profile = ctx.profile()?;
-            let rid = options.repo.unwrap_or(rid);
-            let repository = profile.storage.repository(rid).unwrap();
-
+        Operation::Review { opts } => {
             if let Err(err) = crate::log::enable() {
                 println!("{}", err);
             }
-            log::info!("Starting patch review interface in project {}..", rid);
+            log::info!("Starting patch review interface in project {rid}..");
 
-            let mut queue = vec![0, 1, 2];
+            let profile = ctx.profile()?;
+            let signer = terminal::signer(&profile)?;
+            let rid = options.repo.unwrap_or(rid);
+            let repo = profile.storage.repository(rid).unwrap();
+
+            // Load patch
+            let patch_id = opts.patch_id.resolve(&repo.backend)?;
+            let patch = patch::find(&profile, &repo, &patch_id)?
+                .ok_or_else(|| anyhow!("Patch `{patch_id}` not found"))?;
+
+            // Load revision
+            let revision_id = opts
+                .revision_id
+                .map(|rev| rev.resolve::<radicle::git::Oid>(&repo.backend))
+                .transpose()?
+                .map(radicle::cob::patch::RevisionId::from);
+            let (_revision_id, revision) = match revision_id {
+                Some(id) => (
+                    id,
+                    patch
+                        .revision(&id)
+                        .ok_or_else(|| anyhow!("Patch revision `{id}` not found"))?,
+                ),
+                None => patch.latest(),
+            };
+
+            let brain = if let Ok(b) = Brain::load(patch_id, signer.public_key(), repo.raw()) {
+                log::info!(
+                    "Loaded existing review {} for patch {}",
+                    b.head().id(),
+                    &patch_id
+                );
+                b
+            } else {
+                let base = repo.raw().find_commit((*revision.base()).into())?;
+                Brain::new(patch_id, signer.public_key(), base, repo.raw())?
+            };
+
+            let queue = ReviewBuilder::new(patch_id, signer, &repo).queue(&brain, &revision)?;
 
             while !queue.is_empty() {
-                let selection = review::Tui::new(&profile, &repository).run().await?;
+                let selection = review::Tui::new(&profile, &repo, &queue).run().await?;
                 log::info!("Received selection from TUI: {:?}", selection);
 
                 if let Some(selection) = selection.as_ref() {
                     match ReviewAction::try_from(selection.action)? {
                         ReviewAction::Accept => {
                             // brain accept
-                            queue.pop();
                         }
                         ReviewAction::Ignore => {
                             // next hunk
-                            queue.pop();
                         }
                         ReviewAction::Comment => {
                             radicle_cli::terminal::Editor::new()
                                 .extension("diff")
                                 .edit(String::new())?;
-
-                            queue.pop();
                         }
                     }
                 } else {

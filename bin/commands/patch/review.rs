@@ -1,5 +1,5 @@
 #[path = "review/builder.rs"]
-mod builder;
+pub mod builder;
 
 use anyhow::Result;
 
@@ -17,6 +17,8 @@ use tui::store;
 use tui::ui::im::widget::{TextViewState, Window};
 use tui::ui::im::{Borders, Context, Show};
 use tui::{Channel, Exit};
+
+use self::builder::ReviewQueue;
 
 /// The actions that a user can carry out on a review item.
 #[derive(Debug, Copy, Clone, PartialEq, Eq)]
@@ -62,13 +64,15 @@ pub struct Selection {
 pub struct Tui<'a> {
     pub _profile: &'a Profile,
     pub _repository: &'a Repository,
+    pub queue: &'a ReviewQueue,
 }
 
 impl<'a> Tui<'a> {
-    pub fn new(profile: &'a Profile, repository: &'a Repository) -> Self {
+    pub fn new(profile: &'a Profile, repository: &'a Repository, queue: &'a ReviewQueue) -> Self {
         Self {
             _profile: profile,
             _repository: repository,
+            queue,
         }
     }
 

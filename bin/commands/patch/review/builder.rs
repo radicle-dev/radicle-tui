@@ -486,7 +486,7 @@ pub struct Brain<'a> {
 
 impl<'a> Brain<'a> {
     /// Create a new brain in the repository.
-    fn new(
+    pub fn new(
         patch: PatchId,
         remote: &NodeId,
         base: git::raw::Commit,
@@ -515,12 +515,12 @@ impl<'a> Brain<'a> {
 
     /// Return the content identifier of this brain. This represents the state of the
     /// accepted hunks, ie. the git tree.
-    fn cid(&self) -> Oid {
+    pub fn cid(&self) -> Oid {
         self.accepted.id().into()
     }
 
     /// Load an existing brain from the repository.
-    fn load(
+    pub fn load(
         patch: PatchId,
         remote: &NodeId,
         repo: &'a git::raw::Repository,
@@ -539,7 +539,7 @@ impl<'a> Brain<'a> {
     }
 
     /// Accept changes to the brain.
-    fn accept(
+    pub fn accept(
         &mut self,
         diff: git::raw::Diff,
         repo: &'a git::raw::Repository,
@@ -563,8 +563,16 @@ impl<'a> Brain<'a> {
     }
 
     /// Get the brain's refname given the patch and remote.
-    fn refname(patch: &PatchId, remote: &NodeId) -> git::Namespaced<'a> {
+    pub fn refname(patch: &PatchId, remote: &NodeId) -> git::Namespaced<'a> {
         git::refs::storage::draft::review(remote, patch)
+    }
+
+    pub fn head(&self) -> &git::raw::Commit<'a> {
+        &self.head
+    }
+
+    pub fn accepted(&self) -> &git::raw::Tree<'a> {
+        &self.accepted
     }
 }
 
@@ -604,6 +612,32 @@ impl<'a, G: Signer> ReviewBuilder<'a, G> {
     pub fn verdict(mut self, verdict: Option<Verdict>) -> Self {
         self.verdict = verdict;
         self
+    }
+
+    /// Assemble the review for the given revision.
+    pub fn queue(&self, brain: &'a Brain<'a>, revision: &Revision) -> anyhow::Result<ReviewQueue> {
+        let repo = self.repo.raw();
+        let signer = &self.signer;
+        let patch_id = self.patch_id;
+        let base = repo.find_commit((*revision.base()).into())?;
+        let tree = {
+            let commit = repo.find_commit(revision.head().into())?;
+            commit.tree()?
+        };
+
+        let mut opts = git::raw::DiffOptions::new();
+        opts.patience(true).minimal(true).context_lines(3_u32);
+
+        let diff = self.diff(&brain.accepted(), &tree, repo, &mut opts)?;
+        let drafts = DraftStore::new(*signer.public_key(), self.repo).with(
+            signer.public_key(),
+            &cob::patch::TYPENAME,
+            &patch_id,
+        )?;
+        let mut patches = cob::patch::Cache::no_cache(&drafts)?;
+        let mut patch = patches.get_mut(&patch_id)?;
+
+        Ok(ReviewQueue::from(diff))
     }
 
     /// Run the review builder for the given revision.
@@ -774,7 +808,7 @@ impl<'a, G: Signer> ReviewBuilder<'a, G> {
         Ok(())
     }
 
-    fn diff(
+    pub fn diff(
         &self,
         brain: &git::raw::Tree<'_>,
         tree: &git::raw::Tree<'_>,
