@@ -1,3 +1,6 @@
+use std::fs;
+use std::path::Path;
+
 use radicle::git;
 use radicle::git::Oid;
 
@@ -17,4 +20,53 @@ pub fn diff_stats(
 
     diff.find_similar(Some(&mut find_opts))?;
     diff.stats()
+}
+
+/// Blob returned by the [`Repo`] trait.
+#[derive(PartialEq, Eq, Debug)]
+pub enum Blob {
+    Binary,
+    Empty,
+    Plain(Vec<u8>),
+}
+
+/// A repository of Git blobs.
+pub trait Repo {
+    /// Lookup a blob from the repo.
+    fn blob(&self, oid: git::Oid) -> Result<Blob, git::raw::Error>;
+    /// Lookup a file in the workdir.
+    fn file(&self, path: &Path) -> Option<Blob>;
+}
+
+impl Repo for git::raw::Repository {
+    fn blob(&self, oid: git::Oid) -> Result<Blob, git::raw::Error> {
+        let blob = self.find_blob(*oid)?;
+
+        if blob.is_binary() {
+            Ok(Blob::Binary)
+        } else {
+            let content = blob.content();
+
+            if content.is_empty() {
+                Ok(Blob::Empty)
+            } else {
+                Ok(Blob::Plain(blob.content().to_vec()))
+            }
+        }
+    }
+
+    fn file(&self, path: &Path) -> Option<Blob> {
+        self.workdir()
+            .and_then(|dir| fs::read(dir.join(path)).ok())
+            .map(|content| {
+                // A file is considered binary if there is a zero byte in the first 8 kilobytes
+                // of the file. This is the same heuristic Git uses.
+                let binary = content.iter().take(8192).any(|b| *b == 0);
+                if binary {
+                    Blob::Binary
+                } else {
+                    Blob::Plain(content)
+                }
+            })
+    }
 }

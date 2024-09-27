@@ -1,22 +1,42 @@
 #[path = "review/builder.rs"]
 pub mod builder;
 
+use std::fmt::Debug;
+use std::sync::Arc;
+use std::sync::Mutex;
+
 use anyhow::Result;
 
+use ratatui::text::Line;
 use termion::event::Key;
 
 use ratatui::layout::{Constraint, Layout};
+use ratatui::style::Stylize;
+use ratatui::text::Text;
 use ratatui::{Frame, Viewport};
 
+use radicle::identity::RepoId;
 use radicle::storage::git::Repository;
+use radicle::storage::{ReadStorage, WriteRepository};
 use radicle::Profile;
+
+use radicle_cli as cli;
+
+use cli::terminal::highlight::Highlighter;
 
 use radicle_tui as tui;
 
 use tui::store;
-use tui::ui::im::widget::{TextViewState, Window};
+use tui::ui::im::widget::GroupState;
+use tui::ui::im::widget::{TableState, TextViewState, Window};
+use tui::ui::im::Ui;
 use tui::ui::im::{Borders, Context, Show};
+use tui::ui::span;
+use tui::ui::Column;
 use tui::{Channel, Exit};
+
+use crate::ui::items::ReviewItem;
+use crate::ui::items::ToText;
 
 use self::builder::ReviewQueue;
 
@@ -61,17 +81,17 @@ pub struct Selection {
     pub args: Option<Args>,
 }
 
-pub struct Tui<'a> {
-    pub _profile: &'a Profile,
-    pub _repository: &'a Repository,
-    pub queue: &'a ReviewQueue,
+pub struct Tui {
+    pub profile: Profile,
+    pub rid: RepoId,
+    pub queue: ReviewQueue,
 }
 
-impl<'a> Tui<'a> {
-    pub fn new(profile: &'a Profile, repository: &'a Repository, queue: &'a ReviewQueue) -> Self {
+impl Tui {
+    pub fn new(profile: Profile, rid: RepoId, queue: ReviewQueue) -> Self {
         Self {
-            _profile: profile,
-            _repository: repository,
+            rid,
+            profile,
             queue,
         }
     }
@@ -80,7 +100,7 @@ impl<'a> Tui<'a> {
         let viewport = Viewport::Fullscreen;
 
         let channel = Channel::default();
-        let state = App::try_from(self)?;
+        let state = App::new(self.profile.clone(), self.rid, self.queue.clone())?;
 
         tui::im(state, viewport, channel).await
     }
@@ -88,6 +108,8 @@ impl<'a> Tui<'a> {
 
 #[derive(Clone, Debug)]
 pub enum Message {
+    WindowsChanged { state: GroupState },
+    ItemChanged { state: TableState },
     Quit,
     Accept,
     Comment,
@@ -102,78 +124,304 @@ pub enum AppPage {
 }
 
 #[derive(Clone, Debug)]
-pub struct HelpState {
-    text: TextViewState,
+pub struct HelpState<'a> {
+    text: TextViewState<'a>,
 }
 
-#[derive(Clone, Debug)]
-pub struct App {
+#[derive(Clone)]
+pub struct App<'a> {
+    repository: Arc<Mutex<Repository>>,
+    queue: (Vec<ReviewItem<'a>>, TableState),
     page: AppPage,
-    help: HelpState,
+    windows: GroupState,
+    help: HelpState<'a>,
 }
 
-impl<'a> TryFrom<&Tui<'a>> for App {
+impl<'a> TryFrom<&Tui> for App<'a> {
     type Error = anyhow::Error;
 
-    fn try_from(_tui: &Tui) -> Result<Self, Self::Error> {
+    fn try_from(tui: &Tui) -> Result<Self, Self::Error> {
+        App::new(tui.profile.clone(), tui.rid, tui.queue.clone())
+    }
+}
+
+impl<'a> App<'a> {
+    pub fn new(profile: Profile, rid: RepoId, queue: ReviewQueue) -> Result<Self, anyhow::Error> {
+        let repository = profile.storage.repository(rid)?;
+
+        let queue = queue
+            .iter()
+            .map(|item| ReviewItem::from((&repository, item)))
+            .collect::<Vec<_>>();
+
         Ok(Self {
+            repository: Arc::new(Mutex::new(repository)),
             page: AppPage::Main,
+            windows: GroupState::new(2, Some(0)),
             help: HelpState {
                 text: TextViewState::new(help_text(), (0, 0)),
             },
+            queue: (queue, TableState::new(Some(0))),
         })
     }
 }
 
-impl store::Update<Message> for App {
-    type Return = Selection;
+impl<'a> App<'a> {
+    fn show_hunk_list(&self, ui: &mut Ui<Message>, frame: &mut Frame) {
+        let columns = [
+            Column::new(" ", Constraint::Length(1)),
+            Column::new(" ", Constraint::Fill(1)),
+            Column::new(" ", Constraint::Fill(1)),
+        ]
+        .to_vec();
+        let mut selected = self.queue.1.selected();
 
-    fn update(&mut self, message: Message) -> Option<Exit<Self::Return>> {
-        match message {
-            Message::Quit => Some(Exit { value: None }),
-            Message::Accept => Some(Exit {
-                value: Some(Selection {
-                    action: ReviewAction::Accept,
-                    hunk: 0,
-                    args: None,
-                }),
-            }),
-            Message::Comment => Some(Exit {
-                value: Some(Selection {
-                    action: ReviewAction::Comment,
-                    hunk: 0,
-                    args: None,
-                }),
-            }),
-            Message::ShowMain => {
-                self.page = AppPage::Main;
-                None
-            }
-            Message::ShowHelp => {
-                self.page = AppPage::Help;
-                None
-            }
+        let table = ui.table(
+            frame,
+            &mut selected,
+            &self.queue.0,
+            columns,
+            Some(Borders::All),
+        );
+        if table.changed {
+            ui.send_message(Message::ItemChanged {
+                state: TableState::new(selected),
+            })
+        }
+    }
+
+    fn show_review_item(&self, ui: &mut Ui<Message>, frame: &mut Frame) {
+        let repo = self.repository.lock().unwrap();
+        let mut hi = Highlighter::default();
+
+        let selected = self.queue.1.selected();
+        let item = selected.and_then(|selected| self.queue.0.get(selected));
+
+        if let Some(item) = item {
+            ui.composite(
+                Layout::vertical([Constraint::Length(3), Constraint::Min(1)]),
+                1,
+                |ui| match &item.inner {
+                    (
+                        _,
+                        crate::cob::ReviewItem::FileAdded {
+                            path,
+                            header: _,
+                            new: _,
+                            hunk,
+                            stats: _,
+                        },
+                    ) => {
+                        let path = ReviewItem::pretty_path(path, false);
+                        let header = [
+                            Column::new("", Constraint::Length(0)),
+                            Column::new(path.clone(), Constraint::Length(path.width() as u16)),
+                            Column::new(
+                                span::default(" added ")
+                                    .light_green()
+                                    .dim()
+                                    .reversed()
+                                    .into_right_aligned_line(),
+                                Constraint::Fill(1),
+                            ),
+                        ];
+                        let hunk = hunk.clone().unwrap();
+                        let hunk: Text<'_> =
+                            hunk.to_text(&mut hi, &item.highlighted, repo.raw()).into();
+
+                        ui.columns(frame, header.clone().to_vec(), Some(Borders::Top));
+                        ui.text_view(frame, hunk, &mut (0, 0), Some(Borders::BottomSides));
+                    }
+                    (
+                        _,
+                        crate::cob::ReviewItem::FileModified {
+                            path,
+                            header: _,
+                            old: _,
+                            new: _,
+                            hunk,
+                            stats: _,
+                        },
+                    ) => {
+                        let path = ReviewItem::pretty_path(path, false);
+                        let header = [
+                            Column::new("", Constraint::Length(0)),
+                            Column::new(path.clone(), Constraint::Length(path.width() as u16)),
+                            Column::new(
+                                span::default(" modified ")
+                                    .light_yellow()
+                                    .dim()
+                                    .reversed()
+                                    .into_right_aligned_line(),
+                                Constraint::Fill(1),
+                            ),
+                        ];
+                        let hunk = hunk.clone().unwrap();
+                        let hunk: Text<'_> =
+                            hunk.to_text(&mut hi, &item.highlighted, repo.raw()).into();
+
+                        ui.columns(frame, header.clone().to_vec(), Some(Borders::Top));
+                        ui.text_view(frame, hunk, &mut (0, 0), Some(Borders::BottomSides));
+                    }
+                    (
+                        _,
+                        crate::cob::ReviewItem::FileDeleted {
+                            path,
+                            header: _,
+                            old: _,
+                            hunk,
+                            stats: _,
+                        },
+                    ) => {
+                        let path = ReviewItem::pretty_path(path, true);
+                        let header = [
+                            Column::new("", Constraint::Length(0)),
+                            Column::new(path.clone(), Constraint::Length(path.width() as u16)),
+                            Column::new(
+                                span::default(" deleted ")
+                                    .light_red()
+                                    .dim()
+                                    .reversed()
+                                    .into_right_aligned_line(),
+                                Constraint::Fill(1),
+                            ),
+                        ];
+                        let hunk = hunk.clone().unwrap();
+                        let hunk: Text<'_> =
+                            hunk.to_text(&mut hi, &item.highlighted, repo.raw()).into();
+
+                        ui.columns(frame, header.clone().to_vec(), Some(Borders::Top));
+                        ui.text_view(frame, hunk, &mut (0, 0), Some(Borders::BottomSides));
+                    }
+                    (_, crate::cob::ReviewItem::FileCopied { copied }) => {
+                        let path = Line::from(
+                            [
+                                ReviewItem::pretty_path(&copied.old_path, false).spans,
+                                [span::default(" -> ")].to_vec(),
+                                ReviewItem::pretty_path(&copied.new_path, false).spans,
+                            ]
+                            .concat()
+                            .to_vec(),
+                        );
+                        let header = [
+                            Column::new("", Constraint::Length(0)),
+                            Column::new(path.clone(), Constraint::Length(path.width() as u16)),
+                            Column::new(
+                                span::default(" copied ")
+                                    .light_red()
+                                    .dim()
+                                    .reversed()
+                                    .into_right_aligned_line(),
+                                Constraint::Fill(1),
+                            ),
+                        ];
+                        ui.columns(frame, header.clone().to_vec(), Some(Borders::Top));
+                    }
+                    (_, crate::cob::ReviewItem::FileMoved { moved }) => {
+                        let path = Line::from(
+                            [
+                                ReviewItem::pretty_path(&moved.new_path, false).spans,
+                                [span::default(" -> ")].to_vec(),
+                                ReviewItem::pretty_path(&moved.new_path, false).spans,
+                            ]
+                            .concat()
+                            .to_vec(),
+                        );
+                        let header = [
+                            Column::new("", Constraint::Length(0)),
+                            Column::new(path.clone(), Constraint::Length(path.width() as u16)),
+                            Column::new(
+                                span::default(" moved ")
+                                    .light_red()
+                                    .dim()
+                                    .reversed()
+                                    .into_right_aligned_line(),
+                                Constraint::Fill(1),
+                            ),
+                        ];
+                        ui.columns(frame, header.clone().to_vec(), Some(Borders::All));
+                    }
+                    (
+                        _,
+                        crate::cob::ReviewItem::FileEofChanged {
+                            path,
+                            header: _,
+                            old: _,
+                            new: _,
+                            eof: _,
+                        },
+                    ) => {
+                        let path = ReviewItem::pretty_path(&path, false);
+                        let header = [
+                            Column::new("", Constraint::Length(0)),
+                            Column::new(path.clone(), Constraint::Length(path.width() as u16)),
+                            Column::new(
+                                span::default(" eof ")
+                                    .dim()
+                                    .reversed()
+                                    .into_right_aligned_line(),
+                                Constraint::Fill(1),
+                            ),
+                        ];
+                        ui.columns(frame, header.clone().to_vec(), Some(Borders::All));
+                    }
+                    (
+                        _,
+                        crate::cob::ReviewItem::FileModeChanged {
+                            path,
+                            header: _,
+                            old: _,
+                            new: _,
+                        },
+                    ) => {
+                        let path = ReviewItem::pretty_path(&path, false);
+                        let header = [
+                            Column::new("", Constraint::Length(0)),
+                            Column::new(path.clone(), Constraint::Length(path.width() as u16)),
+                            Column::new(
+                                span::default(" mode ")
+                                    .dim()
+                                    .reversed()
+                                    .into_right_aligned_line(),
+                                Constraint::Length(6),
+                            ),
+                        ];
+                        ui.columns(frame, header.clone().to_vec(), Some(Borders::All));
+                    }
+                },
+            );
         }
     }
 }
 
-impl Show<Message> for App {
-    fn show(&self, ctx: &Context<Message>, frame: &mut Frame) -> Result<()> {
+impl<'a> Show<Message> for App<'a> {
+    fn show(&self, ctx: &Context<Message>, frame: &mut Frame) -> Result<(), anyhow::Error> {
         Window::default().show(ctx, |ui| {
-            let mut page_focus = Some(0);
+            let mut page_focus = self.windows.focus();
 
             match self.page {
                 AppPage::Main => {
-                    ui.group(
+                    ui.layout(
                         Layout::vertical([Constraint::Fill(1), Constraint::Length(1)]),
-                        &mut page_focus,
+                        Some(0),
                         |ui| {
-                            ui.text_view(
-                                frame,
-                                String::from("Review"),
-                                &mut (0, 0),
-                                Some(Borders::All),
+                            let group = ui.group(
+                                Layout::horizontal([
+                                    Constraint::Ratio(1, 3),
+                                    Constraint::Ratio(2, 3),
+                                ]),
+                                &mut page_focus,
+                                |ui| {
+                                    self.show_hunk_list(ui, frame);
+                                    self.show_review_item(ui, frame);
+                                },
                             );
+                            if group.response.changed {
+                                ui.send_message(Message::WindowsChanged {
+                                    state: GroupState::new(self.windows.len(), page_focus),
+                                });
+                            }
+
                             ui.shortcuts(
                                 frame,
                                 &[
@@ -184,18 +432,18 @@ impl Show<Message> for App {
                                 ],
                                 '∙',
                             );
+
+                            if ui.input_global(|key| key == Key::Char('?')) {
+                                ui.send_message(Message::ShowHelp);
+                            }
+                            if ui.input_global(|key| key == Key::Char('a')) {
+                                ui.send_message(Message::Accept);
+                            }
+                            if ui.input_global(|key| key == Key::Char('c')) {
+                                ui.send_message(Message::Comment);
+                            }
                         },
                     );
-
-                    if ui.input_global(|key| key == Key::Char('?')) {
-                        ui.send_message(Message::ShowHelp);
-                    }
-                    if ui.input_global(|key| key == Key::Char('a')) {
-                        ui.send_message(Message::Accept);
-                    }
-                    if ui.input_global(|key| key == Key::Char('c')) {
-                        ui.send_message(Message::Comment);
-                    }
                 }
                 AppPage::Help => {
                     ui.group(
@@ -223,6 +471,47 @@ impl Show<Message> for App {
             }
         });
         Ok(())
+    }
+}
+
+impl<'a> store::Update<Message> for App<'a> {
+    type Return = Selection;
+
+    fn update(&mut self, message: Message) -> Option<Exit<Self::Return>> {
+        log::info!("Received message: {:?}", message);
+        match message {
+            Message::WindowsChanged { state } => {
+                self.windows = state;
+                None
+            }
+            Message::ItemChanged { state } => {
+                self.queue.1 = state;
+                None
+            }
+            Message::Quit => Some(Exit { value: None }),
+            Message::Accept => Some(Exit {
+                value: Some(Selection {
+                    action: ReviewAction::Accept,
+                    hunk: 0,
+                    args: None,
+                }),
+            }),
+            Message::Comment => Some(Exit {
+                value: Some(Selection {
+                    action: ReviewAction::Comment,
+                    hunk: 0,
+                    args: None,
+                }),
+            }),
+            Message::ShowMain => {
+                self.page = AppPage::Main;
+                None
+            }
+            Message::ShowHelp => {
+                self.page = AppPage::Help;
+                None
+            }
+        }
     }
 }
 

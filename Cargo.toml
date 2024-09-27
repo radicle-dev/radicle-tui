@@ -22,6 +22,7 @@ path = "bin/main.rs"
 required-features = ["bin"]
 
 [dependencies]
+ansi-to-tui = { version = "5.0.0-rc.1" }
 anyhow = { version = "1" }
 inquire = { version = "0.7.4", default-features = false, features = ["termion", "editor"] }
 lexopt = { version = "0.3.0" }

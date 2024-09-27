@@ -258,7 +258,9 @@ pub async fn run(options: Options, ctx: impl terminal::Context) -> anyhow::Resul
             let queue = ReviewBuilder::new(patch_id, signer, &repo).queue(&brain, &revision)?;
 
             while !queue.is_empty() {
-                let selection = review::Tui::new(&profile, &repo, &queue).run().await?;
+                let selection = review::Tui::new(profile.clone(), rid, queue.clone())
+                    .run()
+                    .await?;
                 log::info!("Received selection from TUI: {:?}", selection);
 
                 if let Some(selection) = selection.as_ref() {

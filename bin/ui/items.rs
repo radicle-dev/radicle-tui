@@ -1,10 +1,13 @@
 use std::collections::HashMap;
+use std::path::{Path, PathBuf};
 use std::str::FromStr;
 
 use nom::bytes::complete::{tag, take};
 use nom::multi::separated_list0;
 use nom::sequence::{delimited, preceded};
 use nom::{IResult, Parser};
+
+use ansi_to_tui::IntoText;
 
 use radicle::cob::thread::{Comment, CommentId};
 use radicle::cob::{Label, ObjectId, Timestamp, TypedId};
@@ -20,8 +23,15 @@ use radicle::storage::git::Repository;
 use radicle::storage::{ReadRepository, ReadStorage, RefUpdate, WriteRepository};
 use radicle::Profile;
 
-use ratatui::style::{Style, Stylize};
-use ratatui::text::{Line, Text};
+use radicle_surf::diff::{self, Hunk, Modification};
+
+use radicle_cli::git::unified_diff::{Decode, HunkHeader};
+use radicle_cli::terminal;
+use radicle_cli::terminal::highlight::Highlighter;
+
+use ratatui::style::{Color, Style, Stylize};
+// use ratatui::text::{Line, Text};
+use ratatui::prelude::*;
 use ratatui::widgets::Cell;
 
 use tui_tree_widget::TreeItem;
@@ -31,6 +41,9 @@ use radicle_tui as tui;
 use tui::ui::span;
 use tui::ui::theme::style;
 use tui::ui::{ToRow, ToTree};
+
+use crate::cob::IndexedReviewItem;
+use crate::git::{Blob, Repo};
 
 use super::super::git;
 use super::format;
@@ -1016,6 +1029,440 @@ impl ToTree<String> for CommentItem {
             .expect("Identifiers need to be unique");
 
         vec![item]
+    }
+}
+
+pub struct TermLine(terminal::Line);
+
+impl<'a> Into<Line<'a>> for TermLine {
+    fn into(self) -> Line<'a> {
+        Line::raw(self.0.to_string())
+    }
+}
+
+#[derive(Clone, Debug)]
+pub struct ReviewItem<'a> {
+    pub inner: IndexedReviewItem,
+    pub highlighted: Blobs<Vec<Line<'a>>>,
+}
+
+impl<'a> From<(&Repository, &IndexedReviewItem)> for ReviewItem<'a> {
+    fn from(value: (&Repository, &IndexedReviewItem)) -> Self {
+        let (repo, item) = value;
+        let hi = Highlighter::default();
+
+        let blobs = item.1.clone().blobs(repo.raw());
+        let highlighted = blobs.highlight(hi);
+        Self {
+            inner: item.clone(),
+            highlighted,
+        }
+    }
+}
+
+impl<'a> ToRow<3> for ReviewItem<'a> {
+    fn to_row(&self) -> [Cell; 3] {
+        use crate::cob::ReviewItem as Item;
+        match &self.inner {
+            (
+                idx,
+                Item::FileAdded {
+                    path: _,
+                    header: _,
+                    new: _,
+                    hunk: _,
+                    stats: _,
+                },
+            ) => [
+                span::secondary("?").into(),
+                span::default(&format!("Hunk {}", idx)).into(),
+                span::default("").into(),
+            ],
+            (idx, Item::FileCopied { copied: _ }) => [
+                span::secondary("?").into(),
+                span::default(&format!("Hunk {}", idx)).into(),
+                span::default("").into(),
+            ],
+            (
+                idx,
+                Item::FileDeleted {
+                    path: _,
+                    header: _,
+                    old: _,
+                    hunk: _,
+                    stats: _,
+                },
+            ) => [
+                span::secondary("?").into(),
+                span::default(&format!("Hunk {}", idx)).into(),
+                span::default("").into(),
+            ],
+            (
+                idx,
+                Item::FileEofChanged {
+                    path: _,
+                    header: _,
+                    old: _,
+                    new: _,
+                    eof: _,
+                },
+            ) => [
+                span::secondary("?").into(),
+                span::default(&format!("Hunk {}", idx)).into(),
+                span::default("").into(),
+            ],
+            (
+                idx,
+                Item::FileModeChanged {
+                    path: _,
+                    header: _,
+                    old: _,
+                    new: _,
+                },
+            ) => [
+                span::secondary("?").into(),
+                span::default(&format!("Hunk {}", idx)).into(),
+                span::default("").into(),
+            ],
+            (
+                idx,
+                Item::FileModified {
+                    path: _,
+                    header: _,
+                    old: _,
+                    new: _,
+                    hunk: _,
+                    stats: _,
+                },
+            ) => [
+                span::secondary("?").into(),
+                span::default(&format!("Hunk {}", idx)).into(),
+                span::default("").into(),
+            ],
+            (idx, Item::FileMoved { moved: _ }) => [
+                span::secondary("?").into(),
+                span::default(&format!("Hunk {}", idx)).into(),
+                span::default("").into(),
+            ],
+        }
+    }
+}
+
+impl<'a> ReviewItem<'a> {
+    pub fn pretty_path(path: &Path, crossed_out: bool) -> Line<'a> {
+        let file = path.file_name().unwrap_or_default();
+        let path = if path.iter().count() > 1 {
+            path.into_iter()
+                .take(path.into_iter().count() - 2)
+                .map(|component| component.to_string_lossy().to_string())
+                .collect::<Vec<_>>()
+        } else {
+            vec![]
+        };
+
+        let line = Line::from(
+            [
+                if crossed_out {
+                    span::default(&file.to_string_lossy().to_string()).crossed_out()
+                } else {
+                    span::default(&file.to_string_lossy().to_string())
+                },
+                span::default(" "),
+                span::default(&format!("{}", path.join(&String::from("/"))))
+                    .dark_gray()
+                    .dim(),
+            ]
+            .to_vec(),
+        );
+        line.into()
+    }
+}
+
+/// Blobs passed down to the hunk renderer.
+#[derive(Clone, Debug)]
+pub struct Blobs<T> {
+    pub old: Option<T>,
+    pub new: Option<T>,
+}
+
+impl<T> Blobs<T> {
+    pub fn new(old: Option<T>, new: Option<T>) -> Self {
+        Self { old, new }
+    }
+}
+
+impl<'a> Blobs<(PathBuf, Blob)> {
+    pub fn highlight(self, mut hi: Highlighter) -> Blobs<Vec<Line<'a>>> {
+        let mut blobs = Blobs::default();
+        if let Some((path, Blob::Plain(content))) = &self.old {
+            blobs.old = hi
+                .highlight(path, content)
+                .and_then(|hi| {
+                    Ok(hi
+                        .into_iter()
+                        .map(|line| Line::raw(line.to_string()))
+                        .collect::<Vec<_>>())
+                })
+                .ok();
+        }
+        if let Some((path, Blob::Plain(content))) = &self.new {
+            blobs.new = hi
+                .highlight(path, content)
+                .and_then(|hi| {
+                    Ok(hi
+                        .into_iter()
+                        .map(|line| Line::raw(line.to_string()))
+                        .collect::<Vec<_>>())
+                })
+                .ok();
+        }
+        blobs
+    }
+
+    pub fn from_paths<R: Repo>(
+        old: Option<(&Path, Oid)>,
+        new: Option<(&Path, Oid)>,
+        repo: &R,
+    ) -> Blobs<(PathBuf, Blob)> {
+        Blobs::new(
+            old.and_then(|(path, oid)| {
+                repo.blob(oid)
+                    .ok()
+                    .or_else(|| repo.file(path))
+                    .map(|blob| (path.to_path_buf(), blob))
+            }),
+            new.and_then(|(path, oid)| {
+                repo.blob(oid)
+                    .ok()
+                    .or_else(|| repo.file(path))
+                    .map(|blob| (path.to_path_buf(), blob))
+            }),
+        )
+    }
+}
+
+impl<T> Default for Blobs<T> {
+    fn default() -> Self {
+        Self {
+            old: None,
+            new: None,
+        }
+    }
+}
+
+pub struct HighlightedLine<'a>(Line<'a>);
+
+impl<'a> From<Line<'a>> for HighlightedLine<'a> {
+    fn from(highlighted: Line<'a>) -> Self {
+        let converted = highlighted.to_string().into_text().unwrap().lines;
+
+        Self {
+            0: converted.first().cloned().unwrap_or_default(),
+        }
+    }
+}
+
+impl<'a> Into<Line<'a>> for HighlightedLine<'a> {
+    fn into(self) -> Line<'a> {
+        self.0
+    }
+}
+
+/// Types that can be rendered as texts.
+pub trait ToText<'a> {
+    /// The output of the render process.
+    type Output: Into<Text<'a>>;
+    /// Context that can be passed down from parent objects during rendering.
+    type Context;
+
+    /// Render to pretty diff output.
+    fn to_text<R: Repo>(
+        &'a self,
+        hi: &mut Highlighter,
+        context: &Self::Context,
+        repo: &R,
+    ) -> Self::Output;
+}
+
+impl<'a> ToText<'a> for HunkHeader {
+    type Output = Line<'a>;
+    type Context = ();
+
+    fn to_text<R: Repo>(
+        &self,
+        _hi: &mut Highlighter,
+        _context: &Self::Context,
+        _repo: &R,
+    ) -> Self::Output {
+        Line::from(
+            [
+                span::default(&format!(
+                    "@@ -{},{} +{},{} @@",
+                    self.old_line_no, self.old_size, self.new_line_no, self.new_size,
+                ))
+                .gray(),
+                span::default(" "),
+                span::default(&String::from_utf8_lossy(&self.text).to_string()),
+            ]
+            .to_vec(),
+        )
+    }
+}
+
+impl<'a> ToText<'a> for Modification {
+    type Output = Line<'a>;
+    type Context = Blobs<Vec<Line<'a>>>;
+
+    fn to_text<R: Repo>(
+        &'a self,
+        _hi: &mut Highlighter,
+        blobs: &Blobs<Vec<Line<'a>>>,
+        _repo: &R,
+    ) -> Self::Output {
+        let line = match self {
+            Modification::Deletion(diff::Deletion { line, line_no }) => {
+                if let Some(lines) = &blobs.old.as_ref() {
+                    lines[*line_no as usize - 1].clone()
+                } else {
+                    Line::raw(String::from_utf8_lossy(line.as_bytes()))
+                }
+            }
+            Modification::Addition(diff::Addition { line, line_no }) => {
+                if let Some(lines) = &blobs.new.as_ref() {
+                    lines[*line_no as usize - 1].clone()
+                } else {
+                    Line::raw(String::from_utf8_lossy(line.as_bytes()))
+                }
+            }
+            Modification::Context {
+                line, line_no_new, ..
+            } => {
+                // Nb. we can check in the old or the new blob, we choose the new.
+                if let Some(lines) = &blobs.new.as_ref() {
+                    lines[*line_no_new as usize - 1].clone()
+                } else {
+                    Line::raw(String::from_utf8_lossy(line.as_bytes()))
+                }
+            }
+        };
+
+        HighlightedLine::from(line).into()
+    }
+}
+
+impl<'a> ToText<'a> for Hunk<Modification> {
+    type Output = Vec<Line<'a>>;
+    type Context = Blobs<Vec<Line<'a>>>;
+
+    fn to_text<R: Repo>(
+        &'a self,
+        hi: &mut Highlighter,
+        blobs: &Self::Context,
+        repo: &R,
+    ) -> Self::Output {
+        let mut lines: Vec<Line<'a>> = vec![];
+
+        let default_dark = Color::Rgb(20, 20, 20);
+
+        let positive_light = Color::Rgb(10, 60, 20);
+        let positive_dark = Color::Rgb(10, 30, 20);
+
+        let negative_light = Color::Rgb(60, 10, 20);
+        let negative_dark = Color::Rgb(30, 10, 20);
+
+        if let Ok(header) = HunkHeader::from_bytes(self.header.as_bytes()) {
+            lines.push(Line::from(
+                [
+                    span::default(&format!(
+                        "@@ -{},{} +{},{} @@",
+                        header.old_line_no, header.old_size, header.new_line_no, header.new_size,
+                    ))
+                    .gray()
+                    .dim(),
+                    span::default(" "),
+                    span::default(&String::from_utf8_lossy(&header.text).to_string())
+                        .gray()
+                        .dim(),
+                ]
+                .to_vec(),
+            ))
+        }
+
+        for line in &self.lines {
+            match line {
+                Modification::Addition(a) => {
+                    lines.push(Line::from(
+                        [
+                            [
+                                span::positive(&format!("{:<5}", ""))
+                                    .bg(positive_light)
+                                    .dim(),
+                                span::positive(&format!("{:<5}", &a.line_no.to_string()))
+                                    .bg(positive_light)
+                                    .dim(),
+                                span::positive(" + ").bg(positive_dark).dim(),
+                            ]
+                            .to_vec(),
+                            line.to_text(hi, blobs, repo)
+                                .spans
+                                .into_iter()
+                                .map(|span| span.bg(positive_dark))
+                                .collect::<Vec<_>>(),
+                            [span::positive(&format!("{:<500}", "")).bg(positive_dark)].to_vec(),
+                        ]
+                        .concat(),
+                    ));
+                }
+                Modification::Deletion(d) => {
+                    lines.push(Line::from(
+                        [
+                            [
+                                span::negative(&format!("{:<5}", &d.line_no.to_string()))
+                                    .bg(negative_light)
+                                    .dim(),
+                                span::negative(&format!("{:<5}", ""))
+                                    .bg(negative_light)
+                                    .dim(),
+                                span::negative(" - ").bg(negative_dark).dim(),
+                            ]
+                            .to_vec(),
+                            line.to_text(hi, blobs, repo)
+                                .spans
+                                .into_iter()
+                                .map(|span| span.bg(negative_dark))
+                                .collect::<Vec<_>>(),
+                            [span::positive(&format!("{:<500}", "")).bg(negative_dark)].to_vec(),
+                        ]
+                        .concat(),
+                    ));
+                }
+                Modification::Context {
+                    line_no_old,
+                    line_no_new,
+                    ..
+                } => {
+                    lines.push(Line::from(
+                        [
+                            [
+                                span::default(&format!("{:<5}", &line_no_old.to_string()))
+                                    .bg(default_dark)
+                                    .gray()
+                                    .dim(),
+                                span::default(&format!("{:<5}", &line_no_new.to_string()))
+                                    .bg(default_dark)
+                                    .gray()
+                                    .dim(),
+                                span::default(&format!("{:<3}", "")),
+                            ]
+                            .to_vec(),
+                            line.to_text(hi, blobs, repo).spans,
+                        ]
+                        .concat(),
+                    ));
+                }
+            }
+        }
+        lines
     }
 }
 

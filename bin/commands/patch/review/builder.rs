@@ -35,6 +35,8 @@ use radicle_cli::git::unified_diff::{Encode, HunkHeader};
 use radicle_cli::terminal as term;
 use radicle_cli::terminal::highlight::Highlighter;
 
+use crate::cob::ReviewItem;
+
 /// Help message shown to user.
 const HELP: &str = "\
 y - accept this hunk
@@ -134,154 +136,8 @@ impl FromStr for ReviewAction {
     }
 }
 
-/// A single review item. Can be a hunk or eg. a file move.
-/// Files are usually split into multiple review items.
-#[derive(Debug)]
-pub enum ReviewItem {
-    FileAdded {
-        path: PathBuf,
-        header: FileHeader,
-        new: DiffFile,
-        hunk: Option<Hunk<Modification>>,
-    },
-    FileDeleted {
-        path: PathBuf,
-        header: FileHeader,
-        old: DiffFile,
-        hunk: Option<Hunk<Modification>>,
-    },
-    FileModified {
-        path: PathBuf,
-        header: FileHeader,
-        old: DiffFile,
-        new: DiffFile,
-        hunk: Option<Hunk<Modification>>,
-    },
-    FileMoved {
-        moved: Moved,
-    },
-    FileCopied {
-        copied: Copied,
-    },
-    FileEofChanged {
-        path: PathBuf,
-        header: FileHeader,
-        old: DiffFile,
-        new: DiffFile,
-        eof: EofNewLine,
-    },
-    FileModeChanged {
-        path: PathBuf,
-        header: FileHeader,
-        old: DiffFile,
-        new: DiffFile,
-    },
-}
-
-impl ReviewItem {
-    fn hunk(&self) -> Option<&Hunk<Modification>> {
-        match self {
-            Self::FileAdded { hunk, .. } => hunk.as_ref(),
-            Self::FileDeleted { hunk, .. } => hunk.as_ref(),
-            Self::FileModified { hunk, .. } => hunk.as_ref(),
-            _ => None,
-        }
-    }
-
-    fn hunk_header(&self) -> Option<HunkHeader> {
-        self.hunk().and_then(|h| HunkHeader::try_from(h).ok())
-    }
-
-    fn paths(&self) -> (Option<(&Path, Oid)>, Option<(&Path, Oid)>) {
-        match self {
-            Self::FileAdded { path, new, .. } => (None, Some((path, new.oid))),
-            Self::FileDeleted { path, old, .. } => (Some((path, old.oid)), None),
-            Self::FileMoved { moved } => (
-                Some((&moved.old_path, moved.old.oid)),
-                Some((&moved.new_path, moved.new.oid)),
-            ),
-            Self::FileCopied { copied } => (
-                Some((&copied.old_path, copied.old.oid)),
-                Some((&copied.new_path, copied.new.oid)),
-            ),
-            Self::FileModified { path, old, new, .. } => {
-                (Some((path, old.oid)), Some((path, new.oid)))
-            }
-            Self::FileEofChanged { path, old, new, .. } => {
-                (Some((path, old.oid)), Some((path, new.oid)))
-            }
-            Self::FileModeChanged { path, old, new, .. } => {
-                (Some((path, old.oid)), Some((path, new.oid)))
-            }
-        }
-    }
-
-    fn file_header(&self) -> FileHeader {
-        match self {
-            Self::FileAdded { header, .. } => header.clone(),
-            Self::FileDeleted { header, .. } => header.clone(),
-            Self::FileMoved { moved } => FileHeader::Moved {
-                old_path: moved.old_path.clone(),
-                new_path: moved.new_path.clone(),
-            },
-            Self::FileCopied { copied } => FileHeader::Copied {
-                old_path: copied.old_path.clone(),
-                new_path: copied.new_path.clone(),
-            },
-            Self::FileModified { header, .. } => header.clone(),
-            Self::FileEofChanged { header, .. } => header.clone(),
-            Self::FileModeChanged { header, .. } => header.clone(),
-        }
-    }
-
-    fn blobs<R: Repo>(&self, repo: &R) -> Blobs<(PathBuf, Blob)> {
-        let (old, new) = self.paths();
-        Blobs::from_paths(old, new, repo)
-    }
-
-    fn pretty<R: Repo>(&self, repo: &R) -> Box<dyn Element> {
-        let mut hi = Highlighter::default();
-        let blobs = self.blobs(repo);
-        let highlighted = blobs.highlight(&mut hi);
-        let header = self.file_header();
-
-        match self {
-            Self::FileMoved { moved } => moved.pretty(&mut hi, &header, repo),
-            Self::FileCopied { copied } => copied.pretty(&mut hi, &header, repo),
-            Self::FileModified { hunk, .. }
-            | Self::FileAdded { hunk, .. }
-            | Self::FileDeleted { hunk, .. } => {
-                let header = header.pretty(&mut hi, &None, repo);
-                let vstack = term::VStack::default()
-                    .border(Some(term::colors::FAINT))
-                    .padding(1)
-                    .child(header);
-
-                if let Some(hunk) = hunk {
-                    let hunk = hunk.pretty(&mut hi, &highlighted, repo);
-                    if !hunk.is_empty() {
-                        return vstack.divider().merge(hunk).boxed();
-                    }
-                }
-                vstack
-            }
-            Self::FileEofChanged { eof, .. } => match eof {
-                EofNewLine::NewMissing => {
-                    VStack::default().child(term::Label::new("`\\n` missing at end-of-file"))
-                }
-                EofNewLine::OldMissing => {
-                    VStack::default().child(term::Label::new("`\\n` added at end-of-file"))
-                }
-                _ => VStack::default(),
-            },
-            Self::FileModeChanged { .. } => VStack::default(),
-        }
-        .boxed()
-    }
-}
-
 /// Queue of items (usually hunks) left to review.
-#[derive(Default)]
+#[derive(Clone, Default)]
 pub struct ReviewQueue {
     /// Hunks left to review.
     queue: VecDeque<(usize, ReviewItem)>,
@@ -308,12 +164,13 @@ impl ReviewQueue {
                     hunk: if let DiffContent::Plain {
                         hunks: Hunks(mut hs),
                         ..
-                    } = a.diff
+                    } = a.diff.clone()
                     {
                         hs.pop()
                     } else {
                         None
                     },
+                    stats: a.diff.stats().cloned(),
                 });
             }
             FileDiff::Deleted(d) => {
@@ -324,12 +181,13 @@ impl ReviewQueue {
                     hunk: if let DiffContent::Plain {
                         hunks: Hunks(mut hs),
                         ..
-                    } = d.diff
+                    } = d.diff.clone()
                     {
                         hs.pop()
                     } else {
                         None
                     },
+                    stats: d.diff.stats().cloned(),
                 });
             }
             FileDiff::Modified(m) => {
@@ -352,12 +210,13 @@ impl ReviewQueue {
                             old: m.old.clone(),
                             new: m.new.clone(),
                             hunk: None,
+                            stats: m.diff.stats().cloned(),
                         });
                     }
                     DiffContent::Plain {
                         hunks: Hunks(hunks),
                         eof,
-                        ..
+                        stats,
                     } => {
                         for hunk in hunks {
                             self.add_item(ReviewItem::FileModified {
@@ -366,6 +225,7 @@ impl ReviewQueue {
                                 old: m.old.clone(),
                                 new: m.new.clone(),
                                 hunk: Some(hunk),
+                                stats: Some(stats),
                             });
                         }
                         if let EofNewLine::OldMissing | EofNewLine::NewMissing = eof {
@@ -714,11 +574,11 @@ impl<'a, G: Signer> ReviewBuilder<'a, G> {
                 Some(fr) => fr.set_item(&item),
                 None => file.insert(FileReviewBuilder::new(&item)),
             };
-            term::element::write_to(
-                &item.pretty(repo),
-                &mut writer,
-                term::Constraint::from_env().unwrap_or_default(),
-            )?;
+            // term::element::write_to(
+            //     &item.pretty(repo),
+            //     &mut writer,
+            //     term::Constraint::from_env().unwrap_or_default(),
+            // )?;
 
             // Prompts the user for action on the above hunk.
             match self.prompt(&mut stdin, &mut writer, progress) {
