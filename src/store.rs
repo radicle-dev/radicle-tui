@@ -55,7 +55,7 @@ where
 
 impl<S, M, P> Store<S, M, P>
 where
-    S: Update<M, Return = P> + Clone + Debug + Send + Sync + 'static,
+    S: Update<M, Return = P> + Clone + Send + Sync + 'static,
     P: Clone + Debug + Send + Sync + 'static,
 {
     /// By calling `main_loop`, the store will wait for new messages coming

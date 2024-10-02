@@ -188,7 +188,7 @@ where
 /// an interrupt broadcast channel also initialized in this function.
 pub async fn im<S, M, P>(state: S, viewport: Viewport, channel: Channel<M>) -> Result<Option<P>>
 where
-    S: Update<M, Return = P> + Show<M> + Clone + Debug + Send + Sync + 'static,
+    S: Update<M, Return = P> + Show<M> + Clone + Send + Sync + 'static,
     M: Clone + Debug + Send + Sync + 'static,
     P: Clone + Debug + Send + Sync + 'static,
 {
