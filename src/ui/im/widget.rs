@@ -438,6 +438,7 @@ pub struct HeaderedTable<'a, R, const W: usize> {
     items: &'a Vec<R>,
     selected: &'a mut Option<usize>,
     header: Vec<Column<'a>>,
+    columns: Vec<Column<'a>>,
 }
 
 impl<'a, R, const W: usize> HeaderedTable<'a, R, W> {
@@ -445,11 +446,13 @@ impl<'a, R, const W: usize> HeaderedTable<'a, R, W> {
         selected: &'a mut Option<usize>,
         items: &'a Vec<R>,
         header: impl IntoIterator<Item = Column<'a>>,
+        columns: impl IntoIterator<Item = Column<'a>>,
     ) -> Self {
         Self {
             items,
             selected,
             header: header.into_iter().collect(),
+            columns: columns.into_iter().collect(),
         }
     }
 
@@ -489,7 +492,7 @@ where
                     frame,
                     self.selected,
                     self.items,
-                    self.header.to_vec(),
+                    self.columns.to_vec(),
                     Some(Borders::BottomSides),
                 );
                 response.changed |= table.changed;

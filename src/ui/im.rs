@@ -484,11 +484,12 @@ where
         selected: &'a mut Option<usize>,
         items: &'a Vec<R>,
         header: impl IntoIterator<Item = Column<'a>>,
+        columns: impl IntoIterator<Item = Column<'a>>,
     ) -> Response
     where
         R: ToRow<W> + Clone,
     {
-        HeaderedTable::<R, W>::new(selected, items, header).ui(self, frame)
+        HeaderedTable::<R, W>::new(selected, items, header, columns).ui(self, frame)
     }
 
     pub fn shortcuts(
