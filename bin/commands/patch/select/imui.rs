@@ -256,7 +256,7 @@ impl<'a> Show<Message<'a>> for App<'a> {
                             if show_search {
                                 self.show_search_text_edit(frame, ui);
                             } else {
-                                ui.layout(Layout::vertical([1, 1]), |ui| {
+                                ui.layout(Layout::vertical([1, 1]), None, |ui| {
                                     ui.bar(
                                         frame,
                                         match group_focus {
@@ -319,15 +319,13 @@ impl<'a> Show<Message<'a>> for App<'a> {
                         Constraint::Length(1),
                     ]);
 
-                    ui.layout(layout, |ui| {
-                        ui.set_focus(Some(0));
+                    ui.composite(layout, 1, |ui| {
                         ui.columns(
                             frame,
                             [Column::new(Span::raw(" Help ").bold(), Constraint::Fill(1))].to_vec(),
                             Some(Borders::Top),
                         );
 
-                        ui.set_focus(Some(1));
                         let text_view = ui.text_view(
                             frame,
                             self.help.text().to_string(),

@@ -114,8 +114,6 @@ where
         M: Clone,
     {
         let mut response = Response::default();
-
-        let (_, has_focus) = ui.current_area().unwrap_or_default();
         let (mut text, mut cursor) = (self.search.read().text, self.search.read().cursor);
 
         ui.layout(
@@ -124,17 +122,10 @@ where
                 Constraint::Min(1),
                 Constraint::Length(if *self.show_search { 2 } else { 3 }),
             ]),
+            Some(1),
             |ui| {
-                // TODO(erikli): Find better solution for border focus workaround or improve
-                // interface for manually advancing / setting the focus index.
-                if has_focus && !*self.show_search {
-                    ui.set_focus(Some(0));
-                }
                 ui.columns(frame, self.header.clone().to_vec(), Some(Borders::Top));
 
-                if has_focus && !*self.show_search {
-                    ui.set_focus(Some(1));
-                }
                 let table = ui.table(
                     frame,
                     self.selected,
@@ -149,9 +140,6 @@ where
                 response.changed |= table.changed;
 
                 if *self.show_search {
-                    if has_focus {
-                        ui.set_focus(Some(2));
-                    }
                     let text_edit = ui.text_edit_labeled_singleline(
                         frame,
                         &mut text,
@@ -162,9 +150,6 @@ where
                     self.search.write(TextEditState { text, cursor });
                     response.changed |= text_edit.changed;
                 } else {
-                    if has_focus {
-                        ui.set_focus(Some(2));
-                    }
                     ui.columns(frame, self.footer.clone().to_vec(), Some(Borders::Bottom));
                 }
             },
