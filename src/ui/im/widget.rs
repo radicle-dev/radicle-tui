@@ -48,9 +48,11 @@ impl Window {
         M: Clone,
     {
         let mut ui = Ui::default()
+            .with_focus()
             .with_area(ctx.frame_size())
             .with_ctx(ctx.clone())
-            .with_layout(Layout::horizontal([Constraint::Min(1)]).into());
+            .with_layout(Layout::horizontal([Constraint::Min(1)]).into())
+            .with_area_focus(Some(0));
 
         let inner = add_contents(&mut ui);
 
@@ -128,29 +130,87 @@ impl<'a> Group<'a> {
             len: self.len,
         };
 
-        if let Some(key) = ui.input_with_key(|_| true) {
-            match key {
-                Key::Char('\t') => {
-                    state.focus_next();
-                    response.changed = true;
-                }
-                Key::BackTab => {
-                    state.focus_prev();
-                    response.changed = true;
-                }
-                _ => {}
-            }
+        if ui.input_global(|key| key == Key::Char('\t')) {
+            state.focus_next();
+            response.changed = true;
+        }
+        if ui.input_global(|key| key == Key::BackTab) {
+            state.focus_prev();
+            response.changed = true;
         }
         *self.focus = state.focus;
 
         let mut ui = Ui {
-            focus: state.focus,
+            focus_area: state.focus,
             ..ui.clone()
         };
 
         let inner = add_contents(&mut ui);
 
         InnerResponse::new(inner, response)
+    }
+}
+
+#[derive(Clone, Debug)]
+pub struct CompositeState {
+    len: usize,
+    focus: usize,
+}
+
+impl CompositeState {
+    pub fn new(len: usize, focus: usize) -> Self {
+        Self { len, focus }
+    }
+
+    pub fn focus(&self) -> usize {
+        self.focus
+    }
+
+    pub fn len(&self) -> usize {
+        self.len
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.len == 0
+    }
+}
+
+pub struct Composite {
+    focus: usize,
+}
+
+impl Composite {
+    pub fn new(focus: usize) -> Self {
+        Self { focus }
+    }
+
+    pub fn show<M, R>(
+        self,
+        ui: &mut Ui<M>,
+        add_contents: impl FnOnce(&mut Ui<M>) -> R,
+    ) -> InnerResponse<R>
+    where
+        M: Clone,
+    {
+        self.show_dyn(ui, Box::new(add_contents))
+    }
+
+    pub fn show_dyn<M, R>(
+        self,
+        ui: &mut Ui<M>,
+        add_contents: Box<AddContentFn<M, R>>,
+    ) -> InnerResponse<R>
+    where
+        M: Clone,
+    {
+        let mut ui = Ui {
+            focus_area: Some(self.focus),
+            ..ui.clone()
+        };
+
+        let inner = add_contents(&mut ui);
+
+        InnerResponse::new(inner, Response::default())
     }
 }
 
@@ -298,7 +358,7 @@ where
     {
         let mut response = Response::default();
 
-        let (area, has_focus) = ui.next_area().unwrap_or_default();
+        let (area, area_focus) = ui.next_area().unwrap_or_default();
 
         let show_scrollbar = self.show_scrollbar && self.items.len() >= area.height.into();
         let has_items = !self.items.is_empty();
@@ -311,7 +371,7 @@ where
             },
         };
 
-        let border_style = if has_focus {
+        let border_style = if area_focus && ui.has_focus {
             ui.theme.focus_border_style
         } else {
             ui.theme.border_style
@@ -326,25 +386,30 @@ where
             match key {
                 Key::Up | Key::Char('k') => {
                     state.prev();
+                    response.changed = true;
                 }
                 Key::Down | Key::Char('j') => {
                     state.next(len);
+                    response.changed = true;
                 }
                 Key::PageUp => {
                     state.prev_page(page_size);
+                    response.changed = true;
                 }
                 Key::PageDown => {
                     state.next_page(len, page_size);
+                    response.changed = true;
                 }
                 Key::Home => {
                     state.begin();
+                    response.changed = true;
                 }
                 Key::End => {
                     state.end(len);
+                    response.changed = true;
                 }
                 _ => {}
             }
-            response.changed = true;
         }
 
         let widths: Vec<Constraint> = self
@@ -388,9 +453,9 @@ where
                 .rows(rows)
                 .widths(widths)
                 .column_spacing(1)
-                .highlight_style(style::highlight(has_focus));
+                .highlight_style(style::highlight(area_focus));
 
-            let table = if !has_focus && self.dim {
+            let table = if !area_focus && self.dim {
                 table.dim()
             } else {
                 table
@@ -405,7 +470,7 @@ where
                     .track_symbol(None)
                     .end_symbol(None)
                     .thumb_symbol("┃")
-                    .style(if has_focus {
+                    .style(if area_focus {
                         Style::default()
                     } else {
                         Style::default().dim()
@@ -473,21 +538,12 @@ where
     {
         let mut response = Response::default();
 
-        let (_, has_focus) = ui.current_area().unwrap_or_default();
-
-        ui.layout(
+        ui.composite(
             Layout::vertical([Constraint::Length(3), Constraint::Min(1)]),
+            1,
             |ui| {
-                // TODO(erikli): Find better solution for border focus workaround or improve
-                // interface for manually advancing / setting the focus index.
-                if has_focus {
-                    ui.set_focus(Some(0));
-                }
                 ui.columns(frame, self.header.clone().to_vec(), Some(Borders::Top));
 
-                if has_focus {
-                    ui.set_focus(Some(1));
-                }
                 let table = ui.table(
                     frame,
                     self.selected,
@@ -519,9 +575,9 @@ impl<'a> Widget for Columns<'a> {
     where
         M: Clone,
     {
-        let (area, has_focus) = ui.next_area().unwrap_or_default();
+        let (area, _) = ui.next_area().unwrap_or_default();
 
-        let border_style = if has_focus {
+        let border_style = if ui.has_focus {
             ui.theme.focus_border_style
         } else {
             ui.theme.border_style
@@ -578,9 +634,9 @@ impl<'a> Widget for Bar<'a> {
     where
         M: Clone,
     {
-        let (area, has_focus) = ui.next_area().unwrap_or_default();
+        let (area, area_focus) = ui.next_area().unwrap_or_default();
 
-        let border_style = if has_focus {
+        let border_style = if area_focus {
             ui.theme.focus_border_style
         } else {
             ui.theme.border_style
@@ -694,10 +750,10 @@ impl<'a> Widget for TextView<'a> {
     {
         let mut response = Response::default();
 
-        let (area, has_focus) = ui.next_area().unwrap_or_default();
+        let (area, area_focus) = ui.next_area().unwrap_or_default();
 
         let show_scrollbar = true;
-        let border_style = if has_focus {
+        let border_style = if area_focus && ui.has_focus() {
             ui.theme.focus_border_style
         } else {
             ui.theme.border_style
@@ -729,7 +785,7 @@ impl<'a> Widget for TextView<'a> {
             .track_symbol(None)
             .end_symbol(None)
             .thumb_symbol("┃")
-            .style(if has_focus {
+            .style(if area_focus {
                 Style::default()
             } else {
                 Style::default().dim()
@@ -916,9 +972,9 @@ impl<'a> TextEdit<'a> {
     {
         let mut response = Response::default();
 
-        let (area, has_focus) = ui.next_area().unwrap_or_default();
+        let (area, area_focus) = ui.next_area().unwrap_or_default();
 
-        let border_style = if has_focus {
+        let border_style = if area_focus && ui.has_focus() {
             ui.theme.focus_border_style
         } else {
             ui.theme.border_style
@@ -937,7 +993,7 @@ impl<'a> TextEdit<'a> {
         let overline = String::from("▔").repeat(area.width as usize);
         let cursor_pos = *self.cursor as u16;
 
-        let (label, input, overline) = if !has_focus && self.dim {
+        let (label, input, overline) = if !area_focus && self.dim {
             (
                 Span::from(label_content.clone()).magenta().dim().reversed(),
                 Span::from(state.text.clone()).reset().dim(),

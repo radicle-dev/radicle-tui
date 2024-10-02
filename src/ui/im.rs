@@ -276,7 +276,9 @@ pub struct Ui<M> {
     /// The layout used to calculate the next area to draw.
     layout: Layout,
     /// Currently focused area.
-    focus: Option<usize>,
+    focus_area: Option<usize>,
+    /// If this has focus.
+    has_focus: bool,
     /// Current rendering counter that is increased whenever the next area to draw
     /// on is requested.
     count: usize,
@@ -284,15 +286,15 @@ pub struct Ui<M> {
 
 impl<M> Ui<M> {
     pub fn input(&mut self, f: impl Fn(Key) -> bool) -> bool {
-        self.has_focus() && self.ctx.inputs.iter().any(|key| f(*key))
+        self.has_focus && self.is_area_focused() && self.ctx.inputs.iter().any(|key| f(*key))
     }
 
     pub fn input_global(&mut self, f: impl Fn(Key) -> bool) -> bool {
-        self.ctx.inputs.iter().any(|key| f(*key))
+        self.has_focus && self.ctx.inputs.iter().any(|key| f(*key))
     }
 
     pub fn input_with_key(&mut self, f: impl Fn(Key) -> bool) -> Option<Key> {
-        if self.has_focus() {
+        if self.has_focus && self.is_area_focused() {
             self.ctx.inputs.iter().find(|key| f(**key)).copied()
         } else {
             None
@@ -306,7 +308,8 @@ impl<M> Default for Ui<M> {
             theme: Theme::default(),
             area: Rect::default(),
             layout: Layout::default(),
-            focus: None,
+            focus_area: None,
+            has_focus: true,
             count: 0,
             ctx: Context::default(),
         }
@@ -331,8 +334,18 @@ impl<M> Ui<M> {
         self
     }
 
+    pub fn with_area_focus(mut self, focus: Option<usize>) -> Self {
+        self.focus_area = focus;
+        self
+    }
+
     pub fn with_ctx(mut self, ctx: Context<M>) -> Self {
         self.ctx = ctx;
+        self
+    }
+
+    pub fn with_focus(mut self) -> Self {
+        self.has_focus = true;
         self
     }
 
@@ -345,41 +358,44 @@ impl<M> Ui<M> {
     }
 
     pub fn next_area(&mut self) -> Option<(Rect, bool)> {
-        let has_focus = self.focus.map(|focus| self.count == focus).unwrap_or(false);
+        let area_focus = self
+            .focus_area
+            .map(|focus| self.count == focus)
+            .unwrap_or(false);
         let rect = self.layout.split(self.area).get(self.count).cloned();
 
         self.count += 1;
 
-        rect.map(|rect| (rect, has_focus))
+        rect.map(|rect| (rect, area_focus))
     }
 
     pub fn current_area(&mut self) -> Option<(Rect, bool)> {
         let count = self.count.saturating_sub(1);
 
-        let has_focus = self.focus.map(|focus| count == focus).unwrap_or(false);
+        let area_focus = self.focus_area.map(|focus| count == focus).unwrap_or(false);
         let rect = self.layout.split(self.area).get(self.count).cloned();
 
-        rect.map(|rect| (rect, has_focus))
+        rect.map(|rect| (rect, area_focus))
+    }
+
+    pub fn is_area_focused(&self) -> bool {
+        let count = self.count.saturating_sub(1);
+        self.focus_area.map(|focus| count == focus).unwrap_or(false)
     }
 
     pub fn has_focus(&self) -> bool {
-        let count = self.count.saturating_sub(1);
-        self.focus.map(|focus| count == focus).unwrap_or(false)
+        self.has_focus
     }
 
     pub fn count(&self) -> usize {
         self.count
     }
 
-    pub fn set_focus(&mut self, focus: Option<usize>) {
-        self.focus = focus;
-    }
-
     pub fn focus_next(&mut self) {
-        if self.focus.is_none() {
-            self.focus = Some(0);
+        if self.focus_area.is_none() {
+            self.focus_area = Some(0);
         } else {
-            self.focus = Some(self.focus.unwrap().saturating_add(1));
+            self.focus_area = Some(self.focus_area.unwrap().saturating_add(1));
         }
     }
 
@@ -408,21 +424,27 @@ where
     pub fn layout<R>(
         &mut self,
         layout: impl Into<Layout>,
+        focus: Option<usize>,
         add_contents: impl FnOnce(&mut Self) -> R,
     ) -> InnerResponse<R> {
-        self.layout_dyn(layout, Box::new(add_contents))
+        self.layout_dyn(layout, focus, Box::new(add_contents))
     }
 
     pub fn layout_dyn<R>(
         &mut self,
         layout: impl Into<Layout>,
+        focus: Option<usize>,
         add_contents: Box<AddContentFn<M, R>>,
     ) -> InnerResponse<R> {
-        let (area, _) = self.next_area().unwrap_or_default();
-        let mut child_ui = self.child_ui(area, layout);
-        let inner = add_contents(&mut child_ui);
+        let (area, area_focus) = self.next_area().unwrap_or_default();
 
-        InnerResponse::new(inner, Response::default())
+        let mut child_ui = Ui {
+            has_focus: area_focus,
+            focus_area: focus,
+            ..self.child_ui(area, layout)
+        };
+
+        InnerResponse::new(add_contents(&mut child_ui), Response::default())
     }
 }
 
@@ -436,15 +458,33 @@ where
         focus: &mut Option<usize>,
         add_contents: impl FnOnce(&mut Ui<M>) -> R,
     ) -> InnerResponse<R> {
-        let (area, _) = self.next_area().unwrap_or_default();
+        let (area, area_focus) = self.next_area().unwrap_or_default();
 
         let layout: Layout = layout.into();
         let len = layout.len();
 
-        let mut child_ui = self.child_ui(area, layout);
-        child_ui.set_focus(Some(0));
+        // TODO(erikli): Check if setting the focus area is needed at all.
+        let mut child_ui = Ui {
+            has_focus: area_focus,
+            focus_area: *focus,
+            ..self.child_ui(area, layout)
+        };
 
         widget::Group::new(len, focus).show(&mut child_ui, add_contents)
+    }
+
+    pub fn composite<R>(
+        &mut self,
+        layout: impl Into<Layout>,
+        focus: usize,
+        add_contents: impl FnOnce(&mut Ui<M>) -> R,
+    ) -> InnerResponse<R> {
+        let (area, area_focus) = self.next_area().unwrap_or_default();
+
+        let mut child_ui = self.child_ui(area, layout);
+        child_ui.has_focus = area_focus;
+
+        widget::Composite::new(focus).show(&mut child_ui, add_contents)
     }
 
     pub fn label<'a>(&mut self, frame: &mut Frame, content: impl Into<Text<'a>>) -> Response {

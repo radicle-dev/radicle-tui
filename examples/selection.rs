@@ -87,6 +87,7 @@ impl Show<Message> for App {
                     Constraint::Min(1),
                     Constraint::Length(1),
                 ]),
+                Some(1),
                 |ui| {
                     let columns = [
                         Column::new(Span::raw("Id").bold(), Constraint::Length(4)),
@@ -98,7 +99,6 @@ impl Show<Message> for App {
 
                     ui.columns(frame, columns.clone(), Some(Borders::None));
 
-                    ui.set_focus(Some(1));
                     let table = ui.table(
                         frame,
                         &mut selected,
