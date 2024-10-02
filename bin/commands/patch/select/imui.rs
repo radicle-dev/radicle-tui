@@ -49,7 +49,7 @@ Pattern:    is:<state> | is:authored | authors:[<did>, <did>] | <search>
 Example:    is:open is:authored improve"#;
 
 #[derive(Clone, Debug)]
-pub enum Message {
+pub enum Message<'a> {
     Quit,
     Exit {
         operation: Option<PatchOperation>,
@@ -65,7 +65,7 @@ pub enum Message {
         page: Page,
     },
     HelpChanged {
-        state: TextViewState,
+        state: TextViewState<'a>,
     },
     ShowSearch,
     UpdateSearch {
@@ -88,7 +88,7 @@ pub struct Storage {
 }
 
 #[derive(Clone, Debug)]
-pub struct App {
+pub struct App<'a> {
     storage: Storage,
     mode: Mode,
     page: Page,
@@ -96,11 +96,11 @@ pub struct App {
     patches: TableState,
     search: BufferedValue<TextEditState>,
     show_search: bool,
-    help: TextViewState,
+    help: TextViewState<'a>,
     filter: PatchItemFilter,
 }
 
-impl TryFrom<&Context> for App {
+impl<'a> TryFrom<&Context> for App<'a> {
     type Error = anyhow::Error;
 
     fn try_from(context: &Context) -> Result<Self, Self::Error> {
@@ -138,10 +138,10 @@ impl TryFrom<&Context> for App {
     }
 }
 
-impl store::Update<Message> for App {
+impl<'a> store::Update<Message<'a>> for App<'a> {
     type Return = Selection;
 
-    fn update(&mut self, message: Message) -> Option<tui::Exit<Selection>> {
+    fn update(&mut self, message: Message<'a>) -> Option<tui::Exit<Selection>> {
         log::debug!("[State] Received message: {:?}", message);
 
         match message {
@@ -214,7 +214,7 @@ impl store::Update<Message> for App {
     }
 }
 
-impl Show<Message> for App {
+impl<'a> Show<Message<'a>> for App<'a> {
     fn show(&self, ctx: &im::Context<Message>, frame: &mut Frame) -> Result<()> {
         Window::default().show(ctx, |ui| {
             match self.page {
@@ -382,7 +382,7 @@ impl Show<Message> for App {
     }
 }
 
-impl App {
+impl<'a> App<'a> {
     pub fn show_patches(&self, frame: &mut Frame, ui: &mut im::Ui<Message>) {
         let patches = self
             .storage
@@ -405,7 +405,7 @@ impl App {
             Column::new(Span::raw("Updated").bold(), Constraint::Length(16)).hide_small(),
         ];
 
-        let table = ui.headered_table(frame, &mut selected, &patches, header);
+        let table = ui.headered_table(frame, &mut selected, &patches, header.clone(), header);
         if table.changed {
             ui.send_message(Message::PatchesChanged {
                 state: TableState::new(selected),
@@ -450,7 +450,7 @@ impl App {
     }
 }
 
-impl App {
+impl<'a> App<'a> {
     pub fn selected_patch(&self) -> Option<&PatchItem> {
         let patches = self
             .storage
