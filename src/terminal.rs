@@ -172,10 +172,8 @@ pub fn events() -> mpsc::UnboundedReceiver<Event> {
         let stdin = io::stdin();
         for key in stdin.keys().flatten() {
             // TODO(erikli): Remove this hack! Perhaps use `tokio::CancellationToken`?
-            if start.elapsed().as_millis() > 200 {
-                if events_tx.send(Event::Key(key)).is_err() {
-                    return;
-                }
+            if start.elapsed().as_millis() > 200 && events_tx.send(Event::Key(key)).is_err() {
+                return;
             }
         }
     });
