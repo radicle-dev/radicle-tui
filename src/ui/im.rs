@@ -519,11 +519,11 @@ where
         widget::Bar::new(columns, borders).ui(self, frame)
     }
 
-    pub fn text_view(
+    pub fn text_view<'a>(
         &mut self,
         frame: &mut Frame,
-        text: String,
-        scroll: &mut (usize, usize),
+        text: impl Into<Text<'a>>,
+        scroll: &'a mut (usize, usize),
         borders: Option<Borders>,
     ) -> Response {
         widget::TextView::new(text, scroll, borders).ui(self, frame)

@@ -605,20 +605,20 @@ impl<'a> Widget for Bar<'a> {
 }
 
 #[derive(Clone, Debug)]
-pub struct TextViewState {
-    text: String,
+pub struct TextViewState<'a> {
+    text: Text<'a>,
     cursor: (usize, usize),
 }
 
-impl TextViewState {
-    pub fn new(text: impl Into<String>, cursor: (usize, usize)) -> Self {
+impl<'a> TextViewState<'a> {
+    pub fn new(text: impl Into<Text<'a>>, cursor: (usize, usize)) -> Self {
         Self {
             text: text.into(),
             cursor,
         }
     }
 
-    pub fn text(&self) -> &String {
+    pub fn text(&self) -> &Text<'a> {
         &self.text
     }
 
@@ -627,7 +627,7 @@ impl TextViewState {
     }
 }
 
-impl TextViewState {
+impl<'a> TextViewState<'a> {
     fn scroll_up(&mut self) {
         self.cursor.0 = self.cursor.0.saturating_sub(1);
     }
@@ -668,19 +668,19 @@ impl TextViewState {
 }
 
 pub struct TextView<'a> {
-    text: String,
+    text: Text<'a>,
     borders: Option<Borders>,
     cursor: &'a mut (usize, usize),
 }
 
 impl<'a> TextView<'a> {
     pub fn new(
-        text: impl ToString,
+        text: impl Into<Text<'a>>,
         cursor: &'a mut (usize, usize),
         borders: Option<Borders>,
     ) -> Self {
         Self {
-            text: text.to_string(),
+            text: text.into(),
             borders,
             cursor,
         }
@@ -702,7 +702,7 @@ impl<'a> Widget for TextView<'a> {
         } else {
             ui.theme.border_style
         };
-        let length = self.text.lines().count();
+        let length = self.text.lines.len();
         // let virtual_length = length * ((length as f64).log2() as usize) / 100;
         // let content_length = area.height as usize + virtual_length;
         // let content_length = length;
@@ -749,9 +749,13 @@ impl<'a> Widget for TextView<'a> {
         let mut state = TextViewState::new(self.text.clone(), *self.cursor);
 
         if let Some(key) = ui.input_with_key(|_| true) {
-            let lines = self.text.lines().clone();
-            let len = lines.clone().count();
-            let max_line_len = lines.map(|l| l.chars().count()).max().unwrap_or_default();
+            let lines = self.text.lines.clone();
+            let len = lines.clone().len();
+            let max_line_len = lines
+                .into_iter()
+                .map(|l| l.to_string().chars().count())
+                .max()
+                .unwrap_or_default();
             let page_size = area.height as usize;
 
             match key {
