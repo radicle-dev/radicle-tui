@@ -748,6 +748,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "escargot"
+version = "0.5.12"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "c000f23e9d459aef148b7267e02b03b94a0aaacf4ec64c65612f67e02f525fb6"
+dependencies = [
+ "log",
+ "once_cell",
+ "serde",
+ "serde_json",
+]
+
+[[package]]
 name = "fastrand"
 version = "2.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1626,6 +1638,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "qcheck"
+version = "1.0.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "b439bd4242da51d62d18c95e6a6add749346756b0d1a587dfd0cc22fa6b5f3f0"
+dependencies = [
+ "rand",
+]
+
+[[package]]
 name = "quote"
 version = "1.0.35"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1637,8 +1658,7 @@ dependencies = [
 [[package]]
 name = "radicle"
 version = "0.13.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "4a818569c11f1bac56f38b002d778ce8ec92e312024b9aebcd68bad5dee6a465"
+source = "git+https://seed.radicle.xyz/z3gqcJUoA1n9HaHKufZs5FCSGazv5.git?branch=master#0c9a7419dcfd265b6c1efe85c915d126feaef649"
 dependencies = [
  "amplify",
  "base64",
@@ -1654,6 +1674,7 @@ dependencies = [
  "multibase",
  "nonempty",
  "once_cell",
+ "qcheck",
  "radicle-cob",
  "radicle-crypto",
  "radicle-git-ext",
@@ -1670,8 +1691,7 @@ dependencies = [
 [[package]]
 name = "radicle-cli"
 version = "0.11.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "2eb296daeb53927f63784a9b91b45b3a8d72a4aa327c092787e8724b19b81b8e"
+source = "git+https://seed.radicle.xyz/z3gqcJUoA1n9HaHKufZs5FCSGazv5.git?branch=master#0c9a7419dcfd265b6c1efe85c915d126feaef649"
 dependencies = [
  "anyhow",
  "chrono",
@@ -1712,12 +1732,13 @@ dependencies = [
 
 [[package]]
 name = "radicle-cli-test"
-version = "0.1.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "df187ee120e2dfc949bfae6b1acbe8b8d815167ba5229a312cdabfeb4952bc27"
+version = "0.10.0"
+source = "git+https://seed.radicle.xyz/z3gqcJUoA1n9HaHKufZs5FCSGazv5.git?branch=master#0c9a7419dcfd265b6c1efe85c915d126feaef649"
 dependencies = [
+ "escargot",
  "log",
  "pretty_assertions",
+ "radicle",
  "shlex",
  "snapbox",
  "thiserror",
@@ -1726,8 +1747,7 @@ dependencies = [
 [[package]]
 name = "radicle-cob"
 version = "0.12.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d4fac94999d8ffb6e88674bee487b080b69bbc9fb1b439ebfa51481ede1a17b3"
+source = "git+https://seed.radicle.xyz/z3gqcJUoA1n9HaHKufZs5FCSGazv5.git?branch=master#0c9a7419dcfd265b6c1efe85c915d126feaef649"
 dependencies = [
  "fastrand",
  "git2",
@@ -1745,13 +1765,14 @@ dependencies = [
 [[package]]
 name = "radicle-crypto"
 version = "0.11.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d1d6a67969719841ad06049597006368eb4238ca63a02d20207654dfd1d2d6ad"
+source = "git+https://seed.radicle.xyz/z3gqcJUoA1n9HaHKufZs5FCSGazv5.git?branch=master#0c9a7419dcfd265b6c1efe85c915d126feaef649"
 dependencies = [
  "amplify",
  "cyphernet",
  "ec25519",
+ "fastrand",
  "multibase",
+ "qcheck",
  "radicle-git-ext",
  "radicle-ssh",
  "serde",
@@ -1764,8 +1785,7 @@ dependencies = [
 [[package]]
 name = "radicle-dag"
 version = "0.9.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c2a678c3049a88ae6a34dd9f52ea9a5f9f066a0af63466b75cf8c48840303067"
+source = "git+https://seed.radicle.xyz/z3gqcJUoA1n9HaHKufZs5FCSGazv5.git?branch=master#0c9a7419dcfd265b6c1efe85c915d126feaef649"
 dependencies = [
  "fastrand",
 ]
@@ -1795,10 +1815,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "radicle-signals"
+version = "0.10.0"
+source = "git+https://seed.radicle.xyz/z3gqcJUoA1n9HaHKufZs5FCSGazv5.git?branch=master#0c9a7419dcfd265b6c1efe85c915d126feaef649"
+dependencies = [
+ "crossbeam-channel",
+ "libc",
+]
+
+[[package]]
 name = "radicle-ssh"
 version = "0.9.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "fbee758010fb64482be4b18591fbeb3cbc15b16450d143edf4edb5484c7366c6"
+source = "git+https://seed.radicle.xyz/z3gqcJUoA1n9HaHKufZs5FCSGazv5.git?branch=master#0c9a7419dcfd265b6c1efe85c915d126feaef649"
 dependencies = [
  "byteorder",
  "log",
@@ -1834,8 +1862,7 @@ dependencies = [
 [[package]]
 name = "radicle-term"
 version = "0.11.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d2cf3256980e3fddcd135f6e755022df8b385b842cdcbbfce059f47e87caec18"
+source = "git+https://seed.radicle.xyz/z3gqcJUoA1n9HaHKufZs5FCSGazv5.git?branch=master#0c9a7419dcfd265b6c1efe85c915d126feaef649"
 dependencies = [
  "anstyle-query",
  "anyhow",
@@ -1844,7 +1871,7 @@ dependencies = [
  "inquire",
  "libc",
  "once_cell",
- "radicle-signals",
+ "radicle-signals 0.10.0 (git+https://seed.radicle.xyz/z3gqcJUoA1n9HaHKufZs5FCSGazv5.git?branch=master)",
  "shlex",
  "termion 3.0.0",
  "thiserror",
@@ -1869,7 +1896,7 @@ dependencies = [
  "nom",
  "radicle",
  "radicle-cli",
- "radicle-signals",
+ "radicle-signals 0.10.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "radicle-surf",
  "radicle-term",
  "ratatui",

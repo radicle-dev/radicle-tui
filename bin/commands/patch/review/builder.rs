@@ -489,11 +489,7 @@ impl<'a, G: Signer> ReviewBuilder<'a, G> {
         opts.patience(true).minimal(true).context_lines(3_u32);
 
         let diff = self.diff(&brain.accepted(), &tree, repo, &mut opts)?;
-        let drafts = DraftStore::new(*signer.public_key(), self.repo).with(
-            signer.public_key(),
-            &cob::patch::TYPENAME,
-            &patch_id,
-        )?;
+        let drafts = DraftStore::new(self.repo, *signer.public_key());
         let mut patches = cob::patch::Cache::no_cache(&drafts)?;
         let mut patch = patches.get_mut(&patch_id)?;
 
@@ -529,11 +525,7 @@ impl<'a, G: Signer> ReviewBuilder<'a, G> {
             Brain::new(self.patch_id, signer.public_key(), base, repo)?
         };
         let diff = self.diff(&brain.accepted, &tree, repo, opts)?;
-        let drafts = DraftStore::new(*signer.public_key(), self.repo).with(
-            signer.public_key(),
-            &cob::patch::TYPENAME,
-            &patch_id,
-        )?;
+        let drafts = DraftStore::new(self.repo, *signer.public_key());
         let mut patches = cob::patch::Cache::no_cache(&drafts)?;
         let mut patch = patches.get_mut(&patch_id)?;
         let mut queue = ReviewQueue::from(diff);
