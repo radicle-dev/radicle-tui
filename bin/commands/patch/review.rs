@@ -77,7 +77,7 @@ pub struct Args(String);
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct Selection {
     pub action: ReviewAction,
-    pub hunk: usize,
+    pub hunk: Option<usize>,
     pub args: Option<Args>,
 }
 
@@ -492,14 +492,14 @@ impl<'a> store::Update<Message> for App<'a> {
             Message::Accept => Some(Exit {
                 value: Some(Selection {
                     action: ReviewAction::Accept,
-                    hunk: 0,
+                    hunk: self.queue.1.selected(),
                     args: None,
                 }),
             }),
             Message::Comment => Some(Exit {
                 value: Some(Selection {
                     action: ReviewAction::Comment,
-                    hunk: 0,
+                    hunk: self.queue.1.selected(),
                     args: None,
                 }),
             }),

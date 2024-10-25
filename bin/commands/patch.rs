@@ -9,20 +9,23 @@ use std::ffi::OsString;
 
 use anyhow::anyhow;
 
+use radicle::cob::{self, CodeLocation};
 use radicle::crypto::Signer;
 use radicle::identity::RepoId;
-use radicle::patch::Status;
+use radicle::patch::{Status, Verdict};
+use radicle::storage::git::cob::DraftStore;
 use radicle::storage::WriteRepository;
 
 use radicle_cli::git::Rev;
 use radicle_cli::terminal;
 use radicle_cli::terminal::args::{string, Args, Error, Help};
+use radicle_cli::terminal::*;
 
 use crate::cob::patch;
 use crate::cob::patch::Filter;
 use crate::commands::tui_patch::review::ReviewAction;
 
-use crate::tui_patch::review::builder::{Brain, ReviewBuilder};
+use crate::tui_patch::review::builder::{Brain, CommentBuilder, ReviewBuilder, ReviewComment};
 
 pub const HELP: Help = Help {
     name: "patch",
@@ -233,7 +236,7 @@ pub async fn run(options: Options, ctx: impl terminal::Context) -> anyhow::Resul
                 .map(|rev| rev.resolve::<radicle::git::Oid>(&repo.backend))
                 .transpose()?
                 .map(radicle::cob::patch::RevisionId::from);
-            let (_revision_id, revision) = match revision_id {
+            let (_, revision) = match revision_id {
                 Some(id) => (
                     id,
                     patch
@@ -245,7 +248,7 @@ pub async fn run(options: Options, ctx: impl terminal::Context) -> anyhow::Resul
 
             let brain = if let Ok(b) = Brain::load(patch_id, signer.public_key(), repo.raw()) {
                 log::info!(
-                    "Loaded existing review {} for patch {}",
+                    "Loaded existing brain {} for patch {}",
                     b.head().id(),
                     &patch_id
                 );
@@ -255,9 +258,61 @@ pub async fn run(options: Options, ctx: impl terminal::Context) -> anyhow::Resul
                 Brain::new(patch_id, signer.public_key(), base, repo.raw())?
             };
 
-            let queue = ReviewBuilder::new(patch_id, signer, &repo).queue(&brain, &revision)?;
+            let builder = ReviewBuilder::new(patch_id, &signer, &repo);
+            let queue = builder.queue(&brain, &revision)?;
 
-            while !queue.is_empty() {
+            let drafts = DraftStore::new(&repo, *signer.public_key());
+            let mut patches = cob::patch::Cache::no_cache(&drafts)?;
+            let mut patch = patches.get_mut(&patch_id)?;
+
+            if let Some(review) = revision.review_by(signer.public_key()) {
+                // Review already finalized. Do nothing and warn.
+                terminal::warning(format!(
+                    "Review ({}) already finalized. Exiting.",
+                    review.id()
+                ));
+
+                return Ok(());
+            };
+
+            let (review_id, review) = if let Some((id, review)) = patch
+                .clone()
+                .reviews_of(revision.id())
+                .find(|(_, review)| review.author().public_key() == signer.public_key())
+            {
+                // Review already started, resume.
+                log::info!("Resuming review {id}..");
+                (id.clone(), review.clone())
+            } else {
+                // No review to resume, start a new one.
+                let id = patch.review(
+                    revision.id(),
+                    // This is amended before the review is finalized, if all hunks are
+                    // accepted. We can't set this to `None`, as that will be invalid without
+                    // a review summary.
+                    Some(Verdict::Reject),
+                    None,
+                    vec![],
+                    &signer,
+                )?;
+                log::info!("Starting new review {id}..");
+
+                // Load newly created review.
+                match patch
+                    .reviews_of(revision.id())
+                    .find(|(_, review)| review.author().public_key() == signer.public_key())
+                {
+                    Some((id, review)) => (id.clone(), review.clone()),
+                    None => anyhow::bail!("Could not find review {}", id),
+                }
+            };
+
+            loop {
+                log::info!(
+                    "Found comments for {review_id}: {:?}",
+                    review.comments().collect::<Vec<_>>()
+                );
+
                 let selection = review::Tui::new(profile.clone(), rid, queue.clone())
                     .run()
                     .await?;
@@ -272,9 +327,41 @@ pub async fn run(options: Options, ctx: impl terminal::Context) -> anyhow::Resul
                             // next hunk
                         }
                         ReviewAction::Comment => {
-                            radicle_cli::terminal::Editor::new()
-                                .extension("diff")
-                                .edit(String::new())?;
+                            if let Some(hunk) = selection.hunk {
+                                if let Some((_, item)) = queue.get(hunk) {
+                                    let (old, new) = item.paths();
+                                    let path = old.or(new);
+
+                                    if let (Some(hunk), Some((path, _))) = (item.hunk(), path) {
+                                        let builder = CommentBuilder::new(
+                                            revision.head(),
+                                            path.to_path_buf(),
+                                        );
+                                        let comments = builder.edit(hunk)?;
+
+                                        patch.transaction("Review comments", &signer, |tx| {
+                                            for comment in comments {
+                                                tx.review_comment(
+                                                    review_id,
+                                                    comment.body,
+                                                    Some(comment.location),
+                                                    None,   // Not a reply.
+                                                    vec![], // No embeds.
+                                                )?;
+                                            }
+                                            Ok(())
+                                        })?;
+                                    } else {
+                                        log::warn!(
+                                            "Commenting on binary blobs is not yet implemented"
+                                        );
+                                    }
+                                } else {
+                                    log::error!("Expected a hunk to comment on.")
+                                }
+                            } else {
+                                log::error!("Expected a selected hunk.")
+                            }
                         }
                     }
                 } else {

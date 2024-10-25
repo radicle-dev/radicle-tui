@@ -19,10 +19,12 @@ use std::str::FromStr;
 use std::{fmt, io};
 
 use radicle::cob;
+use radicle::cob::cache::NoCache;
 use radicle::cob::patch::{PatchId, Revision, Verdict};
 use radicle::cob::{CodeLocation, CodeRange};
 use radicle::git;
 use radicle::git::Oid;
+use radicle::patch::PatchMut;
 use radicle::prelude::*;
 use radicle::storage::git::{cob::DraftStore, Repository};
 use radicle_surf::diff::*;
@@ -441,7 +443,7 @@ pub struct ReviewBuilder<'a, G> {
     /// Patch being reviewed.
     patch_id: PatchId,
     /// Signer.
-    signer: G,
+    signer: &'a G,
     /// Stored copy of repository.
     repo: &'a Repository,
     /// Single hunk review.
@@ -452,7 +454,7 @@ pub struct ReviewBuilder<'a, G> {
 
 impl<'a, G: Signer> ReviewBuilder<'a, G> {
     /// Create a new review builder.
-    pub fn new(patch_id: PatchId, signer: G, repo: &'a Repository) -> Self {
+    pub fn new(patch_id: PatchId, signer: &'a G, repo: &'a Repository) -> Self {
         Self {
             patch_id,
             signer,
@@ -477,9 +479,6 @@ impl<'a, G: Signer> ReviewBuilder<'a, G> {
     /// Assemble the review for the given revision.
     pub fn queue(&self, brain: &'a Brain<'a>, revision: &Revision) -> anyhow::Result<ReviewQueue> {
         let repo = self.repo.raw();
-        let signer = &self.signer;
-        let patch_id = self.patch_id;
-        let base = repo.find_commit((*revision.base()).into())?;
         let tree = {
             let commit = repo.find_commit(revision.head().into())?;
             commit.tree()?
@@ -489,9 +488,6 @@ impl<'a, G: Signer> ReviewBuilder<'a, G> {
         opts.patience(true).minimal(true).context_lines(3_u32);
 
         let diff = self.diff(&brain.accepted(), &tree, repo, &mut opts)?;
-        let drafts = DraftStore::new(self.repo, *signer.public_key());
-        let mut patches = cob::patch::Cache::no_cache(&drafts)?;
-        let mut patch = patches.get_mut(&patch_id)?;
 
         Ok(ReviewQueue::from(diff))
     }
@@ -546,7 +542,7 @@ impl<'a, G: Signer> ReviewBuilder<'a, G> {
                 Some(Verdict::Reject),
                 None,
                 vec![],
-                signer,
+                *signer,
             )?
         };
 
@@ -597,7 +593,7 @@ impl<'a, G: Signer> ReviewBuilder<'a, G> {
                         let builder = CommentBuilder::new(revision.head(), path.to_path_buf());
                         let comments = builder.edit(hunk)?;
 
-                        patch.transaction("Review comments", signer, |tx| {
+                        patch.transaction("Review comments", *signer, |tx| {
                             for comment in comments {
                                 tx.review_comment(
                                     review,
@@ -703,13 +699,13 @@ impl<'a, G: Signer> ReviewBuilder<'a, G> {
 }
 
 #[derive(Debug, PartialEq, Eq)]
-struct ReviewComment {
-    location: CodeLocation,
-    body: String,
+pub struct ReviewComment {
+    pub location: CodeLocation,
+    pub body: String,
 }
 
 #[derive(thiserror::Error, Debug)]
-enum Error {
+pub enum Error {
     #[error(transparent)]
     Diff(#[from] unified_diff::Error),
     #[error(transparent)]
@@ -723,14 +719,14 @@ enum Error {
 }
 
 #[derive(Debug)]
-struct CommentBuilder {
+pub struct CommentBuilder {
     commit: Oid,
     path: PathBuf,
     comments: Vec<ReviewComment>,
 }
 
 impl CommentBuilder {
-    fn new(commit: Oid, path: PathBuf) -> Self {
+    pub fn new(commit: Oid, path: PathBuf) -> Self {
         Self {
             commit,
             path,
@@ -738,7 +734,7 @@ impl CommentBuilder {
         }
     }
 
-    fn edit(mut self, hunk: &Hunk<Modification>) -> Result<Vec<ReviewComment>, Error> {
+    pub fn edit(mut self, hunk: &Hunk<Modification>) -> Result<Vec<ReviewComment>, Error> {
         let mut input = String::new();
         for line in hunk.to_unified_string()?.lines() {
             writeln!(&mut input, "> {line}")?;
@@ -752,7 +748,7 @@ impl CommentBuilder {
         Ok(self.comments())
     }
 
-    fn add_hunk(&mut self, hunk: HunkHeader, input: &str) -> &mut Self {
+    pub fn add_hunk(&mut self, hunk: HunkHeader, input: &str) -> &mut Self {
         let lines = input.trim().lines().map(|l| l.trim());
         let (mut old_line, mut new_line) = (hunk.old_line_no as usize, hunk.new_line_no as usize);
         let (mut old_start, mut new_start) = (old_line, new_line);
