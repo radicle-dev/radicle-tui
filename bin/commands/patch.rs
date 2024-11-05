@@ -9,7 +9,7 @@ use std::ffi::OsString;
 
 use anyhow::anyhow;
 
-use radicle::cob::{self, CodeLocation};
+use radicle::cob;
 use radicle::crypto::Signer;
 use radicle::identity::RepoId;
 use radicle::patch::{Status, Verdict};
@@ -19,13 +19,12 @@ use radicle::storage::WriteRepository;
 use radicle_cli::git::Rev;
 use radicle_cli::terminal;
 use radicle_cli::terminal::args::{string, Args, Error, Help};
-use radicle_cli::terminal::*;
 
 use crate::cob::patch;
 use crate::cob::patch::Filter;
 use crate::commands::tui_patch::review::ReviewAction;
 
-use crate::tui_patch::review::builder::{Brain, CommentBuilder, ReviewBuilder, ReviewComment};
+use crate::tui_patch::review::builder::{Brain, CommentBuilder, ReviewBuilder};
 
 pub const HELP: Help = Help {
     name: "patch",

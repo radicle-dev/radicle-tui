@@ -225,9 +225,12 @@ impl<'a> App<'a> {
                                 Constraint::Fill(1),
                             ),
                         ];
-                        let hunk = hunk.clone().unwrap();
-                        let hunk: Text<'_> =
-                            hunk.to_text(&mut hi, &item.highlighted, repo.raw()).into();
+                        let hunk = hunk
+                            .as_ref()
+                            .map(|hunk| {
+                                Text::from(hunk.to_text(&mut hi, &item.highlighted, repo.raw()))
+                            })
+                            .unwrap_or(Text::raw("No hunk found").light_red());
 
                         ui.columns(frame, header.clone().to_vec(), Some(Borders::Top));
                         ui.text_view(frame, hunk, &mut (0, 0), Some(Borders::BottomSides));
@@ -256,9 +259,12 @@ impl<'a> App<'a> {
                                 Constraint::Fill(1),
                             ),
                         ];
-                        let hunk = hunk.clone().unwrap();
-                        let hunk: Text<'_> =
-                            hunk.to_text(&mut hi, &item.highlighted, repo.raw()).into();
+                        let hunk = hunk
+                            .as_ref()
+                            .map(|hunk| {
+                                Text::from(hunk.to_text(&mut hi, &item.highlighted, repo.raw()))
+                            })
+                            .unwrap_or(Text::raw("No hunk found").light_red());
 
                         ui.columns(frame, header.clone().to_vec(), Some(Borders::Top));
                         ui.text_view(frame, hunk, &mut (0, 0), Some(Borders::BottomSides));
@@ -286,9 +292,12 @@ impl<'a> App<'a> {
                                 Constraint::Fill(1),
                             ),
                         ];
-                        let hunk = hunk.clone().unwrap();
-                        let hunk: Text<'_> =
-                            hunk.to_text(&mut hi, &item.highlighted, repo.raw()).into();
+                        let hunk = hunk
+                            .as_ref()
+                            .map(|hunk| {
+                                Text::from(hunk.to_text(&mut hi, &item.highlighted, repo.raw()))
+                            })
+                            .unwrap_or(Text::raw("No hunk found").light_red());
 
                         ui.columns(frame, header.clone().to_vec(), Some(Borders::Top));
                         ui.text_view(frame, hunk, &mut (0, 0), Some(Borders::BottomSides));
