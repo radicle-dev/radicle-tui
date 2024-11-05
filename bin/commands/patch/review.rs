@@ -329,7 +329,7 @@ impl<'a> App<'a> {
                     (_, crate::cob::ReviewItem::FileMoved { moved }) => {
                         let path = Line::from(
                             [
-                                ReviewItem::pretty_path(&moved.new_path, false).spans,
+                                ReviewItem::pretty_path(&moved.old_path, false).spans,
                                 [span::default(" -> ")].to_vec(),
                                 ReviewItem::pretty_path(&moved.new_path, false).spans,
                             ]
@@ -341,7 +341,7 @@ impl<'a> App<'a> {
                             Column::new(path.clone(), Constraint::Length(path.width() as u16)),
                             Column::new(
                                 span::default(" moved ")
-                                    .light_red()
+                                    .light_blue()
                                     .dim()
                                     .reversed()
                                     .into_right_aligned_line(),
