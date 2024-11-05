@@ -54,6 +54,43 @@ pub fn parse_assignees(input: String) -> Result<Vec<Did>> {
     Ok(assignees)
 }
 
+pub enum DiffStats {
+    Hunk(HunkStats),
+    File(FileStats),
+}
+
+#[derive(Default)]
+pub struct HunkStats {
+    added: usize,
+    deleted: usize,
+}
+
+impl HunkStats {
+    pub fn added(&self) -> usize {
+        self.added
+    }
+    pub fn deleted(&self) -> usize {
+        self.deleted
+    }
+}
+
+impl From<&Hunk<Modification>> for HunkStats {
+    fn from(hunk: &Hunk<Modification>) -> Self {
+        let mut added = 0_usize;
+        let mut deleted = 0_usize;
+
+        for modification in &hunk.lines {
+            match modification {
+                Modification::Addition(_) => added += 1,
+                Modification::Deletion(_) => deleted += 1,
+                _ => {}
+            }
+        }
+
+        Self { added, deleted }
+    }
+}
+
 /// A single review item. Can be a hunk or eg. a file move.
 /// Files are usually split into multiple review items.
 #[derive(Clone, Debug)]

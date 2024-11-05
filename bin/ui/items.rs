@@ -42,7 +42,7 @@ use tui::ui::span;
 use tui::ui::theme::style;
 use tui::ui::{ToRow, ToTree};
 
-use crate::cob::IndexedReviewItem;
+use crate::cob::{DiffStats, HunkStats, IndexedReviewItem};
 use crate::git::{Blob, Repo};
 
 use super::super::git;
@@ -1063,44 +1063,150 @@ impl<'a> From<(&Repository, &IndexedReviewItem)> for ReviewItem<'a> {
 impl<'a> ToRow<3> for ReviewItem<'a> {
     fn to_row(&self) -> [Cell; 3] {
         use crate::cob::ReviewItem as Item;
+
+        let build_stats_spans = |stats: &DiffStats| -> Vec<Span<'_>> {
+            let mut cell = vec![];
+
+            let (added, deleted) = match stats {
+                DiffStats::Hunk(stats) => (stats.added(), stats.deleted()),
+                DiffStats::File(stats) => (stats.additions, stats.deletions),
+            };
+
+            if added > 0 {
+                cell.push(span::default(&format!("+{}", added)).light_green().dim());
+            }
+
+            if added > 0 && deleted > 0 {
+                cell.push(span::default(",").dim());
+            }
+
+            if deleted > 0 {
+                cell.push(span::default(&format!("-{}", deleted)).light_red().dim());
+            }
+
+            cell
+        };
+
         match &self.inner {
             (
-                idx,
+                _,
                 Item::FileAdded {
-                    path: _,
+                    path,
                     header: _,
                     new: _,
-                    hunk: _,
+                    hunk,
                     stats: _,
                 },
-            ) => [
-                span::secondary("?").into(),
-                span::default(&format!("Hunk {}", idx)).into(),
-                span::default("").into(),
-            ],
-            (idx, Item::FileCopied { copied: _ }) => [
-                span::secondary("?").into(),
-                span::default(&format!("Hunk {}", idx)).into(),
-                span::default("").into(),
-            ],
+            ) => {
+                let stats = hunk
+                    .as_ref()
+                    .map(|hunk| HunkStats::from(hunk))
+                    .unwrap_or_default();
+                let stats_cell = [
+                    build_stats_spans(&DiffStats::Hunk(stats)),
+                    [span::default(" A ").bold().light_green().dim()].to_vec(),
+                ]
+                .concat();
+
+                [
+                    span::secondary("?").into(),
+                    ReviewItem::pretty_path(path, false).into(),
+                    Line::from(stats_cell).right_aligned().into(),
+                ]
+            }
             (
-                idx,
-                Item::FileDeleted {
-                    path: _,
+                _,
+                Item::FileModified {
+                    path,
                     header: _,
                     old: _,
-                    hunk: _,
+                    new: _,
+                    hunk,
                     stats: _,
                 },
-            ) => [
-                span::secondary("?").into(),
-                span::default(&format!("Hunk {}", idx)).into(),
-                span::default("").into(),
-            ],
+            ) => {
+                let stats = hunk
+                    .as_ref()
+                    .map(|hunk| HunkStats::from(hunk))
+                    .unwrap_or_default();
+                let stats_cell = [
+                    build_stats_spans(&DiffStats::Hunk(stats)),
+                    [span::default(" M ").bold().light_yellow().dim()].to_vec(),
+                ]
+                .concat();
+
+                [
+                    span::secondary("?").into(),
+                    ReviewItem::pretty_path(path, false).into(),
+                    Line::from(stats_cell).right_aligned().into(),
+                ]
+            }
             (
-                idx,
+                _,
+                Item::FileDeleted {
+                    path,
+                    header: _,
+                    old: _,
+                    hunk,
+                    stats: _,
+                },
+            ) => {
+                let stats = hunk
+                    .as_ref()
+                    .map(|hunk| HunkStats::from(hunk))
+                    .unwrap_or_default();
+                let stats_cell = [
+                    build_stats_spans(&DiffStats::Hunk(stats)),
+                    [span::default(" D ").bold().light_red().dim()].to_vec(),
+                ]
+                .concat();
+
+                [
+                    span::secondary("?").into(),
+                    ReviewItem::pretty_path(path, true).into(),
+                    Line::from(stats_cell).right_aligned().into(),
+                ]
+            }
+            (_, Item::FileCopied { copied }) => {
+                let stats = copied
+                    .diff
+                    .stats()
+                    .map(|stats| stats.clone())
+                    .unwrap_or_default();
+                let stats_cell = [
+                    build_stats_spans(&DiffStats::File(stats)),
+                    [span::default(" CP ").bold().light_blue().dim()].to_vec(),
+                ]
+                .concat();
+
+                [
+                    span::secondary("?").into(),
+                    ReviewItem::pretty_path(&copied.new_path, false).into(),
+                    Line::from(stats_cell).right_aligned().into(),
+                ]
+            }
+            (_, Item::FileMoved { moved }) => {
+                let stats = moved
+                    .diff
+                    .stats()
+                    .map(|stats| stats.clone())
+                    .unwrap_or_default();
+                let stats_cell = [
+                    build_stats_spans(&DiffStats::File(stats)),
+                    [span::default(" MV ").bold().light_blue().dim()].to_vec(),
+                ]
+                .concat();
+
+                [
+                    span::secondary("?").into(),
+                    ReviewItem::pretty_path(&moved.new_path, false).into(),
+                    Line::from(stats_cell).right_aligned().into(),
+                ]
+            }
+            (
+                _,
                 Item::FileEofChanged {
-                    path: _,
+                    path,
                     header: _,
                     old: _,
                     new: _,
@@ -1108,41 +1214,27 @@ impl<'a> ToRow<3> for ReviewItem<'a> {
                 },
             ) => [
                 span::secondary("?").into(),
-                span::default(&format!("Hunk {}", idx)).into(),
-                span::default("").into(),
+                ReviewItem::pretty_path(path, false).into(),
+                span::default("EOF ")
+                    .light_blue()
+                    .into_right_aligned_line()
+                    .into(),
             ],
             (
-                idx,
+                _,
                 Item::FileModeChanged {
-                    path: _,
+                    path,
                     header: _,
                     old: _,
                     new: _,
                 },
             ) => [
                 span::secondary("?").into(),
-                span::default(&format!("Hunk {}", idx)).into(),
-                span::default("").into(),
-            ],
-            (
-                idx,
-                Item::FileModified {
-                    path: _,
-                    header: _,
-                    old: _,
-                    new: _,
-                    hunk: _,
-                    stats: _,
-                },
-            ) => [
-                span::secondary("?").into(),
-                span::default(&format!("Hunk {}", idx)).into(),
-                span::default("").into(),
-            ],
-            (idx, Item::FileMoved { moved: _ }) => [
-                span::secondary("?").into(),
-                span::default(&format!("Hunk {}", idx)).into(),
-                span::default("").into(),
+                ReviewItem::pretty_path(path, false).into(),
+                span::default("FM ")
+                    .light_blue()
+                    .into_right_aligned_line()
+                    .into(),
             ],
         }
     }
@@ -1153,7 +1245,7 @@ impl<'a> ReviewItem<'a> {
         let file = path.file_name().unwrap_or_default();
         let path = if path.iter().count() > 1 {
             path.into_iter()
-                .take(path.into_iter().count() - 2)
+                .take(path.into_iter().count() - 1)
                 .map(|component| component.to_string_lossy().to_string())
                 .collect::<Vec<_>>()
         } else {

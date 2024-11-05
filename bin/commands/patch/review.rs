@@ -7,11 +7,11 @@ use std::sync::Mutex;
 
 use anyhow::Result;
 
-use ratatui::text::Line;
 use termion::event::Key;
 
 use ratatui::layout::{Constraint, Layout};
 use ratatui::style::Stylize;
+use ratatui::text::Line;
 use ratatui::text::Text;
 use ratatui::{Frame, Viewport};
 
@@ -171,7 +171,7 @@ impl<'a> App<'a> {
         let columns = [
             Column::new(" ", Constraint::Length(1)),
             Column::new(" ", Constraint::Fill(1)),
-            Column::new(" ", Constraint::Fill(1)),
+            Column::new(" ", Constraint::Length(15)),
         ]
         .to_vec();
         let mut selected = self.queue.1.selected();
@@ -317,14 +317,40 @@ impl<'a> App<'a> {
                             Column::new(path.clone(), Constraint::Length(path.width() as u16)),
                             Column::new(
                                 span::default(" copied ")
-                                    .light_red()
+                                    .light_blue()
                                     .dim()
                                     .reversed()
                                     .into_right_aligned_line(),
                                 Constraint::Fill(1),
                             ),
                         ];
-                        ui.columns(frame, header.clone().to_vec(), Some(Borders::Top));
+
+                        // let hunk = match &copied.diff {
+                        //     DiffContent::Plain {
+                        //         hunks,
+                        //         stats: _,
+                        //         eof: _,
+                        //     } => {
+                        //         log::info!("{:?}", hunks);
+                        //         let text = hunks.iter().fold(Text::raw(""), |mut text, hunk| {
+                        //             text.extend(Text::from(hunk.to_text(
+                        //                 &mut hi,
+                        //                 &item.highlighted,
+                        //                 repo.raw(),
+                        //             )));
+                        //             text
+                        //         });
+
+                        //         Some(text)
+                        //     }
+                        //     DiffContent::Binary => {
+                        //         Some(Text::raw("Binary files cannot be viewed."))
+                        //     }
+                        //     DiffContent::Empty => Some(Text::raw("")),
+                        // };
+                        // let hunk = hunk.unwrap_or_default();
+
+                        ui.columns(frame, header.clone().to_vec(), Some(Borders::All));
                     }
                     (_, crate::cob::ReviewItem::FileMoved { moved }) => {
                         let path = Line::from(

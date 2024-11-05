@@ -481,6 +481,14 @@ impl<'a, G: Signer> ReviewBuilder<'a, G> {
         let repo = self.repo.raw();
         let tree = {
             let commit = repo.find_commit(revision.head().into())?;
+
+            log::info!(
+                "Loading queue patch: Patch[commit({}), tree({})], Brain[tree({})]",
+                commit.id(),
+                commit.tree()?.id(),
+                &brain.accepted().id()
+            );
+
             commit.tree()?
         };
 
