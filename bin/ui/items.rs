@@ -1092,10 +1092,9 @@ impl<'a> ToRow<3> for ReviewItem<'a> {
                 _,
                 Item::FileAdded {
                     path,
-                    header: _,
                     new: _,
                     hunk,
-                    stats: _,
+                    _stats: _,
                 },
             ) => {
                 let stats = hunk
@@ -1118,11 +1117,10 @@ impl<'a> ToRow<3> for ReviewItem<'a> {
                 _,
                 Item::FileModified {
                     path,
-                    header: _,
                     old: _,
                     new: _,
                     hunk,
-                    stats: _,
+                    _stats: _,
                 },
             ) => {
                 let stats = hunk
@@ -1145,10 +1143,9 @@ impl<'a> ToRow<3> for ReviewItem<'a> {
                 _,
                 Item::FileDeleted {
                     path,
-                    header: _,
                     old: _,
                     hunk,
-                    stats: _,
+                    _stats: _,
                 },
             ) => {
                 let stats = hunk
@@ -1207,10 +1204,9 @@ impl<'a> ToRow<3> for ReviewItem<'a> {
                 _,
                 Item::FileEofChanged {
                     path,
-                    header: _,
                     old: _,
                     new: _,
-                    eof: _,
+                    _eof: _,
                 },
             ) => [
                 span::secondary("?").into(),
@@ -1224,7 +1220,6 @@ impl<'a> ToRow<3> for ReviewItem<'a> {
                 _,
                 Item::FileModeChanged {
                     path,
-                    header: _,
                     old: _,
                     new: _,
                 },

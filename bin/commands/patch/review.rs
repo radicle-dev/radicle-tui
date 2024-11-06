@@ -206,10 +206,9 @@ impl<'a> App<'a> {
                         _,
                         crate::cob::ReviewItem::FileAdded {
                             path,
-                            header: _,
                             new: _,
                             hunk,
-                            stats: _,
+                            _stats: _,
                         },
                     ) => {
                         let path = ReviewItem::pretty_path(path, false);
@@ -239,11 +238,10 @@ impl<'a> App<'a> {
                         _,
                         crate::cob::ReviewItem::FileModified {
                             path,
-                            header: _,
                             old: _,
                             new: _,
                             hunk,
-                            stats: _,
+                            _stats: _,
                         },
                     ) => {
                         let path = ReviewItem::pretty_path(path, false);
@@ -273,10 +271,9 @@ impl<'a> App<'a> {
                         _,
                         crate::cob::ReviewItem::FileDeleted {
                             path,
-                            header: _,
                             old: _,
                             hunk,
-                            stats: _,
+                            _stats: _,
                         },
                     ) => {
                         let path = ReviewItem::pretty_path(path, true);
@@ -380,10 +377,9 @@ impl<'a> App<'a> {
                         _,
                         crate::cob::ReviewItem::FileEofChanged {
                             path,
-                            header: _,
                             old: _,
                             new: _,
-                            eof: _,
+                            _eof: _,
                         },
                     ) => {
                         let path = ReviewItem::pretty_path(&path, false);
@@ -404,7 +400,6 @@ impl<'a> App<'a> {
                         _,
                         crate::cob::ReviewItem::FileModeChanged {
                             path,
-                            header: _,
                             old: _,
                             new: _,
                         },

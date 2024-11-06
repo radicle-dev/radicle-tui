@@ -149,8 +149,6 @@ impl ReviewQueue {
     /// Add a file to the queue.
     /// Mostly splits files into individual review items (eg. hunks) to review.
     fn add_file(&mut self, file: FileDiff) {
-        let header = FileHeader::from(&file);
-
         match file {
             FileDiff::Moved(moved) => {
                 self.add_item(ReviewItem::FileMoved { moved });
@@ -161,7 +159,6 @@ impl ReviewQueue {
             FileDiff::Added(a) => {
                 self.add_item(ReviewItem::FileAdded {
                     path: a.path,
-                    header: header.clone(),
                     new: a.new,
                     hunk: if let DiffContent::Plain {
                         hunks: Hunks(mut hs),
@@ -172,13 +169,12 @@ impl ReviewQueue {
                     } else {
                         None
                     },
-                    stats: a.diff.stats().cloned(),
+                    _stats: a.diff.stats().cloned(),
                 });
             }
             FileDiff::Deleted(d) => {
                 self.add_item(ReviewItem::FileDeleted {
                     path: d.path,
-                    header: header.clone(),
                     old: d.old,
                     hunk: if let DiffContent::Plain {
                         hunks: Hunks(mut hs),
@@ -189,14 +185,13 @@ impl ReviewQueue {
                     } else {
                         None
                     },
-                    stats: d.diff.stats().cloned(),
+                    _stats: d.diff.stats().cloned(),
                 });
             }
             FileDiff::Modified(m) => {
                 if m.old.mode != m.new.mode {
                     self.add_item(ReviewItem::FileModeChanged {
                         path: m.path.clone(),
-                        header: header.clone(),
                         old: m.old.clone(),
                         new: m.new.clone(),
                     });
@@ -208,11 +203,10 @@ impl ReviewQueue {
                     DiffContent::Binary => {
                         self.add_item(ReviewItem::FileModified {
                             path: m.path.clone(),
-                            header: header.clone(),
                             old: m.old.clone(),
                             new: m.new.clone(),
                             hunk: None,
-                            stats: m.diff.stats().cloned(),
+                            _stats: m.diff.stats().cloned(),
                         });
                     }
                     DiffContent::Plain {
@@ -223,20 +217,18 @@ impl ReviewQueue {
                         for hunk in hunks {
                             self.add_item(ReviewItem::FileModified {
                                 path: m.path.clone(),
-                                header: header.clone(),
                                 old: m.old.clone(),
                                 new: m.new.clone(),
                                 hunk: Some(hunk),
-                                stats: Some(stats),
+                                _stats: Some(stats),
                             });
                         }
                         if let EofNewLine::OldMissing | EofNewLine::NewMissing = eof {
                             self.add_item(ReviewItem::FileEofChanged {
                                 path: m.path.clone(),
-                                header: header.clone(),
                                 old: m.old.clone(),
                                 new: m.new.clone(),
-                                eof,
+                                _eof: eof,
                             })
                         }
                     }
@@ -285,24 +277,16 @@ impl Iterator for ReviewQueue {
 /// Builds a review for a single file.
 /// Adjusts line deltas when a hunk is ignored.
 pub struct FileReviewBuilder {
-    header: FileHeader,
     delta: i32,
 }
 
 impl FileReviewBuilder {
     fn new(item: &ReviewItem) -> Self {
-        Self {
-            header: item.file_header(),
-            delta: 0,
-        }
+        Self { delta: 0 }
     }
 
     fn set_item(&mut self, item: &ReviewItem) -> &mut Self {
-        let header = item.file_header();
-        if self.header != header {
-            self.header = header;
-            self.delta = 0;
-        }
+        self.delta = 0;
         self
     }
 
@@ -310,28 +294,6 @@ impl FileReviewBuilder {
         if let Some(h) = item.hunk_header() {
             self.delta += h.new_size as i32 - h.old_size as i32;
         }
-    }
-
-    fn item_diff(&mut self, item: ReviewItem) -> Result<git::raw::Diff, Error> {
-        let mut buf = Vec::new();
-        let mut writer = unified_diff::Writer::new(&mut buf);
-        writer.encode(&self.header)?;
-
-        if let (Some(h), Some(mut header)) = (item.hunk(), item.hunk_header()) {
-            header.old_line_no -= self.delta as u32;
-            header.new_line_no -= self.delta as u32;
-
-            let h = Hunk {
-                header: header.to_unified_string()?.as_bytes().to_owned().into(),
-                lines: h.lines.clone(),
-                old: h.old.clone(),
-                new: h.new.clone(),
-            };
-            writer.encode(&h)?;
-        }
-        drop(writer);
-
-        git::raw::Diff::from_buffer(&buf).map_err(Error::from)
     }
 }
 
@@ -446,8 +408,6 @@ pub struct ReviewBuilder<'a, G> {
     signer: &'a G,
     /// Stored copy of repository.
     repo: &'a Repository,
-    /// Single hunk review.
-    hunk: Option<usize>,
     /// Verdict for review items.
     verdict: Option<Verdict>,
 }
@@ -459,15 +419,8 @@ impl<'a, G: Signer> ReviewBuilder<'a, G> {
             patch_id,
             signer,
             repo,
-            hunk: None,
             verdict: None,
         }
-    }
-
-    /// Review a single hunk. Set to `None` to review all hunks.
-    pub fn hunk(mut self, hunk: Option<usize>) -> Self {
-        self.hunk = hunk;
-        self
     }
 
     /// Give this verdict to all review items. Set to `None` to not give a verdict.
@@ -500,170 +453,6 @@ impl<'a, G: Signer> ReviewBuilder<'a, G> {
         Ok(ReviewQueue::from(diff))
     }
 
-    /// Run the review builder for the given revision.
-    pub fn run(self, revision: &Revision, opts: &mut git::raw::DiffOptions) -> anyhow::Result<()> {
-        let repo = self.repo.raw();
-        let signer = &self.signer;
-        let base = repo.find_commit((*revision.base()).into())?;
-        let patch_id = self.patch_id;
-        let tree = {
-            let commit = repo.find_commit(revision.head().into())?;
-            commit.tree()?
-        };
-
-        let stdout = io::stdout().lock();
-        let mut stdin = io::stdin().lock();
-        let mut writer: Box<dyn PromptWriter> = if self.hunk.is_some() || !stdout.is_terminal() {
-            Box::new(stdout)
-        } else {
-            Box::new(io::stderr().lock())
-        };
-        let mut brain = if let Ok(b) = Brain::load(self.patch_id, signer.public_key(), repo) {
-            term::success!(
-                "Loaded existing review {} for patch {}",
-                term::format::secondary(term::format::parens(term::format::oid(b.head.id()))),
-                term::format::tertiary(&patch_id)
-            );
-            b
-        } else {
-            Brain::new(self.patch_id, signer.public_key(), base, repo)?
-        };
-        let diff = self.diff(&brain.accepted, &tree, repo, opts)?;
-        let drafts = DraftStore::new(self.repo, *signer.public_key());
-        let mut patches = cob::patch::Cache::no_cache(&drafts)?;
-        let mut patch = patches.get_mut(&patch_id)?;
-        let mut queue = ReviewQueue::from(diff);
-
-        if queue.is_empty() {
-            term::success!("All hunks have been reviewed");
-            return Ok(());
-        }
-
-        let review = if let Some(r) = revision.review_by(signer.public_key()) {
-            r.id()
-        } else {
-            patch.review(
-                revision.id(),
-                // This is amended before the review is finalized, if all hunks are
-                // accepted. We can't set this to `None`, as that will be invalid without
-                // a review summary.
-                Some(Verdict::Reject),
-                None,
-                vec![],
-                *signer,
-            )?
-        };
-
-        // File review for the current file. Starts out as `None` and is set on the first hunk.
-        // Keeps track of deltas for hunk offsets.
-        let mut file: Option<FileReviewBuilder> = None;
-        let total = queue.len();
-
-        while let Some((ix, item)) = queue.next() {
-            if let Some(hunk) = self.hunk {
-                if hunk != ix + 1 {
-                    continue;
-                }
-            }
-            let progress = term::format::secondary(format!("({}/{total})", ix + 1));
-            let file = match file.as_mut() {
-                Some(fr) => fr.set_item(&item),
-                None => file.insert(FileReviewBuilder::new(&item)),
-            };
-            // term::element::write_to(
-            //     &item.pretty(repo),
-            //     &mut writer,
-            //     term::Constraint::from_env().unwrap_or_default(),
-            // )?;
-
-            // Prompts the user for action on the above hunk.
-            match self.prompt(&mut stdin, &mut writer, progress) {
-                // When a hunk is accepted, we convert it to unified diff format,
-                // and apply it to the `brain`.
-                Some(ReviewAction::Accept) => {
-                    // Compute hunk diff and update brain by applying it.
-                    let diff = file.item_diff(item)?;
-                    brain.accept(diff, repo)?;
-
-                    if self.hunk.is_some() {
-                        term::success!("Updated brain to {}", brain.cid());
-                    }
-                }
-                Some(ReviewAction::Ignore) => {
-                    // Do nothing. Hunk will be reviewable again next time.
-                    file.ignore_item(&item);
-                }
-                Some(ReviewAction::Comment) => {
-                    let (old, new) = item.paths();
-                    let path = old.or(new);
-
-                    if let (Some(hunk), Some((path, _))) = (item.hunk(), path) {
-                        let builder = CommentBuilder::new(revision.head(), path.to_path_buf());
-                        let comments = builder.edit(hunk)?;
-
-                        patch.transaction("Review comments", *signer, |tx| {
-                            for comment in comments {
-                                tx.review_comment(
-                                    review,
-                                    comment.body,
-                                    Some(comment.location),
-                                    None,   // Not a reply.
-                                    vec![], // No embeds.
-                                )?;
-                            }
-                            Ok(())
-                        })?;
-                    } else {
-                        eprintln!(
-                            "{}",
-                            term::format::tertiary(
-                                "Commenting on binary blobs is not yet implemented"
-                            )
-                            .bold()
-                        );
-                        queue.push_front((ix, item));
-                    }
-                }
-                Some(ReviewAction::Split) => {
-                    eprintln!(
-                        "{}",
-                        term::format::tertiary("Splitting is not yet implemented").bold()
-                    );
-                    queue.push_front((ix, item));
-                }
-                Some(ReviewAction::Next) => {
-                    queue.push_back((ix, item));
-                }
-                Some(ReviewAction::Previous) => {
-                    queue.push_front((ix, item));
-
-                    if let Some(e) = queue.pop_back() {
-                        queue.push_front(e);
-                    }
-                }
-                Some(ReviewAction::Quit) => {
-                    break;
-                }
-                Some(ReviewAction::Help) => {
-                    eprintln!("{}", term::format::tertiary(HELP).bold());
-                    queue.push_front((ix, item));
-                }
-                None => {
-                    eprintln!(
-                        "{}",
-                        term::format::secondary(format!(
-                            "{} hunk(s) remaining to review",
-                            queue.len() + 1
-                        ))
-                    );
-                    queue.push_front((ix, item));
-                }
-            }
-        }
-
-        Ok(())
-    }
-
     pub fn diff(
         &self,
         brain: &git::raw::Tree<'_>,
@@ -682,27 +471,6 @@ impl<'a, G: Signer> ReviewBuilder<'a, G> {
         let diff = Diff::try_from(diff)?;
 
         Ok(diff)
-    }
-
-    fn prompt(
-        &self,
-        mut input: impl io::BufRead,
-        output: &mut impl PromptWriter,
-        progress: impl fmt::Display,
-    ) -> Option<ReviewAction> {
-        if let Some(v) = self.verdict {
-            match v {
-                Verdict::Accept => Some(ReviewAction::Accept),
-                Verdict::Reject => Some(ReviewAction::Ignore),
-            }
-        } else if output.is_terminal() {
-            let prompt = term::format::secondary("Accept this hunk? [y,n,c,j,k,q,?]").bold();
-
-            ReviewAction::prompt(&mut input, output, format!("{progress} {prompt}"))
-                .unwrap_or(Some(ReviewAction::Help))
-        } else {
-            Some(ReviewAction::Ignore)
-        }
     }
 }
 

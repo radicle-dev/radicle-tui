@@ -11,7 +11,6 @@ use radicle::git::Oid;
 
 use radicle_surf::diff::*;
 
-use radicle_cli::git::unified_diff::FileHeader;
 use radicle_cli::git::unified_diff::HunkHeader;
 
 use crate::git::Blob;
@@ -97,25 +96,22 @@ impl From<&Hunk<Modification>> for HunkStats {
 pub enum ReviewItem {
     FileAdded {
         path: PathBuf,
-        header: FileHeader,
         new: DiffFile,
         hunk: Option<Hunk<Modification>>,
-        stats: Option<FileStats>,
+        _stats: Option<FileStats>,
     },
     FileDeleted {
         path: PathBuf,
-        header: FileHeader,
         old: DiffFile,
         hunk: Option<Hunk<Modification>>,
-        stats: Option<FileStats>,
+        _stats: Option<FileStats>,
     },
     FileModified {
         path: PathBuf,
-        header: FileHeader,
         old: DiffFile,
         new: DiffFile,
         hunk: Option<Hunk<Modification>>,
-        stats: Option<FileStats>,
+        _stats: Option<FileStats>,
     },
     FileMoved {
         moved: Moved,
@@ -125,14 +121,12 @@ pub enum ReviewItem {
     },
     FileEofChanged {
         path: PathBuf,
-        header: FileHeader,
         old: DiffFile,
         new: DiffFile,
-        eof: EofNewLine,
+        _eof: EofNewLine,
     },
     FileModeChanged {
         path: PathBuf,
-        header: FileHeader,
         old: DiffFile,
         new: DiffFile,
     },
@@ -173,24 +167,6 @@ impl ReviewItem {
             Self::FileModeChanged { path, old, new, .. } => {
                 (Some((path, old.oid)), Some((path, new.oid)))
             }
-        }
-    }
-
-    pub fn file_header(&self) -> FileHeader {
-        match self {
-            Self::FileAdded { header, .. } => header.clone(),
-            Self::FileDeleted { header, .. } => header.clone(),
-            Self::FileMoved { moved } => FileHeader::Moved {
-                old_path: moved.old_path.clone(),
-                new_path: moved.new_path.clone(),
-            },
-            Self::FileCopied { copied } => FileHeader::Copied {
-                old_path: copied.old_path.clone(),
-                new_path: copied.new_path.clone(),
-            },
-            Self::FileModified { header, .. } => header.clone(),
-            Self::FileEofChanged { header, .. } => header.clone(),
-            Self::FileModeChanged { header, .. } => header.clone(),
         }
     }
 
