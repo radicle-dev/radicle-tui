@@ -4,7 +4,7 @@ use anyhow::Result;
 
 use termion::event::Key;
 
-use ratatui::layout::{Constraint, Layout};
+use ratatui::layout::{Constraint, Layout, Position};
 use ratatui::style::Stylize;
 use ratatui::text::Span;
 use ratatui::Frame;
@@ -132,7 +132,7 @@ impl<'a> TryFrom<&Context> for App<'a> {
                 cursor: search.len(),
             }),
             show_search: false,
-            help: TextViewState::new(HELP, (0, 0)),
+            help: TextViewState::new(HELP, Position::default()),
             filter,
         })
     }
@@ -236,13 +236,13 @@ impl<'a> Show<Message<'a>> for App<'a> {
                                     ui.text_view(
                                         frame,
                                         String::new(),
-                                        &mut (0, 0),
+                                        &mut Position::default(),
                                         Some(Borders::All),
                                     );
                                     ui.text_view(
                                         frame,
                                         String::new(),
-                                        &mut (0, 0),
+                                        &mut Position::default(),
                                         Some(Borders::All),
                                     );
                                 },
