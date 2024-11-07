@@ -343,7 +343,7 @@ mod interface {
             return Ok(());
         };
 
-        let (review_id, review) = if let Some((id, review)) = patch
+        let (review_id, _) = if let Some((id, review)) = patch
             .clone()
             .reviews_of(revision.id())
             .find(|(_, review)| review.author().public_key() == signer.public_key())
@@ -376,6 +376,15 @@ mod interface {
         };
 
         loop {
+            // Reload review
+            let (review_id, review) = match patch
+                .reviews_of(revision.id())
+                .find(|(_, review)| review.author().public_key() == signer.public_key())
+            {
+                Some((id, review)) => (id.clone(), review.clone()),
+                None => anyhow::bail!("Could not find review {}", review_id),
+            };
+
             log::info!(
                 "Found comments for {review_id}: {:?}",
                 review.comments().collect::<Vec<_>>()

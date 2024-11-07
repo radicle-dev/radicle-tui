@@ -10,14 +10,14 @@ use nom::{IResult, Parser};
 use ansi_to_tui::IntoText;
 
 use radicle::cob::thread::{Comment, CommentId};
-use radicle::cob::{Label, ObjectId, Timestamp, TypedId};
+use radicle::cob::{CodeLocation, EntryId, Label, ObjectId, Timestamp, TypedId};
 use radicle::git::Oid;
 use radicle::identity::{Did, Identity};
 use radicle::issue;
 use radicle::issue::{CloseReason, Issue, IssueId, Issues};
 use radicle::node::notifications::{Notification, NotificationId, NotificationKind};
 use radicle::node::{Alias, AliasStore, NodeId};
-use radicle::patch;
+use radicle::patch::{self, Review};
 use radicle::patch::{Patch, PatchId, Patches};
 use radicle::storage::git::Repository;
 use radicle::storage::{ReadRepository, ReadStorage, RefUpdate, WriteRepository};
@@ -1043,18 +1043,35 @@ impl<'a> Into<Line<'a>> for TermLine {
 pub struct HunkItem<'a> {
     pub inner: IndexedHunkItem,
     pub highlighted: Blobs<Vec<Line<'a>>>,
+    pub comments: Vec<(EntryId, Comment<CodeLocation>)>,
 }
 
-impl<'a> From<(&Repository, &IndexedHunkItem)> for HunkItem<'a> {
-    fn from(value: (&Repository, &IndexedHunkItem)) -> Self {
-        let (repo, item) = value;
+impl<'a> From<(&Repository, &Review, &IndexedHunkItem)> for HunkItem<'a> {
+    fn from(value: (&Repository, &Review, &IndexedHunkItem)) -> Self {
+        let (repo, review, item) = value;
         let hi = Highlighter::default();
+
+        let path = match &item.1 {
+            crate::cob::HunkItem::FileAdded { path, .. } => path,
+            crate::cob::HunkItem::FileModified { path, .. } => path,
+            crate::cob::HunkItem::FileDeleted { path, .. } => path,
+            crate::cob::HunkItem::FileCopied { copied } => &copied.new_path,
+            crate::cob::HunkItem::FileMoved { moved } => &moved.new_path,
+            crate::cob::HunkItem::FileModeChanged { path, .. } => path,
+            crate::cob::HunkItem::FileEofChanged { path, .. } => path,
+        };
 
         let blobs = item.1.clone().blobs(repo.raw());
         let highlighted = blobs.highlight(hi);
         Self {
             inner: item.clone(),
             highlighted,
+            comments: review
+                .comments()
+                .filter(|(_, comment)| comment.location().is_some())
+                .filter(|(_, comment)| comment.location().unwrap().path == *path)
+                .map(|(id, comment)| (id.clone(), comment.clone()))
+                .collect::<Vec<_>>(),
         }
     }
 }
@@ -1444,7 +1461,7 @@ impl<'a> HunkItem<'a> {
     }
 
     pub fn hunk_text(&'a self) -> Option<Text<'a>> {
-        match &self.inner {
+        let mut hunk = match &self.inner {
             (
                 _,
                 crate::cob::HunkItem::FileAdded {
@@ -1480,7 +1497,21 @@ impl<'a> HunkItem<'a> {
                 .as_ref()
                 .map(|hunk| Text::from(hunk.to_text(&self.highlighted))),
             _ => None,
+        };
+
+        let comments = self
+            .comments
+            .iter()
+            .fold(Text::raw(""), |mut comments, comment| {
+                comments.extend(Text::from(comment.1.body()));
+                comments
+            });
+
+        if let Some(ref mut hunk) = hunk {
+            hunk.extend(comments);
         }
+
+        hunk
     }
 }
 

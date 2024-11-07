@@ -161,14 +161,14 @@ impl<'a> App<'a> {
     pub fn new(
         profile: Profile,
         rid: RepoId,
-        _review: Review,
+        review: Review,
         queue: ReviewQueue,
     ) -> Result<Self, anyhow::Error> {
         let repository = profile.storage.repository(rid)?;
 
         let queue = queue
             .iter()
-            .map(|item| HunkItem::from((&repository, item)))
+            .map(|item| HunkItem::from((&repository, &review, item)))
             .collect::<Vec<_>>();
 
         let mut items = HashMap::new();
