@@ -21,7 +21,7 @@ pub mod inbox;
 pub mod issue;
 pub mod patch;
 
-pub type IndexedReviewItem = (usize, crate::cob::ReviewItem);
+pub type IndexedHunkItem = (usize, crate::cob::HunkItem);
 
 #[allow(dead_code)]
 pub fn parse_labels(input: String) -> Result<Vec<Label>> {
@@ -93,7 +93,7 @@ impl From<&Hunk<Modification>> for HunkStats {
 /// A single review item. Can be a hunk or eg. a file move.
 /// Files are usually split into multiple review items.
 #[derive(Clone, Debug)]
-pub enum ReviewItem {
+pub enum HunkItem {
     FileAdded {
         path: PathBuf,
         new: DiffFile,
@@ -132,7 +132,7 @@ pub enum ReviewItem {
     },
 }
 
-impl ReviewItem {
+impl HunkItem {
     pub fn hunk(&self) -> Option<&Hunk<Modification>> {
         match self {
             Self::FileAdded { hunk, .. } => hunk.as_ref(),

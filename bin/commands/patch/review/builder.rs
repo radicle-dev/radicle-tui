@@ -37,7 +37,7 @@ use radicle_cli::git::unified_diff::{Encode, HunkHeader};
 use radicle_cli::terminal as term;
 use radicle_cli::terminal::highlight::Highlighter;
 
-use crate::cob::ReviewItem;
+use crate::cob::HunkItem;
 
 /// Help message shown to user.
 const HELP: &str = "\
@@ -142,7 +142,7 @@ impl FromStr for ReviewAction {
 #[derive(Clone, Default)]
 pub struct ReviewQueue {
     /// Hunks left to review.
-    queue: VecDeque<(usize, ReviewItem)>,
+    queue: VecDeque<(usize, HunkItem)>,
 }
 
 impl ReviewQueue {
@@ -151,13 +151,13 @@ impl ReviewQueue {
     fn add_file(&mut self, file: FileDiff) {
         match file {
             FileDiff::Moved(moved) => {
-                self.add_item(ReviewItem::FileMoved { moved });
+                self.add_item(HunkItem::FileMoved { moved });
             }
             FileDiff::Copied(copied) => {
-                self.add_item(ReviewItem::FileCopied { copied });
+                self.add_item(HunkItem::FileCopied { copied });
             }
             FileDiff::Added(a) => {
-                self.add_item(ReviewItem::FileAdded {
+                self.add_item(HunkItem::FileAdded {
                     path: a.path,
                     new: a.new,
                     hunk: if let DiffContent::Plain {
@@ -173,7 +173,7 @@ impl ReviewQueue {
                 });
             }
             FileDiff::Deleted(d) => {
-                self.add_item(ReviewItem::FileDeleted {
+                self.add_item(HunkItem::FileDeleted {
                     path: d.path,
                     old: d.old,
                     hunk: if let DiffContent::Plain {
@@ -190,7 +190,7 @@ impl ReviewQueue {
             }
             FileDiff::Modified(m) => {
                 if m.old.mode != m.new.mode {
-                    self.add_item(ReviewItem::FileModeChanged {
+                    self.add_item(HunkItem::FileModeChanged {
                         path: m.path.clone(),
                         old: m.old.clone(),
                         new: m.new.clone(),
@@ -201,7 +201,7 @@ impl ReviewQueue {
                         // Likely a file mode change, which is handled above.
                     }
                     DiffContent::Binary => {
-                        self.add_item(ReviewItem::FileModified {
+                        self.add_item(HunkItem::FileModified {
                             path: m.path.clone(),
                             old: m.old.clone(),
                             new: m.new.clone(),
@@ -215,7 +215,7 @@ impl ReviewQueue {
                         stats,
                     } => {
                         for hunk in hunks {
-                            self.add_item(ReviewItem::FileModified {
+                            self.add_item(HunkItem::FileModified {
                                 path: m.path.clone(),
                                 old: m.old.clone(),
                                 new: m.new.clone(),
@@ -224,7 +224,7 @@ impl ReviewQueue {
                             });
                         }
                         if let EofNewLine::OldMissing | EofNewLine::NewMissing = eof {
-                            self.add_item(ReviewItem::FileEofChanged {
+                            self.add_item(HunkItem::FileEofChanged {
                                 path: m.path.clone(),
                                 old: m.old.clone(),
                                 new: m.new.clone(),
@@ -237,7 +237,7 @@ impl ReviewQueue {
         }
     }
 
-    fn add_item(&mut self, item: ReviewItem) {
+    fn add_item(&mut self, item: HunkItem) {
         self.queue.push_back((self.queue.len(), item));
     }
 }
@@ -253,7 +253,7 @@ impl From<Diff> for ReviewQueue {
 }
 
 impl std::ops::Deref for ReviewQueue {
-    type Target = VecDeque<(usize, ReviewItem)>;
+    type Target = VecDeque<(usize, HunkItem)>;
 
     fn deref(&self) -> &Self::Target {
         &self.queue
@@ -267,7 +267,7 @@ impl std::ops::DerefMut for ReviewQueue {
 }
 
 impl Iterator for ReviewQueue {
-    type Item = (usize, ReviewItem);
+    type Item = (usize, HunkItem);
 
     fn next(&mut self) -> Option<Self::Item> {
         self.queue.pop_front()
@@ -281,16 +281,16 @@ pub struct FileReviewBuilder {
 }
 
 impl FileReviewBuilder {
-    fn new(item: &ReviewItem) -> Self {
+    fn new(item: &HunkItem) -> Self {
         Self { delta: 0 }
     }
 
-    fn set_item(&mut self, item: &ReviewItem) -> &mut Self {
+    fn set_item(&mut self, item: &HunkItem) -> &mut Self {
         self.delta = 0;
         self
     }
 
-    fn ignore_item(&mut self, item: &ReviewItem) {
+    fn ignore_item(&mut self, item: &HunkItem) {
         if let Some(h) = item.hunk_header() {
             self.delta += h.new_size as i32 - h.old_size as i32;
         }

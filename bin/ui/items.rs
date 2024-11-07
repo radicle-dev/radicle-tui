@@ -41,7 +41,7 @@ use tui::ui::theme::style;
 use tui::ui::{span, Column};
 use tui::ui::{ToRow, ToTree};
 
-use crate::cob::{DiffStats, HunkStats, IndexedReviewItem};
+use crate::cob::{DiffStats, HunkStats, IndexedHunkItem};
 use crate::git::{Blob, Repo};
 
 use super::super::git;
@@ -1040,13 +1040,13 @@ impl<'a> Into<Line<'a>> for TermLine {
 }
 
 #[derive(Clone, Debug)]
-pub struct ReviewItem<'a> {
-    pub inner: IndexedReviewItem,
+pub struct HunkItem<'a> {
+    pub inner: IndexedHunkItem,
     pub highlighted: Blobs<Vec<Line<'a>>>,
 }
 
-impl<'a> From<(&Repository, &IndexedReviewItem)> for ReviewItem<'a> {
-    fn from(value: (&Repository, &IndexedReviewItem)) -> Self {
+impl<'a> From<(&Repository, &IndexedHunkItem)> for HunkItem<'a> {
+    fn from(value: (&Repository, &IndexedHunkItem)) -> Self {
         let (repo, item) = value;
         let hi = Highlighter::default();
 
@@ -1059,9 +1059,9 @@ impl<'a> From<(&Repository, &IndexedReviewItem)> for ReviewItem<'a> {
     }
 }
 
-impl<'a> ToRow<3> for ReviewItem<'a> {
+impl<'a> ToRow<3> for HunkItem<'a> {
     fn to_row(&self) -> [Cell; 3] {
-        use crate::cob::ReviewItem as Item;
+        use crate::cob::HunkItem as Item;
 
         let build_stats_spans = |stats: &DiffStats| -> Vec<Span<'_>> {
             let mut cell = vec![];
@@ -1108,7 +1108,7 @@ impl<'a> ToRow<3> for ReviewItem<'a> {
 
                 [
                     span::secondary("?").into(),
-                    ReviewItem::pretty_path(path, false).into(),
+                    HunkItem::pretty_path(path, false).into(),
                     Line::from(stats_cell).right_aligned().into(),
                 ]
             }
@@ -1134,7 +1134,7 @@ impl<'a> ToRow<3> for ReviewItem<'a> {
 
                 [
                     span::secondary("?").into(),
-                    ReviewItem::pretty_path(path, false).into(),
+                    HunkItem::pretty_path(path, false).into(),
                     Line::from(stats_cell).right_aligned().into(),
                 ]
             }
@@ -1159,7 +1159,7 @@ impl<'a> ToRow<3> for ReviewItem<'a> {
 
                 [
                     span::secondary("?").into(),
-                    ReviewItem::pretty_path(path, true).into(),
+                    HunkItem::pretty_path(path, true).into(),
                     Line::from(stats_cell).right_aligned().into(),
                 ]
             }
@@ -1177,7 +1177,7 @@ impl<'a> ToRow<3> for ReviewItem<'a> {
 
                 [
                     span::secondary("?").into(),
-                    ReviewItem::pretty_path(&copied.new_path, false).into(),
+                    HunkItem::pretty_path(&copied.new_path, false).into(),
                     Line::from(stats_cell).right_aligned().into(),
                 ]
             }
@@ -1195,7 +1195,7 @@ impl<'a> ToRow<3> for ReviewItem<'a> {
 
                 [
                     span::secondary("?").into(),
-                    ReviewItem::pretty_path(&moved.new_path, false).into(),
+                    HunkItem::pretty_path(&moved.new_path, false).into(),
                     Line::from(stats_cell).right_aligned().into(),
                 ]
             }
@@ -1209,7 +1209,7 @@ impl<'a> ToRow<3> for ReviewItem<'a> {
                 },
             ) => [
                 span::secondary("?").into(),
-                ReviewItem::pretty_path(path, false).into(),
+                HunkItem::pretty_path(path, false).into(),
                 span::default("EOF ")
                     .light_blue()
                     .into_right_aligned_line()
@@ -1224,7 +1224,7 @@ impl<'a> ToRow<3> for ReviewItem<'a> {
                 },
             ) => [
                 span::secondary("?").into(),
-                ReviewItem::pretty_path(path, false).into(),
+                HunkItem::pretty_path(path, false).into(),
                 span::default("FM ")
                     .light_blue()
                     .into_right_aligned_line()
@@ -1234,7 +1234,7 @@ impl<'a> ToRow<3> for ReviewItem<'a> {
     }
 }
 
-impl<'a> ReviewItem<'a> {
+impl<'a> HunkItem<'a> {
     pub fn pretty_path(path: &Path, crossed_out: bool) -> Line<'a> {
         let file = path.file_name().unwrap_or_default();
         let path = if path.iter().count() > 1 {
@@ -1264,19 +1264,19 @@ impl<'a> ReviewItem<'a> {
     }
 }
 
-impl<'a> ReviewItem<'a> {
+impl<'a> HunkItem<'a> {
     pub fn header(&self) -> Vec<Column<'a>> {
         match &self.inner {
             (
                 _,
-                crate::cob::ReviewItem::FileAdded {
+                crate::cob::HunkItem::FileAdded {
                     path,
                     new: _,
                     hunk: _,
                     _stats: _,
                 },
             ) => {
-                let path = ReviewItem::pretty_path(path, false);
+                let path = HunkItem::pretty_path(path, false);
                 let header = [
                     Column::new("", Constraint::Length(0)),
                     Column::new(path.clone(), Constraint::Length(path.width() as u16)),
@@ -1294,7 +1294,7 @@ impl<'a> ReviewItem<'a> {
             }
             (
                 _,
-                crate::cob::ReviewItem::FileModified {
+                crate::cob::HunkItem::FileModified {
                     path,
                     old: _,
                     new: _,
@@ -1302,7 +1302,7 @@ impl<'a> ReviewItem<'a> {
                     _stats: _,
                 },
             ) => {
-                let path = ReviewItem::pretty_path(path, false);
+                let path = HunkItem::pretty_path(path, false);
                 let header = [
                     Column::new("", Constraint::Length(0)),
                     Column::new(path.clone(), Constraint::Length(path.width() as u16)),
@@ -1320,14 +1320,14 @@ impl<'a> ReviewItem<'a> {
             }
             (
                 _,
-                crate::cob::ReviewItem::FileDeleted {
+                crate::cob::HunkItem::FileDeleted {
                     path,
                     old: _,
                     hunk: _,
                     _stats: _,
                 },
             ) => {
-                let path = ReviewItem::pretty_path(path, true);
+                let path = HunkItem::pretty_path(path, true);
                 let header = [
                     Column::new("", Constraint::Length(0)),
                     Column::new(path.clone(), Constraint::Length(path.width() as u16)),
@@ -1343,12 +1343,12 @@ impl<'a> ReviewItem<'a> {
 
                 header.to_vec()
             }
-            (_, crate::cob::ReviewItem::FileCopied { copied }) => {
+            (_, crate::cob::HunkItem::FileCopied { copied }) => {
                 let path = Line::from(
                     [
-                        ReviewItem::pretty_path(&copied.old_path, false).spans,
+                        HunkItem::pretty_path(&copied.old_path, false).spans,
                         [span::default(" -> ")].to_vec(),
-                        ReviewItem::pretty_path(&copied.new_path, false).spans,
+                        HunkItem::pretty_path(&copied.new_path, false).spans,
                     ]
                     .concat()
                     .to_vec(),
@@ -1368,12 +1368,12 @@ impl<'a> ReviewItem<'a> {
 
                 header.to_vec()
             }
-            (_, crate::cob::ReviewItem::FileMoved { moved }) => {
+            (_, crate::cob::HunkItem::FileMoved { moved }) => {
                 let path = Line::from(
                     [
-                        ReviewItem::pretty_path(&moved.old_path, false).spans,
+                        HunkItem::pretty_path(&moved.old_path, false).spans,
                         [span::default(" -> ")].to_vec(),
-                        ReviewItem::pretty_path(&moved.new_path, false).spans,
+                        HunkItem::pretty_path(&moved.new_path, false).spans,
                     ]
                     .concat()
                     .to_vec(),
@@ -1395,14 +1395,14 @@ impl<'a> ReviewItem<'a> {
             }
             (
                 _,
-                crate::cob::ReviewItem::FileEofChanged {
+                crate::cob::HunkItem::FileEofChanged {
                     path,
                     old: _,
                     new: _,
                     _eof: _,
                 },
             ) => {
-                let path = ReviewItem::pretty_path(&path, false);
+                let path = HunkItem::pretty_path(&path, false);
                 let header = [
                     Column::new("", Constraint::Length(0)),
                     Column::new(path.clone(), Constraint::Length(path.width() as u16)),
@@ -1419,13 +1419,13 @@ impl<'a> ReviewItem<'a> {
             }
             (
                 _,
-                crate::cob::ReviewItem::FileModeChanged {
+                crate::cob::HunkItem::FileModeChanged {
                     path,
                     old: _,
                     new: _,
                 },
             ) => {
-                let path = ReviewItem::pretty_path(&path, false);
+                let path = HunkItem::pretty_path(&path, false);
                 let header = [
                     Column::new("", Constraint::Length(0)),
                     Column::new(path.clone(), Constraint::Length(path.width() as u16)),
@@ -1447,7 +1447,7 @@ impl<'a> ReviewItem<'a> {
         match &self.inner {
             (
                 _,
-                crate::cob::ReviewItem::FileAdded {
+                crate::cob::HunkItem::FileAdded {
                     path: _,
                     new: _,
                     hunk,
@@ -1458,7 +1458,7 @@ impl<'a> ReviewItem<'a> {
                 .map(|hunk| Text::from(hunk.to_text(&self.highlighted, repo.raw()))),
             (
                 _,
-                crate::cob::ReviewItem::FileModified {
+                crate::cob::HunkItem::FileModified {
                     path: _,
                     old: _,
                     new: _,
@@ -1470,7 +1470,7 @@ impl<'a> ReviewItem<'a> {
                 .map(|hunk| Text::from(hunk.to_text(&self.highlighted, repo.raw()))),
             (
                 _,
-                crate::cob::ReviewItem::FileDeleted {
+                crate::cob::HunkItem::FileDeleted {
                     path: _,
                     old: _,
                     hunk,

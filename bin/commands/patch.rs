@@ -381,7 +381,7 @@ mod interface {
                 review.comments().collect::<Vec<_>>()
             );
 
-            let selection = review::Tui::new(profile.clone(), rid, queue.clone())
+            let selection = review::Tui::new(profile.clone(), rid, review.clone(), queue.clone())
                 .run()
                 .await?;
             log::info!("Received selection from TUI: {:?}", selection);

@@ -8,6 +8,7 @@ use std::sync::Mutex;
 
 use anyhow::Result;
 
+use radicle::patch::Review;
 use ratatui::layout::Position;
 use ratatui::style::Stylize;
 use ratatui::text::Text;
@@ -31,7 +32,7 @@ use tui::ui::im::{Borders, Context, Show};
 use tui::ui::Column;
 use tui::{Channel, Exit};
 
-use crate::ui::items::ReviewItem;
+use crate::ui::items::HunkItem;
 
 use self::builder::ReviewQueue;
 
@@ -79,14 +80,16 @@ pub struct Selection {
 pub struct Tui {
     pub profile: Profile,
     pub rid: RepoId,
+    pub review: Review,
     pub queue: ReviewQueue,
 }
 
 impl Tui {
-    pub fn new(profile: Profile, rid: RepoId, queue: ReviewQueue) -> Self {
+    pub fn new(profile: Profile, rid: RepoId, review: Review, queue: ReviewQueue) -> Self {
         Self {
             rid,
             profile,
+            review,
             queue,
         }
     }
@@ -95,7 +98,12 @@ impl Tui {
         let viewport = Viewport::Fullscreen;
 
         let channel = Channel::default();
-        let state = App::new(self.profile.clone(), self.rid, self.queue.clone())?;
+        let state = App::new(
+            self.profile.clone(),
+            self.rid,
+            self.review.clone(),
+            self.queue.clone(),
+        )?;
 
         tui::im(state, viewport, channel).await
     }
@@ -132,7 +140,8 @@ pub struct ReviewItemState {
 #[derive(Clone)]
 pub struct App<'a> {
     repository: Arc<Mutex<Repository>>,
-    queue: Arc<Mutex<(Vec<ReviewItem<'a>>, TableState)>>,
+    review: Arc<Mutex<Review>>,
+    queue: Arc<Mutex<(Vec<HunkItem<'a>>, TableState)>>,
     items: HashMap<usize, ReviewItemState>,
     page: AppPage,
     windows: GroupState,
@@ -143,17 +152,27 @@ impl<'a> TryFrom<&Tui> for App<'a> {
     type Error = anyhow::Error;
 
     fn try_from(tui: &Tui) -> Result<Self, Self::Error> {
-        App::new(tui.profile.clone(), tui.rid, tui.queue.clone())
+        App::new(
+            tui.profile.clone(),
+            tui.rid,
+            tui.review.clone(),
+            tui.queue.clone(),
+        )
     }
 }
 
 impl<'a> App<'a> {
-    pub fn new(profile: Profile, rid: RepoId, queue: ReviewQueue) -> Result<Self, anyhow::Error> {
+    pub fn new(
+        profile: Profile,
+        rid: RepoId,
+        review: Review,
+        queue: ReviewQueue,
+    ) -> Result<Self, anyhow::Error> {
         let repository = profile.storage.repository(rid)?;
 
         let queue = queue
             .iter()
-            .map(|item| ReviewItem::from((&repository, item)))
+            .map(|item| HunkItem::from((&repository, item)))
             .collect::<Vec<_>>();
 
         let mut items = HashMap::new();
@@ -173,6 +192,7 @@ impl<'a> App<'a> {
             help: HelpState {
                 text: TextViewState::new(help_text(), Position::default()),
             },
+            review: Arc::new(Mutex::new(review)),
             queue: Arc::new(Mutex::new((queue, TableState::new(Some(0))))),
             items,
         })
