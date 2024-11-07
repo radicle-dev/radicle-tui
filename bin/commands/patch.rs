@@ -11,8 +11,9 @@ use anyhow::anyhow;
 
 use radicle::cob::ObjectId;
 use radicle::identity::RepoId;
-use radicle::patch::Status;
+use radicle::patch::{Patch, Revision, RevisionId, Status};
 
+use radicle::storage::git::Repository;
 use radicle_cli::git::Rev;
 use radicle_cli::terminal;
 use radicle_cli::terminal::args::{string, Args, Error, Help};
@@ -77,6 +78,31 @@ pub struct SelectOptions {
 pub struct ReviewOptions {
     patch_id: Option<Rev>,
     revision_id: Option<Rev>,
+}
+
+impl ReviewOptions {
+    pub fn revision_or_latest<'a>(
+        &'a self,
+        patch: &'a Patch,
+        repo: &Repository,
+    ) -> anyhow::Result<(RevisionId, &Revision)> {
+        let revision_id = self
+            .revision_id
+            .as_ref()
+            .map(|rev| rev.resolve::<radicle::git::Oid>(&repo.backend))
+            .transpose()?
+            .map(radicle::cob::patch::RevisionId::from);
+
+        match revision_id {
+            Some(id) => Ok((
+                id,
+                patch
+                    .revision(&id)
+                    .ok_or_else(|| anyhow!("Patch revision `{id}` not found"))?,
+            )),
+            None => Ok((patch.latest().0, patch.latest().1)),
+        }
+    }
 }
 
 impl Args for Options {
@@ -298,21 +324,7 @@ mod interface {
         let patch = patch::find(&profile, &repo, &patch_id.into())?
             .ok_or_else(|| anyhow!("Patch `{patch_id}` not found"))?;
 
-        // Load revision
-        let revision_id = opts
-            .revision_id
-            .map(|rev| rev.resolve::<radicle::git::Oid>(&repo.backend))
-            .transpose()?
-            .map(radicle::cob::patch::RevisionId::from);
-        let (_, revision) = match revision_id {
-            Some(id) => (
-                id,
-                patch
-                    .revision(&id)
-                    .ok_or_else(|| anyhow!("Patch revision `{id}` not found"))?,
-            ),
-            None => patch.latest(),
-        };
+        let (_, revision) = opts.revision_or_latest(&patch, &repo)?;
 
         let brain = Brain::load_or_new(patch_id, &revision, repo.raw(), &signer)?;
         let builder = ReviewBuilder::new(patch_id.into(), &signer, &repo);
@@ -332,14 +344,9 @@ mod interface {
             return Ok(());
         };
 
-        let (review_id, _) = if let Some((id, review)) = patch
-            .clone()
-            .reviews_of(revision.id())
-            .find(|(_, review)| review.author().public_key() == signer.public_key())
-        {
+        if let Some((id, _)) = patch::find_review(&patch, revision, &signer)? {
             // Review already started, resume.
             log::info!("Resuming review {id}..");
-            (id.clone(), review.clone())
         } else {
             // No review to resume, start a new one.
             let id = patch.review(
@@ -352,27 +359,14 @@ mod interface {
                 vec![],
                 &signer,
             )?;
-            log::info!("Starting new review {id}..");
 
-            // Load newly created review.
-            match patch
-                .reviews_of(revision.id())
-                .find(|(_, review)| review.author().public_key() == signer.public_key())
-            {
-                Some((id, review)) => (id.clone(), review.clone()),
-                None => anyhow::bail!("Could not find review {}", id),
-            }
-        };
+            log::info!("Starting new review {id}..");
+        }
 
         loop {
             // Reload review
-            let (review_id, review) = match patch
-                .reviews_of(revision.id())
-                .find(|(_, review)| review.author().public_key() == signer.public_key())
-            {
-                Some((id, review)) => (id.clone(), review.clone()),
-                None => anyhow::bail!("Could not find review {}", review_id),
-            };
+            let (review_id, review) = patch::find_review(&patch, revision, &signer)?
+                .ok_or_else(|| anyhow!("Could not load review by me"))?;
 
             log::info!(
                 "Found comments for {review_id}: {:?}",
@@ -393,36 +387,34 @@ mod interface {
                         // next hunk
                     }
                     ReviewAction::Comment => {
-                        if let Some(hunk) = selection.hunk {
-                            if let Some((_, item)) = queue.get(hunk) {
-                                let (old, new) = item.paths();
-                                let path = old.or(new);
+                        let hunk = selection
+                            .hunk
+                            .ok_or_else(|| anyhow!("expected a selected hunk"))?;
+                        let (_, item) = queue
+                            .get(hunk)
+                            .ok_or_else(|| anyhow!("expected a hunk to comment on"))?;
 
-                                if let (Some(hunk), Some((path, _))) = (item.hunk(), path) {
-                                    let builder =
-                                        CommentBuilder::new(revision.head(), path.to_path_buf());
-                                    let comments = builder.edit(hunk)?;
+                        let (old, new) = item.paths();
+                        let path = old.or(new);
 
-                                    patch.transaction("Review comments", &signer, |tx| {
-                                        for comment in comments {
-                                            tx.review_comment(
-                                                review_id,
-                                                comment.body,
-                                                Some(comment.location),
-                                                None,   // Not a reply.
-                                                vec![], // No embeds.
-                                            )?;
-                                        }
-                                        Ok(())
-                                    })?;
-                                } else {
-                                    log::warn!("Commenting on binary blobs is not yet implemented");
+                        if let (Some(hunk), Some((path, _))) = (item.hunk(), path) {
+                            let builder = CommentBuilder::new(revision.head(), path.to_path_buf());
+                            let comments = builder.edit(hunk)?;
+
+                            patch.transaction("Review comments", &signer, |tx| {
+                                for comment in comments {
+                                    tx.review_comment(
+                                        review_id,
+                                        comment.body,
+                                        Some(comment.location),
+                                        None,   // Not a reply.
+                                        vec![], // No embeds.
+                                    )?;
                                 }
-                            } else {
-                                log::error!("Expected a hunk to comment on.")
-                            }
+                                Ok(())
+                            })?;
                         } else {
-                            log::error!("Expected a selected hunk.")
+                            log::warn!("Commenting on binary blobs is not yet implemented");
                         }
                     }
                 }

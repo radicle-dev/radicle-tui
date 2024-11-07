@@ -4,9 +4,10 @@ use std::fmt::Write as _;
 use anyhow::Result;
 
 use radicle::cob::patch::{Patch, PatchId};
+use radicle::crypto::Signer;
 use radicle::identity::Did;
 use radicle::patch::cache::Patches;
-use radicle::patch::Status;
+use radicle::patch::{Review, ReviewId, Revision, Status};
 use radicle::storage::git::Repository;
 use radicle::Profile;
 
@@ -83,6 +84,20 @@ pub fn all(profile: &Profile, repository: &Repository) -> Result<Vec<(PatchId, P
 pub fn find(profile: &Profile, repository: &Repository, id: &PatchId) -> Result<Option<Patch>> {
     let cache = profile.patches(repository)?;
     Ok(cache.get(id)?)
+}
+
+pub fn find_review<'a, G: Signer>(
+    patch: &'a Patch,
+    revision: &Revision,
+    signer: &G,
+) -> Result<Option<(ReviewId, &'a Review)>> {
+    match patch
+        .reviews_of(revision.id())
+        .find(|(_, review)| review.author().public_key() == signer.public_key())
+    {
+        Some((id, review)) => Ok(Some((id.clone(), review))),
+        None => anyhow::bail!("Could not find review by me"),
+    }
 }
 
 #[cfg(test)]
