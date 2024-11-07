@@ -132,7 +132,7 @@ pub struct ReviewItemState {
 #[derive(Clone)]
 pub struct App<'a> {
     repository: Arc<Mutex<Repository>>,
-    queue: (Vec<ReviewItem<'a>>, TableState),
+    queue: Arc<Mutex<(Vec<ReviewItem<'a>>, TableState)>>,
     items: HashMap<usize, ReviewItemState>,
     page: AppPage,
     windows: GroupState,
@@ -173,7 +173,7 @@ impl<'a> App<'a> {
             help: HelpState {
                 text: TextViewState::new(help_text(), Position::default()),
             },
-            queue: (queue, TableState::new(Some(0))),
+            queue: Arc::new(Mutex::new((queue, TableState::new(Some(0))))),
             items,
         })
     }
@@ -181,21 +181,17 @@ impl<'a> App<'a> {
 
 impl<'a> App<'a> {
     fn show_hunk_list(&self, ui: &mut Ui<Message>, frame: &mut Frame) {
+        let queue = self.queue.lock().unwrap();
+
         let columns = [
             Column::new(" ", Constraint::Length(1)),
             Column::new(" ", Constraint::Fill(1)),
             Column::new(" ", Constraint::Length(15)),
         ]
         .to_vec();
-        let mut selected = self.queue.1.selected();
+        let mut selected = queue.1.selected();
 
-        let table = ui.table(
-            frame,
-            &mut selected,
-            &self.queue.0,
-            columns,
-            Some(Borders::All),
-        );
+        let table = ui.table(frame, &mut selected, &queue.0, columns, Some(Borders::All));
         if table.changed {
             ui.send_message(Message::ItemChanged {
                 state: TableState::new(selected),
@@ -205,9 +201,10 @@ impl<'a> App<'a> {
 
     fn show_review_item(&self, ui: &mut Ui<Message>, frame: &mut Frame) {
         let repo = self.repository.lock().unwrap();
+        let queue = self.queue.lock().unwrap();
 
-        let selected = self.queue.1.selected();
-        let item = selected.and_then(|selected| self.queue.0.get(selected));
+        let selected = queue.1.selected();
+        let item = selected.and_then(|selected| queue.0.get(selected));
 
         if let Some(item) = item {
             let header = item.header();
@@ -328,17 +325,19 @@ impl<'a> store::Update<Message> for App<'a> {
 
     fn update(&mut self, message: Message) -> Option<Exit<Self::Return>> {
         log::info!("Received message: {:?}", message);
+
+        let mut queue = self.queue.lock().unwrap();
         match message {
             Message::WindowsChanged { state } => {
                 self.windows = state;
                 None
             }
             Message::ItemChanged { state } => {
-                self.queue.1 = state;
+                queue.1 = state;
                 None
             }
             Message::ItemViewChanged { state } => {
-                if let Some(selected) = self.queue.1.selected() {
+                if let Some(selected) = queue.1.selected() {
                     self.items.insert(selected, state);
                 }
                 None
@@ -347,14 +346,14 @@ impl<'a> store::Update<Message> for App<'a> {
             Message::Accept => Some(Exit {
                 value: Some(Selection {
                     action: ReviewAction::Accept,
-                    hunk: self.queue.1.selected(),
+                    hunk: queue.1.selected(),
                     args: None,
                 }),
             }),
             Message::Comment => Some(Exit {
                 value: Some(Selection {
                     action: ReviewAction::Comment,
-                    hunk: self.queue.1.selected(),
+                    hunk: queue.1.selected(),
                     args: None,
                 }),
             }),
