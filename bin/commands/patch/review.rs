@@ -8,6 +8,7 @@ use std::sync::Mutex;
 
 use anyhow::Result;
 
+use ratatui::layout::Position;
 use ratatui::style::Stylize;
 use ratatui::text::Text;
 use termion::event::Key;
@@ -104,6 +105,7 @@ impl Tui {
 pub enum Message {
     WindowsChanged { state: GroupState },
     ItemChanged { state: TableState },
+    ItemViewChanged { state: ReviewItemState },
     Quit,
     Accept,
     Comment,
@@ -122,10 +124,16 @@ pub struct HelpState<'a> {
     text: TextViewState<'a>,
 }
 
+#[derive(Clone, Debug)]
+pub struct ReviewItemState {
+    cursor: Position,
+}
+
 #[derive(Clone)]
 pub struct App<'a> {
     repository: Arc<Mutex<Repository>>,
     queue: (Vec<ReviewItem<'a>>, TableState),
+    items: HashMap<usize, ReviewItemState>,
     page: AppPage,
     windows: GroupState,
     help: HelpState<'a>,
@@ -148,14 +156,25 @@ impl<'a> App<'a> {
             .map(|item| ReviewItem::from((&repository, item)))
             .collect::<Vec<_>>();
 
+        let mut items = HashMap::new();
+        for (idx, _) in queue.iter().enumerate() {
+            items.insert(
+                idx,
+                ReviewItemState {
+                    cursor: Position::new(0, 0),
+                },
+            );
+        }
+
         Ok(Self {
             repository: Arc::new(Mutex::new(repository)),
             page: AppPage::Main,
             windows: GroupState::new(2, Some(0)),
             help: HelpState {
-                text: TextViewState::new(help_text(), (0, 0)),
+                text: TextViewState::new(help_text(), Position::default()),
             },
             queue: (queue, TableState::new(Some(0))),
+            items,
         })
     }
 }
@@ -196,6 +215,11 @@ impl<'a> App<'a> {
                 .hunk_text(&repo)
                 .unwrap_or(Text::raw("Nothing to show.").dark_gray());
 
+            let mut cursor = selected
+                .and_then(|selected| self.items.get(&selected))
+                .map(|state| state.cursor)
+                .unwrap_or_default();
+
             ui.composite(
                 Layout::vertical([Constraint::Length(3), Constraint::Min(1)]),
                 1,
@@ -203,7 +227,13 @@ impl<'a> App<'a> {
                     ui.columns(frame, header, Some(Borders::Top));
 
                     if let Some(hunk) = item.hunk_text(&repo) {
-                        ui.text_view(frame, hunk, &mut (0, 0), Some(Borders::BottomSides));
+                        let diff =
+                            ui.text_view(frame, hunk, &mut cursor, Some(Borders::BottomSides));
+                        if diff.changed {
+                            ui.send_message(Message::ItemViewChanged {
+                                state: ReviewItemState { cursor },
+                            })
+                        }
                     } else {
                         ui.centered_text_view(frame, hunk, Some(Borders::BottomSides));
                     }
@@ -272,7 +302,7 @@ impl<'a> Show<Message> for App<'a> {
                             ui.text_view(
                                 frame,
                                 self.help.text.text().to_string(),
-                                &mut (0, 0),
+                                &mut Position::default(),
                                 Some(Borders::All),
                             );
                             ui.shortcuts(frame, &[("?", "close"), ("q", "quit")], '∙');
@@ -305,6 +335,12 @@ impl<'a> store::Update<Message> for App<'a> {
             }
             Message::ItemChanged { state } => {
                 self.queue.1 = state;
+                None
+            }
+            Message::ItemViewChanged { state } => {
+                if let Some(selected) = self.queue.1.selected() {
+                    self.items.insert(selected, state);
+                }
                 None
             }
             Message::Quit => Some(Exit { value: None }),
