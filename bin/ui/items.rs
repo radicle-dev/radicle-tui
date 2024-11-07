@@ -1443,7 +1443,7 @@ impl<'a> HunkItem<'a> {
         }
     }
 
-    pub fn hunk_text(&'a self, repo: &Repository) -> Option<Text<'a>> {
+    pub fn hunk_text(&'a self) -> Option<Text<'a>> {
         match &self.inner {
             (
                 _,
@@ -1455,7 +1455,7 @@ impl<'a> HunkItem<'a> {
                 },
             ) => hunk
                 .as_ref()
-                .map(|hunk| Text::from(hunk.to_text(&self.highlighted, repo.raw()))),
+                .map(|hunk| Text::from(hunk.to_text(&self.highlighted))),
             (
                 _,
                 crate::cob::HunkItem::FileModified {
@@ -1467,7 +1467,7 @@ impl<'a> HunkItem<'a> {
                 },
             ) => hunk
                 .as_ref()
-                .map(|hunk| Text::from(hunk.to_text(&self.highlighted, repo.raw()))),
+                .map(|hunk| Text::from(hunk.to_text(&self.highlighted))),
             (
                 _,
                 crate::cob::HunkItem::FileDeleted {
@@ -1478,7 +1478,7 @@ impl<'a> HunkItem<'a> {
                 },
             ) => hunk
                 .as_ref()
-                .map(|hunk| Text::from(hunk.to_text(&self.highlighted, repo.raw()))),
+                .map(|hunk| Text::from(hunk.to_text(&self.highlighted))),
             _ => None,
         }
     }
@@ -1582,14 +1582,14 @@ pub trait ToText<'a> {
     type Context;
 
     /// Render to pretty diff output.
-    fn to_text<R: Repo>(&'a self, context: &Self::Context, repo: &R) -> Self::Output;
+    fn to_text(&'a self, context: &Self::Context) -> Self::Output;
 }
 
 impl<'a> ToText<'a> for HunkHeader {
     type Output = Line<'a>;
     type Context = ();
 
-    fn to_text<R: Repo>(&self, _context: &Self::Context, _repo: &R) -> Self::Output {
+    fn to_text(&self, _context: &Self::Context) -> Self::Output {
         Line::from(
             [
                 span::default(&format!(
@@ -1609,7 +1609,7 @@ impl<'a> ToText<'a> for Modification {
     type Output = Line<'a>;
     type Context = Blobs<Vec<Line<'a>>>;
 
-    fn to_text<R: Repo>(&'a self, blobs: &Blobs<Vec<Line<'a>>>, _repo: &R) -> Self::Output {
+    fn to_text(&'a self, blobs: &Blobs<Vec<Line<'a>>>) -> Self::Output {
         let line = match self {
             Modification::Deletion(diff::Deletion { line, line_no }) => {
                 if let Some(lines) = &blobs.old.as_ref() {
@@ -1645,7 +1645,7 @@ impl<'a> ToText<'a> for Hunk<Modification> {
     type Output = Vec<Line<'a>>;
     type Context = Blobs<Vec<Line<'a>>>;
 
-    fn to_text<R: Repo>(&'a self, blobs: &Self::Context, repo: &R) -> Self::Output {
+    fn to_text(&'a self, blobs: &Self::Context) -> Self::Output {
         let mut lines: Vec<Line<'a>> = vec![];
 
         let default_dark = Color::Rgb(20, 20, 20);
@@ -1689,7 +1689,7 @@ impl<'a> ToText<'a> for Hunk<Modification> {
                                 span::positive(" + ").bg(positive_dark).dim(),
                             ]
                             .to_vec(),
-                            line.to_text(blobs, repo)
+                            line.to_text(blobs)
                                 .spans
                                 .into_iter()
                                 .map(|span| span.bg(positive_dark))
@@ -1712,7 +1712,7 @@ impl<'a> ToText<'a> for Hunk<Modification> {
                                 span::negative(" - ").bg(negative_dark).dim(),
                             ]
                             .to_vec(),
-                            line.to_text(blobs, repo)
+                            line.to_text(blobs)
                                 .spans
                                 .into_iter()
                                 .map(|span| span.bg(negative_dark))
@@ -1741,7 +1741,7 @@ impl<'a> ToText<'a> for Hunk<Modification> {
                                 span::default(&format!("{:<3}", "")),
                             ]
                             .to_vec(),
-                            line.to_text(blobs, repo).spans,
+                            line.to_text(blobs).spans,
                         ]
                         .concat(),
                     ));

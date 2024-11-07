@@ -8,17 +8,15 @@ use std::sync::Mutex;
 
 use anyhow::Result;
 
-use radicle::patch::Review;
 use ratatui::layout::Position;
+use ratatui::layout::{Constraint, Layout};
 use ratatui::style::Stylize;
 use ratatui::text::Text;
+use ratatui::{Frame, Viewport};
 use termion::event::Key;
 
-use ratatui::layout::{Constraint, Layout};
-use ratatui::{Frame, Viewport};
-
 use radicle::identity::RepoId;
-use radicle::storage::git::Repository;
+use radicle::patch::Review;
 use radicle::storage::ReadStorage;
 use radicle::Profile;
 
@@ -139,8 +137,6 @@ pub struct ReviewItemState {
 
 #[derive(Clone)]
 pub struct App<'a> {
-    repository: Arc<Mutex<Repository>>,
-    review: Arc<Mutex<Review>>,
     queue: Arc<Mutex<(Vec<HunkItem<'a>>, TableState)>>,
     items: HashMap<usize, ReviewItemState>,
     page: AppPage,
@@ -165,7 +161,7 @@ impl<'a> App<'a> {
     pub fn new(
         profile: Profile,
         rid: RepoId,
-        review: Review,
+        _review: Review,
         queue: ReviewQueue,
     ) -> Result<Self, anyhow::Error> {
         let repository = profile.storage.repository(rid)?;
@@ -186,13 +182,11 @@ impl<'a> App<'a> {
         }
 
         Ok(Self {
-            repository: Arc::new(Mutex::new(repository)),
             page: AppPage::Main,
             windows: GroupState::new(2, Some(0)),
             help: HelpState {
                 text: TextViewState::new(help_text(), Position::default()),
             },
-            review: Arc::new(Mutex::new(review)),
             queue: Arc::new(Mutex::new((queue, TableState::new(Some(0))))),
             items,
         })
@@ -220,7 +214,6 @@ impl<'a> App<'a> {
     }
 
     fn show_review_item(&self, ui: &mut Ui<Message>, frame: &mut Frame) {
-        let repo = self.repository.lock().unwrap();
         let queue = self.queue.lock().unwrap();
 
         let selected = queue.1.selected();
@@ -229,7 +222,7 @@ impl<'a> App<'a> {
         if let Some(item) = item {
             let header = item.header();
             let hunk = item
-                .hunk_text(&repo)
+                .hunk_text()
                 .unwrap_or(Text::raw("Nothing to show.").dark_gray());
 
             let mut cursor = selected
@@ -243,7 +236,7 @@ impl<'a> App<'a> {
                 |ui| {
                     ui.columns(frame, header, Some(Borders::Top));
 
-                    if let Some(hunk) = item.hunk_text(&repo) {
+                    if let Some(hunk) = item.hunk_text() {
                         let diff =
                             ui.text_view(frame, hunk, &mut cursor, Some(Borders::BottomSides));
                         if diff.changed {
