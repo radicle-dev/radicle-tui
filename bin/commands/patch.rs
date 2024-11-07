@@ -314,18 +314,7 @@ mod interface {
             None => patch.latest(),
         };
 
-        let brain = if let Ok(b) = Brain::load(patch_id.into(), signer.public_key(), repo.raw()) {
-            log::info!(
-                "Loaded existing brain {} for patch {}",
-                b.head().id(),
-                &patch_id
-            );
-            b
-        } else {
-            let base = repo.raw().find_commit((*revision.base()).into())?;
-            Brain::new(patch_id.into(), signer.public_key(), base, repo.raw())?
-        };
-
+        let brain = Brain::load_or_new(patch_id, &revision, repo.raw(), &signer)?;
         let builder = ReviewBuilder::new(patch_id.into(), &signer, &repo);
         let queue = builder.queue(&brain, &revision)?;
 

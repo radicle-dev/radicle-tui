@@ -362,6 +362,27 @@ impl<'a> Brain<'a> {
         })
     }
 
+    pub fn load_or_new<G: Signer>(
+        patch: PatchId,
+        revision: &Revision,
+        repo: &'a git::raw::Repository,
+        signer: &'a G,
+    ) -> Result<Self, git::raw::Error> {
+        let brain = if let Ok(b) = Brain::load(patch.into(), signer.public_key(), repo) {
+            log::info!(
+                "Loaded existing brain {} for patch {}",
+                b.head().id(),
+                &patch
+            );
+            b
+        } else {
+            let base = repo.find_commit((*revision.base()).into())?;
+            Brain::new(patch.into(), signer.public_key(), base, repo)?
+        };
+
+        Ok(brain)
+    }
+
     /// Accept changes to the brain.
     pub fn accept(
         &mut self,
