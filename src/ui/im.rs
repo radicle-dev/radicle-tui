@@ -14,7 +14,7 @@ use tokio::sync::mpsc::{UnboundedReceiver, UnboundedSender};
 
 use termion::event::Key;
 
-use ratatui::layout::{Constraint, Rect};
+use ratatui::layout::{Constraint, Position, Rect};
 use ratatui::{Frame, Viewport};
 
 use crate::event::Event;
@@ -563,7 +563,7 @@ where
         &mut self,
         frame: &mut Frame,
         text: impl Into<Text<'a>>,
-        scroll: &'a mut (usize, usize),
+        scroll: &'a mut Position,
         borders: Option<Borders>,
     ) -> Response {
         widget::TextView::new(text, scroll, borders).ui(self, frame)

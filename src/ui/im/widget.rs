@@ -1,6 +1,6 @@
 use std::cmp;
 
-use ratatui::layout::{Direction, Layout, Rect};
+use ratatui::layout::{Direction, Layout, Position, Rect};
 use ratatui::style::{Style, Stylize};
 use ratatui::text::{Line, Span, Text};
 use ratatui::widgets::{Block, BorderType, Row, Scrollbar, ScrollbarState};
@@ -663,11 +663,11 @@ impl<'a> Widget for Bar<'a> {
 #[derive(Clone, Debug)]
 pub struct TextViewState<'a> {
     text: Text<'a>,
-    cursor: (usize, usize),
+    cursor: Position,
 }
 
 impl<'a> TextViewState<'a> {
-    pub fn new(text: impl Into<Text<'a>>, cursor: (usize, usize)) -> Self {
+    pub fn new(text: impl Into<Text<'a>>, cursor: Position) -> Self {
         Self {
             text: text.into(),
             cursor,
@@ -678,61 +678,61 @@ impl<'a> TextViewState<'a> {
         &self.text
     }
 
-    pub fn cursor(&self) -> (usize, usize) {
+    pub fn cursor(&self) -> Position {
         self.cursor
     }
 }
 
 impl<'a> TextViewState<'a> {
     fn scroll_up(&mut self) {
-        self.cursor.0 = self.cursor.0.saturating_sub(1);
+        self.cursor.x = self.cursor.x.saturating_sub(1);
     }
 
     fn scroll_down(&mut self, len: usize, page_size: usize) {
         let end = len.saturating_sub(page_size);
-        self.cursor.0 = std::cmp::min(self.cursor.0.saturating_add(1), end);
+        self.cursor.x = std::cmp::min(self.cursor.x.saturating_add(1), end as u16);
     }
 
     fn scroll_left(&mut self) {
-        self.cursor.1 = self.cursor.1.saturating_sub(3);
+        self.cursor.y = self.cursor.y.saturating_sub(3);
     }
 
     fn scroll_right(&mut self, max_line_length: usize) {
-        self.cursor.1 = std::cmp::min(
-            self.cursor.1.saturating_add(3),
-            max_line_length.saturating_add(3),
+        self.cursor.y = std::cmp::min(
+            self.cursor.y.saturating_add(3),
+            max_line_length.saturating_add(3) as u16,
         );
     }
 
     fn prev_page(&mut self, page_size: usize) {
-        self.cursor.0 = self.cursor.0.saturating_sub(page_size);
+        self.cursor.x = self.cursor.x.saturating_sub(page_size as u16);
     }
 
     fn next_page(&mut self, len: usize, page_size: usize) {
         let end = len.saturating_sub(page_size);
 
-        self.cursor.0 = std::cmp::min(self.cursor.0.saturating_add(page_size), end);
+        self.cursor.x = std::cmp::min(self.cursor.x.saturating_add(page_size as u16), end as u16);
     }
 
     fn begin(&mut self) {
-        self.cursor.0 = 0;
+        self.cursor.x = 0;
     }
 
     fn end(&mut self, len: usize, page_size: usize) {
-        self.cursor.0 = len.saturating_sub(page_size);
+        self.cursor.x = len.saturating_sub(page_size) as u16;
     }
 }
 
 pub struct TextView<'a> {
     text: Text<'a>,
     borders: Option<Borders>,
-    cursor: &'a mut (usize, usize),
+    cursor: &'a mut Position,
 }
 
 impl<'a> TextView<'a> {
     pub fn new(
         text: impl Into<Text<'a>>,
-        cursor: &'a mut (usize, usize),
+        cursor: &'a mut Position,
         borders: Option<Borders>,
     ) -> Self {
         Self {
@@ -794,11 +794,11 @@ impl<'a> Widget for TextView<'a> {
         let mut scroller_state = ScrollbarState::default()
             .content_length(length.saturating_sub(content_length))
             .viewport_content_length(1)
-            .position(self.cursor.0);
+            .position(self.cursor.x as usize);
 
         frame.render_stateful_widget(scroller, scroller_area, &mut scroller_state);
         frame.render_widget(
-            Paragraph::new(self.text.clone()).scroll((self.cursor.0 as u16, self.cursor.1 as u16)),
+            Paragraph::new(self.text.clone()).scroll((self.cursor.x as u16, self.cursor.y as u16)),
             text_area,
         );
 
