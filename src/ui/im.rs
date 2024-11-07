@@ -569,6 +569,15 @@ where
         widget::TextView::new(text, scroll, borders).ui(self, frame)
     }
 
+    pub fn centered_text_view<'a>(
+        &mut self,
+        frame: &mut Frame,
+        text: impl Into<Text<'a>>,
+        borders: Option<Borders>,
+    ) -> Response {
+        widget::CenteredTextView::new(text, borders).ui(self, frame)
+    }
+
     pub fn text_edit_singleline(
         &mut self,
         frame: &mut Frame,

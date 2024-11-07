@@ -849,6 +849,44 @@ impl<'a> Widget for TextView<'a> {
     }
 }
 
+pub struct CenteredTextView<'a> {
+    content: Text<'a>,
+    borders: Option<Borders>,
+}
+
+impl<'a> CenteredTextView<'a> {
+    pub fn new(content: impl Into<Text<'a>>, borders: Option<Borders>) -> Self {
+        Self {
+            content: content.into(),
+            borders,
+        }
+    }
+}
+
+impl<'a> Widget for CenteredTextView<'a> {
+    fn ui<M>(self, ui: &mut Ui<M>, frame: &mut Frame) -> Response {
+        let (area, area_focus) = ui.next_area().unwrap_or_default();
+
+        let border_style = if area_focus && ui.has_focus() {
+            ui.theme.focus_border_style
+        } else {
+            ui.theme.border_style
+        };
+
+        let area = render_block(frame, area, self.borders, border_style);
+        let area = Rect {
+            x: area.x.saturating_add(1),
+            width: area.width.saturating_sub(1),
+            ..area
+        };
+        let center = layout::centered_rect(area, 50, 10);
+
+        frame.render_widget(self.content.centered(), center);
+
+        Response::default()
+    }
+}
+
 #[derive(Clone, Debug)]
 pub struct TextEditState {
     pub text: String,
