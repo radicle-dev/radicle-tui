@@ -1,28 +1,24 @@
 #[path = "review/builder.rs"]
 pub mod builder;
 
+use std::collections::HashMap;
 use std::fmt::Debug;
 use std::sync::Arc;
 use std::sync::Mutex;
 
 use anyhow::Result;
 
+use ratatui::style::Stylize;
+use ratatui::text::Text;
 use termion::event::Key;
 
 use ratatui::layout::{Constraint, Layout};
-use ratatui::style::Stylize;
-use ratatui::text::Line;
-use ratatui::text::Text;
 use ratatui::{Frame, Viewport};
 
 use radicle::identity::RepoId;
 use radicle::storage::git::Repository;
-use radicle::storage::{ReadStorage, WriteRepository};
+use radicle::storage::ReadStorage;
 use radicle::Profile;
-
-use radicle_cli as cli;
-
-use cli::terminal::highlight::Highlighter;
 
 use radicle_tui as tui;
 
@@ -31,12 +27,10 @@ use tui::ui::im::widget::GroupState;
 use tui::ui::im::widget::{TableState, TextViewState, Window};
 use tui::ui::im::Ui;
 use tui::ui::im::{Borders, Context, Show};
-use tui::ui::span;
 use tui::ui::Column;
 use tui::{Channel, Exit};
 
 use crate::ui::items::ReviewItem;
-use crate::ui::items::ToText;
 
 use self::builder::ReviewQueue;
 
@@ -192,231 +186,26 @@ impl<'a> App<'a> {
 
     fn show_review_item(&self, ui: &mut Ui<Message>, frame: &mut Frame) {
         let repo = self.repository.lock().unwrap();
-        let mut hi = Highlighter::default();
 
         let selected = self.queue.1.selected();
         let item = selected.and_then(|selected| self.queue.0.get(selected));
 
         if let Some(item) = item {
+            let header = item.header();
+            let hunk = item
+                .hunk_text(&repo)
+                .unwrap_or(Text::raw("Nothing to show.").dark_gray());
+
             ui.composite(
                 Layout::vertical([Constraint::Length(3), Constraint::Min(1)]),
                 1,
-                |ui| match &item.inner {
-                    (
-                        _,
-                        crate::cob::ReviewItem::FileAdded {
-                            path,
-                            new: _,
-                            hunk,
-                            _stats: _,
-                        },
-                    ) => {
-                        let path = ReviewItem::pretty_path(path, false);
-                        let header = [
-                            Column::new("", Constraint::Length(0)),
-                            Column::new(path.clone(), Constraint::Length(path.width() as u16)),
-                            Column::new(
-                                span::default(" added ")
-                                    .light_green()
-                                    .dim()
-                                    .reversed()
-                                    .into_right_aligned_line(),
-                                Constraint::Fill(1),
-                            ),
-                        ];
-                        let hunk = hunk
-                            .as_ref()
-                            .map(|hunk| {
-                                Text::from(hunk.to_text(&mut hi, &item.highlighted, repo.raw()))
-                            })
-                            .unwrap_or(Text::raw("No hunk found").light_red());
+                |ui| {
+                    ui.columns(frame, header, Some(Borders::Top));
 
-                        ui.columns(frame, header.clone().to_vec(), Some(Borders::Top));
+                    if let Some(hunk) = item.hunk_text(&repo) {
                         ui.text_view(frame, hunk, &mut (0, 0), Some(Borders::BottomSides));
-                    }
-                    (
-                        _,
-                        crate::cob::ReviewItem::FileModified {
-                            path,
-                            old: _,
-                            new: _,
-                            hunk,
-                            _stats: _,
-                        },
-                    ) => {
-                        let path = ReviewItem::pretty_path(path, false);
-                        let header = [
-                            Column::new("", Constraint::Length(0)),
-                            Column::new(path.clone(), Constraint::Length(path.width() as u16)),
-                            Column::new(
-                                span::default(" modified ")
-                                    .light_yellow()
-                                    .dim()
-                                    .reversed()
-                                    .into_right_aligned_line(),
-                                Constraint::Fill(1),
-                            ),
-                        ];
-                        let hunk = hunk
-                            .as_ref()
-                            .map(|hunk| {
-                                Text::from(hunk.to_text(&mut hi, &item.highlighted, repo.raw()))
-                            })
-                            .unwrap_or(Text::raw("No hunk found").light_red());
-
-                        ui.columns(frame, header.clone().to_vec(), Some(Borders::Top));
-                        ui.text_view(frame, hunk, &mut (0, 0), Some(Borders::BottomSides));
-                    }
-                    (
-                        _,
-                        crate::cob::ReviewItem::FileDeleted {
-                            path,
-                            old: _,
-                            hunk,
-                            _stats: _,
-                        },
-                    ) => {
-                        let path = ReviewItem::pretty_path(path, true);
-                        let header = [
-                            Column::new("", Constraint::Length(0)),
-                            Column::new(path.clone(), Constraint::Length(path.width() as u16)),
-                            Column::new(
-                                span::default(" deleted ")
-                                    .light_red()
-                                    .dim()
-                                    .reversed()
-                                    .into_right_aligned_line(),
-                                Constraint::Fill(1),
-                            ),
-                        ];
-                        let hunk = hunk
-                            .as_ref()
-                            .map(|hunk| {
-                                Text::from(hunk.to_text(&mut hi, &item.highlighted, repo.raw()))
-                            })
-                            .unwrap_or(Text::raw("No hunk found").light_red());
-
-                        ui.columns(frame, header.clone().to_vec(), Some(Borders::Top));
-                        ui.text_view(frame, hunk, &mut (0, 0), Some(Borders::BottomSides));
-                    }
-                    (_, crate::cob::ReviewItem::FileCopied { copied }) => {
-                        let path = Line::from(
-                            [
-                                ReviewItem::pretty_path(&copied.old_path, false).spans,
-                                [span::default(" -> ")].to_vec(),
-                                ReviewItem::pretty_path(&copied.new_path, false).spans,
-                            ]
-                            .concat()
-                            .to_vec(),
-                        );
-                        let header = [
-                            Column::new("", Constraint::Length(0)),
-                            Column::new(path.clone(), Constraint::Length(path.width() as u16)),
-                            Column::new(
-                                span::default(" copied ")
-                                    .light_blue()
-                                    .dim()
-                                    .reversed()
-                                    .into_right_aligned_line(),
-                                Constraint::Fill(1),
-                            ),
-                        ];
-
-                        // let hunk = match &copied.diff {
-                        //     DiffContent::Plain {
-                        //         hunks,
-                        //         stats: _,
-                        //         eof: _,
-                        //     } => {
-                        //         log::info!("{:?}", hunks);
-                        //         let text = hunks.iter().fold(Text::raw(""), |mut text, hunk| {
-                        //             text.extend(Text::from(hunk.to_text(
-                        //                 &mut hi,
-                        //                 &item.highlighted,
-                        //                 repo.raw(),
-                        //             )));
-                        //             text
-                        //         });
-
-                        //         Some(text)
-                        //     }
-                        //     DiffContent::Binary => {
-                        //         Some(Text::raw("Binary files cannot be viewed."))
-                        //     }
-                        //     DiffContent::Empty => Some(Text::raw("")),
-                        // };
-                        // let hunk = hunk.unwrap_or_default();
-
-                        ui.columns(frame, header.clone().to_vec(), Some(Borders::All));
-                    }
-                    (_, crate::cob::ReviewItem::FileMoved { moved }) => {
-                        let path = Line::from(
-                            [
-                                ReviewItem::pretty_path(&moved.old_path, false).spans,
-                                [span::default(" -> ")].to_vec(),
-                                ReviewItem::pretty_path(&moved.new_path, false).spans,
-                            ]
-                            .concat()
-                            .to_vec(),
-                        );
-                        let header = [
-                            Column::new("", Constraint::Length(0)),
-                            Column::new(path.clone(), Constraint::Length(path.width() as u16)),
-                            Column::new(
-                                span::default(" moved ")
-                                    .light_blue()
-                                    .dim()
-                                    .reversed()
-                                    .into_right_aligned_line(),
-                                Constraint::Fill(1),
-                            ),
-                        ];
-                        ui.columns(frame, header.clone().to_vec(), Some(Borders::All));
-                    }
-                    (
-                        _,
-                        crate::cob::ReviewItem::FileEofChanged {
-                            path,
-                            old: _,
-                            new: _,
-                            _eof: _,
-                        },
-                    ) => {
-                        let path = ReviewItem::pretty_path(&path, false);
-                        let header = [
-                            Column::new("", Constraint::Length(0)),
-                            Column::new(path.clone(), Constraint::Length(path.width() as u16)),
-                            Column::new(
-                                span::default(" eof ")
-                                    .dim()
-                                    .reversed()
-                                    .into_right_aligned_line(),
-                                Constraint::Fill(1),
-                            ),
-                        ];
-                        ui.columns(frame, header.clone().to_vec(), Some(Borders::All));
-                    }
-                    (
-                        _,
-                        crate::cob::ReviewItem::FileModeChanged {
-                            path,
-                            old: _,
-                            new: _,
-                        },
-                    ) => {
-                        let path = ReviewItem::pretty_path(&path, false);
-                        let header = [
-                            Column::new("", Constraint::Length(0)),
-                            Column::new(path.clone(), Constraint::Length(path.width() as u16)),
-                            Column::new(
-                                span::default(" mode ")
-                                    .dim()
-                                    .reversed()
-                                    .into_right_aligned_line(),
-                                Constraint::Length(6),
-                            ),
-                        ];
-                        ui.columns(frame, header.clone().to_vec(), Some(Borders::All));
+                    } else {
+                        ui.centered_text_view(frame, hunk, Some(Borders::BottomSides));
                     }
                 },
             );

@@ -29,17 +29,17 @@ use radicle_cli::git::unified_diff::{Decode, HunkHeader};
 use radicle_cli::terminal;
 use radicle_cli::terminal::highlight::Highlighter;
 
-use ratatui::style::{Color, Style, Stylize};
-// use ratatui::text::{Line, Text};
 use ratatui::prelude::*;
+use ratatui::style::{Color, Style, Stylize};
 use ratatui::widgets::Cell;
 
+use tui::ui::im::Borders;
 use tui_tree_widget::TreeItem;
 
 use radicle_tui as tui;
 
-use tui::ui::span;
 use tui::ui::theme::style;
+use tui::ui::{span, Column};
 use tui::ui::{ToRow, ToTree};
 
 use crate::cob::{DiffStats, HunkStats, IndexedReviewItem};
@@ -1265,6 +1265,226 @@ impl<'a> ReviewItem<'a> {
     }
 }
 
+impl<'a> ReviewItem<'a> {
+    pub fn header(&self) -> Vec<Column<'a>> {
+        match &self.inner {
+            (
+                _,
+                crate::cob::ReviewItem::FileAdded {
+                    path,
+                    new: _,
+                    hunk: _,
+                    _stats: _,
+                },
+            ) => {
+                let path = ReviewItem::pretty_path(path, false);
+                let header = [
+                    Column::new("", Constraint::Length(0)),
+                    Column::new(path.clone(), Constraint::Length(path.width() as u16)),
+                    Column::new(
+                        span::default(" added ")
+                            .light_green()
+                            .dim()
+                            .reversed()
+                            .into_right_aligned_line(),
+                        Constraint::Fill(1),
+                    ),
+                ];
+
+                header.to_vec()
+            }
+            (
+                _,
+                crate::cob::ReviewItem::FileModified {
+                    path,
+                    old: _,
+                    new: _,
+                    hunk: _,
+                    _stats: _,
+                },
+            ) => {
+                let path = ReviewItem::pretty_path(path, false);
+                let header = [
+                    Column::new("", Constraint::Length(0)),
+                    Column::new(path.clone(), Constraint::Length(path.width() as u16)),
+                    Column::new(
+                        span::default(" modified ")
+                            .light_yellow()
+                            .dim()
+                            .reversed()
+                            .into_right_aligned_line(),
+                        Constraint::Fill(1),
+                    ),
+                ];
+
+                header.to_vec()
+            }
+            (
+                _,
+                crate::cob::ReviewItem::FileDeleted {
+                    path,
+                    old: _,
+                    hunk: _,
+                    _stats: _,
+                },
+            ) => {
+                let path = ReviewItem::pretty_path(path, true);
+                let header = [
+                    Column::new("", Constraint::Length(0)),
+                    Column::new(path.clone(), Constraint::Length(path.width() as u16)),
+                    Column::new(
+                        span::default(" deleted ")
+                            .light_red()
+                            .dim()
+                            .reversed()
+                            .into_right_aligned_line(),
+                        Constraint::Fill(1),
+                    ),
+                ];
+
+                header.to_vec()
+            }
+            (_, crate::cob::ReviewItem::FileCopied { copied }) => {
+                let path = Line::from(
+                    [
+                        ReviewItem::pretty_path(&copied.old_path, false).spans,
+                        [span::default(" -> ")].to_vec(),
+                        ReviewItem::pretty_path(&copied.new_path, false).spans,
+                    ]
+                    .concat()
+                    .to_vec(),
+                );
+                let header = [
+                    Column::new("", Constraint::Length(0)),
+                    Column::new(path.clone(), Constraint::Length(path.width() as u16)),
+                    Column::new(
+                        span::default(" copied ")
+                            .light_blue()
+                            .dim()
+                            .reversed()
+                            .into_right_aligned_line(),
+                        Constraint::Fill(1),
+                    ),
+                ];
+
+                header.to_vec()
+            }
+            (_, crate::cob::ReviewItem::FileMoved { moved }) => {
+                let path = Line::from(
+                    [
+                        ReviewItem::pretty_path(&moved.old_path, false).spans,
+                        [span::default(" -> ")].to_vec(),
+                        ReviewItem::pretty_path(&moved.new_path, false).spans,
+                    ]
+                    .concat()
+                    .to_vec(),
+                );
+                let header = [
+                    Column::new("", Constraint::Length(0)),
+                    Column::new(path.clone(), Constraint::Length(path.width() as u16)),
+                    Column::new(
+                        span::default(" moved ")
+                            .light_blue()
+                            .dim()
+                            .reversed()
+                            .into_right_aligned_line(),
+                        Constraint::Fill(1),
+                    ),
+                ];
+
+                header.to_vec()
+            }
+            (
+                _,
+                crate::cob::ReviewItem::FileEofChanged {
+                    path,
+                    old: _,
+                    new: _,
+                    _eof: _,
+                },
+            ) => {
+                let path = ReviewItem::pretty_path(&path, false);
+                let header = [
+                    Column::new("", Constraint::Length(0)),
+                    Column::new(path.clone(), Constraint::Length(path.width() as u16)),
+                    Column::new(
+                        span::default(" eof ")
+                            .dim()
+                            .reversed()
+                            .into_right_aligned_line(),
+                        Constraint::Fill(1),
+                    ),
+                ];
+
+                header.to_vec()
+            }
+            (
+                _,
+                crate::cob::ReviewItem::FileModeChanged {
+                    path,
+                    old: _,
+                    new: _,
+                },
+            ) => {
+                let path = ReviewItem::pretty_path(&path, false);
+                let header = [
+                    Column::new("", Constraint::Length(0)),
+                    Column::new(path.clone(), Constraint::Length(path.width() as u16)),
+                    Column::new(
+                        span::default(" mode ")
+                            .dim()
+                            .reversed()
+                            .into_right_aligned_line(),
+                        Constraint::Length(6),
+                    ),
+                ];
+
+                header.to_vec()
+            }
+        }
+    }
+
+    pub fn hunk_text(&'a self, repo: &Repository) -> Option<Text<'a>> {
+        match &self.inner {
+            (
+                _,
+                crate::cob::ReviewItem::FileAdded {
+                    path: _,
+                    new: _,
+                    hunk,
+                    _stats: _,
+                },
+            ) => hunk
+                .as_ref()
+                .map(|hunk| Text::from(hunk.to_text(&self.highlighted, repo.raw()))),
+            (
+                _,
+                crate::cob::ReviewItem::FileModified {
+                    path: _,
+                    old: _,
+                    new: _,
+                    hunk,
+                    _stats: _,
+                },
+            ) => hunk
+                .as_ref()
+                .map(|hunk| Text::from(hunk.to_text(&self.highlighted, repo.raw()))),
+            (
+                _,
+                crate::cob::ReviewItem::FileDeleted {
+                    path: _,
+                    old: _,
+                    hunk,
+                    _stats: _,
+                },
+            ) => hunk
+                .as_ref()
+                .map(|hunk| Text::from(hunk.to_text(&self.highlighted, repo.raw()))),
+            _ => None,
+        }
+    }
+}
+
 /// Blobs passed down to the hunk renderer.
 #[derive(Clone, Debug)]
 pub struct Blobs<T> {
@@ -1363,24 +1583,14 @@ pub trait ToText<'a> {
     type Context;
 
     /// Render to pretty diff output.
-    fn to_text<R: Repo>(
-        &'a self,
-        hi: &mut Highlighter,
-        context: &Self::Context,
-        repo: &R,
-    ) -> Self::Output;
+    fn to_text<R: Repo>(&'a self, context: &Self::Context, repo: &R) -> Self::Output;
 }
 
 impl<'a> ToText<'a> for HunkHeader {
     type Output = Line<'a>;
     type Context = ();
 
-    fn to_text<R: Repo>(
-        &self,
-        _hi: &mut Highlighter,
-        _context: &Self::Context,
-        _repo: &R,
-    ) -> Self::Output {
+    fn to_text<R: Repo>(&self, _context: &Self::Context, _repo: &R) -> Self::Output {
         Line::from(
             [
                 span::default(&format!(
@@ -1400,12 +1610,7 @@ impl<'a> ToText<'a> for Modification {
     type Output = Line<'a>;
     type Context = Blobs<Vec<Line<'a>>>;
 
-    fn to_text<R: Repo>(
-        &'a self,
-        _hi: &mut Highlighter,
-        blobs: &Blobs<Vec<Line<'a>>>,
-        _repo: &R,
-    ) -> Self::Output {
+    fn to_text<R: Repo>(&'a self, blobs: &Blobs<Vec<Line<'a>>>, _repo: &R) -> Self::Output {
         let line = match self {
             Modification::Deletion(diff::Deletion { line, line_no }) => {
                 if let Some(lines) = &blobs.old.as_ref() {
@@ -1441,12 +1646,7 @@ impl<'a> ToText<'a> for Hunk<Modification> {
     type Output = Vec<Line<'a>>;
     type Context = Blobs<Vec<Line<'a>>>;
 
-    fn to_text<R: Repo>(
-        &'a self,
-        hi: &mut Highlighter,
-        blobs: &Self::Context,
-        repo: &R,
-    ) -> Self::Output {
+    fn to_text<R: Repo>(&'a self, blobs: &Self::Context, repo: &R) -> Self::Output {
         let mut lines: Vec<Line<'a>> = vec![];
 
         let default_dark = Color::Rgb(20, 20, 20);
@@ -1490,7 +1690,7 @@ impl<'a> ToText<'a> for Hunk<Modification> {
                                 span::positive(" + ").bg(positive_dark).dim(),
                             ]
                             .to_vec(),
-                            line.to_text(hi, blobs, repo)
+                            line.to_text(blobs, repo)
                                 .spans
                                 .into_iter()
                                 .map(|span| span.bg(positive_dark))
@@ -1513,7 +1713,7 @@ impl<'a> ToText<'a> for Hunk<Modification> {
                                 span::negative(" - ").bg(negative_dark).dim(),
                             ]
                             .to_vec(),
-                            line.to_text(hi, blobs, repo)
+                            line.to_text(blobs, repo)
                                 .spans
                                 .into_iter()
                                 .map(|span| span.bg(negative_dark))
@@ -1542,7 +1742,7 @@ impl<'a> ToText<'a> for Hunk<Modification> {
                                 span::default(&format!("{:<3}", "")),
                             ]
                             .to_vec(),
-                            line.to_text(hi, blobs, repo).spans,
+                            line.to_text(blobs, repo).spans,
                         ]
                         .concat(),
                     ));
