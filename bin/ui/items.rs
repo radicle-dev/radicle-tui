@@ -33,7 +33,6 @@ use ratatui::prelude::*;
 use ratatui::style::{Color, Style, Stylize};
 use ratatui::widgets::Cell;
 
-use tui::ui::im::Borders;
 use tui_tree_widget::TreeItem;
 
 use radicle_tui as tui;

@@ -9,12 +9,9 @@ use std::ffi::OsString;
 
 use anyhow::anyhow;
 
-use radicle::cob;
-use radicle::crypto::Signer;
+use radicle::cob::ObjectId;
 use radicle::identity::RepoId;
-use radicle::patch::{Status, Verdict};
-use radicle::storage::git::cob::DraftStore;
-use radicle::storage::WriteRepository;
+use radicle::patch::Status;
 
 use radicle_cli::git::Rev;
 use radicle_cli::terminal;
@@ -22,9 +19,6 @@ use radicle_cli::terminal::args::{string, Args, Error, Help};
 
 use crate::cob::patch;
 use crate::cob::patch::Filter;
-use crate::commands::tui_patch::review::ReviewAction;
-
-use crate::tui_patch::review::builder::{Brain, CommentBuilder, ReviewBuilder};
 
 pub const HELP: Help = Help {
     name: "patch",
@@ -81,7 +75,7 @@ pub struct SelectOptions {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ReviewOptions {
-    patch_id: Rev,
+    patch_id: Option<Rev>,
     revision_id: Option<Rev>,
 }
 
@@ -168,8 +162,8 @@ impl Args for Options {
         let op = match op.ok_or_else(|| anyhow!("an operation must be provided"))? {
             OperationName::Review => Operation::Review {
                 opts: ReviewOptions {
-                    patch_id: patch_id.ok_or_else(|| anyhow!("a patch must be provided"))?,
-                    revision_id: revision_id,
+                    patch_id,
+                    revision_id,
                 },
             },
             OperationName::Select => Operation::Select { opts: select_opts },
@@ -185,190 +179,260 @@ pub async fn run(options: Options, ctx: impl terminal::Context) -> anyhow::Resul
     let (_, rid) = radicle::rad::cwd()
         .map_err(|_| anyhow!("this command must be run in the context of a project"))?;
 
+    if let Err(err) = crate::log::enable() {
+        println!("{}", err);
+    }
+
     match options.op {
         Operation::Select { opts } => {
             let profile = ctx.profile()?;
             let rid = options.repo.unwrap_or(rid);
-            let repository = profile.storage.repository(rid).unwrap();
 
-            if let Err(err) = crate::log::enable() {
-                println!("{}", err);
-            }
-            log::info!("Starting patch selection interface in project {}..", rid);
-
-            let context = select::Context {
-                profile,
-                repository,
-                mode: opts.mode,
-                filter: opts.filter.clone(),
-            };
-            let output = select::App::new(context, true).run().await?;
-
-            let output = output
+            // Run TUI with patch selection interface
+            let selection = interface::select(opts, profile, rid).await?;
+            let selection = selection
                 .map(|o| serde_json::to_string(&o).unwrap_or_default())
                 .unwrap_or_default();
 
-            log::info!("About to print to `stderr`: {}", output);
+            log::info!("About to print to `stderr`: {}", selection);
             log::info!("Exiting patch selection interface..");
 
-            eprint!("{output}");
+            eprint!("{selection}");
         }
-        Operation::Review { opts } => {
-            if let Err(err) = crate::log::enable() {
-                println!("{}", err);
-            }
+        Operation::Review { ref opts } => {
             log::info!("Starting patch review interface in project {rid}..");
 
             let profile = ctx.profile()?;
-            let signer = terminal::signer(&profile)?;
             let rid = options.repo.unwrap_or(rid);
             let repo = profile.storage.repository(rid).unwrap();
 
             // Load patch
-            let patch_id = opts.patch_id.resolve(&repo.backend)?;
-            let patch = patch::find(&profile, &repo, &patch_id)?
-                .ok_or_else(|| anyhow!("Patch `{patch_id}` not found"))?;
+            // let patch_id = if let Some(patch_id) = &opts.patch_id {
+            //     patch_id.resolve(&repo.backend)?
+            // } else {
+            //     let opts = SelectOptions {
+            //         mode: common::Mode::Id,
+            //         ..SelectOptions::default()
+            //     };
 
-            // Load revision
-            let revision_id = opts
-                .revision_id
-                .map(|rev| rev.resolve::<radicle::git::Oid>(&repo.backend))
-                .transpose()?
-                .map(radicle::cob::patch::RevisionId::from);
-            let (_, revision) = match revision_id {
-                Some(id) => (
-                    id,
-                    patch
-                        .revision(&id)
-                        .ok_or_else(|| anyhow!("Patch revision `{id}` not found"))?,
-                ),
-                None => patch.latest(),
-            };
+            //     // Run TUI with patch selection interface
+            //     let selection = interface::select(opts, profile.clone(), rid).await?;
+            //     let patch_id = selection
+            //         .and_then(|selection| selection.ids.first().cloned())
+            //         .map(|id| *id);
 
-            let brain = if let Ok(b) = Brain::load(patch_id, signer.public_key(), repo.raw()) {
-                log::info!(
-                    "Loaded existing brain {} for patch {}",
-                    b.head().id(),
-                    &patch_id
-                );
-                b
+            //     if patch_id.is_none() {
+            //         anyhow::bail!("a patch id must be provided");
+            //     }
+
+            //     patch_id.unwrap()
+            // };
+            let patch_id: ObjectId = if let Some(patch_id) = &opts.patch_id {
+                patch_id.resolve(&repo.backend)?
             } else {
-                let base = repo.raw().find_commit((*revision.base()).into())?;
-                Brain::new(patch_id, signer.public_key(), base, repo.raw())?
+                anyhow::bail!("a patch must be provided");
             };
 
-            let builder = ReviewBuilder::new(patch_id, &signer, &repo);
-            let queue = builder.queue(&brain, &revision)?;
-
-            let drafts = DraftStore::new(&repo, *signer.public_key());
-            let mut patches = cob::patch::Cache::no_cache(&drafts)?;
-            let mut patch = patches.get_mut(&patch_id)?;
-
-            if let Some(review) = revision.review_by(signer.public_key()) {
-                // Review already finalized. Do nothing and warn.
-                terminal::warning(format!(
-                    "Review ({}) already finalized. Exiting.",
-                    review.id()
-                ));
-
-                return Ok(());
-            };
-
-            let (review_id, review) = if let Some((id, review)) = patch
-                .clone()
-                .reviews_of(revision.id())
-                .find(|(_, review)| review.author().public_key() == signer.public_key())
-            {
-                // Review already started, resume.
-                log::info!("Resuming review {id}..");
-                (id.clone(), review.clone())
-            } else {
-                // No review to resume, start a new one.
-                let id = patch.review(
-                    revision.id(),
-                    // This is amended before the review is finalized, if all hunks are
-                    // accepted. We can't set this to `None`, as that will be invalid without
-                    // a review summary.
-                    Some(Verdict::Reject),
-                    None,
-                    vec![],
-                    &signer,
-                )?;
-                log::info!("Starting new review {id}..");
-
-                // Load newly created review.
-                match patch
-                    .reviews_of(revision.id())
-                    .find(|(_, review)| review.author().public_key() == signer.public_key())
-                {
-                    Some((id, review)) => (id.clone(), review.clone()),
-                    None => anyhow::bail!("Could not find review {}", id),
-                }
-            };
-
-            loop {
-                log::info!(
-                    "Found comments for {review_id}: {:?}",
-                    review.comments().collect::<Vec<_>>()
-                );
-
-                let selection = review::Tui::new(profile.clone(), rid, queue.clone())
-                    .run()
-                    .await?;
-                log::info!("Received selection from TUI: {:?}", selection);
-
-                if let Some(selection) = selection.as_ref() {
-                    match ReviewAction::try_from(selection.action)? {
-                        ReviewAction::Accept => {
-                            // brain accept
-                        }
-                        ReviewAction::Ignore => {
-                            // next hunk
-                        }
-                        ReviewAction::Comment => {
-                            if let Some(hunk) = selection.hunk {
-                                if let Some((_, item)) = queue.get(hunk) {
-                                    let (old, new) = item.paths();
-                                    let path = old.or(new);
-
-                                    if let (Some(hunk), Some((path, _))) = (item.hunk(), path) {
-                                        let builder = CommentBuilder::new(
-                                            revision.head(),
-                                            path.to_path_buf(),
-                                        );
-                                        let comments = builder.edit(hunk)?;
-
-                                        patch.transaction("Review comments", &signer, |tx| {
-                                            for comment in comments {
-                                                tx.review_comment(
-                                                    review_id,
-                                                    comment.body,
-                                                    Some(comment.location),
-                                                    None,   // Not a reply.
-                                                    vec![], // No embeds.
-                                                )?;
-                                            }
-                                            Ok(())
-                                        })?;
-                                    } else {
-                                        log::warn!(
-                                            "Commenting on binary blobs is not yet implemented"
-                                        );
-                                    }
-                                } else {
-                                    log::error!("Expected a hunk to comment on.")
-                                }
-                            } else {
-                                log::error!("Expected a selected hunk.")
-                            }
-                        }
-                    }
-                } else {
-                    break;
-                }
-            }
+            // Run TUI with patch review interface
+            interface::review(opts.clone(), profile, rid, patch_id.into()).await?;
         }
     }
 
     Ok(())
+}
+
+mod interface {
+    use anyhow::anyhow;
+
+    use radicle::cob;
+    use radicle::cob::ObjectId;
+    use radicle::crypto::Signer;
+    use radicle::identity::RepoId;
+    use radicle::patch::PatchId;
+    use radicle::patch::Verdict;
+    use radicle::storage::git::cob::DraftStore;
+    use radicle::storage::{ReadStorage, WriteRepository};
+    use radicle::Profile;
+
+    use radicle_cli::terminal;
+
+    use radicle_tui::Selection;
+
+    use crate::cob::patch;
+    use crate::tui_patch::review::builder::CommentBuilder;
+    use crate::tui_patch::review::ReviewAction;
+    use crate::tui_patch::select;
+
+    use super::review;
+    use super::review::builder::{Brain, ReviewBuilder};
+    use super::{ReviewOptions, SelectOptions};
+
+    pub async fn select(
+        opts: SelectOptions,
+        profile: Profile,
+        rid: RepoId,
+    ) -> anyhow::Result<Option<Selection<ObjectId>>> {
+        let repository = profile.storage.repository(rid).unwrap();
+
+        log::info!("Starting patch selection interface in project {}..", rid);
+
+        let context = select::Context {
+            profile,
+            repository,
+            mode: opts.mode,
+            filter: opts.filter.clone(),
+        };
+
+        select::App::new(context, true).run().await
+    }
+
+    pub async fn review(
+        opts: ReviewOptions,
+        profile: Profile,
+        rid: RepoId,
+        patch_id: PatchId,
+    ) -> anyhow::Result<()> {
+        let repo = profile.storage.repository(rid).unwrap();
+        let signer = terminal::signer(&profile)?;
+
+        let patch = patch::find(&profile, &repo, &patch_id.into())?
+            .ok_or_else(|| anyhow!("Patch `{patch_id}` not found"))?;
+
+        // Load revision
+        let revision_id = opts
+            .revision_id
+            .map(|rev| rev.resolve::<radicle::git::Oid>(&repo.backend))
+            .transpose()?
+            .map(radicle::cob::patch::RevisionId::from);
+        let (_, revision) = match revision_id {
+            Some(id) => (
+                id,
+                patch
+                    .revision(&id)
+                    .ok_or_else(|| anyhow!("Patch revision `{id}` not found"))?,
+            ),
+            None => patch.latest(),
+        };
+
+        let brain = if let Ok(b) = Brain::load(patch_id.into(), signer.public_key(), repo.raw()) {
+            log::info!(
+                "Loaded existing brain {} for patch {}",
+                b.head().id(),
+                &patch_id
+            );
+            b
+        } else {
+            let base = repo.raw().find_commit((*revision.base()).into())?;
+            Brain::new(patch_id.into(), signer.public_key(), base, repo.raw())?
+        };
+
+        let builder = ReviewBuilder::new(patch_id.into(), &signer, &repo);
+        let queue = builder.queue(&brain, &revision)?;
+
+        let drafts = DraftStore::new(&repo, *signer.public_key());
+        let mut patches = cob::patch::Cache::no_cache(&drafts)?;
+        let mut patch = patches.get_mut(&patch_id.into())?;
+
+        if let Some(review) = revision.review_by(signer.public_key()) {
+            // Review already finalized. Do nothing and warn.
+            terminal::warning(format!(
+                "Review ({}) already finalized. Exiting.",
+                review.id()
+            ));
+
+            return Ok(());
+        };
+
+        let (review_id, review) = if let Some((id, review)) = patch
+            .clone()
+            .reviews_of(revision.id())
+            .find(|(_, review)| review.author().public_key() == signer.public_key())
+        {
+            // Review already started, resume.
+            log::info!("Resuming review {id}..");
+            (id.clone(), review.clone())
+        } else {
+            // No review to resume, start a new one.
+            let id = patch.review(
+                revision.id(),
+                // This is amended before the review is finalized, if all hunks are
+                // accepted. We can't set this to `None`, as that will be invalid without
+                // a review summary.
+                Some(Verdict::Reject),
+                None,
+                vec![],
+                &signer,
+            )?;
+            log::info!("Starting new review {id}..");
+
+            // Load newly created review.
+            match patch
+                .reviews_of(revision.id())
+                .find(|(_, review)| review.author().public_key() == signer.public_key())
+            {
+                Some((id, review)) => (id.clone(), review.clone()),
+                None => anyhow::bail!("Could not find review {}", id),
+            }
+        };
+
+        loop {
+            log::info!(
+                "Found comments for {review_id}: {:?}",
+                review.comments().collect::<Vec<_>>()
+            );
+
+            let selection = review::Tui::new(profile.clone(), rid, queue.clone())
+                .run()
+                .await?;
+            log::info!("Received selection from TUI: {:?}", selection);
+
+            if let Some(selection) = selection.as_ref() {
+                match ReviewAction::try_from(selection.action)? {
+                    ReviewAction::Accept => {
+                        // brain accept
+                    }
+                    ReviewAction::Ignore => {
+                        // next hunk
+                    }
+                    ReviewAction::Comment => {
+                        if let Some(hunk) = selection.hunk {
+                            if let Some((_, item)) = queue.get(hunk) {
+                                let (old, new) = item.paths();
+                                let path = old.or(new);
+
+                                if let (Some(hunk), Some((path, _))) = (item.hunk(), path) {
+                                    let builder =
+                                        CommentBuilder::new(revision.head(), path.to_path_buf());
+                                    let comments = builder.edit(hunk)?;
+
+                                    patch.transaction("Review comments", &signer, |tx| {
+                                        for comment in comments {
+                                            tx.review_comment(
+                                                review_id,
+                                                comment.body,
+                                                Some(comment.location),
+                                                None,   // Not a reply.
+                                                vec![], // No embeds.
+                                            )?;
+                                        }
+                                        Ok(())
+                                    })?;
+                                } else {
+                                    log::warn!("Commenting on binary blobs is not yet implemented");
+                                }
+                            } else {
+                                log::error!("Expected a hunk to comment on.")
+                            }
+                        } else {
+                            log::error!("Expected a selected hunk.")
+                        }
+                    }
+                }
+            } else {
+                break;
+            }
+        }
+
+        Ok(())
+    }
 }
