@@ -344,7 +344,7 @@ mod interface {
             return Ok(());
         };
 
-        if let Some((id, _)) = patch::find_review(&patch, revision, &signer)? {
+        if let Some((id, _)) = patch::find_review(&patch, revision, &signer) {
             // Review already started, resume.
             log::info!("Resuming review {id}..");
         } else {
@@ -365,8 +365,8 @@ mod interface {
 
         loop {
             // Reload review
-            let (review_id, review) = patch::find_review(&patch, revision, &signer)?
-                .ok_or_else(|| anyhow!("Could not load review by me"))?;
+            let (review_id, review) = patch::find_review(&patch, revision, &signer)
+                .ok_or_else(|| anyhow!("Could not find review."))?;
 
             log::info!(
                 "Found comments for {review_id}: {:?}",

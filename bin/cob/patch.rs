@@ -90,14 +90,11 @@ pub fn find_review<'a, G: Signer>(
     patch: &'a Patch,
     revision: &Revision,
     signer: &G,
-) -> Result<Option<(ReviewId, &'a Review)>> {
-    match patch
+) -> Option<(ReviewId, &'a Review)> {
+    patch
         .reviews_of(revision.id())
         .find(|(_, review)| review.author().public_key() == signer.public_key())
-    {
-        Some((id, review)) => Ok(Some((id.clone(), review))),
-        None => anyhow::bail!("Could not find review by me"),
-    }
+        .map(|(id, review)| (id.clone(), review))
 }
 
 #[cfg(test)]
