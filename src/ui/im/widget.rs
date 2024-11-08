@@ -938,15 +938,6 @@ pub struct TextEdit<'a> {
 }
 
 impl<'a> TextEdit<'a> {
-    /// # Example
-    ///
-    /// ```
-    /// let mut state = TextEditState::default();
-    /// let output = im::widget::TextEdit::new(&mut text, &mut cursor).show(ui, frame);
-    /// if output.response.changed {
-    ///     state = output.state;
-    /// }
-    /// ```
     pub fn new(text: &'a mut String, cursor: &'a mut usize, borders: Option<Borders>) -> Self {
         Self {
             text,
