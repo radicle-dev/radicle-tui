@@ -1,5 +1,6 @@
 use anyhow::Result;
 
+use ratatui::layout::Position;
 use termion::event::Key;
 
 use ratatui::{Frame, Viewport};
@@ -50,7 +51,12 @@ impl store::Update<Message> for App {
 impl Show<Message> for App {
     fn show(&self, ctx: &Context<Message>, frame: &mut Frame) -> Result<()> {
         Window::default().show(ctx, |ui| {
-            ui.text_view(frame, self.alien.clone(), &mut (0, 0), Some(Borders::None));
+            ui.text_view(
+                frame,
+                self.alien.clone(),
+                &mut Position::default(),
+                Some(Borders::None),
+            );
 
             if ui.input_global(|key| key == Key::Char('q')) {
                 ui.send_message(Message::Quit);
