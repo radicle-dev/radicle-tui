@@ -10,7 +10,7 @@ use nom::{IResult, Parser};
 use ansi_to_tui::IntoText;
 
 use radicle::cob::thread::{Comment, CommentId};
-use radicle::cob::{CodeLocation, EntryId, Label, ObjectId, Timestamp, TypedId};
+use radicle::cob::{CodeLocation, CodeRange, EntryId, Label, ObjectId, Timestamp, TypedId};
 use radicle::git::Oid;
 use radicle::identity::{Did, Identity};
 use radicle::issue;
@@ -38,6 +38,7 @@ use tui_tree_widget::TreeItem;
 use radicle_tui as tui;
 
 use tui::ui::theme::style;
+use tui::ui::utils::LineMerger;
 use tui::ui::{span, Column};
 use tui::ui::{ToRow, ToTree};
 
@@ -1039,11 +1040,69 @@ impl<'a> Into<Line<'a>> for TermLine {
     }
 }
 
+/// All comments per hunk, indexed by their starting line.
+#[derive(Clone, Debug)]
+pub struct HunkComments {
+    /// All comments. Can be unsorted.
+    comments: HashMap<usize, Vec<(EntryId, Comment<CodeLocation>)>>,
+}
+
+impl HunkComments {
+    pub fn all(&self) -> &HashMap<usize, Vec<(EntryId, Comment<CodeLocation>)>> {
+        &self.comments
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.comments.is_empty()
+    }
+
+    pub fn len(&self) -> usize {
+        self.comments
+            .values()
+            .into_iter()
+            .fold(0_usize, |mut count, comments| {
+                count += comments.len();
+                count
+            })
+    }
+}
+
+impl From<Vec<(EntryId, Comment<CodeLocation>)>> for HunkComments {
+    fn from(comments: Vec<(EntryId, Comment<CodeLocation>)>) -> Self {
+        let mut line_comments: HashMap<usize, Vec<(EntryId, Comment<CodeLocation>)>> =
+            HashMap::new();
+
+        for comment in comments {
+            // TODO(erikli): Check why we need range end instead of range start.
+            let line = match comment.1.location().as_ref().unwrap().new.as_ref().unwrap() {
+                CodeRange::Lines { range } => range.end,
+                _ => 0,
+            };
+
+            if let Some(comments) = line_comments.get_mut(&line) {
+                comments.push(comment.clone());
+            } else {
+                line_comments.insert(line, vec![comment.clone()]);
+            }
+        }
+
+        Self {
+            comments: line_comments,
+        }
+    }
+}
+
+/// A [`HunkItem`] that can be rendered. Hunk items are indexed sequentially and
+/// provide access to the underlying hunk type.
 #[derive(Clone, Debug)]
 pub struct HunkItem<'a> {
+    /// The indexed, underlying hunk type.
     pub inner: IndexedHunkItem,
-    pub highlighted: Blobs<Vec<Line<'a>>>,
-    pub comments: Vec<(EntryId, Comment<CodeLocation>)>,
+    /// Raw or highlighted hunk lines. Highlighting is expensive and needs to be asynchronously.
+    /// Therefor, a hunks' lines need to stored separately.
+    pub lines: Blobs<Vec<Line<'a>>>,
+    /// A hunks' comments, indexed by line.
+    pub comments: HunkComments,
 }
 
 impl<'a> From<(&Repository, &Review, &IndexedHunkItem)> for HunkItem<'a> {
@@ -1061,17 +1120,22 @@ impl<'a> From<(&Repository, &Review, &IndexedHunkItem)> for HunkItem<'a> {
             crate::cob::HunkItem::FileEofChanged { path, .. } => path,
         };
 
+        // TODO(erikli): Start with raw, non-highlighted lines and
+        // move highlighting to separate task / thread, e.g. here:
+        // `let lines = blobs.raw()`
         let blobs = item.1.clone().blobs(repo.raw());
-        let highlighted = blobs.highlight(hi);
+        let lines = blobs.highlight(hi);
+        let comments = review
+            .comments()
+            .filter(|(_, comment)| comment.location().is_some())
+            .filter(|(_, comment)| comment.location().unwrap().path == *path)
+            .map(|(id, comment)| (id.clone(), comment.clone()))
+            .collect::<Vec<_>>();
+
         Self {
             inner: item.clone(),
-            highlighted,
-            comments: review
-                .comments()
-                .filter(|(_, comment)| comment.location().is_some())
-                .filter(|(_, comment)| comment.location().unwrap().path == *path)
-                .map(|(id, comment)| (id.clone(), comment.clone()))
-                .collect::<Vec<_>>(),
+            lines,
+            comments: HunkComments::from(comments),
         }
     }
 }
@@ -1083,7 +1147,7 @@ impl<'a> ToRow<3> for HunkItem<'a> {
         let build_stats_spans = |stats: &DiffStats| -> Vec<Span<'_>> {
             let mut cell = vec![];
 
-            if self.comments.len() > 0 {
+            if !self.comments.is_empty() {
                 cell.push(
                     span::default(&format!(" {} ", self.comments.len()))
                         .dim()
@@ -1495,57 +1559,84 @@ impl<'a> HunkItem<'a> {
     }
 
     pub fn hunk_text(&'a self) -> Option<Text<'a>> {
-        let mut hunk = match &self.inner {
-            (
-                _,
-                crate::cob::HunkItem::FileAdded {
-                    path: _,
-                    new: _,
-                    hunk,
-                    _stats: _,
-                },
-            ) => hunk
-                .as_ref()
-                .map(|hunk| Text::from(hunk.to_text(&self.highlighted))),
-            (
-                _,
-                crate::cob::HunkItem::FileModified {
-                    path: _,
-                    old: _,
-                    new: _,
-                    hunk,
-                    _stats: _,
-                },
-            ) => hunk
-                .as_ref()
-                .map(|hunk| Text::from(hunk.to_text(&self.highlighted))),
-            (
-                _,
-                crate::cob::HunkItem::FileDeleted {
-                    path: _,
-                    old: _,
-                    hunk,
-                    _stats: _,
-                },
-            ) => hunk
-                .as_ref()
-                .map(|hunk| Text::from(hunk.to_text(&self.highlighted))),
+        use crate::cob::HunkItem;
+
+        match &self.inner {
+            (_, HunkItem::FileAdded { hunk, .. })
+            | (_, HunkItem::FileModified { hunk, .. })
+            | (_, HunkItem::FileDeleted { hunk, .. }) => {
+                let mut lines = hunk
+                    .as_ref()
+                    .map(|hunk| Text::from(hunk.to_text(&self.lines)));
+                let start = hunk
+                    .as_ref()
+                    .map(|hunk| hunk.new.start as usize)
+                    .unwrap_or_default();
+
+                lines = lines.and_then(|lines| {
+                    let mut mixins = HashMap::new();
+
+                    let divider = span::default(&"─".to_string().repeat(500)).gray().dim();
+
+                    for (line, comments) in self.comments.all() {
+                        mixins.insert(
+                            *line,
+                            comments
+                                .iter()
+                                .enumerate()
+                                .map(|(idx, comment)| {
+                                    // let body = span::default(comment.1.body()).gray();
+                                    let timestamp =
+                                        span::timestamp(&format::timestamp(&comment.1.timestamp()));
+                                    let author =
+                                        span::alias(&format::did(&Did::from(comment.1.author())));
+
+                                    let mut rendered = vec![];
+
+                                    // Only add top divider for the first comment
+                                    if idx == 0 {
+                                        rendered.push(Line::from([divider.clone()].to_vec()));
+                                    }
+
+                                    // Add comment body
+                                    rendered.extend(
+                                        comment
+                                            .1
+                                            .body()
+                                            .lines()
+                                            .into_iter()
+                                            .map(|line| {
+                                                Line::from([span::default(line).gray()].to_vec())
+                                            })
+                                            .collect::<Vec<_>>(),
+                                    );
+
+                                    // Add metadata
+                                    rendered.push(
+                                        Line::from(
+                                            [timestamp, span::default(" by ").dim(), author]
+                                                .to_vec(),
+                                        )
+                                        .right_aligned(),
+                                    );
+
+                                    // Add bottom divider
+                                    rendered.push(Line::from([divider.clone()].to_vec()));
+
+                                    rendered
+                                })
+                                .collect(),
+                        );
+                    }
+                    let merged = LineMerger::merge(lines.lines.clone(), mixins, start);
+
+                    Some(Text::from(merged))
+                });
+
+                lines
+            }
             _ => None,
-        };
-
-        let comments = self
-            .comments
-            .iter()
-            .fold(Text::raw(""), |mut comments, comment| {
-                comments.extend(Text::from(comment.1.body()));
-                comments
-            });
-
-        if let Some(ref mut hunk) = hunk {
-            hunk.extend(comments);
         }
-
-        hunk
     }
 }
 
