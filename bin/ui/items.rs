@@ -1083,6 +1083,15 @@ impl<'a> ToRow<3> for HunkItem<'a> {
         let build_stats_spans = |stats: &DiffStats| -> Vec<Span<'_>> {
             let mut cell = vec![];
 
+            if self.comments.len() > 0 {
+                cell.push(
+                    span::default(&format!(" {} ", self.comments.len()))
+                        .dim()
+                        .reversed(),
+                );
+                cell.push(span::default(" "));
+            }
+
             let (added, deleted) = match stats {
                 DiffStats::Hunk(stats) => (stats.added(), stats.deleted()),
                 DiffStats::File(stats) => (stats.additions, stats.deletions),
@@ -1283,6 +1292,19 @@ impl<'a> HunkItem<'a> {
 
 impl<'a> HunkItem<'a> {
     pub fn header(&self) -> Vec<Column<'a>> {
+        let comment_tag = if !self.comments.is_empty() {
+            let count = self.comments.len();
+            if count == 1 {
+                span::default(" 1 comment ").dim().reversed()
+            } else {
+                span::default(&format!(" {} comments ", count))
+                    .dim()
+                    .reversed()
+            }
+        } else {
+            span::blank()
+        };
+
         match &self.inner {
             (
                 _,
@@ -1298,11 +1320,15 @@ impl<'a> HunkItem<'a> {
                     Column::new("", Constraint::Length(0)),
                     Column::new(path.clone(), Constraint::Length(path.width() as u16)),
                     Column::new(
-                        span::default(" added ")
-                            .light_green()
-                            .dim()
-                            .reversed()
-                            .into_right_aligned_line(),
+                        Line::from(
+                            [
+                                comment_tag,
+                                span::default(" "),
+                                span::default(" added ").light_green().dim().reversed(),
+                            ]
+                            .to_vec(),
+                        )
+                        .right_aligned(),
                         Constraint::Fill(1),
                     ),
                 ];
@@ -1324,11 +1350,15 @@ impl<'a> HunkItem<'a> {
                     Column::new("", Constraint::Length(0)),
                     Column::new(path.clone(), Constraint::Length(path.width() as u16)),
                     Column::new(
-                        span::default(" modified ")
-                            .light_yellow()
-                            .dim()
-                            .reversed()
-                            .into_right_aligned_line(),
+                        Line::from(
+                            [
+                                comment_tag,
+                                span::default(" "),
+                                span::default(" modified ").light_yellow().dim().reversed(),
+                            ]
+                            .to_vec(),
+                        )
+                        .right_aligned(),
                         Constraint::Fill(1),
                     ),
                 ];
@@ -1349,11 +1379,15 @@ impl<'a> HunkItem<'a> {
                     Column::new("", Constraint::Length(0)),
                     Column::new(path.clone(), Constraint::Length(path.width() as u16)),
                     Column::new(
-                        span::default(" deleted ")
-                            .light_red()
-                            .dim()
-                            .reversed()
-                            .into_right_aligned_line(),
+                        Line::from(
+                            [
+                                comment_tag,
+                                span::default(" "),
+                                span::default(" deleted ").light_red().dim().reversed(),
+                            ]
+                            .to_vec(),
+                        )
+                        .right_aligned(),
                         Constraint::Fill(1),
                     ),
                 ];
@@ -1548,6 +1582,33 @@ impl<'a> Blobs<(PathBuf, Blob)> {
                 .and_then(|hi| {
                     Ok(hi
                         .into_iter()
+                        .map(|line| Line::raw(line.to_string()))
+                        .collect::<Vec<_>>())
+                })
+                .ok();
+        }
+        blobs
+    }
+
+    pub fn _raw(self) -> Blobs<Vec<Line<'a>>> {
+        let mut blobs = Blobs::default();
+        if let Some((_, Blob::Plain(content))) = &self.old {
+            blobs.old = std::str::from_utf8(content)
+                .and_then(|lines| {
+                    Ok(lines
+                        .lines()
+                        .map(terminal::Line::new)
+                        .map(|line| Line::raw(line.to_string()))
+                        .collect::<Vec<_>>())
+                })
+                .ok();
+        }
+        if let Some((_, Blob::Plain(content))) = &self.new {
+            blobs.new = std::str::from_utf8(content)
+                .and_then(|lines| {
+                    Ok(lines
+                        .lines()
+                        .map(terminal::Line::new)
                         .map(|line| Line::raw(line.to_string()))
                         .collect::<Vec<_>>())
                 })
