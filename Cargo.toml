@@ -54,3 +54,6 @@ tokio = { version = "1.32.0", features = ["full"] }
 tokio-stream = { version = "0.1.14" }
 tui-textarea = { version = "0.5.1", default-features = false, features = ["termion"] }
 tui-tree-widget = { version = "0.21.0" }
+
+[dev-dependencies]
+pretty_assertions = "^1.4.1"

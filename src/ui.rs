@@ -4,6 +4,7 @@ pub mod layout;
 pub mod rm;
 pub mod span;
 pub mod theme;
+pub mod utils;
 
 use ratatui::layout::Constraint;
 use ratatui::text::Text;
