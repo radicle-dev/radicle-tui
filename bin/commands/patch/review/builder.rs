@@ -304,6 +304,8 @@ pub struct Brain<'a> {
     refname: git::Namespaced<'a>,
     /// The commit pointed to by the ref.
     head: git::raw::Commit<'a>,
+    /// The merge base of this revision.
+    base: git::raw::Commit<'a>,
     /// The tree of accepted changes pointed to by the head commit.
     accepted: git::raw::Tree<'a>,
 }
@@ -313,7 +315,7 @@ impl<'a> Brain<'a> {
     pub fn new(
         patch: PatchId,
         remote: &NodeId,
-        base: git::raw::Commit,
+        base: git::raw::Commit<'a>,
         repo: &'a git::raw::Repository,
     ) -> Result<Self, git::raw::Error> {
         let refname = Self::refname(&patch, remote);
@@ -333,6 +335,7 @@ impl<'a> Brain<'a> {
         Ok(Self {
             refname,
             head,
+            base,
             accepted: tree,
         })
     }
@@ -347,6 +350,7 @@ impl<'a> Brain<'a> {
     pub fn load(
         patch: PatchId,
         remote: &NodeId,
+        base: git::raw::Commit<'a>,
         repo: &'a git::raw::Repository,
     ) -> Result<Self, git::raw::Error> {
         // TODO: Validate this leads to correct UX for potentially abandoned drafts on
@@ -358,6 +362,7 @@ impl<'a> Brain<'a> {
         Ok(Self {
             refname,
             head,
+            base,
             accepted: tree,
         })
     }
@@ -368,17 +373,19 @@ impl<'a> Brain<'a> {
         repo: &'a git::raw::Repository,
         signer: &'a G,
     ) -> Result<Self, git::raw::Error> {
-        let brain = if let Ok(b) = Brain::load(patch.into(), signer.public_key(), repo) {
-            log::info!(
-                "Loaded existing brain {} for patch {}",
-                b.head().id(),
-                &patch
-            );
-            b
-        } else {
-            let base = repo.find_commit((*revision.base()).into())?;
-            Brain::new(patch.into(), signer.public_key(), base, repo)?
-        };
+        let base = repo.find_commit((*revision.base()).into())?;
+
+        let brain =
+            if let Ok(b) = Brain::load(patch.into(), signer.public_key(), base.clone(), repo) {
+                log::info!(
+                    "Loaded existing brain {} for patch {}",
+                    b.head().id(),
+                    &patch
+                );
+                b
+            } else {
+                Brain::new(patch.into(), signer.public_key(), base, repo)?
+            };
 
         Ok(brain)
     }
@@ -451,25 +458,23 @@ impl<'a, G: Signer> ReviewBuilder<'a, G> {
     }
 
     /// Assemble the review for the given revision.
-    pub fn queue(&self, brain: &'a Brain<'a>, revision: &Revision) -> anyhow::Result<ReviewQueue> {
+    pub fn all_hunks(
+        &self,
+        _brain: &'a Brain<'a>,
+        revision: &Revision,
+    ) -> anyhow::Result<ReviewQueue> {
         let repo = self.repo.raw();
-        let tree = {
+
+        let base = repo.find_commit((*revision.base()).into())?.tree()?;
+        let revision = {
             let commit = repo.find_commit(revision.head().into())?;
-
-            log::info!(
-                "Loading queue patch: Patch[commit({}), tree({})], Brain[tree({})]",
-                commit.id(),
-                commit.tree()?.id(),
-                &brain.accepted().id()
-            );
-
             commit.tree()?
         };
 
         let mut opts = git::raw::DiffOptions::new();
         opts.patience(true).minimal(true).context_lines(3_u32);
 
-        let diff = self.diff(&brain.accepted(), &tree, repo, &mut opts)?;
+        let diff = self.diff(&base, &revision, repo, &mut opts)?;
 
         Ok(ReviewQueue::from(diff))
     }

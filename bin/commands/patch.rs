@@ -328,7 +328,7 @@ mod interface {
 
         let brain = Brain::load_or_new(patch_id, &revision, repo.raw(), &signer)?;
         let builder = ReviewBuilder::new(patch_id.into(), &signer, &repo);
-        let queue = builder.queue(&brain, &revision)?;
+        let hunks = builder.all_hunks(&brain, &revision)?;
 
         let drafts = DraftStore::new(&repo, *signer.public_key());
         let mut patches = cob::patch::Cache::no_cache(&drafts)?;
@@ -373,7 +373,7 @@ mod interface {
                 review.comments().collect::<Vec<_>>()
             );
 
-            let selection = review::Tui::new(profile.clone(), rid, review.clone(), queue.clone())
+            let selection = review::Tui::new(profile.clone(), rid, review.clone(), hunks.clone())
                 .run()
                 .await?;
             log::info!("Received selection from TUI: {:?}", selection);
@@ -390,7 +390,7 @@ mod interface {
                         let hunk = selection
                             .hunk
                             .ok_or_else(|| anyhow!("expected a selected hunk"))?;
-                        let (_, item) = queue
+                        let (_, item) = hunks
                             .get(hunk)
                             .ok_or_else(|| anyhow!("expected a hunk to comment on"))?;
 
