@@ -27,6 +27,7 @@ use tui::ui::im::widget::GroupState;
 use tui::ui::im::widget::{TableState, TextViewState, Window};
 use tui::ui::im::Ui;
 use tui::ui::im::{Borders, Context, Show};
+use tui::ui::span;
 use tui::ui::Column;
 use tui::{Channel, Exit};
 
@@ -258,10 +259,18 @@ impl<'a> Show<Message> for App<'a> {
         Window::default().show(ctx, |ui| {
             let mut page_focus = self.windows.focus();
 
+            let hunks_total = 10;
+            let hunks_accepted = 5;
+            let accepted_stats = format!(" Accepted {hunks_accepted}/{hunks_total} ");
+
             match self.page {
                 AppPage::Main => {
                     ui.layout(
-                        Layout::vertical([Constraint::Fill(1), Constraint::Length(1)]),
+                        Layout::vertical([
+                            Constraint::Fill(1),
+                            Constraint::Length(1),
+                            Constraint::Length(1),
+                        ]),
                         Some(0),
                         |ui| {
                             let group = ui.group(
@@ -280,6 +289,32 @@ impl<'a> Show<Message> for App<'a> {
                                     state: GroupState::new(self.windows.len(), page_focus),
                                 });
                             }
+
+                            ui.bar(
+                                frame,
+                                [
+                                    Column::new(
+                                        span::default(" Review ").cyan().dim().reversed(),
+                                        Constraint::Length(8),
+                                    ),
+                                    Column::new(
+                                        span::default(&" ".to_string())
+                                            .into_left_aligned_line()
+                                            .style(ui.theme().bar_on_black_style),
+                                        Constraint::Fill(1),
+                                    ),
+                                    Column::new(
+                                        span::default(&accepted_stats)
+                                            .into_right_aligned_line()
+                                            .cyan()
+                                            .dim()
+                                            .reversed(),
+                                        Constraint::Length(accepted_stats.chars().count() as u16),
+                                    ),
+                                ]
+                                .to_vec(),
+                                Some(Borders::None),
+                            );
 
                             ui.shortcuts(
                                 frame,
@@ -306,7 +341,11 @@ impl<'a> Show<Message> for App<'a> {
                 }
                 AppPage::Help => {
                     ui.group(
-                        Layout::vertical([Constraint::Fill(1), Constraint::Length(1)]),
+                        Layout::vertical([
+                            Constraint::Fill(1),
+                            Constraint::Length(1),
+                            Constraint::Length(1),
+                        ]),
                         &mut page_focus,
                         |ui| {
                             ui.text_view(
@@ -315,6 +354,29 @@ impl<'a> Show<Message> for App<'a> {
                                 &mut Position::default(),
                                 Some(Borders::All),
                             );
+
+                            ui.bar(
+                                frame,
+                                [
+                                    Column::new(
+                                        span::default(&" ".to_string())
+                                            .into_left_aligned_line()
+                                            .style(ui.theme().bar_on_black_style),
+                                        Constraint::Fill(1),
+                                    ),
+                                    Column::new(
+                                        span::default(&" ")
+                                            .into_right_aligned_line()
+                                            .cyan()
+                                            .dim()
+                                            .reversed(),
+                                        Constraint::Length(6),
+                                    ),
+                                ]
+                                .to_vec(),
+                                Some(Borders::None),
+                            );
+
                             ui.shortcuts(frame, &[("?", "close"), ("q", "quit")], '∙');
                         },
                     );
