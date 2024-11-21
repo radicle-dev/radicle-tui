@@ -232,27 +232,6 @@ pub async fn run(options: Options, ctx: impl terminal::Context) -> anyhow::Resul
             let rid = options.repo.unwrap_or(rid);
             let repo = profile.storage.repository(rid).unwrap();
 
-            // Load patch
-            // let patch_id = if let Some(patch_id) = &opts.patch_id {
-            //     patch_id.resolve(&repo.backend)?
-            // } else {
-            //     let opts = SelectOptions {
-            //         mode: common::Mode::Id,
-            //         ..SelectOptions::default()
-            //     };
-
-            //     // Run TUI with patch selection interface
-            //     let selection = interface::select(opts, profile.clone(), rid).await?;
-            //     let patch_id = selection
-            //         .and_then(|selection| selection.ids.first().cloned())
-            //         .map(|id| *id);
-
-            //     if patch_id.is_none() {
-            //         anyhow::bail!("a patch id must be provided");
-            //     }
-
-            //     patch_id.unwrap()
-            // };
             let patch_id: ObjectId = if let Some(patch_id) = &opts.patch_id {
                 patch_id.resolve(&repo.backend)?
             } else {
@@ -327,8 +306,8 @@ mod interface {
         let (_, revision) = opts.revision_or_latest(&patch, &repo)?;
 
         let brain = Brain::load_or_new(patch_id, &revision, repo.raw(), &signer)?;
-        let builder = ReviewBuilder::new(patch_id.into(), &signer, &repo);
-        let hunks = builder.all_hunks(&brain, &revision)?;
+        let builder = ReviewBuilder::new(&repo).hunks(&brain, &revision)?;
+        let hunks = builder;
 
         let drafts = DraftStore::new(&repo, *signer.public_key());
         let mut patches = cob::patch::Cache::no_cache(&drafts)?;
@@ -368,29 +347,25 @@ mod interface {
             let (review_id, review) = patch::find_review(&patch, revision, &signer)
                 .ok_or_else(|| anyhow!("Could not find review."))?;
 
-            log::info!(
-                "Found comments for {review_id}: {:?}",
-                review.comments().collect::<Vec<_>>()
-            );
-
-            let selection = review::Tui::new(profile.clone(), rid, review.clone(), hunks.clone())
-                .run()
-                .await?;
+            let selection = review::Tui::new(
+                patch_id,
+                revision.clone(),
+                review.clone(),
+                hunks.clone(),
+                profile.clone(),
+                rid,
+            )
+            .run()
+            .await?;
             log::info!("Received selection from TUI: {:?}", selection);
 
             if let Some(selection) = selection.as_ref() {
                 match ReviewAction::try_from(selection.action)? {
-                    ReviewAction::Accept => {
-                        // brain accept
-                    }
-                    ReviewAction::Ignore => {
-                        // next hunk
-                    }
                     ReviewAction::Comment => {
                         let hunk = selection
                             .hunk
                             .ok_or_else(|| anyhow!("expected a selected hunk"))?;
-                        let (_, item) = hunks
+                        let (_, item, _) = hunks
                             .get(hunk)
                             .ok_or_else(|| anyhow!("expected a hunk to comment on"))?;
 

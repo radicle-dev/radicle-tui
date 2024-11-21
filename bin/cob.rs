@@ -4,6 +4,7 @@ use anyhow::Result;
 
 use radicle::cob::Label;
 use radicle::prelude::Did;
+use radicle_cli::git::unified_diff::FileHeader;
 
 use std::path::{Path, PathBuf};
 
@@ -21,7 +22,7 @@ pub mod inbox;
 pub mod issue;
 pub mod patch;
 
-pub type IndexedHunkItem = (usize, crate::cob::HunkItem);
+pub type IndexedHunkItem = (usize, crate::cob::HunkItem, HunkState);
 
 #[allow(dead_code)]
 pub fn parse_labels(input: String) -> Result<Vec<Label>> {
@@ -90,24 +91,34 @@ impl From<&Hunk<Modification>> for HunkStats {
     }
 }
 
+#[derive(Clone, Default, Debug, PartialEq)]
+pub enum HunkState {
+    #[default]
+    Rejected,
+    Accepted,
+}
+
 /// A single review item. Can be a hunk or eg. a file move.
 /// Files are usually split into multiple review items.
 #[derive(Clone, Debug)]
 pub enum HunkItem {
     FileAdded {
         path: PathBuf,
+        header: FileHeader,
         new: DiffFile,
         hunk: Option<Hunk<Modification>>,
         _stats: Option<FileStats>,
     },
     FileDeleted {
         path: PathBuf,
+        header: FileHeader,
         old: DiffFile,
         hunk: Option<Hunk<Modification>>,
         _stats: Option<FileStats>,
     },
     FileModified {
         path: PathBuf,
+        header: FileHeader,
         old: DiffFile,
         new: DiffFile,
         hunk: Option<Hunk<Modification>>,
@@ -121,12 +132,14 @@ pub enum HunkItem {
     },
     FileEofChanged {
         path: PathBuf,
+        header: FileHeader,
         old: DiffFile,
         new: DiffFile,
         _eof: EofNewLine,
     },
     FileModeChanged {
         path: PathBuf,
+        header: FileHeader,
         old: DiffFile,
         new: DiffFile,
     },
@@ -139,6 +152,24 @@ impl HunkItem {
             Self::FileDeleted { hunk, .. } => hunk.as_ref(),
             Self::FileModified { hunk, .. } => hunk.as_ref(),
             _ => None,
+        }
+    }
+
+    pub fn file_header(&self) -> FileHeader {
+        match self {
+            Self::FileAdded { header, .. } => header.clone(),
+            Self::FileDeleted { header, .. } => header.clone(),
+            Self::FileMoved { moved } => FileHeader::Moved {
+                old_path: moved.old_path.clone(),
+                new_path: moved.new_path.clone(),
+            },
+            Self::FileCopied { copied } => FileHeader::Copied {
+                old_path: copied.old_path.clone(),
+                new_path: copied.new_path.clone(),
+            },
+            Self::FileModified { header, .. } => header.clone(),
+            Self::FileEofChanged { header, .. } => header.clone(),
+            Self::FileModeChanged { header, .. } => header.clone(),
         }
     }
 

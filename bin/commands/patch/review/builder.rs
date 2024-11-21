@@ -13,201 +13,128 @@
 //!
 use std::collections::VecDeque;
 use std::fmt::Write as _;
-use std::ops::{Deref, Not, Range};
-use std::path::{Path, PathBuf};
-use std::str::FromStr;
-use std::{fmt, io};
+use std::io;
+use std::ops::{Not, Range};
+use std::path::PathBuf;
 
-use radicle::cob;
-use radicle::cob::cache::NoCache;
-use radicle::cob::patch::{PatchId, Revision, Verdict};
+use radicle::cob::patch::{PatchId, Revision};
 use radicle::cob::{CodeLocation, CodeRange};
 use radicle::git;
 use radicle::git::Oid;
-use radicle::patch::PatchMut;
 use radicle::prelude::*;
-use radicle::storage::git::{cob::DraftStore, Repository};
+use radicle::storage::git::Repository;
 use radicle_surf::diff::*;
-use radicle_term::{Element, VStack};
 
-use radicle_cli::git::pretty_diff::ToPretty;
-use radicle_cli::git::pretty_diff::{Blob, Blobs, Repo};
 use radicle_cli::git::unified_diff::{self, FileHeader};
 use radicle_cli::git::unified_diff::{Encode, HunkHeader};
 use radicle_cli::terminal as term;
-use radicle_cli::terminal::highlight::Highlighter;
 
-use crate::cob::HunkItem;
-
-/// Help message shown to user.
-const HELP: &str = "\
-y - accept this hunk
-n - ignore this hunk
-c - comment on this hunk
-j - leave this hunk undecided, see next hunk
-k - leave this hunk undecided, see previous hunk
-s - split the current hunk into smaller hunks
-q - quit; do not accept this hunk nor any of the remaining ones
-? - print help";
-
-/// A terminal or file where the review UI output can be written to.
-trait PromptWriter: io::Write {
-    /// Is the writer a terminal?
-    fn is_terminal(&self) -> bool;
-}
-
-impl PromptWriter for Box<dyn PromptWriter> {
-    fn is_terminal(&self) -> bool {
-        self.deref().is_terminal()
-    }
-}
-
-impl<T: io::Write + io::IsTerminal> PromptWriter for T {
-    fn is_terminal(&self) -> bool {
-        <Self as io::IsTerminal>::is_terminal(self)
-    }
-}
-
-/// The actions that a user can carry out on a review item.
-#[derive(Debug, Copy, Clone, PartialEq, Eq)]
-pub enum ReviewAction {
-    Accept,
-    Ignore,
-    Comment,
-    Split,
-    Next,
-    Previous,
-    Help,
-    Quit,
-}
-
-impl ReviewAction {
-    /// Ask the user what action to take.
-    fn prompt(
-        mut input: impl io::BufRead,
-        mut output: impl io::Write,
-        prompt: impl fmt::Display,
-    ) -> io::Result<Option<Self>> {
-        write!(&mut output, "{prompt} ")?;
-
-        let mut s = String::new();
-        input.read_line(&mut s)?;
-
-        if s.trim().is_empty() {
-            return Ok(None);
-        }
-        Self::from_str(s.trim())
-            .map(Some)
-            .map_err(|e| io::Error::new(io::ErrorKind::InvalidInput, e))
-    }
-}
-
-impl std::fmt::Display for ReviewAction {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            Self::Accept => write!(f, "y"),
-            Self::Ignore => write!(f, "n"),
-            Self::Comment => write!(f, "c"),
-            Self::Split => write!(f, "s"),
-            Self::Next => write!(f, "j"),
-            Self::Previous => write!(f, "k"),
-            Self::Help => write!(f, "?"),
-            Self::Quit => write!(f, "q"),
-        }
-    }
-}
-
-impl FromStr for ReviewAction {
-    type Err = io::Error;
-
-    fn from_str(s: &str) -> Result<Self, Self::Err> {
-        match s {
-            "y" => Ok(Self::Accept),
-            "n" => Ok(Self::Ignore),
-            "c" => Ok(Self::Comment),
-            "s" => Ok(Self::Split),
-            "j" => Ok(Self::Next),
-            "k" => Ok(Self::Previous),
-            "?" => Ok(Self::Help),
-            "q" => Ok(Self::Quit),
-            _ => Err(io::Error::new(
-                io::ErrorKind::InvalidInput,
-                format!("invalid action '{s}'"),
-            )),
-        }
-    }
-}
+use crate::cob::{HunkItem, HunkState};
 
 /// Queue of items (usually hunks) left to review.
 #[derive(Clone, Default)]
 pub struct ReviewQueue {
     /// Hunks left to review.
-    queue: VecDeque<(usize, HunkItem)>,
+    queue: VecDeque<(usize, HunkItem, HunkState)>,
 }
 
 impl ReviewQueue {
+    pub fn new(base: Diff, queue: Diff) -> Self {
+        let base_files = base.into_files();
+        let queue_files = queue.into_files();
+
+        let mut queue = Self::default();
+        for file in base_files {
+            let state = if !queue_files.contains(&file) {
+                HunkState::Accepted
+            } else {
+                HunkState::Rejected
+            };
+            queue.add_file(file, state);
+        }
+        queue
+    }
+
     /// Add a file to the queue.
     /// Mostly splits files into individual review items (eg. hunks) to review.
-    fn add_file(&mut self, file: FileDiff) {
+    fn add_file(&mut self, file: FileDiff, state: HunkState) {
+        let header = FileHeader::from(&file);
+
         match file {
             FileDiff::Moved(moved) => {
-                self.add_item(HunkItem::FileMoved { moved });
+                self.add_item(HunkItem::FileMoved { moved }, state);
             }
             FileDiff::Copied(copied) => {
-                self.add_item(HunkItem::FileCopied { copied });
+                self.add_item(HunkItem::FileCopied { copied }, state);
             }
             FileDiff::Added(a) => {
-                self.add_item(HunkItem::FileAdded {
-                    path: a.path,
-                    new: a.new,
-                    hunk: if let DiffContent::Plain {
-                        hunks: Hunks(mut hs),
-                        ..
-                    } = a.diff.clone()
-                    {
-                        hs.pop()
-                    } else {
-                        None
+                self.add_item(
+                    HunkItem::FileAdded {
+                        path: a.path,
+                        header: header.clone(),
+                        new: a.new,
+                        hunk: if let DiffContent::Plain {
+                            hunks: Hunks(mut hs),
+                            ..
+                        } = a.diff.clone()
+                        {
+                            hs.pop()
+                        } else {
+                            None
+                        },
+                        _stats: a.diff.stats().cloned(),
                     },
-                    _stats: a.diff.stats().cloned(),
-                });
+                    state,
+                );
             }
             FileDiff::Deleted(d) => {
-                self.add_item(HunkItem::FileDeleted {
-                    path: d.path,
-                    old: d.old,
-                    hunk: if let DiffContent::Plain {
-                        hunks: Hunks(mut hs),
-                        ..
-                    } = d.diff.clone()
-                    {
-                        hs.pop()
-                    } else {
-                        None
+                self.add_item(
+                    HunkItem::FileDeleted {
+                        path: d.path,
+                        header: header.clone(),
+                        old: d.old,
+                        hunk: if let DiffContent::Plain {
+                            hunks: Hunks(mut hs),
+                            ..
+                        } = d.diff.clone()
+                        {
+                            hs.pop()
+                        } else {
+                            None
+                        },
+                        _stats: d.diff.stats().cloned(),
                     },
-                    _stats: d.diff.stats().cloned(),
-                });
+                    state,
+                );
             }
             FileDiff::Modified(m) => {
                 if m.old.mode != m.new.mode {
-                    self.add_item(HunkItem::FileModeChanged {
-                        path: m.path.clone(),
-                        old: m.old.clone(),
-                        new: m.new.clone(),
-                    });
+                    self.add_item(
+                        HunkItem::FileModeChanged {
+                            path: m.path.clone(),
+                            header: header.clone(),
+                            old: m.old.clone(),
+                            new: m.new.clone(),
+                        },
+                        state.clone(),
+                    );
                 }
                 match m.diff {
                     DiffContent::Empty => {
                         // Likely a file mode change, which is handled above.
                     }
                     DiffContent::Binary => {
-                        self.add_item(HunkItem::FileModified {
-                            path: m.path.clone(),
-                            old: m.old.clone(),
-                            new: m.new.clone(),
-                            hunk: None,
-                            _stats: m.diff.stats().cloned(),
-                        });
+                        self.add_item(
+                            HunkItem::FileModified {
+                                path: m.path.clone(),
+                                header: header.clone(),
+                                old: m.old.clone(),
+                                new: m.new.clone(),
+                                hunk: None,
+                                _stats: m.diff.stats().cloned(),
+                            },
+                            state,
+                        );
                     }
                     DiffContent::Plain {
                         hunks: Hunks(hunks),
@@ -215,21 +142,29 @@ impl ReviewQueue {
                         stats,
                     } => {
                         for hunk in hunks {
-                            self.add_item(HunkItem::FileModified {
-                                path: m.path.clone(),
-                                old: m.old.clone(),
-                                new: m.new.clone(),
-                                hunk: Some(hunk),
-                                _stats: Some(stats),
-                            });
+                            self.add_item(
+                                HunkItem::FileModified {
+                                    path: m.path.clone(),
+                                    header: header.clone(),
+                                    old: m.old.clone(),
+                                    new: m.new.clone(),
+                                    hunk: Some(hunk),
+                                    _stats: Some(stats),
+                                },
+                                state.clone(),
+                            );
                         }
                         if let EofNewLine::OldMissing | EofNewLine::NewMissing = eof {
-                            self.add_item(HunkItem::FileEofChanged {
-                                path: m.path.clone(),
-                                old: m.old.clone(),
-                                new: m.new.clone(),
-                                _eof: eof,
-                            })
+                            self.add_item(
+                                HunkItem::FileEofChanged {
+                                    path: m.path.clone(),
+                                    header: header.clone(),
+                                    old: m.old.clone(),
+                                    new: m.new.clone(),
+                                    _eof: eof,
+                                },
+                                state,
+                            )
                         }
                     }
                 }
@@ -237,23 +172,13 @@ impl ReviewQueue {
         }
     }
 
-    fn add_item(&mut self, item: HunkItem) {
-        self.queue.push_back((self.queue.len(), item));
-    }
-}
-
-impl From<Diff> for ReviewQueue {
-    fn from(diff: Diff) -> Self {
-        let mut queue = Self::default();
-        for file in diff.into_files() {
-            queue.add_file(file);
-        }
-        queue
+    fn add_item(&mut self, item: HunkItem, state: HunkState) {
+        self.queue.push_back((self.queue.len(), item, state));
     }
 }
 
 impl std::ops::Deref for ReviewQueue {
-    type Target = VecDeque<(usize, HunkItem)>;
+    type Target = VecDeque<(usize, HunkItem, HunkState)>;
 
     fn deref(&self) -> &Self::Target {
         &self.queue
@@ -267,7 +192,7 @@ impl std::ops::DerefMut for ReviewQueue {
 }
 
 impl Iterator for ReviewQueue {
-    type Item = (usize, HunkItem);
+    type Item = (usize, HunkItem, HunkState);
 
     fn next(&mut self) -> Option<Self::Item> {
         self.queue.pop_front()
@@ -278,34 +203,59 @@ impl Iterator for ReviewQueue {
 /// Adjusts line deltas when a hunk is ignored.
 pub struct FileReviewBuilder {
     delta: i32,
+    header: FileHeader,
 }
 
 impl FileReviewBuilder {
-    fn new(item: &HunkItem) -> Self {
-        Self { delta: 0 }
+    pub fn new(item: &HunkItem) -> Self {
+        Self {
+            delta: 0,
+            header: item.file_header(),
+        }
     }
 
-    fn set_item(&mut self, item: &HunkItem) -> &mut Self {
-        self.delta = 0;
+    pub fn set_item(&mut self, item: &HunkItem) -> &mut Self {
+        let header = item.file_header();
+        if self.header != header {
+            self.header = header;
+            self.delta = 0;
+        }
         self
     }
 
-    fn ignore_item(&mut self, item: &HunkItem) {
-        if let Some(h) = item.hunk_header() {
-            self.delta += h.new_size as i32 - h.old_size as i32;
+    pub fn item_diff(&mut self, item: &HunkItem) -> Result<git::raw::Diff, Error> {
+        let mut buf = Vec::new();
+        let mut writer = unified_diff::Writer::new(&mut buf);
+        writer.encode(&self.header)?;
+
+        if let (Some(h), Some(mut header)) = (item.hunk(), item.hunk_header()) {
+            header.old_line_no -= self.delta as u32;
+            header.new_line_no -= self.delta as u32;
+
+            let h = Hunk {
+                header: header.to_unified_string()?.as_bytes().to_owned().into(),
+                lines: h.lines.clone(),
+                old: h.old.clone(),
+                new: h.new.clone(),
+            };
+            writer.encode(&h)?;
         }
+        drop(writer);
+
+        git::raw::Diff::from_buffer(&buf).map_err(Error::from)
     }
 }
 
 /// Represents the reviewer's brain, ie. what they have seen or not seen in terms
 /// of changes introduced by a patch.
+#[derive(Clone)]
 pub struct Brain<'a> {
     /// Where the review draft is being stored.
     refname: git::Namespaced<'a>,
+    /// The merge base
+    base: git::raw::Commit<'a>,
     /// The commit pointed to by the ref.
     head: git::raw::Commit<'a>,
-    /// The merge base of this revision.
-    base: git::raw::Commit<'a>,
     /// The tree of accepted changes pointed to by the head commit.
     accepted: git::raw::Tree<'a>,
 }
@@ -334,16 +284,10 @@ impl<'a> Brain<'a> {
 
         Ok(Self {
             refname,
-            head,
             base,
+            head,
             accepted: tree,
         })
-    }
-
-    /// Return the content identifier of this brain. This represents the state of the
-    /// accepted hunks, ie. the git tree.
-    pub fn cid(&self) -> Oid {
-        self.accepted.id().into()
     }
 
     /// Load an existing brain from the repository.
@@ -361,8 +305,8 @@ impl<'a> Brain<'a> {
 
         Ok(Self {
             refname,
-            head,
             base,
+            head,
             accepted: tree,
         })
     }
@@ -388,6 +332,25 @@ impl<'a> Brain<'a> {
             };
 
         Ok(brain)
+    }
+
+    pub fn discard_accepted(
+        &mut self,
+        repo: &'a git::raw::Repository,
+    ) -> Result<(), git::raw::Error> {
+        // Reset brain
+        let head = self.head.amend(
+            Some(&self.refname),
+            None,
+            None,
+            None,
+            None,
+            Some(&self.base.tree()?),
+        )?;
+        self.head = repo.find_commit(head)?;
+        self.accepted = self.head.tree()?;
+
+        Ok(())
     }
 
     /// Accept changes to the brain.
@@ -428,41 +391,20 @@ impl<'a> Brain<'a> {
     }
 }
 
-/// Builds a patch review interactively, across multiple files.
-pub struct ReviewBuilder<'a, G> {
-    /// Patch being reviewed.
-    patch_id: PatchId,
-    /// Signer.
-    signer: &'a G,
-    /// Stored copy of repository.
+pub struct DiffUtil<'a> {
     repo: &'a Repository,
-    /// Verdict for review items.
-    verdict: Option<Verdict>,
 }
 
-impl<'a, G: Signer> ReviewBuilder<'a, G> {
-    /// Create a new review builder.
-    pub fn new(patch_id: PatchId, signer: &'a G, repo: &'a Repository) -> Self {
-        Self {
-            patch_id,
-            signer,
-            repo,
-            verdict: None,
-        }
+impl<'a> DiffUtil<'a> {
+    pub fn new(repo: &'a Repository) -> Self {
+        Self { repo }
     }
 
-    /// Give this verdict to all review items. Set to `None` to not give a verdict.
-    pub fn verdict(mut self, verdict: Option<Verdict>) -> Self {
-        self.verdict = verdict;
-        self
-    }
-
-    /// Assemble the review for the given revision.
-    pub fn all_hunks(
+    pub fn base_queue(
         &self,
-        _brain: &'a Brain<'a>,
+        brain: Brain<'a>,
         revision: &Revision,
-    ) -> anyhow::Result<ReviewQueue> {
+    ) -> anyhow::Result<(Diff, Diff)> {
         let repo = self.repo.raw();
 
         let base = repo.find_commit((*revision.base()).into())?.tree()?;
@@ -474,9 +416,10 @@ impl<'a, G: Signer> ReviewBuilder<'a, G> {
         let mut opts = git::raw::DiffOptions::new();
         opts.patience(true).minimal(true).context_lines(3_u32);
 
-        let diff = self.diff(&base, &revision, repo, &mut opts)?;
+        let base_diff = self.diff(&base, &revision, repo, &mut opts)?;
+        let queue_diff = self.diff(&brain.accepted(), &revision, repo, &mut opts)?;
 
-        Ok(ReviewQueue::from(diff))
+        Ok((base_diff, queue_diff))
     }
 
     pub fn diff(
@@ -497,6 +440,30 @@ impl<'a, G: Signer> ReviewBuilder<'a, G> {
         let diff = Diff::try_from(diff)?;
 
         Ok(diff)
+    }
+}
+
+/// Builds a patch review interactively, across multiple files.
+pub struct ReviewBuilder<'a> {
+    /// Stored copy of repository.
+    repo: &'a Repository,
+}
+
+impl<'a> ReviewBuilder<'a> {
+    /// Create a new review builder.
+    pub fn new(repo: &'a Repository) -> Self {
+        Self { repo }
+    }
+
+    /// Assemble the review for the given revision.
+    pub fn hunks(
+        &self,
+        brain: &'a Brain<'a>,
+        revision: &Revision,
+    ) -> anyhow::Result<ReviewQueue> {
+        DiffUtil::new(self.repo)
+            .base_queue(brain.clone(), revision)
+            .map(|(base, queue)| Ok(ReviewQueue::new(base, queue)))?
     }
 }
 
@@ -641,6 +608,7 @@ impl CommentBuilder {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::str::FromStr;
 
     #[test]
     fn test_review_comments_basic() {
