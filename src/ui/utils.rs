@@ -51,10 +51,10 @@ fn another_function() {
 Is this needed?
 ──────────────────────────────────────"#
             .to_string();
-        let comment = comment.lines().into_iter().collect::<Vec<_>>();
+        let comment = comment.lines().collect::<Vec<_>>();
 
         let merged = LineMerger::merge(
-            diff.lines().into_iter().collect(),
+            diff.lines().collect(),
             HashMap::from([(3_usize, vec![comment])]),
             1,
         );
@@ -98,10 +98,10 @@ fn another_function() {
 Is this needed?
 ──────────────────────────────────────"#
             .to_string();
-        let comment = comment.lines().into_iter().collect::<Vec<_>>();
+        let comment = comment.lines().collect::<Vec<_>>();
 
         let merged = LineMerger::merge(
-            diff.lines().into_iter().collect(),
+            diff.lines().collect(),
             HashMap::from([(104_usize, vec![comment])]),
             100,
         );
@@ -132,7 +132,7 @@ fn another_function() {
         let mut actual = String::new();
         for (idx, line) in lines.iter().enumerate() {
             if idx == lines.len() - 1 {
-                actual.push_str(&format!("{}", line));
+                actual.push_str(&line.to_string());
             } else {
                 actual.push_str(&format!("{}\n", line));
             }

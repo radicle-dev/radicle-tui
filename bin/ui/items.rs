@@ -1034,9 +1034,9 @@ impl ToTree<String> for CommentItem {
 
 pub struct TermLine(terminal::Line);
 
-impl<'a> Into<Line<'a>> for TermLine {
-    fn into(self) -> Line<'a> {
-        Line::raw(self.0.to_string())
+impl<'a> From<TermLine> for Line<'a> {
+    fn from(val: TermLine) -> Self {
+        Line::raw(val.0.to_string())
     }
 }
 
@@ -1057,13 +1057,10 @@ impl HunkComments {
     }
 
     pub fn len(&self) -> usize {
-        self.comments
-            .values()
-            .into_iter()
-            .fold(0_usize, |mut count, comments| {
-                count += comments.len();
-                count
-            })
+        self.comments.values().fold(0_usize, |mut count, comments| {
+            count += comments.len();
+            count
+        })
     }
 }
 
@@ -1111,13 +1108,13 @@ impl<'a> From<(&Repository, &Review, &IndexedHunkItem)> for HunkItem<'a> {
         let hi = Highlighter::default();
 
         let path = match &item.1 {
-            crate::cob::HunkItem::FileAdded { path, .. } => path,
-            crate::cob::HunkItem::FileModified { path, .. } => path,
-            crate::cob::HunkItem::FileDeleted { path, .. } => path,
-            crate::cob::HunkItem::FileCopied { copied } => &copied.new_path,
-            crate::cob::HunkItem::FileMoved { moved } => &moved.new_path,
-            crate::cob::HunkItem::FileModeChanged { path, .. } => path,
-            crate::cob::HunkItem::FileEofChanged { path, .. } => path,
+            crate::cob::HunkItem::Added { path, .. } => path,
+            crate::cob::HunkItem::Modified { path, .. } => path,
+            crate::cob::HunkItem::Deleted { path, .. } => path,
+            crate::cob::HunkItem::Copied { copied } => &copied.new_path,
+            crate::cob::HunkItem::Moved { moved } => &moved.new_path,
+            crate::cob::HunkItem::ModeChanged { path, .. } => path,
+            crate::cob::HunkItem::EofChanged { path, .. } => path,
         };
 
         // TODO(erikli): Start with raw, non-highlighted lines and
@@ -1129,7 +1126,7 @@ impl<'a> From<(&Repository, &Review, &IndexedHunkItem)> for HunkItem<'a> {
             .comments()
             .filter(|(_, comment)| comment.location().is_some())
             .filter(|(_, comment)| comment.location().unwrap().path == *path)
-            .map(|(id, comment)| (id.clone(), comment.clone()))
+            .map(|(id, comment)| (*id, comment.clone()))
             .collect::<Vec<_>>();
 
         Self {
@@ -1179,7 +1176,7 @@ impl<'a> ToRow<3> for HunkItem<'a> {
         match &self.inner {
             (
                 _,
-                Item::FileAdded {
+                Item::Added {
                     path,
                     header: _,
                     new: _,
@@ -1192,10 +1189,7 @@ impl<'a> ToRow<3> for HunkItem<'a> {
                     HunkState::Accepted => span::positive("✓"),
                     HunkState::Rejected => span::secondary("?"),
                 };
-                let stats = hunk
-                    .as_ref()
-                    .map(|hunk| HunkStats::from(hunk))
-                    .unwrap_or_default();
+                let stats = hunk.as_ref().map(HunkStats::from).unwrap_or_default();
                 let stats_cell = [
                     build_stats_spans(&DiffStats::Hunk(stats)),
                     [span::default(" A ").bold().light_green().dim()].to_vec(),
@@ -1210,7 +1204,7 @@ impl<'a> ToRow<3> for HunkItem<'a> {
             }
             (
                 _,
-                Item::FileModified {
+                Item::Modified {
                     path,
                     header: _,
                     old: _,
@@ -1224,10 +1218,7 @@ impl<'a> ToRow<3> for HunkItem<'a> {
                     HunkState::Accepted => span::positive("✓"),
                     HunkState::Rejected => span::secondary("?"),
                 };
-                let stats = hunk
-                    .as_ref()
-                    .map(|hunk| HunkStats::from(hunk))
-                    .unwrap_or_default();
+                let stats = hunk.as_ref().map(HunkStats::from).unwrap_or_default();
                 let stats_cell = [
                     build_stats_spans(&DiffStats::Hunk(stats)),
                     [span::default(" M ").bold().light_yellow().dim()].to_vec(),
@@ -1242,7 +1233,7 @@ impl<'a> ToRow<3> for HunkItem<'a> {
             }
             (
                 _,
-                Item::FileDeleted {
+                Item::Deleted {
                     path,
                     header: _,
                     old: _,
@@ -1255,10 +1246,7 @@ impl<'a> ToRow<3> for HunkItem<'a> {
                     HunkState::Accepted => span::positive("✓"),
                     HunkState::Rejected => span::secondary("?"),
                 };
-                let stats = hunk
-                    .as_ref()
-                    .map(|hunk| HunkStats::from(hunk))
-                    .unwrap_or_default();
+                let stats = hunk.as_ref().map(HunkStats::from).unwrap_or_default();
                 let stats_cell = [
                     build_stats_spans(&DiffStats::Hunk(stats)),
                     [span::default(" D ").bold().light_red().dim()].to_vec(),
@@ -1271,16 +1259,12 @@ impl<'a> ToRow<3> for HunkItem<'a> {
                     Line::from(stats_cell).right_aligned().into(),
                 ]
             }
-            (_, Item::FileCopied { copied }, state) => {
+            (_, Item::Copied { copied }, state) => {
                 let state = match state {
                     HunkState::Accepted => span::positive("✓"),
                     HunkState::Rejected => span::secondary("?"),
                 };
-                let stats = copied
-                    .diff
-                    .stats()
-                    .map(|stats| stats.clone())
-                    .unwrap_or_default();
+                let stats = copied.diff.stats().copied().unwrap_or_default();
                 let stats_cell = [
                     build_stats_spans(&DiffStats::File(stats)),
                     [span::default(" CP ").bold().light_blue().dim()].to_vec(),
@@ -1293,16 +1277,12 @@ impl<'a> ToRow<3> for HunkItem<'a> {
                     Line::from(stats_cell).right_aligned().into(),
                 ]
             }
-            (_, Item::FileMoved { moved }, state) => {
+            (_, Item::Moved { moved }, state) => {
                 let state = match state {
                     HunkState::Accepted => span::positive("✓"),
                     HunkState::Rejected => span::secondary("?"),
                 };
-                let stats = moved
-                    .diff
-                    .stats()
-                    .map(|stats| stats.clone())
-                    .unwrap_or_default();
+                let stats = moved.diff.stats().copied().unwrap_or_default();
                 let stats_cell = [
                     build_stats_spans(&DiffStats::File(stats)),
                     [span::default(" MV ").bold().light_blue().dim()].to_vec(),
@@ -1317,7 +1297,7 @@ impl<'a> ToRow<3> for HunkItem<'a> {
             }
             (
                 _,
-                Item::FileEofChanged {
+                Item::EofChanged {
                     path,
                     header: _,
                     old: _,
@@ -1342,7 +1322,7 @@ impl<'a> ToRow<3> for HunkItem<'a> {
             }
             (
                 _,
-                Item::FileModeChanged {
+                Item::ModeChanged {
                     path,
                     header: _,
                     old: _,
@@ -1372,8 +1352,8 @@ impl<'a> HunkItem<'a> {
     pub fn pretty_path(path: &Path, crossed_out: bool) -> Line<'a> {
         let file = path.file_name().unwrap_or_default();
         let path = if path.iter().count() > 1 {
-            path.into_iter()
-                .take(path.into_iter().count() - 1)
+            path.iter()
+                .take(path.iter().count() - 1)
                 .map(|component| component.to_string_lossy().to_string())
                 .collect::<Vec<_>>()
         } else {
@@ -1383,18 +1363,18 @@ impl<'a> HunkItem<'a> {
         let line = Line::from(
             [
                 if crossed_out {
-                    span::default(&file.to_string_lossy().to_string()).crossed_out()
+                    span::default(file.to_string_lossy().as_ref()).crossed_out()
                 } else {
-                    span::default(&file.to_string_lossy().to_string())
+                    span::default(file.to_string_lossy().as_ref())
                 },
                 span::default(" "),
-                span::default(&format!("{}", path.join(&String::from("/"))))
+                span::default(&path.join(&String::from("/")).to_string())
                     .dark_gray()
                     .dim(),
             ]
             .to_vec(),
         );
-        line.into()
+        line
     }
 }
 
@@ -1416,7 +1396,7 @@ impl<'a> HunkItem<'a> {
         match &self.inner {
             (
                 _,
-                crate::cob::HunkItem::FileAdded {
+                crate::cob::HunkItem::Added {
                     path,
                     header: _,
                     new: _,
@@ -1447,7 +1427,7 @@ impl<'a> HunkItem<'a> {
             }
             (
                 _,
-                crate::cob::HunkItem::FileModified {
+                crate::cob::HunkItem::Modified {
                     path,
                     header: _,
                     old: _,
@@ -1479,7 +1459,7 @@ impl<'a> HunkItem<'a> {
             }
             (
                 _,
-                crate::cob::HunkItem::FileDeleted {
+                crate::cob::HunkItem::Deleted {
                     path,
                     header: _,
                     old: _,
@@ -1508,7 +1488,7 @@ impl<'a> HunkItem<'a> {
 
                 header.to_vec()
             }
-            (_, crate::cob::HunkItem::FileCopied { copied }, _) => {
+            (_, crate::cob::HunkItem::Copied { copied }, _) => {
                 let path = Line::from(
                     [
                         HunkItem::pretty_path(&copied.old_path, false).spans,
@@ -1533,7 +1513,7 @@ impl<'a> HunkItem<'a> {
 
                 header.to_vec()
             }
-            (_, crate::cob::HunkItem::FileMoved { moved }, _) => {
+            (_, crate::cob::HunkItem::Moved { moved }, _) => {
                 let path = Line::from(
                     [
                         HunkItem::pretty_path(&moved.old_path, false).spans,
@@ -1560,7 +1540,7 @@ impl<'a> HunkItem<'a> {
             }
             (
                 _,
-                crate::cob::HunkItem::FileEofChanged {
+                crate::cob::HunkItem::EofChanged {
                     path,
                     header: _,
                     old: _,
@@ -1569,7 +1549,7 @@ impl<'a> HunkItem<'a> {
                 },
                 _,
             ) => {
-                let path = HunkItem::pretty_path(&path, false);
+                let path = HunkItem::pretty_path(path, false);
                 let header = [
                     Column::new("", Constraint::Length(0)),
                     Column::new(path.clone(), Constraint::Length(path.width() as u16)),
@@ -1586,7 +1566,7 @@ impl<'a> HunkItem<'a> {
             }
             (
                 _,
-                crate::cob::HunkItem::FileModeChanged {
+                crate::cob::HunkItem::ModeChanged {
                     path,
                     header: _,
                     old: _,
@@ -1594,7 +1574,7 @@ impl<'a> HunkItem<'a> {
                 },
                 _,
             ) => {
-                let path = HunkItem::pretty_path(&path, false);
+                let path = HunkItem::pretty_path(path, false);
                 let header = [
                     Column::new("", Constraint::Length(0)),
                     Column::new(path.clone(), Constraint::Length(path.width() as u16)),
@@ -1616,9 +1596,9 @@ impl<'a> HunkItem<'a> {
         use crate::cob::HunkItem;
 
         match &self.inner {
-            (_, HunkItem::FileAdded { hunk, .. }, _)
-            | (_, HunkItem::FileModified { hunk, .. }, _)
-            | (_, HunkItem::FileDeleted { hunk, .. }, _) => {
+            (_, HunkItem::Added { hunk, .. }, _)
+            | (_, HunkItem::Modified { hunk, .. }, _)
+            | (_, HunkItem::Deleted { hunk, .. }, _) => {
                 let mut lines = hunk
                     .as_ref()
                     .map(|hunk| Text::from(hunk.to_text(&self.lines)));
@@ -1627,7 +1607,7 @@ impl<'a> HunkItem<'a> {
                     .map(|hunk| hunk.new.start as usize)
                     .unwrap_or_default();
 
-                lines = lines.and_then(|lines| {
+                lines = lines.map(|lines| {
                     let mut mixins = HashMap::new();
 
                     let divider = span::default(&"─".to_string().repeat(500)).gray().dim();
@@ -1658,7 +1638,6 @@ impl<'a> HunkItem<'a> {
                                             .1
                                             .body()
                                             .lines()
-                                            .into_iter()
                                             .map(|line| {
                                                 Line::from([span::default(line).gray()].to_vec())
                                             })
@@ -1684,7 +1663,7 @@ impl<'a> HunkItem<'a> {
                     }
                     let merged = LineMerger::merge(lines.lines.clone(), mixins, start);
 
-                    Some(Text::from(merged))
+                    Text::from(merged)
                 });
 
                 lines
@@ -1713,22 +1692,20 @@ impl<'a> Blobs<(PathBuf, Blob)> {
         if let Some((path, Blob::Plain(content))) = &self.old {
             blobs.old = hi
                 .highlight(path, content)
-                .and_then(|hi| {
-                    Ok(hi
-                        .into_iter()
+                .map(|hi| {
+                    hi.into_iter()
                         .map(|line| Line::raw(line.to_string()))
-                        .collect::<Vec<_>>())
+                        .collect::<Vec<_>>()
                 })
                 .ok();
         }
         if let Some((path, Blob::Plain(content))) = &self.new {
             blobs.new = hi
                 .highlight(path, content)
-                .and_then(|hi| {
-                    Ok(hi
-                        .into_iter()
+                .map(|hi| {
+                    hi.into_iter()
                         .map(|line| Line::raw(line.to_string()))
-                        .collect::<Vec<_>>())
+                        .collect::<Vec<_>>()
                 })
                 .ok();
         }
@@ -1739,23 +1716,23 @@ impl<'a> Blobs<(PathBuf, Blob)> {
         let mut blobs = Blobs::default();
         if let Some((_, Blob::Plain(content))) = &self.old {
             blobs.old = std::str::from_utf8(content)
-                .and_then(|lines| {
-                    Ok(lines
+                .map(|lines| {
+                    lines
                         .lines()
                         .map(terminal::Line::new)
                         .map(|line| Line::raw(line.to_string()))
-                        .collect::<Vec<_>>())
+                        .collect::<Vec<_>>()
                 })
                 .ok();
         }
         if let Some((_, Blob::Plain(content))) = &self.new {
             blobs.new = std::str::from_utf8(content)
-                .and_then(|lines| {
-                    Ok(lines
+                .map(|lines| {
+                    lines
                         .lines()
                         .map(terminal::Line::new)
                         .map(|line| Line::raw(line.to_string()))
-                        .collect::<Vec<_>>())
+                        .collect::<Vec<_>>()
                 })
                 .ok();
         }
@@ -1799,15 +1776,13 @@ impl<'a> From<Line<'a>> for HighlightedLine<'a> {
     fn from(highlighted: Line<'a>) -> Self {
         let converted = highlighted.to_string().into_text().unwrap().lines;
 
-        Self {
-            0: converted.first().cloned().unwrap_or_default(),
-        }
+        Self(converted.first().cloned().unwrap_or_default())
     }
 }
 
-impl<'a> Into<Line<'a>> for HighlightedLine<'a> {
-    fn into(self) -> Line<'a> {
-        self.0
+impl<'a> From<HighlightedLine<'a>> for Line<'a> {
+    fn from(val: HighlightedLine<'a>) -> Self {
+        val.0
     }
 }
 
@@ -1835,7 +1810,7 @@ impl<'a> ToText<'a> for HunkHeader {
                 ))
                 .gray(),
                 span::default(" "),
-                span::default(&String::from_utf8_lossy(&self.text).to_string()),
+                span::default(String::from_utf8_lossy(&self.text).as_ref()),
             ]
             .to_vec(),
         )
@@ -1903,7 +1878,7 @@ impl<'a> ToText<'a> for Hunk<Modification> {
                     .gray()
                     .dim(),
                     span::default(" "),
-                    span::default(&String::from_utf8_lossy(&header.text).to_string())
+                    span::default(String::from_utf8_lossy(&header.text).as_ref())
                         .gray()
                         .dim(),
                 ]

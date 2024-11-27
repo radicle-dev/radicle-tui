@@ -23,6 +23,7 @@ pub mod issue;
 pub mod patch;
 
 pub type IndexedHunkItem = (usize, crate::cob::HunkItem, HunkState);
+pub type FilePaths<'a> = (Option<(&'a Path, Oid)>, Option<(&'a Path, Oid)>);
 
 #[allow(dead_code)]
 pub fn parse_labels(input: String) -> Result<Vec<Label>> {
@@ -102,21 +103,21 @@ pub enum HunkState {
 /// Files are usually split into multiple review items.
 #[derive(Clone, Debug)]
 pub enum HunkItem {
-    FileAdded {
+    Added {
         path: PathBuf,
         header: FileHeader,
         new: DiffFile,
         hunk: Option<Hunk<Modification>>,
         _stats: Option<FileStats>,
     },
-    FileDeleted {
+    Deleted {
         path: PathBuf,
         header: FileHeader,
         old: DiffFile,
         hunk: Option<Hunk<Modification>>,
         _stats: Option<FileStats>,
     },
-    FileModified {
+    Modified {
         path: PathBuf,
         header: FileHeader,
         old: DiffFile,
@@ -124,20 +125,20 @@ pub enum HunkItem {
         hunk: Option<Hunk<Modification>>,
         _stats: Option<FileStats>,
     },
-    FileMoved {
+    Moved {
         moved: Moved,
     },
-    FileCopied {
+    Copied {
         copied: Copied,
     },
-    FileEofChanged {
+    EofChanged {
         path: PathBuf,
         header: FileHeader,
         old: DiffFile,
         new: DiffFile,
         _eof: EofNewLine,
     },
-    FileModeChanged {
+    ModeChanged {
         path: PathBuf,
         header: FileHeader,
         old: DiffFile,
@@ -148,28 +149,28 @@ pub enum HunkItem {
 impl HunkItem {
     pub fn hunk(&self) -> Option<&Hunk<Modification>> {
         match self {
-            Self::FileAdded { hunk, .. } => hunk.as_ref(),
-            Self::FileDeleted { hunk, .. } => hunk.as_ref(),
-            Self::FileModified { hunk, .. } => hunk.as_ref(),
+            Self::Added { hunk, .. } => hunk.as_ref(),
+            Self::Deleted { hunk, .. } => hunk.as_ref(),
+            Self::Modified { hunk, .. } => hunk.as_ref(),
             _ => None,
         }
     }
 
     pub fn file_header(&self) -> FileHeader {
         match self {
-            Self::FileAdded { header, .. } => header.clone(),
-            Self::FileDeleted { header, .. } => header.clone(),
-            Self::FileMoved { moved } => FileHeader::Moved {
+            Self::Added { header, .. } => header.clone(),
+            Self::Deleted { header, .. } => header.clone(),
+            Self::Moved { moved } => FileHeader::Moved {
                 old_path: moved.old_path.clone(),
                 new_path: moved.new_path.clone(),
             },
-            Self::FileCopied { copied } => FileHeader::Copied {
+            Self::Copied { copied } => FileHeader::Copied {
                 old_path: copied.old_path.clone(),
                 new_path: copied.new_path.clone(),
             },
-            Self::FileModified { header, .. } => header.clone(),
-            Self::FileEofChanged { header, .. } => header.clone(),
-            Self::FileModeChanged { header, .. } => header.clone(),
+            Self::Modified { header, .. } => header.clone(),
+            Self::EofChanged { header, .. } => header.clone(),
+            Self::ModeChanged { header, .. } => header.clone(),
         }
     }
 
@@ -177,25 +178,23 @@ impl HunkItem {
         self.hunk().and_then(|h| HunkHeader::try_from(h).ok())
     }
 
-    pub fn paths(&self) -> (Option<(&Path, Oid)>, Option<(&Path, Oid)>) {
+    pub fn paths(&self) -> FilePaths {
         match self {
-            Self::FileAdded { path, new, .. } => (None, Some((path, new.oid))),
-            Self::FileDeleted { path, old, .. } => (Some((path, old.oid)), None),
-            Self::FileMoved { moved } => (
+            Self::Added { path, new, .. } => (None, Some((path, new.oid))),
+            Self::Deleted { path, old, .. } => (Some((path, old.oid)), None),
+            Self::Moved { moved } => (
                 Some((&moved.old_path, moved.old.oid)),
                 Some((&moved.new_path, moved.new.oid)),
             ),
-            Self::FileCopied { copied } => (
+            Self::Copied { copied } => (
                 Some((&copied.old_path, copied.old.oid)),
                 Some((&copied.new_path, copied.new.oid)),
             ),
-            Self::FileModified { path, old, new, .. } => {
+            Self::Modified { path, old, new, .. } => (Some((path, old.oid)), Some((path, new.oid))),
+            Self::EofChanged { path, old, new, .. } => {
                 (Some((path, old.oid)), Some((path, new.oid)))
             }
-            Self::FileEofChanged { path, old, new, .. } => {
-                (Some((path, old.oid)), Some((path, new.oid)))
-            }
-            Self::FileModeChanged { path, old, new, .. } => {
+            Self::ModeChanged { path, old, new, .. } => {
                 (Some((path, old.oid)), Some((path, new.oid)))
             }
         }

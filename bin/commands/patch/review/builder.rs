@@ -1,7 +1,6 @@
 //! Review builder.
 //!
 //! This module enables a user to review a patch by interactively viewing and accepting diff hunks.
-//! The interaction and output is modeled around `git add -p`.
 //!
 //! To implement this behavior, we keep a hidden Git tree object that tracks the state of the
 //! repository including the accepted hunks. Thus, every time a diff hunk is accepted, it is applied
@@ -62,14 +61,14 @@ impl ReviewQueue {
 
         match file {
             FileDiff::Moved(moved) => {
-                self.add_item(HunkItem::FileMoved { moved }, state);
+                self.add_item(HunkItem::Moved { moved }, state);
             }
             FileDiff::Copied(copied) => {
-                self.add_item(HunkItem::FileCopied { copied }, state);
+                self.add_item(HunkItem::Copied { copied }, state);
             }
             FileDiff::Added(a) => {
                 self.add_item(
-                    HunkItem::FileAdded {
+                    HunkItem::Added {
                         path: a.path,
                         header: header.clone(),
                         new: a.new,
@@ -89,7 +88,7 @@ impl ReviewQueue {
             }
             FileDiff::Deleted(d) => {
                 self.add_item(
-                    HunkItem::FileDeleted {
+                    HunkItem::Deleted {
                         path: d.path,
                         header: header.clone(),
                         old: d.old,
@@ -110,7 +109,7 @@ impl ReviewQueue {
             FileDiff::Modified(m) => {
                 if m.old.mode != m.new.mode {
                     self.add_item(
-                        HunkItem::FileModeChanged {
+                        HunkItem::ModeChanged {
                             path: m.path.clone(),
                             header: header.clone(),
                             old: m.old.clone(),
@@ -125,7 +124,7 @@ impl ReviewQueue {
                     }
                     DiffContent::Binary => {
                         self.add_item(
-                            HunkItem::FileModified {
+                            HunkItem::Modified {
                                 path: m.path.clone(),
                                 header: header.clone(),
                                 old: m.old.clone(),
@@ -143,7 +142,7 @@ impl ReviewQueue {
                     } => {
                         for hunk in hunks {
                             self.add_item(
-                                HunkItem::FileModified {
+                                HunkItem::Modified {
                                     path: m.path.clone(),
                                     header: header.clone(),
                                     old: m.old.clone(),
@@ -156,7 +155,7 @@ impl ReviewQueue {
                         }
                         if let EofNewLine::OldMissing | EofNewLine::NewMissing = eof {
                             self.add_item(
-                                HunkItem::FileEofChanged {
+                                HunkItem::EofChanged {
                                     path: m.path.clone(),
                                     header: header.clone(),
                                     old: m.old.clone(),
@@ -319,17 +318,16 @@ impl<'a> Brain<'a> {
     ) -> Result<Self, git::raw::Error> {
         let base = repo.find_commit((*revision.base()).into())?;
 
-        let brain =
-            if let Ok(b) = Brain::load(patch.into(), signer.public_key(), base.clone(), repo) {
-                log::info!(
-                    "Loaded existing brain {} for patch {}",
-                    b.head().id(),
-                    &patch
-                );
-                b
-            } else {
-                Brain::new(patch.into(), signer.public_key(), base, repo)?
-            };
+        let brain = if let Ok(b) = Brain::load(patch, signer.public_key(), base.clone(), repo) {
+            log::info!(
+                "Loaded existing brain {} for patch {}",
+                b.head().id(),
+                &patch
+            );
+            b
+        } else {
+            Brain::new(patch, signer.public_key(), base, repo)?
+        };
 
         Ok(brain)
     }
@@ -417,7 +415,7 @@ impl<'a> DiffUtil<'a> {
         opts.patience(true).minimal(true).context_lines(3_u32);
 
         let base_diff = self.diff(&base, &revision, repo, &mut opts)?;
-        let queue_diff = self.diff(&brain.accepted(), &revision, repo, &mut opts)?;
+        let queue_diff = self.diff(brain.accepted(), &revision, repo, &mut opts)?;
 
         Ok((base_diff, queue_diff))
     }
@@ -456,11 +454,7 @@ impl<'a> ReviewBuilder<'a> {
     }
 
     /// Assemble the review for the given revision.
-    pub fn hunks(
-        &self,
-        brain: &'a Brain<'a>,
-        revision: &Revision,
-    ) -> anyhow::Result<ReviewQueue> {
+    pub fn hunks(&self, brain: &'a Brain<'a>, revision: &Revision) -> anyhow::Result<ReviewQueue> {
         DiffUtil::new(self.repo)
             .base_queue(brain.clone(), revision)
             .map(|(base, queue)| Ok(ReviewQueue::new(base, queue)))?

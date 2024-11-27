@@ -239,7 +239,7 @@ pub async fn run(options: Options, ctx: impl terminal::Context) -> anyhow::Resul
             };
 
             // Run TUI with patch review interface
-            interface::review(opts.clone(), profile, rid, patch_id.into()).await?;
+            interface::review(opts.clone(), profile, rid, patch_id).await?;
         }
     }
 
@@ -300,18 +300,18 @@ mod interface {
         let repo = profile.storage.repository(rid).unwrap();
         let signer = terminal::signer(&profile)?;
 
-        let patch = patch::find(&profile, &repo, &patch_id.into())?
+        let patch = patch::find(&profile, &repo, &patch_id)?
             .ok_or_else(|| anyhow!("Patch `{patch_id}` not found"))?;
 
         let (_, revision) = opts.revision_or_latest(&patch, &repo)?;
 
-        let brain = Brain::load_or_new(patch_id, &revision, repo.raw(), &signer)?;
-        let builder = ReviewBuilder::new(&repo).hunks(&brain, &revision)?;
+        let brain = Brain::load_or_new(patch_id, revision, repo.raw(), &signer)?;
+        let builder = ReviewBuilder::new(&repo).hunks(&brain, revision)?;
         let hunks = builder;
 
         let drafts = DraftStore::new(&repo, *signer.public_key());
         let mut patches = cob::patch::Cache::no_cache(&drafts)?;
-        let mut patch = patches.get_mut(&patch_id.into())?;
+        let mut patch = patches.get_mut(&patch_id)?;
 
         if let Some(review) = revision.review_by(signer.public_key()) {
             // Review already finalized. Do nothing and warn.
@@ -360,7 +360,7 @@ mod interface {
             log::info!("Received selection from TUI: {:?}", selection);
 
             if let Some(selection) = selection.as_ref() {
-                match ReviewAction::try_from(selection.action)? {
+                match selection.action {
                     ReviewAction::Comment => {
                         let hunk = selection
                             .hunk

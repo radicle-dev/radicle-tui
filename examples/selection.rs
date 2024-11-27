@@ -68,10 +68,8 @@ impl Update<Message> for App {
                 .selector
                 .selected()
                 .and_then(|selected| self.items.get(selected))
-                .and_then(|item| {
-                    Some(Exit {
-                        value: Some(item.id),
-                    })
+                .map(|item| Exit {
+                    value: Some(item.id),
                 }),
             Message::Quit => Some(Exit { value: None }),
         }

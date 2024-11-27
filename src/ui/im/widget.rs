@@ -798,7 +798,7 @@ impl<'a> Widget for TextView<'a> {
 
         frame.render_stateful_widget(scroller, scroller_area, &mut scroller_state);
         frame.render_widget(
-            Paragraph::new(self.text.clone()).scroll((self.cursor.x as u16, self.cursor.y as u16)),
+            Paragraph::new(self.text.clone()).scroll((self.cursor.x, self.cursor.y)),
             text_area,
         );
 

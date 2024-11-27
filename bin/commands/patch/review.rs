@@ -259,7 +259,7 @@ impl<'a> App<'a> {
         let states = base_files
             .iter()
             .map(|file| {
-                if !queue_files.contains(&file) {
+                if !queue_files.contains(file) {
                     HunkState::Accepted
                 } else {
                     HunkState::Rejected
@@ -358,7 +358,7 @@ impl<'a> App<'a> {
                     Constraint::Length(8),
                 ),
                 Column::new(
-                    span::default(&" ".to_string())
+                    span::default(" ")
                         .into_left_aligned_line()
                         .style(ui.theme().bar_on_black_style),
                     Constraint::Fill(1),
@@ -459,13 +459,13 @@ impl<'a> Show<Message> for App<'a> {
                                 frame,
                                 [
                                     Column::new(
-                                        span::default(&" ".to_string())
+                                        span::default(" ")
                                             .into_left_aligned_line()
                                             .style(ui.theme().bar_on_black_style),
                                         Constraint::Fill(1),
                                     ),
                                     Column::new(
-                                        span::default(&" ")
+                                        span::default(" ")
                                             .into_right_aligned_line()
                                             .cyan()
                                             .dim()

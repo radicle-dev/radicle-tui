@@ -94,7 +94,7 @@ pub fn find_review<'a, G: Signer>(
     patch
         .reviews_of(revision.id())
         .find(|(_, review)| review.author().public_key() == signer.public_key())
-        .map(|(id, review)| (id.clone(), review))
+        .map(|(id, review)| (*id, review))
 }
 
 #[cfg(test)]
