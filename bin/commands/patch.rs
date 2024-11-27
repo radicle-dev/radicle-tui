@@ -349,6 +349,7 @@ mod interface {
 
             let selection = review::Tui::new(
                 patch_id,
+                patch.title().to_string(),
                 revision.clone(),
                 review.clone(),
                 hunks.clone(),

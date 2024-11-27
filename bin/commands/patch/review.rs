@@ -39,6 +39,7 @@ use tui::{Channel, Exit};
 
 use crate::cob::HunkState;
 use crate::tui_patch::review::builder::DiffUtil;
+use crate::ui::format;
 use crate::ui::items::HunkItem;
 
 use self::builder::Brain;
@@ -63,6 +64,7 @@ pub struct Selection {
 
 pub struct Tui {
     pub patch: PatchId,
+    pub title: String,
     pub revision: Revision,
     pub review: Review,
     pub queue: ReviewQueue,
@@ -73,6 +75,7 @@ pub struct Tui {
 impl Tui {
     pub fn new(
         patch: PatchId,
+        title: String,
         revision: Revision,
         review: Review,
         queue: ReviewQueue,
@@ -81,6 +84,7 @@ impl Tui {
     ) -> Self {
         Self {
             patch,
+            title,
             revision,
             review,
             queue,
@@ -96,6 +100,7 @@ impl Tui {
         let channel = Channel::default();
         let state = App::new(
             self.patch,
+            self.title.clone(),
             self.revision.clone(),
             self.review.clone(),
             self.queue.clone(),
@@ -139,6 +144,7 @@ pub struct ReviewItemState {
 #[derive(Clone)]
 pub struct App<'a> {
     patch: PatchId,
+    title: String,
     revision: Revision,
     queue: Arc<Mutex<(Vec<HunkItem<'a>>, TableState)>>,
     items: HashMap<usize, ReviewItemState>,
@@ -155,6 +161,7 @@ impl<'a> TryFrom<&Tui> for App<'a> {
     fn try_from(tui: &Tui) -> Result<Self, Self::Error> {
         App::new(
             tui.patch,
+            tui.title.clone(),
             tui.revision.clone(),
             tui.review.clone(),
             tui.queue.clone(),
@@ -167,6 +174,7 @@ impl<'a> TryFrom<&Tui> for App<'a> {
 impl<'a> App<'a> {
     pub fn new(
         patch: PatchId,
+        title: String,
         revision: Revision,
         review: Review,
         queue: ReviewQueue,
@@ -193,6 +201,7 @@ impl<'a> App<'a> {
             profile,
             rid,
             patch,
+            title,
             revision,
             queue: Arc::new(Mutex::new((queue, TableState::new(Some(0))))),
             items,
@@ -341,6 +350,9 @@ impl<'a> App<'a> {
     fn show_context_bar(&self, ui: &mut Ui<Message>, frame: &mut Frame) {
         let queue = &self.queue.lock().unwrap().0;
 
+        let id = format!(" {} ", format::cob(&self.patch));
+        let title = &self.title;
+
         let hunks_total = queue.len();
         let hunks_accepted = queue
             .iter()
@@ -356,6 +368,19 @@ impl<'a> App<'a> {
                 Column::new(
                     span::default(" Review ").cyan().dim().reversed(),
                     Constraint::Length(8),
+                ),
+                Column::new(
+                    span::default(&id)
+                        .style(ui.theme().bar_on_black_style)
+                        .magenta(),
+                    Constraint::Length(9),
+                ),
+                Column::new(
+                    span::default(title)
+                        .style(ui.theme().bar_on_black_style)
+                        .magenta()
+                        .dim(),
+                    Constraint::Length(title.chars().count() as u16),
                 ),
                 Column::new(
                     span::default(" ")
@@ -529,19 +554,11 @@ impl<'a> store::Update<Message> for App<'a> {
                     }),
                 })
             }
-            // Message::Accept => Some(Exit {
-            //     value: Some(Selection {
-            //         action: ReviewAction::Accept,
-            //         hunk: queue.1.selected(),
-            //         args: None,
-            //     }),
-            // }),
             Message::Accept => {
                 match self.accept_current_hunk() {
                     Ok(()) => log::info!("Accepted hunk."),
                     Err(err) => log::info!("An error occured while accepting hunk: {}", err),
                 }
-
                 None
             }
             Message::Discard => {
@@ -549,16 +566,8 @@ impl<'a> store::Update<Message> for App<'a> {
                     Ok(()) => log::info!("Discarded all hunks."),
                     Err(err) => log::info!("An error occured while discarding hunks: {}", err),
                 }
-
                 None
             }
-            // Message::Discard => Some(Exit {
-            //     value: Some(Selection {
-            //         action: ReviewAction::Discard,
-            //         hunk: None,
-            //         args: None,
-            //     }),
-            // }),
             Message::ShowMain => {
                 self.page = AppPage::Main;
                 None
