@@ -2,6 +2,7 @@ pub mod format;
 pub mod im;
 pub mod items;
 pub mod rm;
+pub mod span;
 
 #[derive(Clone, Debug)]
 pub struct TerminalInfo {

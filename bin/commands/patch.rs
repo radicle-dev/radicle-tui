@@ -306,8 +306,7 @@ mod interface {
         let (_, revision) = opts.revision_or_latest(&patch, &repo)?;
 
         let brain = Brain::load_or_new(patch_id, revision, repo.raw(), &signer)?;
-        let builder = ReviewBuilder::new(&repo).hunks(&brain, revision)?;
-        let hunks = builder;
+        let hunks = ReviewBuilder::new(&repo).hunks(&brain, revision)?;
 
         let drafts = DraftStore::new(&repo, *signer.public_key());
         let mut patches = cob::patch::Cache::no_cache(&drafts)?;
@@ -358,6 +357,7 @@ mod interface {
             )
             .run()
             .await?;
+
             log::info!("Received selection from TUI: {:?}", selection);
 
             if let Some(selection) = selection.as_ref() {

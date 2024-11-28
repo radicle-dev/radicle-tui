@@ -42,8 +42,9 @@ use tui::ui::utils::LineMerger;
 use tui::ui::{span, Column};
 use tui::ui::{ToRow, ToTree};
 
-use crate::cob::{DiffStats, HunkState, HunkStats, IndexedHunkItem};
+use crate::cob::{DiffStats, HunkStats, IndexedHunkItem};
 use crate::git::{Blob, Repo};
+use crate::ui;
 
 use super::super::git;
 use super::format;
@@ -1185,10 +1186,6 @@ impl<'a> ToRow<3> for HunkItem<'a> {
                 },
                 state,
             ) => {
-                let state = match state {
-                    HunkState::Accepted => span::positive("✓"),
-                    HunkState::Rejected => span::secondary("?"),
-                };
                 let stats = hunk.as_ref().map(HunkStats::from).unwrap_or_default();
                 let stats_cell = [
                     build_stats_spans(&DiffStats::Hunk(stats)),
@@ -1197,7 +1194,9 @@ impl<'a> ToRow<3> for HunkItem<'a> {
                 .concat();
 
                 [
-                    state.into(),
+                    ui::span::hunk_state(state)
+                        .into_right_aligned_line()
+                        .into(),
                     HunkItem::pretty_path(path, false).into(),
                     Line::from(stats_cell).right_aligned().into(),
                 ]
@@ -1214,10 +1213,6 @@ impl<'a> ToRow<3> for HunkItem<'a> {
                 },
                 state,
             ) => {
-                let state = match state {
-                    HunkState::Accepted => span::positive("✓"),
-                    HunkState::Rejected => span::secondary("?"),
-                };
                 let stats = hunk.as_ref().map(HunkStats::from).unwrap_or_default();
                 let stats_cell = [
                     build_stats_spans(&DiffStats::Hunk(stats)),
@@ -1226,7 +1221,9 @@ impl<'a> ToRow<3> for HunkItem<'a> {
                 .concat();
 
                 [
-                    state.into(),
+                    ui::span::hunk_state(state)
+                        .into_right_aligned_line()
+                        .into(),
                     HunkItem::pretty_path(path, false).into(),
                     Line::from(stats_cell).right_aligned().into(),
                 ]
@@ -1242,10 +1239,6 @@ impl<'a> ToRow<3> for HunkItem<'a> {
                 },
                 state,
             ) => {
-                let state = match state {
-                    HunkState::Accepted => span::positive("✓"),
-                    HunkState::Rejected => span::secondary("?"),
-                };
                 let stats = hunk.as_ref().map(HunkStats::from).unwrap_or_default();
                 let stats_cell = [
                     build_stats_spans(&DiffStats::Hunk(stats)),
@@ -1254,16 +1247,14 @@ impl<'a> ToRow<3> for HunkItem<'a> {
                 .concat();
 
                 [
-                    state.into(),
+                    ui::span::hunk_state(state)
+                        .into_right_aligned_line()
+                        .into(),
                     HunkItem::pretty_path(path, true).into(),
                     Line::from(stats_cell).right_aligned().into(),
                 ]
             }
             (_, Item::Copied { copied }, state) => {
-                let state = match state {
-                    HunkState::Accepted => span::positive("✓"),
-                    HunkState::Rejected => span::secondary("?"),
-                };
                 let stats = copied.diff.stats().copied().unwrap_or_default();
                 let stats_cell = [
                     build_stats_spans(&DiffStats::File(stats)),
@@ -1272,16 +1263,14 @@ impl<'a> ToRow<3> for HunkItem<'a> {
                 .concat();
 
                 [
-                    state.into(),
+                    ui::span::hunk_state(state)
+                        .into_right_aligned_line()
+                        .into(),
                     HunkItem::pretty_path(&copied.new_path, false).into(),
                     Line::from(stats_cell).right_aligned().into(),
                 ]
             }
             (_, Item::Moved { moved }, state) => {
-                let state = match state {
-                    HunkState::Accepted => span::positive("✓"),
-                    HunkState::Rejected => span::secondary("?"),
-                };
                 let stats = moved.diff.stats().copied().unwrap_or_default();
                 let stats_cell = [
                     build_stats_spans(&DiffStats::File(stats)),
@@ -1290,7 +1279,9 @@ impl<'a> ToRow<3> for HunkItem<'a> {
                 .concat();
 
                 [
-                    state.into(),
+                    ui::span::hunk_state(state)
+                        .into_right_aligned_line()
+                        .into(),
                     HunkItem::pretty_path(&moved.new_path, false).into(),
                     Line::from(stats_cell).right_aligned().into(),
                 ]
@@ -1305,21 +1296,16 @@ impl<'a> ToRow<3> for HunkItem<'a> {
                     _eof: _,
                 },
                 state,
-            ) => {
-                let state = match state {
-                    HunkState::Accepted => span::positive("✓"),
-                    HunkState::Rejected => span::secondary("?"),
-                };
-
-                [
-                    state.into(),
-                    HunkItem::pretty_path(path, false).into(),
-                    span::default("EOF ")
-                        .light_blue()
-                        .into_right_aligned_line()
-                        .into(),
-                ]
-            }
+            ) => [
+                ui::span::hunk_state(state)
+                    .into_right_aligned_line()
+                    .into(),
+                HunkItem::pretty_path(path, false).into(),
+                span::default("EOF ")
+                    .light_blue()
+                    .into_right_aligned_line()
+                    .into(),
+            ],
             (
                 _,
                 Item::ModeChanged {
@@ -1329,21 +1315,16 @@ impl<'a> ToRow<3> for HunkItem<'a> {
                     new: _,
                 },
                 state,
-            ) => {
-                let state = match state {
-                    HunkState::Accepted => span::positive("✓"),
-                    HunkState::Rejected => span::secondary("?"),
-                };
-
-                [
-                    state.into(),
-                    HunkItem::pretty_path(path, false).into(),
-                    span::default("FM ")
-                        .light_blue()
-                        .into_right_aligned_line()
-                        .into(),
-                ]
-            }
+            ) => [
+                ui::span::hunk_state(state)
+                    .into_right_aligned_line()
+                    .into(),
+                HunkItem::pretty_path(path, false).into(),
+                span::default("FM ")
+                    .light_blue()
+                    .into_right_aligned_line()
+                    .into(),
+            ],
         }
     }
 }
@@ -1368,9 +1349,7 @@ impl<'a> HunkItem<'a> {
                     span::default(file.to_string_lossy().as_ref())
                 },
                 span::default(" "),
-                span::default(&path.join(&String::from("/")).to_string())
-                    .dark_gray()
-                    .dim(),
+                span::default(&path.join(&String::from("/")).to_string()).dark_gray(),
             ]
             .to_vec(),
         );

@@ -197,7 +197,7 @@ impl<'a> App<'a> {
             );
         }
 
-        Ok(Self {
+        let mut app = App {
             profile,
             rid,
             patch,
@@ -210,7 +210,11 @@ impl<'a> App<'a> {
             help: HelpState {
                 text: TextViewState::new(help_text(), Position::default()),
             },
-        })
+        };
+
+        app.reload_states()?;
+
+        Ok(app)
     }
 
     pub fn accept_current_hunk(&mut self) -> Result<()> {
@@ -290,17 +294,18 @@ impl<'a> App<'a> {
 
 impl<'a> App<'a> {
     fn show_hunk_list(&self, ui: &mut Ui<Message>, frame: &mut Frame) {
-        let queue = self.queue.lock().unwrap();
-
+        let header = [Column::new(" Hunks ", Constraint::Fill(1))].to_vec();
         let columns = [
-            Column::new(" ", Constraint::Length(1)),
-            Column::new(" ", Constraint::Fill(1)),
-            Column::new(" ", Constraint::Length(15)),
+            Column::new("", Constraint::Length(2)),
+            Column::new("", Constraint::Fill(1)),
+            Column::new("", Constraint::Length(15)),
         ]
         .to_vec();
+
+        let queue = self.queue.lock().unwrap();
         let mut selected = queue.1.selected();
 
-        let table = ui.table(frame, &mut selected, &queue.0, columns, Some(Borders::All));
+        let table = ui.headered_table(frame, &mut selected, &queue.0, header, columns);
         if table.changed {
             ui.send_message(Message::ItemChanged {
                 state: TableState::new(selected),
