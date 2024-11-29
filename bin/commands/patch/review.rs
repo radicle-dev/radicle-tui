@@ -113,7 +113,8 @@ impl Tui {
 }
 
 #[derive(Clone, Debug)]
-pub enum Message {
+pub enum Message<'a> {
+    ShowMain,
     WindowsChanged { state: GroupState },
     ItemChanged { state: TableState },
     ItemViewChanged { state: ReviewItemState },
@@ -121,19 +122,14 @@ pub enum Message {
     Comment,
     Accept,
     Discard,
-    ShowMain,
     ShowHelp,
+    HelpChanged { state: TextViewState<'a> },
 }
 
 #[derive(Clone, Debug, Eq, PartialEq, Hash)]
 pub enum AppPage {
     Main,
     Help,
-}
-
-#[derive(Clone, Debug)]
-pub struct HelpState<'a> {
-    text: TextViewState<'a>,
 }
 
 #[derive(Clone, Debug)]
@@ -152,7 +148,7 @@ pub struct App<'a> {
     rid: RepoId,
     page: AppPage,
     windows: GroupState,
-    help: HelpState<'a>,
+    help: TextViewState<'a>,
 }
 
 impl<'a> TryFrom<&Tui> for App<'a> {
@@ -207,9 +203,7 @@ impl<'a> App<'a> {
             items,
             page: AppPage::Main,
             windows: GroupState::new(2, Some(0)),
-            help: HelpState {
-                text: TextViewState::new(help_text(), Position::default()),
-            },
+            help: TextViewState::new(help_text(), Position::default()),
         };
 
         app.reload_states()?;
@@ -293,7 +287,7 @@ impl<'a> App<'a> {
 }
 
 impl<'a> App<'a> {
-    fn show_hunk_list(&self, ui: &mut Ui<Message>, frame: &mut Frame) {
+    fn show_hunk_list(&self, ui: &mut Ui<Message<'a>>, frame: &mut Frame) {
         let header = [Column::new(" Hunks ", Constraint::Fill(1))].to_vec();
         let columns = [
             Column::new("", Constraint::Length(2)),
@@ -313,7 +307,7 @@ impl<'a> App<'a> {
         }
     }
 
-    fn show_review_item(&self, ui: &mut Ui<Message>, frame: &mut Frame) {
+    fn show_review_item(&self, ui: &mut Ui<Message<'a>>, frame: &mut Frame) {
         let queue = self.queue.lock().unwrap();
 
         let selected = queue.1.selected();
@@ -352,7 +346,7 @@ impl<'a> App<'a> {
         }
     }
 
-    fn show_context_bar(&self, ui: &mut Ui<Message>, frame: &mut Frame) {
+    fn show_context_bar(&self, ui: &mut Ui<Message<'a>>, frame: &mut Frame) {
         let queue = &self.queue.lock().unwrap().0;
 
         let id = format!(" {} ", format::cob(&self.patch));
@@ -408,8 +402,8 @@ impl<'a> App<'a> {
     }
 }
 
-impl<'a> Show<Message> for App<'a> {
-    fn show(&self, ctx: &Context<Message>, frame: &mut Frame) -> Result<(), anyhow::Error> {
+impl<'a> Show<Message<'a>> for App<'a> {
+    fn show(&self, ctx: &Context<Message<'a>>, frame: &mut Frame) -> Result<(), anyhow::Error> {
         Window::default().show(ctx, |ui| {
             let mut page_focus = self.windows.focus();
 
@@ -478,34 +472,33 @@ impl<'a> Show<Message> for App<'a> {
                         ]),
                         &mut page_focus,
                         |ui| {
-                            ui.text_view(
-                                frame,
-                                self.help.text.text().to_string(),
-                                &mut Position::default(),
-                                Some(Borders::All),
+                            ui.composite(
+                                Layout::vertical([Constraint::Length(3), Constraint::Min(1)]),
+                                1,
+                                |ui| {
+                                    let header =
+                                        [Column::new(" Help ", Constraint::Fill(1))].to_vec();
+                                    let mut cursor = self.help.cursor();
+
+                                    ui.columns(frame, header, Some(Borders::Top));
+                                    let help = ui.text_view(
+                                        frame,
+                                        self.help.text().to_string(),
+                                        &mut cursor,
+                                        Some(Borders::BottomSides),
+                                    );
+                                    if help.changed {
+                                        ui.send_message(Message::HelpChanged {
+                                            state: TextViewState::new(
+                                                self.help.text().clone(),
+                                                cursor,
+                                            ),
+                                        })
+                                    }
+                                },
                             );
 
-                            ui.bar(
-                                frame,
-                                [
-                                    Column::new(
-                                        span::default(" ")
-                                            .into_left_aligned_line()
-                                            .style(ui.theme().bar_on_black_style),
-                                        Constraint::Fill(1),
-                                    ),
-                                    Column::new(
-                                        span::default(" ")
-                                            .into_right_aligned_line()
-                                            .cyan()
-                                            .dim()
-                                            .reversed(),
-                                        Constraint::Length(6),
-                                    ),
-                                ]
-                                .to_vec(),
-                                Some(Borders::None),
-                            );
+                            self.show_context_bar(ui, frame);
 
                             ui.shortcuts(frame, &[("?", "close"), ("q", "quit")], '∙');
                         },
@@ -525,10 +518,10 @@ impl<'a> Show<Message> for App<'a> {
     }
 }
 
-impl<'a> store::Update<Message> for App<'a> {
+impl<'a> store::Update<Message<'a>> for App<'a> {
     type Return = Selection;
 
-    fn update(&mut self, message: Message) -> Option<Exit<Self::Return>> {
+    fn update(&mut self, message: Message<'a>) -> Option<Exit<Self::Return>> {
         log::info!("Received message: {:?}", message);
 
         match message {
@@ -581,19 +574,40 @@ impl<'a> store::Update<Message> for App<'a> {
                 self.page = AppPage::Help;
                 None
             }
+            Message::HelpChanged { state } => {
+                self.help = state;
+                None
+            }
         }
     }
 }
 
 fn help_text() -> String {
-    r#"# Generic keybindings
+    r#"# About
 
-`↑,k`:      move cursor one line up
-`↓,j:       move cursor one line down
-`PageUp`:   move cursor one page up
-`PageDown`: move cursor one page down
-`Home`:     move cursor to the first line
-`End`:      move cursor to the last line
-`Esc`:      Quit / cancel"#
+A terminal interface for reviewing patch revisions.
+
+Starts a new or resumes an existing review for a given revision (default: latest). When the
+review is done, it needs to be finalized via `rad patch review --accept | --reject <id>`.
+    
+# Keybindings
+
+`←,h`       move cursor to the left
+`↑,k`       move cursor one line up
+`↓,j`       move cursor one line down
+`→,l`       move cursor to the right
+`PageUp`    move cursor one page up
+`PageDown`  move cursor one page down
+`Home`      move cursor to the first line
+`End`       move cursor to the last line
+
+`?`         toogle help
+`q`         quit / cancel
+
+## Specific keybindings
+
+`c`         comment on hunk
+`a`         accept hunk
+`d`         discard accepted hunks (reject all)"#
         .into()
 }
