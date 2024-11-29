@@ -1194,9 +1194,7 @@ impl<'a> ToRow<3> for HunkItem<'a> {
                 .concat();
 
                 [
-                    ui::span::hunk_state(state)
-                        .into_right_aligned_line()
-                        .into(),
+                    ui::span::hunk_state(state).into_right_aligned_line().into(),
                     HunkItem::pretty_path(path, false).into(),
                     Line::from(stats_cell).right_aligned().into(),
                 ]
@@ -1221,9 +1219,7 @@ impl<'a> ToRow<3> for HunkItem<'a> {
                 .concat();
 
                 [
-                    ui::span::hunk_state(state)
-                        .into_right_aligned_line()
-                        .into(),
+                    ui::span::hunk_state(state).into_right_aligned_line().into(),
                     HunkItem::pretty_path(path, false).into(),
                     Line::from(stats_cell).right_aligned().into(),
                 ]
@@ -1247,9 +1243,7 @@ impl<'a> ToRow<3> for HunkItem<'a> {
                 .concat();
 
                 [
-                    ui::span::hunk_state(state)
-                        .into_right_aligned_line()
-                        .into(),
+                    ui::span::hunk_state(state).into_right_aligned_line().into(),
                     HunkItem::pretty_path(path, true).into(),
                     Line::from(stats_cell).right_aligned().into(),
                 ]
@@ -1263,9 +1257,7 @@ impl<'a> ToRow<3> for HunkItem<'a> {
                 .concat();
 
                 [
-                    ui::span::hunk_state(state)
-                        .into_right_aligned_line()
-                        .into(),
+                    ui::span::hunk_state(state).into_right_aligned_line().into(),
                     HunkItem::pretty_path(&copied.new_path, false).into(),
                     Line::from(stats_cell).right_aligned().into(),
                 ]
@@ -1279,9 +1271,7 @@ impl<'a> ToRow<3> for HunkItem<'a> {
                 .concat();
 
                 [
-                    ui::span::hunk_state(state)
-                        .into_right_aligned_line()
-                        .into(),
+                    ui::span::hunk_state(state).into_right_aligned_line().into(),
                     HunkItem::pretty_path(&moved.new_path, false).into(),
                     Line::from(stats_cell).right_aligned().into(),
                 ]
@@ -1297,9 +1287,7 @@ impl<'a> ToRow<3> for HunkItem<'a> {
                 },
                 state,
             ) => [
-                ui::span::hunk_state(state)
-                    .into_right_aligned_line()
-                    .into(),
+                ui::span::hunk_state(state).into_right_aligned_line().into(),
                 HunkItem::pretty_path(path, false).into(),
                 span::default("EOF ")
                     .light_blue()
@@ -1316,9 +1304,7 @@ impl<'a> ToRow<3> for HunkItem<'a> {
                 },
                 state,
             ) => [
-                ui::span::hunk_state(state)
-                    .into_right_aligned_line()
-                    .into(),
+                ui::span::hunk_state(state).into_right_aligned_line().into(),
                 HunkItem::pretty_path(path, false).into(),
                 span::default("FM ")
                     .light_blue()
