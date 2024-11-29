@@ -115,6 +115,8 @@ Both commands will call into `rad-tui`, process its output and call `rad` accord
 
 #### Interfaces
 
+##### Selection
+
 Select a patch, an issue or a notification and an operation:
 
 ```
@@ -132,6 +134,14 @@ Select a patch, an issue or a notification only and return its id:
 ```
 rad-tui <patch | issue | inbox> select --mode id
 ```
+
+##### Patch
+
+Review a patch revision:
+```
+rad-tui patch review <id>
+```
+> **Note:** When the review is done, it needs to be finalized via `rad patch review [--accept | --reject] <id>`.
 
 #### Output
 
