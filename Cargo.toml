@@ -32,12 +32,9 @@ lazy_static = { version = "1.5.0" }
 libc = { version = "^0.2" }
 log = { version = "0.4.19" }
 nom = { version = "^7.1.0" }
-# radicle = { version = "0.13.0" }
-# radicle-term = { version = "0.11.0" }
-# radicle-cli = { version = "0.11.0" }
-radicle = { git = "https://seed.radicle.xyz/z3gqcJUoA1n9HaHKufZs5FCSGazv5.git", branch = "master", package = "radicle" }
-radicle-term = { git = "https://seed.radicle.xyz/z3gqcJUoA1n9HaHKufZs5FCSGazv5.git", branch = "master", package = "radicle-term" }
-radicle-cli = { git = "https://seed.radicle.xyz/z3gqcJUoA1n9HaHKufZs5FCSGazv5.git", branch = "master", package = "radicle-cli" }
+radicle = { version = "0.14.0" }
+radicle-term = { version = "0.12.0" }
+radicle-cli = { version = "0.12.1" }
 radicle-surf = { version = "0.22.0" }
 radicle-signals = { version = "0.10.0" }
 ratatui = { version = "0.27.0", default-features = false, features = ["all-widgets", "termion"] }
