@@ -1191,10 +1191,10 @@ impl<'a> ToRow<3> for HunkItem<'a> {
                 .concat();
 
                 [
-                    ui::span::hunk_state(self.inner.state())
-                        .into_right_aligned_line()
+                    Line::from(ui::span::hunk_state(self.inner.state()))
+                        .right_aligned()
                         .into(),
-                    HunkItem::pretty_path(path, false).into(),
+                    Line::from(ui::span::pretty_path(path, false, false)).into(),
                     Line::from(stats_cell).right_aligned().into(),
                 ]
             }
@@ -1214,10 +1214,10 @@ impl<'a> ToRow<3> for HunkItem<'a> {
                 .concat();
 
                 [
-                    ui::span::hunk_state(self.inner.state())
-                        .into_right_aligned_line()
+                    Line::from(ui::span::hunk_state(self.inner.state()))
+                        .right_aligned()
                         .into(),
-                    HunkItem::pretty_path(path, false).into(),
+                    Line::from(ui::span::pretty_path(path, false, false)).into(),
                     Line::from(stats_cell).right_aligned().into(),
                 ]
             }
@@ -1236,10 +1236,10 @@ impl<'a> ToRow<3> for HunkItem<'a> {
                 .concat();
 
                 [
-                    ui::span::hunk_state(self.inner.state())
-                        .into_right_aligned_line()
+                    Line::from(ui::span::hunk_state(self.inner.state()))
+                        .right_aligned()
                         .into(),
-                    HunkItem::pretty_path(path, true).into(),
+                    Line::from(ui::span::pretty_path(path, false, false)).into(),
                     Line::from(stats_cell).right_aligned().into(),
                 ]
             }
@@ -1252,10 +1252,10 @@ impl<'a> ToRow<3> for HunkItem<'a> {
                 .concat();
 
                 [
-                    ui::span::hunk_state(self.inner.state())
-                        .into_right_aligned_line()
+                    Line::from(ui::span::hunk_state(self.inner.state()))
+                        .right_aligned()
                         .into(),
-                    HunkItem::pretty_path(&copied.new_path, false).into(),
+                    Line::from(ui::span::pretty_path(&copied.new_path, false, false)).into(),
                     Line::from(stats_cell).right_aligned().into(),
                 ]
             }
@@ -1268,10 +1268,10 @@ impl<'a> ToRow<3> for HunkItem<'a> {
                 .concat();
 
                 [
-                    ui::span::hunk_state(self.inner.state())
-                        .into_right_aligned_line()
+                    Line::from(ui::span::hunk_state(self.inner.state()))
+                        .right_aligned()
                         .into(),
-                    HunkItem::pretty_path(&moved.new_path, false).into(),
+                    Line::from(ui::span::pretty_path(&moved.new_path, false, false)).into(),
                     Line::from(stats_cell).right_aligned().into(),
                 ]
             }
@@ -1282,13 +1282,12 @@ impl<'a> ToRow<3> for HunkItem<'a> {
                 new: _,
                 _eof: _,
             } => [
-                ui::span::hunk_state(self.inner.state())
-                    .into_right_aligned_line()
+                Line::from(ui::span::hunk_state(self.inner.state()))
+                    .right_aligned()
                     .into(),
-                HunkItem::pretty_path(path, false).into(),
-                span::default("EOF ")
-                    .light_blue()
-                    .into_right_aligned_line()
+                Line::from(ui::span::pretty_path(path, false, false)).into(),
+                Line::from(span::default("EOF ").light_blue())
+                    .right_aligned()
                     .into(),
             ],
             Item::ModeChanged {
@@ -1297,44 +1296,15 @@ impl<'a> ToRow<3> for HunkItem<'a> {
                 old: _,
                 new: _,
             } => [
-                ui::span::hunk_state(self.inner.state())
-                    .into_right_aligned_line()
+                Line::from(ui::span::hunk_state(self.inner.state()))
+                    .right_aligned()
                     .into(),
-                HunkItem::pretty_path(path, false).into(),
-                span::default("FM ")
-                    .light_blue()
-                    .into_right_aligned_line()
+                Line::from(ui::span::pretty_path(path, false, false)).into(),
+                Line::from(span::default("FM ").light_blue())
+                    .right_aligned()
                     .into(),
             ],
         }
-    }
-}
-
-impl<'a> HunkItem<'a> {
-    pub fn pretty_path(path: &Path, crossed_out: bool) -> Line<'a> {
-        let file = path.file_name().unwrap_or_default();
-        let path = if path.iter().count() > 1 {
-            path.iter()
-                .take(path.iter().count() - 1)
-                .map(|component| component.to_string_lossy().to_string())
-                .collect::<Vec<_>>()
-        } else {
-            vec![]
-        };
-
-        let line = Line::from(
-            [
-                if crossed_out {
-                    span::default(file.to_string_lossy().as_ref()).crossed_out()
-                } else {
-                    span::default(file.to_string_lossy().as_ref())
-                },
-                span::default(" "),
-                span::default(&path.join(&String::from("/")).to_string()).dark_gray(),
-            ]
-            .to_vec(),
-        );
-        line
     }
 }
 
@@ -1361,7 +1331,7 @@ impl<'a> HunkItem<'a> {
                 hunk: _,
                 _stats: _,
             } => {
-                let path = HunkItem::pretty_path(path, false);
+                let path = Line::from(ui::span::pretty_path(path, false, true));
                 let header = [
                     Column::new("", Constraint::Length(0)),
                     Column::new(path.clone(), Constraint::Length(path.width() as u16)),
@@ -1390,7 +1360,7 @@ impl<'a> HunkItem<'a> {
                 hunk: _,
                 _stats: _,
             } => {
-                let path = HunkItem::pretty_path(path, false);
+                let path = Line::from(ui::span::pretty_path(path, false, true));
                 let header = [
                     Column::new("", Constraint::Length(0)),
                     Column::new(path.clone(), Constraint::Length(path.width() as u16)),
@@ -1418,7 +1388,7 @@ impl<'a> HunkItem<'a> {
                 hunk: _,
                 _stats: _,
             } => {
-                let path = HunkItem::pretty_path(path, true);
+                let path = Line::from(ui::span::pretty_path(path, true, true));
                 let header = [
                     Column::new("", Constraint::Length(0)),
                     Column::new(path.clone(), Constraint::Length(path.width() as u16)),
@@ -1441,9 +1411,9 @@ impl<'a> HunkItem<'a> {
             crate::cob::HunkItem::Copied { copied } => {
                 let path = Line::from(
                     [
-                        HunkItem::pretty_path(&copied.old_path, false).spans,
+                        ui::span::pretty_path(&copied.old_path, false, true),
                         [span::default(" -> ")].to_vec(),
-                        HunkItem::pretty_path(&copied.new_path, false).spans,
+                        ui::span::pretty_path(&copied.new_path, false, true),
                     ]
                     .concat()
                     .to_vec(),
@@ -1466,9 +1436,9 @@ impl<'a> HunkItem<'a> {
             crate::cob::HunkItem::Moved { moved } => {
                 let path = Line::from(
                     [
-                        HunkItem::pretty_path(&moved.old_path, false).spans,
+                        ui::span::pretty_path(&moved.old_path, false, true),
                         [span::default(" -> ")].to_vec(),
-                        HunkItem::pretty_path(&moved.new_path, false).spans,
+                        ui::span::pretty_path(&moved.new_path, false, true),
                     ]
                     .concat()
                     .to_vec(),
@@ -1496,7 +1466,7 @@ impl<'a> HunkItem<'a> {
                 new: _,
                 _eof: _,
             } => {
-                let path = HunkItem::pretty_path(path, false);
+                let path = Line::from(ui::span::pretty_path(path, false, true));
                 let header = [
                     Column::new("", Constraint::Length(0)),
                     Column::new(path.clone(), Constraint::Length(path.width() as u16)),
@@ -1517,7 +1487,7 @@ impl<'a> HunkItem<'a> {
                 old: _,
                 new: _,
             } => {
-                let path = HunkItem::pretty_path(path, false);
+                let path = Line::from(ui::span::pretty_path(path, false, true));
                 let header = [
                     Column::new("", Constraint::Length(0)),
                     Column::new(path.clone(), Constraint::Length(path.width() as u16)),
