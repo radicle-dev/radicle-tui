@@ -38,6 +38,7 @@ use tui::ui::Column;
 use tui::{Channel, Exit};
 
 use crate::cob::HunkState;
+use crate::cob::StatefulHunkItem;
 use crate::tui_patch::review::builder::DiffUtil;
 use crate::ui::format;
 use crate::ui::items::HunkItem;
@@ -180,7 +181,9 @@ impl<'a> App<'a> {
         let repo = profile.storage.repository(rid)?;
         let queue = queue
             .iter()
-            .map(|item| HunkItem::from((&repo, &review, item)))
+            .map(|(_, item, state)| {
+                HunkItem::from((&repo, &review, StatefulHunkItem::from((item, state))))
+            })
             .collect::<Vec<_>>();
 
         let mut items = HashMap::new();
@@ -224,11 +227,11 @@ impl<'a> App<'a> {
             if let Some(hunk) = hunks.get(selected) {
                 let mut file: Option<FileReviewBuilder> = None;
                 let file = match file.as_mut() {
-                    Some(fr) => fr.set_item(&hunk.inner.1),
-                    None => file.insert(FileReviewBuilder::new(&hunk.inner.1)),
+                    Some(fr) => fr.set_item(hunk.inner.hunk()),
+                    None => file.insert(FileReviewBuilder::new(hunk.inner.hunk())),
                 };
 
-                let diff = file.item_diff(&hunk.inner.1)?;
+                let diff = file.item_diff(hunk.inner.hunk())?;
                 brain.accept(diff, repo.raw())?;
 
                 self.reload_states()?;
@@ -277,8 +280,7 @@ impl<'a> App<'a> {
         let mut queue = self.queue.lock().unwrap();
         for (idx, new_state) in states.iter().enumerate() {
             if let Some(hunk) = queue.0.get_mut(idx) {
-                let (_, _, ref mut state) = hunk.inner;
-                *state = new_state.clone();
+                *hunk.inner.state_mut() = new_state.clone();
             }
         }
 
@@ -355,7 +357,7 @@ impl<'a> App<'a> {
         let hunks_total = queue.len();
         let hunks_accepted = queue
             .iter()
-            .filter(|item| item.inner.2 == HunkState::Accepted)
+            .filter(|item| *item.inner.state() == HunkState::Accepted)
             .collect::<Vec<_>>()
             .len();
 
