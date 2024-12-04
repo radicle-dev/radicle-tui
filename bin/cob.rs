@@ -1,28 +1,24 @@
+pub mod inbox;
+pub mod issue;
+pub mod patch;
+
+use std::path::{Path, PathBuf};
 use std::str::FromStr;
 
 use anyhow::Result;
 
 use radicle::cob::Label;
-use radicle::prelude::Did;
-use radicle_cli::git::unified_diff::FileHeader;
-
-use std::path::{Path, PathBuf};
-
 use radicle::git::Oid;
-
+use radicle::prelude::Did;
 use radicle_surf::diff::*;
 
+use radicle_cli::git::unified_diff::FileHeader;
 use radicle_cli::git::unified_diff::HunkHeader;
 
 use crate::git::Blob;
 use crate::git::Repo;
 use crate::ui::items::Blobs;
 
-pub mod inbox;
-pub mod issue;
-pub mod patch;
-
-pub type IndexedHunkItem = (usize, crate::cob::HunkItem, HunkState);
 pub type FilePaths<'a> = (Option<(&'a Path, Oid)>, Option<(&'a Path, Oid)>);
 
 #[allow(dead_code)]
@@ -203,5 +199,28 @@ impl HunkItem {
     pub fn blobs<R: Repo>(&self, repo: &R) -> Blobs<(PathBuf, Blob)> {
         let (old, new) = self.paths();
         Blobs::from_paths(old, new, repo)
+    }
+}
+
+#[derive(Clone, Debug)]
+pub struct StatefulHunkItem(HunkItem, HunkState);
+
+impl StatefulHunkItem {
+    pub fn hunk(&self) -> &HunkItem {
+        &self.0
+    }
+
+    pub fn state(&self) -> &HunkState {
+        &self.1
+    }
+
+    pub fn state_mut(&mut self) -> &mut HunkState {
+        &mut self.1
+    }
+}
+
+impl From<(&HunkItem, &HunkState)> for StatefulHunkItem {
+    fn from(value: (&HunkItem, &HunkState)) -> Self {
+        Self(value.0.clone(), value.1.clone())
     }
 }

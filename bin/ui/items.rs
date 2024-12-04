@@ -42,7 +42,7 @@ use tui::ui::utils::LineMerger;
 use tui::ui::{span, Column};
 use tui::ui::{ToRow, ToTree};
 
-use crate::cob::{DiffStats, HunkStats, IndexedHunkItem};
+use crate::cob::{DiffStats, HunkStats, StatefulHunkItem};
 use crate::git::{Blob, Repo};
 use crate::ui;
 
@@ -1094,8 +1094,8 @@ impl From<Vec<(EntryId, Comment<CodeLocation>)>> for HunkComments {
 /// provide access to the underlying hunk type.
 #[derive(Clone, Debug)]
 pub struct HunkItem<'a> {
-    /// The indexed, underlying hunk type.
-    pub inner: IndexedHunkItem,
+    /// The underlying hunk type and its current state (accepted / rejected).
+    pub inner: StatefulHunkItem,
     /// Raw or highlighted hunk lines. Highlighting is expensive and needs to be asynchronously.
     /// Therefor, a hunks' lines need to stored separately.
     pub lines: Blobs<Vec<Line<'a>>>,
@@ -1103,12 +1103,13 @@ pub struct HunkItem<'a> {
     pub comments: HunkComments,
 }
 
-impl<'a> From<(&Repository, &Review, &IndexedHunkItem)> for HunkItem<'a> {
-    fn from(value: (&Repository, &Review, &IndexedHunkItem)) -> Self {
+impl<'a> From<(&Repository, &Review, StatefulHunkItem)> for HunkItem<'a> {
+    fn from(value: (&Repository, &Review, StatefulHunkItem)) -> Self {
         let (repo, review, item) = value;
         let hi = Highlighter::default();
+        let hunk = item.hunk();
 
-        let path = match &item.1 {
+        let path = match &hunk {
             crate::cob::HunkItem::Added { path, .. } => path,
             crate::cob::HunkItem::Modified { path, .. } => path,
             crate::cob::HunkItem::Deleted { path, .. } => path,
@@ -1121,7 +1122,7 @@ impl<'a> From<(&Repository, &Review, &IndexedHunkItem)> for HunkItem<'a> {
         // TODO(erikli): Start with raw, non-highlighted lines and
         // move highlighting to separate task / thread, e.g. here:
         // `let lines = blobs.raw()`
-        let blobs = item.1.clone().blobs(repo.raw());
+        let blobs = hunk.clone().blobs(repo.raw());
         let lines = blobs.highlight(hi);
         let comments = review
             .comments()
@@ -1174,18 +1175,14 @@ impl<'a> ToRow<3> for HunkItem<'a> {
             cell
         };
 
-        match &self.inner {
-            (
-                _,
-                Item::Added {
-                    path,
-                    header: _,
-                    new: _,
-                    hunk,
-                    _stats: _,
-                },
-                state,
-            ) => {
+        match &self.inner.hunk() {
+            Item::Added {
+                path,
+                header: _,
+                new: _,
+                hunk,
+                _stats: _,
+            } => {
                 let stats = hunk.as_ref().map(HunkStats::from).unwrap_or_default();
                 let stats_cell = [
                     build_stats_spans(&DiffStats::Hunk(stats)),
@@ -1194,23 +1191,21 @@ impl<'a> ToRow<3> for HunkItem<'a> {
                 .concat();
 
                 [
-                    ui::span::hunk_state(state).into_right_aligned_line().into(),
+                    ui::span::hunk_state(self.inner.state())
+                        .into_right_aligned_line()
+                        .into(),
                     HunkItem::pretty_path(path, false).into(),
                     Line::from(stats_cell).right_aligned().into(),
                 ]
             }
-            (
-                _,
-                Item::Modified {
-                    path,
-                    header: _,
-                    old: _,
-                    new: _,
-                    hunk,
-                    _stats: _,
-                },
-                state,
-            ) => {
+            Item::Modified {
+                path,
+                header: _,
+                old: _,
+                new: _,
+                hunk,
+                _stats: _,
+            } => {
                 let stats = hunk.as_ref().map(HunkStats::from).unwrap_or_default();
                 let stats_cell = [
                     build_stats_spans(&DiffStats::Hunk(stats)),
@@ -1219,22 +1214,20 @@ impl<'a> ToRow<3> for HunkItem<'a> {
                 .concat();
 
                 [
-                    ui::span::hunk_state(state).into_right_aligned_line().into(),
+                    ui::span::hunk_state(self.inner.state())
+                        .into_right_aligned_line()
+                        .into(),
                     HunkItem::pretty_path(path, false).into(),
                     Line::from(stats_cell).right_aligned().into(),
                 ]
             }
-            (
-                _,
-                Item::Deleted {
-                    path,
-                    header: _,
-                    old: _,
-                    hunk,
-                    _stats: _,
-                },
-                state,
-            ) => {
+            Item::Deleted {
+                path,
+                header: _,
+                old: _,
+                hunk,
+                _stats: _,
+            } => {
                 let stats = hunk.as_ref().map(HunkStats::from).unwrap_or_default();
                 let stats_cell = [
                     build_stats_spans(&DiffStats::Hunk(stats)),
@@ -1243,12 +1236,14 @@ impl<'a> ToRow<3> for HunkItem<'a> {
                 .concat();
 
                 [
-                    ui::span::hunk_state(state).into_right_aligned_line().into(),
+                    ui::span::hunk_state(self.inner.state())
+                        .into_right_aligned_line()
+                        .into(),
                     HunkItem::pretty_path(path, true).into(),
                     Line::from(stats_cell).right_aligned().into(),
                 ]
             }
-            (_, Item::Copied { copied }, state) => {
+            Item::Copied { copied } => {
                 let stats = copied.diff.stats().copied().unwrap_or_default();
                 let stats_cell = [
                     build_stats_spans(&DiffStats::File(stats)),
@@ -1257,12 +1252,14 @@ impl<'a> ToRow<3> for HunkItem<'a> {
                 .concat();
 
                 [
-                    ui::span::hunk_state(state).into_right_aligned_line().into(),
+                    ui::span::hunk_state(self.inner.state())
+                        .into_right_aligned_line()
+                        .into(),
                     HunkItem::pretty_path(&copied.new_path, false).into(),
                     Line::from(stats_cell).right_aligned().into(),
                 ]
             }
-            (_, Item::Moved { moved }, state) => {
+            Item::Moved { moved } => {
                 let stats = moved.diff.stats().copied().unwrap_or_default();
                 let stats_cell = [
                     build_stats_spans(&DiffStats::File(stats)),
@@ -1271,40 +1268,38 @@ impl<'a> ToRow<3> for HunkItem<'a> {
                 .concat();
 
                 [
-                    ui::span::hunk_state(state).into_right_aligned_line().into(),
+                    ui::span::hunk_state(self.inner.state())
+                        .into_right_aligned_line()
+                        .into(),
                     HunkItem::pretty_path(&moved.new_path, false).into(),
                     Line::from(stats_cell).right_aligned().into(),
                 ]
             }
-            (
-                _,
-                Item::EofChanged {
-                    path,
-                    header: _,
-                    old: _,
-                    new: _,
-                    _eof: _,
-                },
-                state,
-            ) => [
-                ui::span::hunk_state(state).into_right_aligned_line().into(),
+            Item::EofChanged {
+                path,
+                header: _,
+                old: _,
+                new: _,
+                _eof: _,
+            } => [
+                ui::span::hunk_state(self.inner.state())
+                    .into_right_aligned_line()
+                    .into(),
                 HunkItem::pretty_path(path, false).into(),
                 span::default("EOF ")
                     .light_blue()
                     .into_right_aligned_line()
                     .into(),
             ],
-            (
-                _,
-                Item::ModeChanged {
-                    path,
-                    header: _,
-                    old: _,
-                    new: _,
-                },
-                state,
-            ) => [
-                ui::span::hunk_state(state).into_right_aligned_line().into(),
+            Item::ModeChanged {
+                path,
+                header: _,
+                old: _,
+                new: _,
+            } => [
+                ui::span::hunk_state(self.inner.state())
+                    .into_right_aligned_line()
+                    .into(),
                 HunkItem::pretty_path(path, false).into(),
                 span::default("FM ")
                     .light_blue()
@@ -1358,18 +1353,14 @@ impl<'a> HunkItem<'a> {
             span::blank()
         };
 
-        match &self.inner {
-            (
-                _,
-                crate::cob::HunkItem::Added {
-                    path,
-                    header: _,
-                    new: _,
-                    hunk: _,
-                    _stats: _,
-                },
-                _,
-            ) => {
+        match &self.inner.hunk() {
+            crate::cob::HunkItem::Added {
+                path,
+                header: _,
+                new: _,
+                hunk: _,
+                _stats: _,
+            } => {
                 let path = HunkItem::pretty_path(path, false);
                 let header = [
                     Column::new("", Constraint::Length(0)),
@@ -1390,18 +1381,15 @@ impl<'a> HunkItem<'a> {
 
                 header.to_vec()
             }
-            (
-                _,
-                crate::cob::HunkItem::Modified {
-                    path,
-                    header: _,
-                    old: _,
-                    new: _,
-                    hunk: _,
-                    _stats: _,
-                },
-                _,
-            ) => {
+
+            crate::cob::HunkItem::Modified {
+                path,
+                header: _,
+                old: _,
+                new: _,
+                hunk: _,
+                _stats: _,
+            } => {
                 let path = HunkItem::pretty_path(path, false);
                 let header = [
                     Column::new("", Constraint::Length(0)),
@@ -1422,17 +1410,14 @@ impl<'a> HunkItem<'a> {
 
                 header.to_vec()
             }
-            (
-                _,
-                crate::cob::HunkItem::Deleted {
-                    path,
-                    header: _,
-                    old: _,
-                    hunk: _,
-                    _stats: _,
-                },
-                _,
-            ) => {
+
+            crate::cob::HunkItem::Deleted {
+                path,
+                header: _,
+                old: _,
+                hunk: _,
+                _stats: _,
+            } => {
                 let path = HunkItem::pretty_path(path, true);
                 let header = [
                     Column::new("", Constraint::Length(0)),
@@ -1453,7 +1438,7 @@ impl<'a> HunkItem<'a> {
 
                 header.to_vec()
             }
-            (_, crate::cob::HunkItem::Copied { copied }, _) => {
+            crate::cob::HunkItem::Copied { copied } => {
                 let path = Line::from(
                     [
                         HunkItem::pretty_path(&copied.old_path, false).spans,
@@ -1478,7 +1463,7 @@ impl<'a> HunkItem<'a> {
 
                 header.to_vec()
             }
-            (_, crate::cob::HunkItem::Moved { moved }, _) => {
+            crate::cob::HunkItem::Moved { moved } => {
                 let path = Line::from(
                     [
                         HunkItem::pretty_path(&moved.old_path, false).spans,
@@ -1503,17 +1488,14 @@ impl<'a> HunkItem<'a> {
 
                 header.to_vec()
             }
-            (
-                _,
-                crate::cob::HunkItem::EofChanged {
-                    path,
-                    header: _,
-                    old: _,
-                    new: _,
-                    _eof: _,
-                },
-                _,
-            ) => {
+
+            crate::cob::HunkItem::EofChanged {
+                path,
+                header: _,
+                old: _,
+                new: _,
+                _eof: _,
+            } => {
                 let path = HunkItem::pretty_path(path, false);
                 let header = [
                     Column::new("", Constraint::Length(0)),
@@ -1529,16 +1511,12 @@ impl<'a> HunkItem<'a> {
 
                 header.to_vec()
             }
-            (
-                _,
-                crate::cob::HunkItem::ModeChanged {
-                    path,
-                    header: _,
-                    old: _,
-                    new: _,
-                },
-                _,
-            ) => {
+            crate::cob::HunkItem::ModeChanged {
+                path,
+                header: _,
+                old: _,
+                new: _,
+            } => {
                 let path = HunkItem::pretty_path(path, false);
                 let header = [
                     Column::new("", Constraint::Length(0)),
@@ -1560,10 +1538,10 @@ impl<'a> HunkItem<'a> {
     pub fn hunk_text(&'a self) -> Option<Text<'a>> {
         use crate::cob::HunkItem;
 
-        match &self.inner {
-            (_, HunkItem::Added { hunk, .. }, _)
-            | (_, HunkItem::Modified { hunk, .. }, _)
-            | (_, HunkItem::Deleted { hunk, .. }, _) => {
+        match &self.inner.hunk() {
+            HunkItem::Added { hunk, .. }
+            | HunkItem::Modified { hunk, .. }
+            | HunkItem::Deleted { hunk, .. } => {
                 let mut lines = hunk
                     .as_ref()
                     .map(|hunk| Text::from(hunk.to_text(&self.lines)));
