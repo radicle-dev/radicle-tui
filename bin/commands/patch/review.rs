@@ -1,17 +1,17 @@
 #[path = "review/builder.rs"]
 pub mod builder;
 
-use std::collections::HashMap;
 use std::fmt::Debug;
 use std::sync::Arc;
 use std::sync::Mutex;
 
 use anyhow::Result;
 
+use radicle::storage::git::Repository;
 use termion::event::Key;
 
+use ratatui::layout::Constraint;
 use ratatui::layout::Position;
-use ratatui::layout::{Constraint, Layout};
 use ratatui::style::Stylize;
 use ratatui::text::Text;
 use ratatui::{Frame, Viewport};
@@ -41,6 +41,7 @@ use crate::cob::StatefulHunkItem;
 use crate::tui_patch::review::builder::DiffUtil;
 use crate::ui::format;
 use crate::ui::items::HunkItem;
+use crate::ui::layout;
 
 use self::builder::Brain;
 use self::builder::FileReviewBuilder;
@@ -70,7 +71,7 @@ pub struct Tui {
     pub title: String,
     pub revision: Revision,
     pub review: Review,
-    pub queue: ReviewQueue,
+    pub hunks: ReviewQueue,
 }
 
 impl Tui {
@@ -83,7 +84,7 @@ impl Tui {
         title: String,
         revision: Revision,
         review: Review,
-        queue: ReviewQueue,
+        hunks: ReviewQueue,
     ) -> Self {
         Self {
             storage,
@@ -93,7 +94,7 @@ impl Tui {
             title,
             revision,
             review,
-            queue,
+            hunks,
         }
     }
 
@@ -109,7 +110,7 @@ impl Tui {
             self.title,
             self.revision,
             self.review,
-            self.queue,
+            self.hunks,
         )?;
 
         tui::im(state, viewport, channel).await
@@ -121,7 +122,7 @@ pub enum Message<'a> {
     ShowMain,
     WindowsChanged { state: GroupState },
     ItemChanged { state: TableState },
-    ItemViewChanged { state: ReviewItemState },
+    ItemViewChanged { state: HunkItemState },
     Quit,
     Comment,
     Accept,
@@ -137,9 +138,11 @@ pub enum AppPage {
 }
 
 #[derive(Clone, Debug)]
-pub struct ReviewItemState {
+pub struct HunkItemState {
     cursor: Position,
 }
+
+pub type HunkItems<'a> = Vec<(HunkItem<'a>, HunkItemState)>;
 
 #[derive(Clone)]
 pub struct App<'a> {
@@ -156,9 +159,7 @@ pub struct App<'a> {
     /// Revision this review belongs to.
     revision: Revision,
     /// List of all hunks and its table widget state.
-    queue: Arc<Mutex<(Vec<HunkItem<'a>>, TableState)>>,
-    /// States of diff views for all hunks.
-    items: HashMap<usize, ReviewItemState>,
+    hunks: Arc<Mutex<(HunkItems<'a>, TableState)>>,
     /// Current app page.
     page: AppPage,
     /// State of panes widget on the main page.
@@ -179,7 +180,7 @@ impl<'a> TryFrom<Tui> for App<'a> {
             tui.title,
             tui.revision,
             tui.review,
-            tui.queue,
+            tui.hunks,
         )
     }
 }
@@ -194,25 +195,20 @@ impl<'a> App<'a> {
         title: String,
         revision: Revision,
         review: Review,
-        queue: ReviewQueue,
+        hunks: ReviewQueue,
     ) -> Result<Self, anyhow::Error> {
         let repo = storage.repository(rid)?;
-        let queue = queue
+        let hunks = hunks
             .iter()
             .map(|(_, item, state)| {
-                HunkItem::from((&repo, &review, StatefulHunkItem::from((item, state))))
+                (
+                    HunkItem::from((&repo, &review, StatefulHunkItem::from((item, state)))),
+                    HunkItemState {
+                        cursor: Position::new(0, 0),
+                    },
+                )
             })
             .collect::<Vec<_>>();
-
-        let mut items = HashMap::new();
-        for (idx, _) in queue.iter().enumerate() {
-            items.insert(
-                idx,
-                ReviewItemState {
-                    cursor: Position::new(0, 0),
-                },
-            );
-        }
 
         let mut app = App {
             storage,
@@ -221,8 +217,7 @@ impl<'a> App<'a> {
             patch,
             title,
             revision,
-            queue: Arc::new(Mutex::new((queue, TableState::new(Some(0))))),
-            items,
+            hunks: Arc::new(Mutex::new((hunks, TableState::new(Some(0))))),
             page: AppPage::Main,
             windows: GroupState::new(2, Some(0)),
             help: TextViewState::new(help_text(), Position::default()),
@@ -240,9 +235,9 @@ impl<'a> App<'a> {
 
         if let Some(selected) = self.selected_hunk_idx() {
             let mut brain = Brain::load_or_new(self.patch, &self.revision, repo.raw(), signer)?;
-            let hunks = self.queue.lock().unwrap().0.clone();
+            let hunks = self.hunks.lock().unwrap().0.clone();
 
-            if let Some(hunk) = hunks.get(selected) {
+            if let Some((hunk, _)) = hunks.get(selected) {
                 let mut file: Option<FileReviewBuilder> = None;
                 let file = match file.as_mut() {
                     Some(fr) => fr.set_item(hunk.inner.hunk()),
@@ -259,7 +254,7 @@ impl<'a> App<'a> {
 
     #[allow(clippy::borrowed_box)]
     pub fn discard_accepted_hunks(&self) -> Result<()> {
-        let repo = self.storage.repository(self.rid).unwrap();
+        let repo = self.repo()?;
         let signer: &Box<dyn Signer> = &self.signer.lock().unwrap();
 
         let mut brain = Brain::load_or_new(self.patch, &self.revision, repo.raw(), signer)?;
@@ -270,7 +265,7 @@ impl<'a> App<'a> {
 
     #[allow(clippy::borrowed_box)]
     pub fn reload_states(&mut self) -> anyhow::Result<()> {
-        let repo = self.storage.repository(self.rid).unwrap();
+        let repo = self.repo()?;
         let signer: &Box<dyn Signer> = &self.signer.lock().unwrap();
 
         let brain = Brain::load_or_new(self.patch, &self.revision, repo.raw(), signer)?;
@@ -292,9 +287,9 @@ impl<'a> App<'a> {
             })
             .collect::<Vec<_>>();
 
-        let mut queue = self.queue.lock().unwrap();
+        let mut queue = self.hunks.lock().unwrap();
         for (idx, new_state) in states.iter().enumerate() {
-            if let Some(hunk) = queue.0.get_mut(idx) {
+            if let Some((hunk, _)) = queue.0.get_mut(idx) {
                 *hunk.inner.state_mut() = new_state.clone();
             }
         }
@@ -303,7 +298,11 @@ impl<'a> App<'a> {
     }
 
     pub fn selected_hunk_idx(&self) -> Option<usize> {
-        self.queue.lock().unwrap().1.selected()
+        self.hunks.lock().unwrap().1.selected()
+    }
+
+    pub fn repo(&self) -> Result<Repository> {
+        Ok(self.storage.repository(self.rid)?)
     }
 }
 
@@ -317,10 +316,16 @@ impl<'a> App<'a> {
         ]
         .to_vec();
 
-        let queue = self.queue.lock().unwrap();
-        let mut selected = queue.1.selected();
+        let hunks = self.hunks.lock().unwrap();
+        let mut selected = hunks.1.selected();
 
-        let table = ui.headered_table(frame, &mut selected, &queue.0, header, columns);
+        let hunks = hunks
+            .0
+            .iter()
+            .map(|(hunk, _)| hunk.clone())
+            .collect::<Vec<_>>();
+
+        let table = ui.headered_table(frame, &mut selected, &hunks, header, columns);
         if table.changed {
             ui.send_message(Message::ItemChanged {
                 state: TableState::new(selected),
@@ -328,55 +333,49 @@ impl<'a> App<'a> {
         }
     }
 
-    fn show_review_item(&self, ui: &mut Ui<Message<'a>>, frame: &mut Frame) {
-        let queue = self.queue.lock().unwrap();
+    fn show_hunk_item(&self, ui: &mut Ui<Message<'a>>, frame: &mut Frame) {
+        let hunks = self.hunks.lock().unwrap();
 
-        let selected = queue.1.selected();
-        let item = selected.and_then(|selected| queue.0.get(selected));
+        let selected = hunks.1.selected();
+        let hunk = selected.and_then(|selected| hunks.0.get(selected));
 
-        if let Some(item) = item {
-            let header = item.header();
-            let hunk = item
+        if let Some((hunk, _)) = hunk {
+            let empty_text = hunk
                 .hunk_text()
                 .unwrap_or(Text::raw("Nothing to show.").dark_gray());
 
             let mut cursor = selected
-                .and_then(|selected| self.items.get(&selected))
-                .map(|state| state.cursor)
+                .and_then(|selected| hunks.0.get(selected))
+                .map(|(_, state)| state.cursor)
                 .unwrap_or_default();
 
-            ui.composite(
-                Layout::vertical([Constraint::Length(3), Constraint::Min(1)]),
-                1,
-                |ui| {
-                    ui.columns(frame, header, Some(Borders::Top));
+            ui.composite(layout::container(), 1, |ui| {
+                ui.columns(frame, hunk.header(), Some(Borders::Top));
 
-                    if let Some(hunk) = item.hunk_text() {
-                        let diff =
-                            ui.text_view(frame, hunk, &mut cursor, Some(Borders::BottomSides));
-                        if diff.changed {
-                            ui.send_message(Message::ItemViewChanged {
-                                state: ReviewItemState { cursor },
-                            })
-                        }
-                    } else {
-                        ui.centered_text_view(frame, hunk, Some(Borders::BottomSides));
+                if let Some(text) = hunk.hunk_text() {
+                    let diff = ui.text_view(frame, text, &mut cursor, Some(Borders::BottomSides));
+                    if diff.changed {
+                        ui.send_message(Message::ItemViewChanged {
+                            state: HunkItemState { cursor },
+                        })
                     }
-                },
-            );
+                } else {
+                    ui.centered_text_view(frame, empty_text, Some(Borders::BottomSides));
+                }
+            });
         }
     }
 
     fn show_context_bar(&self, ui: &mut Ui<Message<'a>>, frame: &mut Frame) {
-        let queue = &self.queue.lock().unwrap().0;
+        let hunks = &self.hunks.lock().unwrap().0;
 
         let id = format!(" {} ", format::cob(&self.patch));
         let title = &self.title;
 
-        let hunks_total = queue.len();
-        let hunks_accepted = queue
+        let hunks_total = hunks.len();
+        let hunks_accepted = hunks
             .iter()
-            .filter(|item| *item.inner.state() == HunkState::Accepted)
+            .filter(|(hunk, _)| *hunk.inner.state() == HunkState::Accepted)
             .collect::<Vec<_>>()
             .len();
 
@@ -430,100 +429,69 @@ impl<'a> Show<Message<'a>> for App<'a> {
 
             match self.page {
                 AppPage::Main => {
-                    ui.layout(
-                        Layout::vertical([
-                            Constraint::Fill(1),
-                            Constraint::Length(1),
-                            Constraint::Length(1),
-                        ]),
-                        Some(0),
-                        |ui| {
-                            let group = ui.group(
-                                Layout::horizontal([
-                                    Constraint::Ratio(1, 3),
-                                    Constraint::Ratio(2, 3),
-                                ]),
-                                &mut page_focus,
-                                |ui| {
-                                    self.show_hunk_list(ui, frame);
-                                    self.show_review_item(ui, frame);
-                                },
-                            );
-                            if group.response.changed {
-                                ui.send_message(Message::WindowsChanged {
-                                    state: GroupState::new(self.windows.len(), page_focus),
-                                });
-                            }
+                    ui.layout(layout::page(), Some(0), |ui| {
+                        let group = ui.group(layout::list_item(), &mut page_focus, |ui| {
+                            self.show_hunk_list(ui, frame);
+                            self.show_hunk_item(ui, frame);
+                        });
+                        if group.response.changed {
+                            ui.send_message(Message::WindowsChanged {
+                                state: GroupState::new(self.windows.len(), page_focus),
+                            });
+                        }
 
-                            self.show_context_bar(ui, frame);
+                        self.show_context_bar(ui, frame);
 
-                            ui.shortcuts(
-                                frame,
-                                &[
-                                    ("c", "comment"),
-                                    ("a", "accept"),
-                                    ("d", "discard accepted"),
-                                    ("?", "help"),
-                                    ("q", "quit"),
-                                ],
-                                '∙',
-                            );
+                        ui.shortcuts(
+                            frame,
+                            &[
+                                ("c", "comment"),
+                                ("a", "accept"),
+                                ("d", "discard accepted"),
+                                ("?", "help"),
+                                ("q", "quit"),
+                            ],
+                            '∙',
+                        );
 
-                            if ui.input_global(|key| key == Key::Char('?')) {
-                                ui.send_message(Message::ShowHelp);
-                            }
-                            if ui.input_global(|key| key == Key::Char('c')) {
-                                ui.send_message(Message::Comment);
-                            }
-                            if ui.input_global(|key| key == Key::Char('a')) {
-                                ui.send_message(Message::Accept);
-                            }
-                            if ui.input_global(|key| key == Key::Char('d')) {
-                                ui.send_message(Message::Discard);
-                            }
-                        },
-                    );
+                        if ui.input_global(|key| key == Key::Char('?')) {
+                            ui.send_message(Message::ShowHelp);
+                        }
+                        if ui.input_global(|key| key == Key::Char('c')) {
+                            ui.send_message(Message::Comment);
+                        }
+                        if ui.input_global(|key| key == Key::Char('a')) {
+                            ui.send_message(Message::Accept);
+                        }
+                        if ui.input_global(|key| key == Key::Char('d')) {
+                            ui.send_message(Message::Discard);
+                        }
+                    });
                 }
                 AppPage::Help => {
-                    ui.group(
-                        Layout::vertical([
-                            Constraint::Fill(1),
-                            Constraint::Length(1),
-                            Constraint::Length(1),
-                        ]),
-                        &mut page_focus,
-                        |ui| {
-                            ui.composite(
-                                Layout::vertical([Constraint::Length(3), Constraint::Min(1)]),
-                                1,
-                                |ui| {
-                                    let header =
-                                        [Column::new(" Help ", Constraint::Fill(1))].to_vec();
-                                    let mut cursor = self.help.cursor();
+                    ui.group(layout::page(), &mut page_focus, |ui| {
+                        ui.composite(layout::container(), 1, |ui| {
+                            let header = [Column::new(" Help ", Constraint::Fill(1))].to_vec();
+                            let mut cursor = self.help.cursor();
 
-                                    ui.columns(frame, header, Some(Borders::Top));
-                                    let help = ui.text_view(
-                                        frame,
-                                        self.help.text().to_string(),
-                                        &mut cursor,
-                                        Some(Borders::BottomSides),
-                                    );
-                                    if help.changed {
-                                        ui.send_message(Message::HelpChanged {
-                                            state: TextViewState::new(
-                                                self.help.text().clone(),
-                                                cursor,
-                                            ),
-                                        })
-                                    }
-                                },
+                            ui.columns(frame, header, Some(Borders::Top));
+                            let help = ui.text_view(
+                                frame,
+                                self.help.text().to_string(),
+                                &mut cursor,
+                                Some(Borders::BottomSides),
                             );
+                            if help.changed {
+                                ui.send_message(Message::HelpChanged {
+                                    state: TextViewState::new(self.help.text().clone(), cursor),
+                                })
+                            }
+                        });
 
-                            self.show_context_bar(ui, frame);
+                        self.show_context_bar(ui, frame);
 
-                            ui.shortcuts(frame, &[("?", "close"), ("q", "quit")], '∙');
-                        },
-                    );
+                        ui.shortcuts(frame, &[("?", "close"), ("q", "quit")], '∙');
+                    });
 
                     if ui.input_global(|key| key == Key::Char('?')) {
                         ui.send_message(Message::ShowMain);
@@ -551,24 +519,26 @@ impl<'a> store::Update<Message<'a>> for App<'a> {
                 None
             }
             Message::ItemChanged { state } => {
-                let mut queue = self.queue.lock().unwrap();
-                queue.1 = state;
+                let mut hunks = self.hunks.lock().unwrap();
+                hunks.1 = state;
                 None
             }
             Message::ItemViewChanged { state } => {
-                let queue = self.queue.lock().unwrap();
-                if let Some(selected) = queue.1.selected() {
-                    self.items.insert(selected, state);
+                let mut hunks = self.hunks.lock().unwrap();
+                if let Some(selected) = hunks.1.selected() {
+                    if let Some((_, item_state)) = hunks.0.get_mut(selected) {
+                        *item_state = state;
+                    }
                 }
                 None
             }
             Message::Quit => Some(Exit { value: None }),
             Message::Comment => {
-                let queue = self.queue.lock().unwrap();
+                let hunks = self.hunks.lock().unwrap();
                 Some(Exit {
                     value: Some(Selection {
                         action: ReviewAction::Comment,
-                        hunk: queue.1.selected(),
+                        hunk: hunks.1.selected(),
                         args: None,
                     }),
                 })
@@ -647,8 +617,8 @@ mod test {
     use crate::test;
 
     impl<'a> App<'a> {
-        pub fn hunks(&self) -> Vec<HunkItem> {
-            self.queue.lock().unwrap().0.clone()
+        pub fn hunks(&self) -> Vec<(HunkItem, HunkItemState)> {
+            self.hunks.lock().unwrap().0.clone()
         }
     }
 
