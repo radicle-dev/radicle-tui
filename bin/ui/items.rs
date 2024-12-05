@@ -1,5 +1,4 @@
 use std::collections::HashMap;
-use std::path::{Path, PathBuf};
 use std::str::FromStr;
 
 use nom::bytes::complete::{tag, take};
@@ -42,8 +41,7 @@ use tui::ui::utils::LineMerger;
 use tui::ui::{span, Column};
 use tui::ui::{ToRow, ToTree};
 
-use crate::cob::{DiffStats, HunkStats, StatefulHunkItem};
-use crate::git::{Blob, Repo};
+use crate::git::{Blobs, DiffStats, HunkDiff, HunkStats, StatefulHunkDiff};
 use crate::ui;
 
 use super::super::git;
@@ -1095,7 +1093,7 @@ impl From<Vec<(EntryId, Comment<CodeLocation>)>> for HunkComments {
 #[derive(Clone, Debug)]
 pub struct HunkItem<'a> {
     /// The underlying hunk type and its current state (accepted / rejected).
-    pub inner: StatefulHunkItem,
+    pub inner: StatefulHunkDiff,
     /// Raw or highlighted hunk lines. Highlighting is expensive and needs to be asynchronously.
     /// Therefor, a hunks' lines need to stored separately.
     pub lines: Blobs<Vec<Line<'a>>>,
@@ -1103,20 +1101,20 @@ pub struct HunkItem<'a> {
     pub comments: HunkComments,
 }
 
-impl<'a> From<(&Repository, &Review, StatefulHunkItem)> for HunkItem<'a> {
-    fn from(value: (&Repository, &Review, StatefulHunkItem)) -> Self {
+impl<'a> From<(&Repository, &Review, StatefulHunkDiff)> for HunkItem<'a> {
+    fn from(value: (&Repository, &Review, StatefulHunkDiff)) -> Self {
         let (repo, review, item) = value;
         let hi = Highlighter::default();
         let hunk = item.hunk();
 
         let path = match &hunk {
-            crate::cob::HunkItem::Added { path, .. } => path,
-            crate::cob::HunkItem::Modified { path, .. } => path,
-            crate::cob::HunkItem::Deleted { path, .. } => path,
-            crate::cob::HunkItem::Copied { copied } => &copied.new_path,
-            crate::cob::HunkItem::Moved { moved } => &moved.new_path,
-            crate::cob::HunkItem::ModeChanged { path, .. } => path,
-            crate::cob::HunkItem::EofChanged { path, .. } => path,
+            HunkDiff::Added { path, .. } => path,
+            HunkDiff::Modified { path, .. } => path,
+            HunkDiff::Deleted { path, .. } => path,
+            HunkDiff::Copied { copied } => &copied.new_path,
+            HunkDiff::Moved { moved } => &moved.new_path,
+            HunkDiff::ModeChanged { path, .. } => path,
+            HunkDiff::EofChanged { path, .. } => path,
         };
 
         // TODO(erikli): Start with raw, non-highlighted lines and
@@ -1141,8 +1139,6 @@ impl<'a> From<(&Repository, &Review, StatefulHunkItem)> for HunkItem<'a> {
 
 impl<'a> ToRow<3> for HunkItem<'a> {
     fn to_row(&self) -> [Cell; 3] {
-        use crate::cob::HunkItem as Item;
-
         let build_stats_spans = |stats: &DiffStats| -> Vec<Span<'_>> {
             let mut cell = vec![];
 
@@ -1176,7 +1172,7 @@ impl<'a> ToRow<3> for HunkItem<'a> {
         };
 
         match &self.inner.hunk() {
-            Item::Added {
+            HunkDiff::Added {
                 path,
                 header: _,
                 new: _,
@@ -1198,7 +1194,7 @@ impl<'a> ToRow<3> for HunkItem<'a> {
                     Line::from(stats_cell).right_aligned().into(),
                 ]
             }
-            Item::Modified {
+            HunkDiff::Modified {
                 path,
                 header: _,
                 old: _,
@@ -1221,7 +1217,7 @@ impl<'a> ToRow<3> for HunkItem<'a> {
                     Line::from(stats_cell).right_aligned().into(),
                 ]
             }
-            Item::Deleted {
+            HunkDiff::Deleted {
                 path,
                 header: _,
                 old: _,
@@ -1243,7 +1239,7 @@ impl<'a> ToRow<3> for HunkItem<'a> {
                     Line::from(stats_cell).right_aligned().into(),
                 ]
             }
-            Item::Copied { copied } => {
+            HunkDiff::Copied { copied } => {
                 let stats = copied.diff.stats().copied().unwrap_or_default();
                 let stats_cell = [
                     build_stats_spans(&DiffStats::File(stats)),
@@ -1259,7 +1255,7 @@ impl<'a> ToRow<3> for HunkItem<'a> {
                     Line::from(stats_cell).right_aligned().into(),
                 ]
             }
-            Item::Moved { moved } => {
+            HunkDiff::Moved { moved } => {
                 let stats = moved.diff.stats().copied().unwrap_or_default();
                 let stats_cell = [
                     build_stats_spans(&DiffStats::File(stats)),
@@ -1275,7 +1271,7 @@ impl<'a> ToRow<3> for HunkItem<'a> {
                     Line::from(stats_cell).right_aligned().into(),
                 ]
             }
-            Item::EofChanged {
+            HunkDiff::EofChanged {
                 path,
                 header: _,
                 old: _,
@@ -1290,7 +1286,7 @@ impl<'a> ToRow<3> for HunkItem<'a> {
                     .right_aligned()
                     .into(),
             ],
-            Item::ModeChanged {
+            HunkDiff::ModeChanged {
                 path,
                 header: _,
                 old: _,
@@ -1324,7 +1320,7 @@ impl<'a> HunkItem<'a> {
         };
 
         match &self.inner.hunk() {
-            crate::cob::HunkItem::Added {
+            HunkDiff::Added {
                 path,
                 header: _,
                 new: _,
@@ -1352,7 +1348,7 @@ impl<'a> HunkItem<'a> {
                 header.to_vec()
             }
 
-            crate::cob::HunkItem::Modified {
+            HunkDiff::Modified {
                 path,
                 header: _,
                 old: _,
@@ -1381,7 +1377,7 @@ impl<'a> HunkItem<'a> {
                 header.to_vec()
             }
 
-            crate::cob::HunkItem::Deleted {
+            HunkDiff::Deleted {
                 path,
                 header: _,
                 old: _,
@@ -1408,7 +1404,7 @@ impl<'a> HunkItem<'a> {
 
                 header.to_vec()
             }
-            crate::cob::HunkItem::Copied { copied } => {
+            HunkDiff::Copied { copied } => {
                 let path = Line::from(
                     [
                         ui::span::pretty_path(&copied.old_path, false, true),
@@ -1433,7 +1429,7 @@ impl<'a> HunkItem<'a> {
 
                 header.to_vec()
             }
-            crate::cob::HunkItem::Moved { moved } => {
+            HunkDiff::Moved { moved } => {
                 let path = Line::from(
                     [
                         ui::span::pretty_path(&moved.old_path, false, true),
@@ -1459,7 +1455,7 @@ impl<'a> HunkItem<'a> {
                 header.to_vec()
             }
 
-            crate::cob::HunkItem::EofChanged {
+            HunkDiff::EofChanged {
                 path,
                 header: _,
                 old: _,
@@ -1481,7 +1477,7 @@ impl<'a> HunkItem<'a> {
 
                 header.to_vec()
             }
-            crate::cob::HunkItem::ModeChanged {
+            HunkDiff::ModeChanged {
                 path,
                 header: _,
                 old: _,
@@ -1506,12 +1502,10 @@ impl<'a> HunkItem<'a> {
     }
 
     pub fn hunk_text(&'a self) -> Option<Text<'a>> {
-        use crate::cob::HunkItem;
-
         match &self.inner.hunk() {
-            HunkItem::Added { hunk, .. }
-            | HunkItem::Modified { hunk, .. }
-            | HunkItem::Deleted { hunk, .. } => {
+            HunkDiff::Added { hunk, .. }
+            | HunkDiff::Modified { hunk, .. }
+            | HunkDiff::Deleted { hunk, .. } => {
                 let mut lines = hunk
                     .as_ref()
                     .map(|hunk| Text::from(hunk.to_text(&self.lines)));
@@ -1582,103 +1576,6 @@ impl<'a> HunkItem<'a> {
                 lines
             }
             _ => None,
-        }
-    }
-}
-
-/// Blobs passed down to the hunk renderer.
-#[derive(Clone, Debug)]
-pub struct Blobs<T> {
-    pub old: Option<T>,
-    pub new: Option<T>,
-}
-
-impl<T> Blobs<T> {
-    pub fn new(old: Option<T>, new: Option<T>) -> Self {
-        Self { old, new }
-    }
-}
-
-impl<'a> Blobs<(PathBuf, Blob)> {
-    pub fn highlight(self, mut hi: Highlighter) -> Blobs<Vec<Line<'a>>> {
-        let mut blobs = Blobs::default();
-        if let Some((path, Blob::Plain(content))) = &self.old {
-            blobs.old = hi
-                .highlight(path, content)
-                .map(|hi| {
-                    hi.into_iter()
-                        .map(|line| Line::raw(line.to_string()))
-                        .collect::<Vec<_>>()
-                })
-                .ok();
-        }
-        if let Some((path, Blob::Plain(content))) = &self.new {
-            blobs.new = hi
-                .highlight(path, content)
-                .map(|hi| {
-                    hi.into_iter()
-                        .map(|line| Line::raw(line.to_string()))
-                        .collect::<Vec<_>>()
-                })
-                .ok();
-        }
-        blobs
-    }
-
-    pub fn _raw(self) -> Blobs<Vec<Line<'a>>> {
-        let mut blobs = Blobs::default();
-        if let Some((_, Blob::Plain(content))) = &self.old {
-            blobs.old = std::str::from_utf8(content)
-                .map(|lines| {
-                    lines
-                        .lines()
-                        .map(terminal::Line::new)
-                        .map(|line| Line::raw(line.to_string()))
-                        .collect::<Vec<_>>()
-                })
-                .ok();
-        }
-        if let Some((_, Blob::Plain(content))) = &self.new {
-            blobs.new = std::str::from_utf8(content)
-                .map(|lines| {
-                    lines
-                        .lines()
-                        .map(terminal::Line::new)
-                        .map(|line| Line::raw(line.to_string()))
-                        .collect::<Vec<_>>()
-                })
-                .ok();
-        }
-        blobs
-    }
-
-    pub fn from_paths<R: Repo>(
-        old: Option<(&Path, Oid)>,
-        new: Option<(&Path, Oid)>,
-        repo: &R,
-    ) -> Blobs<(PathBuf, Blob)> {
-        Blobs::new(
-            old.and_then(|(path, oid)| {
-                repo.blob(oid)
-                    .ok()
-                    .or_else(|| repo.file(path))
-                    .map(|blob| (path.to_path_buf(), blob))
-            }),
-            new.and_then(|(path, oid)| {
-                repo.blob(oid)
-                    .ok()
-                    .or_else(|| repo.file(path))
-                    .map(|blob| (path.to_path_buf(), blob))
-            }),
-        )
-    }
-}
-
-impl<T> Default for Blobs<T> {
-    fn default() -> Self {
-        Self {
-            old: None,
-            new: None,
         }
     }
 }

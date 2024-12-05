@@ -3,7 +3,7 @@ use std::path::Path;
 use ratatui::prelude::Stylize;
 use ratatui::text::Span;
 
-use crate::cob::HunkState;
+use crate::git::HunkState;
 
 use radicle_tui as tui;
 

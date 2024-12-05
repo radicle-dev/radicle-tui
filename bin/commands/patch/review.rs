@@ -36,8 +36,8 @@ use tui::ui::span;
 use tui::ui::Column;
 use tui::{Channel, Exit};
 
-use crate::cob::HunkState;
-use crate::cob::StatefulHunkItem;
+use crate::git::HunkState;
+use crate::git::StatefulHunkDiff;
 use crate::tui_patch::review::builder::DiffUtil;
 use crate::ui::format;
 use crate::ui::items::HunkItem;
@@ -202,7 +202,7 @@ impl<'a> App<'a> {
             .iter()
             .map(|(_, item, state)| {
                 (
-                    HunkItem::from((&repo, &review, StatefulHunkItem::from((item, state)))),
+                    HunkItem::from((&repo, &review, StatefulHunkDiff::from((item, state)))),
                     HunkItemState {
                         cursor: Position::new(0, 0),
                     },

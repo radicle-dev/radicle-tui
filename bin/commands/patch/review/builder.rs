@@ -28,13 +28,13 @@ use radicle_cli::git::unified_diff::{self, FileHeader};
 use radicle_cli::git::unified_diff::{Encode, HunkHeader};
 use radicle_cli::terminal as term;
 
-use crate::cob::{HunkItem, HunkState};
+use crate::git::{HunkDiff, HunkState};
 
 /// Queue of items (usually hunks) left to review.
 #[derive(Clone, Default)]
 pub struct ReviewQueue {
     /// Hunks left to review.
-    queue: VecDeque<(usize, HunkItem, HunkState)>,
+    queue: VecDeque<(usize, HunkDiff, HunkState)>,
 }
 
 impl ReviewQueue {
@@ -61,14 +61,14 @@ impl ReviewQueue {
 
         match file {
             FileDiff::Moved(moved) => {
-                self.add_item(HunkItem::Moved { moved }, state);
+                self.add_item(HunkDiff::Moved { moved }, state);
             }
             FileDiff::Copied(copied) => {
-                self.add_item(HunkItem::Copied { copied }, state);
+                self.add_item(HunkDiff::Copied { copied }, state);
             }
             FileDiff::Added(a) => {
                 self.add_item(
-                    HunkItem::Added {
+                    HunkDiff::Added {
                         path: a.path,
                         header: header.clone(),
                         new: a.new,
@@ -88,7 +88,7 @@ impl ReviewQueue {
             }
             FileDiff::Deleted(d) => {
                 self.add_item(
-                    HunkItem::Deleted {
+                    HunkDiff::Deleted {
                         path: d.path,
                         header: header.clone(),
                         old: d.old,
@@ -109,7 +109,7 @@ impl ReviewQueue {
             FileDiff::Modified(m) => {
                 if m.old.mode != m.new.mode {
                     self.add_item(
-                        HunkItem::ModeChanged {
+                        HunkDiff::ModeChanged {
                             path: m.path.clone(),
                             header: header.clone(),
                             old: m.old.clone(),
@@ -124,7 +124,7 @@ impl ReviewQueue {
                     }
                     DiffContent::Binary => {
                         self.add_item(
-                            HunkItem::Modified {
+                            HunkDiff::Modified {
                                 path: m.path.clone(),
                                 header: header.clone(),
                                 old: m.old.clone(),
@@ -142,7 +142,7 @@ impl ReviewQueue {
                     } => {
                         for hunk in hunks {
                             self.add_item(
-                                HunkItem::Modified {
+                                HunkDiff::Modified {
                                     path: m.path.clone(),
                                     header: header.clone(),
                                     old: m.old.clone(),
@@ -155,7 +155,7 @@ impl ReviewQueue {
                         }
                         if let EofNewLine::OldMissing | EofNewLine::NewMissing = eof {
                             self.add_item(
-                                HunkItem::EofChanged {
+                                HunkDiff::EofChanged {
                                     path: m.path.clone(),
                                     header: header.clone(),
                                     old: m.old.clone(),
@@ -171,13 +171,13 @@ impl ReviewQueue {
         }
     }
 
-    fn add_item(&mut self, item: HunkItem, state: HunkState) {
+    fn add_item(&mut self, item: HunkDiff, state: HunkState) {
         self.queue.push_back((self.queue.len(), item, state));
     }
 }
 
 impl std::ops::Deref for ReviewQueue {
-    type Target = VecDeque<(usize, HunkItem, HunkState)>;
+    type Target = VecDeque<(usize, HunkDiff, HunkState)>;
 
     fn deref(&self) -> &Self::Target {
         &self.queue
@@ -191,7 +191,7 @@ impl std::ops::DerefMut for ReviewQueue {
 }
 
 impl Iterator for ReviewQueue {
-    type Item = (usize, HunkItem, HunkState);
+    type Item = (usize, HunkDiff, HunkState);
 
     fn next(&mut self) -> Option<Self::Item> {
         self.queue.pop_front()
@@ -206,14 +206,14 @@ pub struct FileReviewBuilder {
 }
 
 impl FileReviewBuilder {
-    pub fn new(item: &HunkItem) -> Self {
+    pub fn new(item: &HunkDiff) -> Self {
         Self {
             delta: 0,
             header: item.file_header(),
         }
     }
 
-    pub fn set_item(&mut self, item: &HunkItem) -> &mut Self {
+    pub fn set_item(&mut self, item: &HunkDiff) -> &mut Self {
         let header = item.file_header();
         if self.header != header {
             self.header = header;
@@ -222,7 +222,7 @@ impl FileReviewBuilder {
         self
     }
 
-    pub fn item_diff(&mut self, item: &HunkItem) -> Result<git::raw::Diff, Error> {
+    pub fn item_diff(&mut self, item: &HunkDiff) -> Result<git::raw::Diff, Error> {
         let mut buf = Vec::new();
         let mut writer = unified_diff::Writer::new(&mut buf);
         writer.encode(&self.header)?;
