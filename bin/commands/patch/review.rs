@@ -120,15 +120,15 @@ impl Tui {
 #[derive(Clone, Debug)]
 pub enum Message<'a> {
     ShowMain,
-    WindowsChanged { state: GroupState },
-    ItemChanged { state: TableState },
-    ItemViewChanged { state: HunkItemState },
-    Quit,
+    MainGroupChanged { state: GroupState },
+    HunkChanged { state: TableState },
+    HunkViewChanged { state: HunkItemState },
+    ShowHelp,
+    HelpChanged { state: TextViewState<'a> },
     Comment,
     Accept,
     Discard,
-    ShowHelp,
-    HelpChanged { state: TextViewState<'a> },
+    Quit,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq, Hash)]
@@ -163,7 +163,7 @@ pub struct App<'a> {
     /// Current app page.
     page: AppPage,
     /// State of panes widget on the main page.
-    windows: GroupState,
+    group: GroupState,
     /// State of text view widget on the help page.
     help: TextViewState<'a>,
 }
@@ -219,7 +219,7 @@ impl<'a> App<'a> {
             revision,
             hunks: Arc::new(Mutex::new((hunks, TableState::new(Some(0))))),
             page: AppPage::Main,
-            windows: GroupState::new(2, Some(0)),
+            group: GroupState::new(2, Some(0)),
             help: TextViewState::new(help_text(), Position::default()),
         };
 
@@ -327,13 +327,13 @@ impl<'a> App<'a> {
 
         let table = ui.headered_table(frame, &mut selected, &hunks, header, columns);
         if table.changed {
-            ui.send_message(Message::ItemChanged {
+            ui.send_message(Message::HunkChanged {
                 state: TableState::new(selected),
             })
         }
     }
 
-    fn show_hunk_item(&self, ui: &mut Ui<Message<'a>>, frame: &mut Frame) {
+    fn show_hunk(&self, ui: &mut Ui<Message<'a>>, frame: &mut Frame) {
         let hunks = self.hunks.lock().unwrap();
 
         let selected = hunks.1.selected();
@@ -355,7 +355,7 @@ impl<'a> App<'a> {
                 if let Some(text) = hunk.hunk_text() {
                     let diff = ui.text_view(frame, text, &mut cursor, Some(Borders::BottomSides));
                     if diff.changed {
-                        ui.send_message(Message::ItemViewChanged {
+                        ui.send_message(Message::HunkViewChanged {
                             state: HunkItemState { cursor },
                         })
                     }
@@ -425,18 +425,18 @@ impl<'a> App<'a> {
 impl<'a> Show<Message<'a>> for App<'a> {
     fn show(&self, ctx: &Context<Message<'a>>, frame: &mut Frame) -> Result<(), anyhow::Error> {
         Window::default().show(ctx, |ui| {
-            let mut page_focus = self.windows.focus();
+            let mut page_focus = self.group.focus();
 
             match self.page {
                 AppPage::Main => {
                     ui.layout(layout::page(), Some(0), |ui| {
                         let group = ui.group(layout::list_item(), &mut page_focus, |ui| {
                             self.show_hunk_list(ui, frame);
-                            self.show_hunk_item(ui, frame);
+                            self.show_hunk(ui, frame);
                         });
                         if group.response.changed {
-                            ui.send_message(Message::WindowsChanged {
-                                state: GroupState::new(self.windows.len(), page_focus),
+                            ui.send_message(Message::MainGroupChanged {
+                                state: GroupState::new(self.group.len(), page_focus),
                             });
                         }
 
@@ -514,16 +514,24 @@ impl<'a> store::Update<Message<'a>> for App<'a> {
         log::info!("Received message: {:?}", message);
 
         match message {
-            Message::WindowsChanged { state } => {
-                self.windows = state;
+            Message::ShowMain => {
+                self.page = AppPage::Main;
                 None
             }
-            Message::ItemChanged { state } => {
+            Message::ShowHelp => {
+                self.page = AppPage::Help;
+                None
+            }
+            Message::MainGroupChanged { state } => {
+                self.group = state;
+                None
+            }
+            Message::HunkChanged { state } => {
                 let mut hunks = self.hunks.lock().unwrap();
                 hunks.1 = state;
                 None
             }
-            Message::ItemViewChanged { state } => {
+            Message::HunkViewChanged { state } => {
                 let mut hunks = self.hunks.lock().unwrap();
                 if let Some(selected) = hunks.1.selected() {
                     if let Some((_, item_state)) = hunks.0.get_mut(selected) {
@@ -532,7 +540,10 @@ impl<'a> store::Update<Message<'a>> for App<'a> {
                 }
                 None
             }
-            Message::Quit => Some(Exit { value: None }),
+            Message::HelpChanged { state } => {
+                self.help = state;
+                None
+            }
             Message::Comment => {
                 let hunks = self.hunks.lock().unwrap();
                 Some(Exit {
@@ -559,18 +570,7 @@ impl<'a> store::Update<Message<'a>> for App<'a> {
                 let _ = self.reload_states();
                 None
             }
-            Message::ShowMain => {
-                self.page = AppPage::Main;
-                None
-            }
-            Message::ShowHelp => {
-                self.page = AppPage::Help;
-                None
-            }
-            Message::HelpChanged { state } => {
-                self.help = state;
-                None
-            }
+            Message::Quit => Some(Exit { value: None }),
         }
     }
 }
@@ -723,7 +723,7 @@ mod test {
         let patch = test::fixtures::patch(&alice, &branch, &mut patches)?;
 
         let mut app = fixtures::app(&alice, patch)?;
-        app.update(Message::ItemChanged {
+        app.update(Message::HunkChanged {
             state: TableState::new(Some(1)),
         });
 
