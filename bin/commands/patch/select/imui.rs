@@ -12,7 +12,7 @@ use ratatui::Frame;
 use radicle_tui as tui;
 
 use tui::ui::im;
-use tui::ui::im::widget::{GroupState, TableState, TextEditState, TextViewState, Window};
+use tui::ui::im::widget::{PanesState, TableState, TextEditState, TextViewState, Window};
 use tui::ui::im::Borders;
 use tui::ui::im::Show;
 use tui::ui::{BufferedValue, Column};
@@ -59,7 +59,7 @@ pub enum Message<'a> {
         state: TableState,
     },
     MainGroupChanged {
-        state: GroupState,
+        state: PanesState,
     },
     PageChanged {
         page: Page,
@@ -92,7 +92,7 @@ pub struct App<'a> {
     storage: Storage,
     mode: Mode,
     page: Page,
-    main_group: GroupState,
+    main_group: PanesState,
     patches: TableState,
     search: BufferedValue<TextEditState>,
     show_search: bool,
@@ -125,7 +125,7 @@ impl<'a> TryFrom<&Context> for App<'a> {
             },
             mode: context.mode.clone(),
             page: Page::Main,
-            main_group: GroupState::new(3, Some(0)),
+            main_group: PanesState::new(3, Some(0)),
             patches: TableState::new(Some(0)),
             search: BufferedValue::new(TextEditState {
                 text: search.clone(),
@@ -180,12 +180,12 @@ impl<'a> store::Update<Message<'a>> for App<'a> {
                 None
             }
             Message::ShowSearch => {
-                self.main_group = GroupState::new(3, None);
+                self.main_group = PanesState::new(3, None);
                 self.show_search = true;
                 None
             }
             Message::HideSearch { apply } => {
-                self.main_group = GroupState::new(3, Some(0));
+                self.main_group = PanesState::new(3, Some(0));
                 self.show_search = false;
 
                 if apply {
@@ -223,11 +223,11 @@ impl<'a> Show<Message<'a>> for App<'a> {
                     let mut page_focus = if show_search { Some(1) } else { Some(0) };
                     let mut group_focus = self.main_group.focus();
 
-                    ui.group(
+                    ui.panes(
                         Layout::vertical([Constraint::Fill(1), Constraint::Length(2)]),
                         &mut page_focus,
                         |ui| {
-                            let group = ui.group(
+                            let group = ui.panes(
                                 im::Layout::Expandable3 { left_only: true },
                                 &mut group_focus,
                                 |ui| {
@@ -249,7 +249,7 @@ impl<'a> Show<Message<'a>> for App<'a> {
                             );
                             if group.response.changed {
                                 ui.send_message(Message::MainGroupChanged {
-                                    state: GroupState::new(3, group_focus),
+                                    state: PanesState::new(3, group_focus),
                                 });
                             }
 

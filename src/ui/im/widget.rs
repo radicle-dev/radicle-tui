@@ -61,12 +61,12 @@ impl Window {
 }
 
 #[derive(Clone, Debug)]
-pub struct GroupState {
+pub struct PanesState {
     len: usize,
     focus: Option<usize>,
 }
 
-impl GroupState {
+impl PanesState {
     pub fn new(len: usize, focus: Option<usize>) -> Self {
         Self { len, focus }
     }
@@ -94,12 +94,12 @@ impl GroupState {
     }
 }
 
-pub struct Group<'a> {
+pub struct Panes<'a> {
     focus: &'a mut Option<usize>,
     len: usize,
 }
 
-impl<'a> Group<'a> {
+impl<'a> Panes<'a> {
     pub fn new(len: usize, focus: &'a mut Option<usize>) -> Self {
         Self { len, focus }
     }
@@ -125,7 +125,7 @@ impl<'a> Group<'a> {
     {
         let mut response = Response::default();
 
-        let mut state = GroupState {
+        let mut state = PanesState {
             focus: *self.focus,
             len: self.len,
         };

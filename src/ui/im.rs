@@ -452,7 +452,7 @@ impl<M> Ui<M>
 where
     M: Clone,
 {
-    pub fn group<R>(
+    pub fn panes<R>(
         &mut self,
         layout: impl Into<Layout>,
         focus: &mut Option<usize>,
@@ -470,7 +470,7 @@ where
             ..self.child_ui(area, layout)
         };
 
-        widget::Group::new(len, focus).show(&mut child_ui, add_contents)
+        widget::Panes::new(len, focus).show(&mut child_ui, add_contents)
     }
 
     pub fn composite<R>(
