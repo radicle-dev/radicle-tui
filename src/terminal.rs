@@ -83,7 +83,7 @@ impl TryFrom<Viewport> for Terminal {
 }
 
 /// FIXME Remove workaround after a new `ratatui` version with
-/// https://github.com/ratatui-org/ratatui/pull/981/ included was released.
+/// <https://github.com/ratatui-org/ratatui/pull/981/> included was released.
 pub struct TermionBackendExt<W>
 where
     W: Write,

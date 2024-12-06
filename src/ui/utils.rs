@@ -132,7 +132,7 @@ fn another_function() {
         let mut actual = String::new();
         for (idx, line) in lines.iter().enumerate() {
             if idx == lines.len() - 1 {
-                actual.push_str(&line.to_string());
+                actual.push_str(line);
             } else {
                 actual.push_str(&format!("{}\n", line));
             }
