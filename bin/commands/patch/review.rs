@@ -28,7 +28,7 @@ use radicle::Storage;
 use radicle_tui as tui;
 
 use tui::store;
-use tui::ui::im::widget::GroupState;
+use tui::ui::im::widget::PanesState;
 use tui::ui::im::widget::{TableState, TextViewState, Window};
 use tui::ui::im::Ui;
 use tui::ui::im::{Borders, Context, Show};
@@ -120,7 +120,7 @@ impl Tui {
 #[derive(Clone, Debug)]
 pub enum Message<'a> {
     ShowMain,
-    MainGroupChanged { state: GroupState },
+    PanesChanged { state: PanesState },
     HunkChanged { state: TableState },
     HunkViewChanged { state: HunkItemState },
     ShowHelp,
@@ -163,7 +163,7 @@ pub struct App<'a> {
     /// Current app page.
     page: AppPage,
     /// State of panes widget on the main page.
-    group: GroupState,
+    group: PanesState,
     /// State of text view widget on the help page.
     help: TextViewState<'a>,
 }
@@ -219,7 +219,7 @@ impl<'a> App<'a> {
             revision,
             hunks: Arc::new(Mutex::new((hunks, TableState::new(Some(0))))),
             page: AppPage::Main,
-            group: GroupState::new(2, Some(0)),
+            group: PanesState::new(2, Some(0)),
             help: TextViewState::new(help_text(), Position::default()),
         };
 
@@ -430,13 +430,13 @@ impl<'a> Show<Message<'a>> for App<'a> {
             match self.page {
                 AppPage::Main => {
                     ui.layout(layout::page(), Some(0), |ui| {
-                        let group = ui.group(layout::list_item(), &mut page_focus, |ui| {
+                        let group = ui.panes(layout::list_item(), &mut page_focus, |ui| {
                             self.show_hunk_list(ui, frame);
                             self.show_hunk(ui, frame);
                         });
                         if group.response.changed {
-                            ui.send_message(Message::MainGroupChanged {
-                                state: GroupState::new(self.group.len(), page_focus),
+                            ui.send_message(Message::PanesChanged {
+                                state: PanesState::new(self.group.len(), page_focus),
                             });
                         }
 
@@ -469,7 +469,7 @@ impl<'a> Show<Message<'a>> for App<'a> {
                     });
                 }
                 AppPage::Help => {
-                    ui.group(layout::page(), &mut page_focus, |ui| {
+                    ui.panes(layout::page(), &mut page_focus, |ui| {
                         ui.composite(layout::container(), 1, |ui| {
                             let header = [Column::new(" Help ", Constraint::Fill(1))].to_vec();
                             let mut cursor = self.help.cursor();
@@ -522,7 +522,7 @@ impl<'a> store::Update<Message<'a>> for App<'a> {
                 self.page = AppPage::Help;
                 None
             }
-            Message::MainGroupChanged { state } => {
+            Message::PanesChanged { state } => {
                 self.group = state;
                 None
             }
@@ -593,6 +593,9 @@ review is done, it needs to be finalized via `rad patch review --accept | --reje
 `PageDown`  move cursor one page down
 `Home`      move cursor to the first line
 `End`       move cursor to the last line
+
+`Tab`       Focus next pane
+`BackTab`   Focus previous pane
 
 `?`         toogle help
 `q`         quit / cancel
