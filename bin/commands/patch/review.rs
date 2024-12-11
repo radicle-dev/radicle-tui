@@ -142,7 +142,8 @@ pub struct HunkItemState {
     cursor: Position,
 }
 
-pub type HunkItems<'a> = Vec<(HunkItem<'a>, HunkItemState)>;
+pub type HunkItems<'a> = Vec<HunkItem<'a>>;
+pub type HunkItemStates = Vec<HunkItemState>;
 
 #[derive(Clone)]
 pub struct App<'a> {
@@ -158,8 +159,8 @@ pub struct App<'a> {
     title: String,
     /// Revision this review belongs to.
     revision: Revision,
-    /// List of all hunks and its table widget state.
-    hunks: Arc<Mutex<(HunkItems<'a>, TableState)>>,
+    /// All hunks, their states and the lists' table widget state.
+    hunks: Arc<Mutex<(HunkItems<'a>, HunkItemStates, TableState)>>,
     /// Current app page.
     page: AppPage,
     /// State of panes widget on the main page.
@@ -198,15 +199,16 @@ impl<'a> App<'a> {
         hunks: ReviewQueue,
     ) -> Result<Self, anyhow::Error> {
         let repo = storage.repository(rid)?;
+        let states = hunks
+            .iter()
+            .map(|_| HunkItemState {
+                cursor: Position::new(0, 0),
+            })
+            .collect::<Vec<_>>();
         let hunks = hunks
             .iter()
             .map(|(_, item, state)| {
-                (
-                    HunkItem::from((&repo, &review, StatefulHunkDiff::from((item, state)))),
-                    HunkItemState {
-                        cursor: Position::new(0, 0),
-                    },
-                )
+                HunkItem::from((&repo, &review, StatefulHunkDiff::from((item, state))))
             })
             .collect::<Vec<_>>();
 
@@ -217,7 +219,7 @@ impl<'a> App<'a> {
             patch,
             title,
             revision,
-            hunks: Arc::new(Mutex::new((hunks, TableState::new(Some(0))))),
+            hunks: Arc::new(Mutex::new((hunks, states, TableState::new(Some(0))))),
             page: AppPage::Main,
             group: PanesState::new(2, Some(0)),
             help: TextViewState::new(help_text(), Position::default()),
@@ -237,7 +239,7 @@ impl<'a> App<'a> {
             let mut brain = Brain::load_or_new(self.patch, &self.revision, repo.raw(), signer)?;
             let hunks = self.hunks.lock().unwrap().0.clone();
 
-            if let Some((hunk, _)) = hunks.get(selected) {
+            if let Some(hunk) = hunks.get(selected) {
                 let mut file: Option<FileReviewBuilder> = None;
                 let file = match file.as_mut() {
                     Some(fr) => fr.set_item(hunk.inner.hunk()),
@@ -289,7 +291,7 @@ impl<'a> App<'a> {
 
         let mut queue = self.hunks.lock().unwrap();
         for (idx, new_state) in states.iter().enumerate() {
-            if let Some((hunk, _)) = queue.0.get_mut(idx) {
+            if let Some(hunk) = queue.0.get_mut(idx) {
                 *hunk.inner.state_mut() = new_state.clone();
             }
         }
@@ -298,7 +300,7 @@ impl<'a> App<'a> {
     }
 
     pub fn selected_hunk_idx(&self) -> Option<usize> {
-        self.hunks.lock().unwrap().1.selected()
+        self.hunks.lock().unwrap().2.selected()
     }
 
     pub fn repo(&self) -> Result<Repository> {
@@ -317,15 +319,9 @@ impl<'a> App<'a> {
         .to_vec();
 
         let hunks = self.hunks.lock().unwrap();
-        let mut selected = hunks.1.selected();
+        let mut selected = hunks.2.selected();
 
-        let hunks = hunks
-            .0
-            .iter()
-            .map(|(hunk, _)| hunk.clone())
-            .collect::<Vec<_>>();
-
-        let table = ui.headered_table(frame, &mut selected, &hunks, header, columns);
+        let table = ui.headered_table(frame, &mut selected, &hunks.0, header, columns);
         if table.changed {
             ui.send_message(Message::HunkChanged {
                 state: TableState::new(selected),
@@ -336,17 +332,17 @@ impl<'a> App<'a> {
     fn show_hunk(&self, ui: &mut Ui<Message<'a>>, frame: &mut Frame) {
         let hunks = self.hunks.lock().unwrap();
 
-        let selected = hunks.1.selected();
+        let selected = hunks.2.selected();
         let hunk = selected.and_then(|selected| hunks.0.get(selected));
 
-        if let Some((hunk, _)) = hunk {
+        if let Some(hunk) = hunk {
             let empty_text = hunk
                 .hunk_text()
                 .unwrap_or(Text::raw("Nothing to show.").dark_gray());
 
             let mut cursor = selected
-                .and_then(|selected| hunks.0.get(selected))
-                .map(|(_, state)| state.cursor)
+                .and_then(|selected| hunks.1.get(selected))
+                .map(|state| state.cursor)
                 .unwrap_or_default();
 
             ui.composite(layout::container(), 1, |ui| {
@@ -375,7 +371,7 @@ impl<'a> App<'a> {
         let hunks_total = hunks.len();
         let hunks_accepted = hunks
             .iter()
-            .filter(|(hunk, _)| *hunk.inner.state() == HunkState::Accepted)
+            .filter(|hunk| *hunk.inner.state() == HunkState::Accepted)
             .collect::<Vec<_>>()
             .len();
 
@@ -528,13 +524,13 @@ impl<'a> store::Update<Message<'a>> for App<'a> {
             }
             Message::HunkChanged { state } => {
                 let mut hunks = self.hunks.lock().unwrap();
-                hunks.1 = state;
+                hunks.2 = state;
                 None
             }
             Message::HunkViewChanged { state } => {
                 let mut hunks = self.hunks.lock().unwrap();
-                if let Some(selected) = hunks.1.selected() {
-                    if let Some((_, item_state)) = hunks.0.get_mut(selected) {
+                if let Some(selected) = hunks.2.selected() {
+                    if let Some(item_state) = hunks.1.get_mut(selected) {
                         *item_state = state;
                     }
                 }
@@ -549,7 +545,7 @@ impl<'a> store::Update<Message<'a>> for App<'a> {
                 Some(Exit {
                     value: Some(Selection {
                         action: ReviewAction::Comment,
-                        hunk: hunks.1.selected(),
+                        hunk: hunks.2.selected(),
                         args: None,
                     }),
                 })
@@ -620,7 +616,7 @@ mod test {
     use crate::test;
 
     impl<'a> App<'a> {
-        pub fn hunks(&self) -> Vec<(HunkItem, HunkItemState)> {
+        pub fn hunks(&self) -> Vec<HunkItem> {
             self.hunks.lock().unwrap().0.clone()
         }
     }
