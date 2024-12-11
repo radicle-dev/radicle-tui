@@ -16,15 +16,14 @@ use ratatui::style::Stylize;
 use ratatui::text::Text;
 use ratatui::{Frame, Viewport};
 
+use radicle::crypto::Signer;
 use radicle::identity::RepoId;
 use radicle::patch::PatchId;
 use radicle::patch::Review;
 use radicle::patch::Revision;
 use radicle::storage::ReadStorage;
 use radicle::storage::WriteRepository;
-use radicle::Profile;
-
-use radicle_cli::terminal;
+use radicle::Storage;
 
 use radicle_tui as tui;
 
@@ -63,49 +62,53 @@ pub struct Selection {
 }
 
 pub struct Tui {
+    pub storage: Storage,
+    pub rid: RepoId,
+    pub signer: Box<dyn Signer>,
     pub patch: PatchId,
     pub title: String,
     pub revision: Revision,
     pub review: Review,
     pub queue: ReviewQueue,
-    pub profile: Profile,
-    pub rid: RepoId,
 }
 
 impl Tui {
+    #[allow(clippy::too_many_arguments)]
     pub fn new(
+        storage: Storage,
+        rid: RepoId,
+        signer: Box<dyn Signer>,
         patch: PatchId,
         title: String,
         revision: Revision,
         review: Review,
         queue: ReviewQueue,
-        profile: Profile,
-        rid: RepoId,
     ) -> Self {
         Self {
+            storage,
+            rid,
+            signer,
             patch,
             title,
             revision,
             review,
             queue,
-            rid,
-            profile,
         }
     }
 
-    pub async fn run(&self) -> Result<Option<Selection>> {
+    pub async fn run(self) -> Result<Option<Selection>> {
         let viewport = Viewport::Fullscreen;
-        let _ = self.profile.signer()?;
 
         let channel = Channel::default();
         let state = App::new(
-            self.patch,
-            self.title.clone(),
-            self.revision.clone(),
-            self.review.clone(),
-            self.queue.clone(),
-            self.profile.clone(),
+            self.storage,
             self.rid,
+            self.signer,
+            self.patch,
+            self.title,
+            self.revision,
+            self.review,
+            self.queue,
         )?;
 
         tui::im(state, viewport, channel).await
@@ -139,45 +142,60 @@ pub struct ReviewItemState {
 
 #[derive(Clone)]
 pub struct App<'a> {
-    patch: PatchId,
-    title: String,
-    revision: Revision,
-    queue: Arc<Mutex<(Vec<HunkItem<'a>>, TableState)>>,
-    items: HashMap<usize, ReviewItemState>,
-    profile: Profile,
+    /// The nodes' storage.
+    storage: Storage,
+    /// The repository to operate on.
     rid: RepoId,
+    /// Signer of all writes to the storage or repo.
+    signer: Arc<Mutex<Box<dyn Signer>>>,
+    /// Patch this review belongs to.
+    patch: PatchId,
+    /// Title of the patch this patch this review belongs to.
+    title: String,
+    /// Revision this review belongs to.
+    revision: Revision,
+    /// List of all hunks and its table widget state.
+    queue: Arc<Mutex<(Vec<HunkItem<'a>>, TableState)>>,
+    /// States of diff views for all hunks.
+    items: HashMap<usize, ReviewItemState>,
+    /// Current app page.
     page: AppPage,
+    /// State of panes widget on the main page.
     windows: GroupState,
+    /// State of text view widget on the help page.
     help: TextViewState<'a>,
 }
 
-impl<'a> TryFrom<&Tui> for App<'a> {
+impl<'a> TryFrom<Tui> for App<'a> {
     type Error = anyhow::Error;
 
-    fn try_from(tui: &Tui) -> Result<Self, Self::Error> {
+    fn try_from(tui: Tui) -> Result<Self, Self::Error> {
         App::new(
-            tui.patch,
-            tui.title.clone(),
-            tui.revision.clone(),
-            tui.review.clone(),
-            tui.queue.clone(),
-            tui.profile.clone(),
+            tui.storage,
             tui.rid,
+            tui.signer,
+            tui.patch,
+            tui.title,
+            tui.revision,
+            tui.review,
+            tui.queue,
         )
     }
 }
 
 impl<'a> App<'a> {
+    #[allow(clippy::too_many_arguments)]
     pub fn new(
+        storage: Storage,
+        rid: RepoId,
+        signer: Box<dyn Signer>,
         patch: PatchId,
         title: String,
         revision: Revision,
         review: Review,
         queue: ReviewQueue,
-        profile: Profile,
-        rid: RepoId,
     ) -> Result<Self, anyhow::Error> {
-        let repo = profile.storage.repository(rid)?;
+        let repo = storage.repository(rid)?;
         let queue = queue
             .iter()
             .map(|item| HunkItem::from((&repo, &review, item)))
@@ -194,7 +212,8 @@ impl<'a> App<'a> {
         }
 
         let mut app = App {
-            profile,
+            storage,
+            signer: Arc::new(Mutex::new(signer)),
             rid,
             patch,
             title,
@@ -211,14 +230,13 @@ impl<'a> App<'a> {
         Ok(app)
     }
 
-    pub fn accept_current_hunk(&mut self) -> Result<()> {
-        let repo = self.profile.storage.repository(self.rid).unwrap();
-        let signer = terminal::signer(&self.profile)?;
+    #[allow(clippy::borrowed_box)]
+    pub fn accept_current_hunk(&self) -> Result<()> {
+        let repo = self.storage.repository(self.rid).unwrap();
+        let signer: &Box<dyn Signer> = &self.signer.lock().unwrap();
 
-        let mut brain = Brain::load_or_new(self.patch, &self.revision, repo.raw(), &signer)?;
-        let selected = self.queue.lock().unwrap().1.selected();
-
-        if let Some(selected) = selected {
+        if let Some(selected) = self.selected_hunk_idx() {
+            let mut brain = Brain::load_or_new(self.patch, &self.revision, repo.raw(), signer)?;
             let hunks = self.queue.lock().unwrap().0.clone();
 
             if let Some(hunk) = hunks.get(selected) {
@@ -230,32 +248,29 @@ impl<'a> App<'a> {
 
                 let diff = file.item_diff(&hunk.inner.1)?;
                 brain.accept(diff, repo.raw())?;
-
-                self.reload_states()?;
             }
         }
 
         Ok(())
     }
 
-    pub fn discard_accepted_hunks(&mut self) -> Result<()> {
-        let repo = self.profile.storage.repository(self.rid).unwrap();
-        let signer = terminal::signer(&self.profile)?;
+    #[allow(clippy::borrowed_box)]
+    pub fn discard_accepted_hunks(&self) -> Result<()> {
+        let repo = self.storage.repository(self.rid).unwrap();
+        let signer: &Box<dyn Signer> = &self.signer.lock().unwrap();
 
-        let mut brain = Brain::load_or_new(self.patch, &self.revision, repo.raw(), &signer)?;
+        let mut brain = Brain::load_or_new(self.patch, &self.revision, repo.raw(), signer)?;
         brain.discard_accepted(repo.raw())?;
-
-        self.reload_states()?;
 
         Ok(())
     }
 
+    #[allow(clippy::borrowed_box)]
     pub fn reload_states(&mut self) -> anyhow::Result<()> {
-        let repo = self.profile.storage.repository(self.rid).unwrap();
-        let signer = terminal::signer(&self.profile)?;
+        let repo = self.storage.repository(self.rid).unwrap();
+        let signer: &Box<dyn Signer> = &self.signer.lock().unwrap();
 
-        let brain = Brain::load_or_new(self.patch, &self.revision, repo.raw(), &signer)?;
-
+        let brain = Brain::load_or_new(self.patch, &self.revision, repo.raw(), signer)?;
         let (base_diff, queue_diff) =
             DiffUtil::new(&repo).base_queue(brain.clone(), &self.revision)?;
 
@@ -283,6 +298,10 @@ impl<'a> App<'a> {
         }
 
         Ok(())
+    }
+
+    pub fn selected_hunk_idx(&self) -> Option<usize> {
+        self.queue.lock().unwrap().1.selected()
     }
 }
 
@@ -557,6 +576,7 @@ impl<'a> store::Update<Message<'a>> for App<'a> {
                     Ok(()) => log::info!("Accepted hunk."),
                     Err(err) => log::info!("An error occured while accepting hunk: {}", err),
                 }
+                let _ = self.reload_states();
                 None
             }
             Message::Discard => {
@@ -564,6 +584,7 @@ impl<'a> store::Update<Message<'a>> for App<'a> {
                     Ok(()) => log::info!("Discarded all hunks."),
                     Err(err) => log::info!("An error occured while discarding hunks: {}", err),
                 }
+                let _ = self.reload_states();
                 None
             }
             Message::ShowMain => {

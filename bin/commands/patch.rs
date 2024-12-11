@@ -343,17 +343,19 @@ mod interface {
 
         loop {
             // Reload review
+            let signer = profile.signer()?;
             let (review_id, review) = patch::find_review(&patch, revision, &signer)
                 .ok_or_else(|| anyhow!("Could not find review."))?;
 
             let selection = review::Tui::new(
+                profile.storage.clone(),
+                rid,
+                signer,
                 patch_id,
                 patch.title().to_string(),
                 revision.clone(),
                 review.clone(),
                 hunks.clone(),
-                profile.clone(),
-                rid,
             )
             .run()
             .await?;
@@ -377,6 +379,7 @@ mod interface {
                             let builder = CommentBuilder::new(revision.head(), path.to_path_buf());
                             let comments = builder.edit(hunk)?;
 
+                            let signer = profile.signer()?;
                             patch.transaction("Review comments", &signer, |tx| {
                                 for comment in comments {
                                     tx.review_comment(
