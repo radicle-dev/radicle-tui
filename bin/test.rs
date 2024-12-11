@@ -20,6 +20,11 @@ pub mod fixtures {
         checkout.branch_with([("README", b"Hello World!\nHello World!\n")])
     }
 
+    pub fn branch_with_files_added(node: &NodeWithRepo) -> BranchWith {
+        let checkout = node.repo.checkout();
+        checkout.branch_with([("CONTRIBUTE", b"TBD\n"), ("LICENSE", b"TBD\n")])
+    }
+
     pub fn patch<'a, 'g>(
         node: &'a NodeWithRepo,
         branch: &BranchWith,
