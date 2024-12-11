@@ -3,6 +3,8 @@ mod commands;
 mod git;
 mod log;
 mod settings;
+#[cfg(test)]
+mod test;
 mod ui;
 
 use std::ffi::OsString;

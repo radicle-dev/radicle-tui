@@ -54,3 +54,4 @@ tui-tree-widget = { version = "0.21.0" }
 
 [dev-dependencies]
 pretty_assertions = "^1.4.1"
+radicle = { version = "0.14.0", features = ["test"]}

@@ -1627,6 +1627,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "qcheck"
+version = "1.0.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "b439bd4242da51d62d18c95e6a6add749346756b0d1a587dfd0cc22fa6b5f3f0"
+dependencies = [
+ "rand",
+]
+
+[[package]]
 name = "quote"
 version = "1.0.35"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1655,6 +1664,7 @@ dependencies = [
  "multibase",
  "nonempty",
  "once_cell",
+ "qcheck",
  "radicle-cob",
  "radicle-crypto",
  "radicle-git-ext",
@@ -1752,7 +1762,9 @@ dependencies = [
  "amplify",
  "cyphernet",
  "ec25519",
+ "fastrand",
  "multibase",
+ "qcheck",
  "radicle-git-ext",
  "radicle-ssh",
  "serde",
