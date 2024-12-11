@@ -10,9 +10,14 @@ pub mod fixtures {
         NodeWithRepo::default()
     }
 
-    pub fn branch(node: &NodeWithRepo) -> BranchWith {
+    pub fn branch_with_eof_removed(node: &NodeWithRepo) -> BranchWith {
         let checkout = node.repo.checkout();
         checkout.branch_with([("README", b"Hello World!")])
+    }
+
+    pub fn branch_with_line_added(node: &NodeWithRepo) -> BranchWith {
+        let checkout = node.repo.checkout();
+        checkout.branch_with([("README", b"Hello World!\nHello World!\n")])
     }
 
     pub fn patch<'a, 'g>(
