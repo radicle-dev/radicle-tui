@@ -632,3 +632,131 @@ review is done, it needs to be finalized via `rad patch review --accept | --reje
 `d`         discard accepted hunks (reject all)"#
         .into()
 }
+
+#[cfg(test)]
+mod test {
+    use anyhow::*;
+
+    use radicle::patch::Cache;
+
+    use store::Update;
+
+    use super::*;
+    use crate::test;
+
+    impl<'a> App<'a> {
+        pub fn hunks(&self) -> Vec<HunkItem> {
+            self.queue.lock().unwrap().0.clone()
+        }
+    }
+
+    mod fixtures {
+        use anyhow::*;
+
+        use radicle::cob::cache::NoCache;
+        use radicle::patch::{Cache, PatchMut, Review, ReviewId, Revision, Verdict};
+        use radicle::prelude::Signer;
+        use radicle::storage::git::cob::DraftStore;
+        use radicle::storage::git::Repository;
+        use radicle::storage::WriteRepository;
+        use radicle::test::setup::NodeWithRepo;
+
+        use crate::cob::patch;
+
+        use super::builder::{Brain, ReviewBuilder};
+        use super::App;
+
+        pub fn app<'a>(
+            node: &NodeWithRepo,
+            patch: PatchMut<Repository, NoCache>,
+        ) -> Result<App<'a>> {
+            let draft_store = DraftStore::new(&node.repo.repo, *node.signer.public_key());
+            let mut drafts = Cache::no_cache(&draft_store)?;
+            let mut draft = drafts.get_mut(&patch.id())?;
+
+            let (_, revision) = patch.latest();
+            let (_, review) = draft_review(&node, &mut draft, revision)?;
+
+            let brain = Brain::load_or_new(*patch.id(), revision, node.repo.raw(), &node.signer)?;
+            let hunks = ReviewBuilder::new(&node.repo).hunks(&brain, revision)?;
+
+            App::new(
+                node.storage.clone(),
+                node.repo.id,
+                Box::new(node.signer.clone()),
+                *patch.id(),
+                patch.title().to_string(),
+                revision.clone(),
+                review.clone(),
+                hunks,
+            )
+        }
+
+        pub fn draft_review<'a>(
+            node: &NodeWithRepo,
+            draft: &'a mut PatchMut<DraftStore<Repository>, NoCache>,
+            revision: &Revision,
+        ) -> Result<(ReviewId, &'a Review)> {
+            let id = draft.review(
+                revision.id(),
+                Some(Verdict::Reject),
+                None,
+                vec![],
+                &node.node.signer,
+            )?;
+
+            let (_, review) = patch::find_review(draft, revision, &node.node.signer)
+                .ok_or_else(|| anyhow!("Could not find review."))?;
+
+            Ok((id, review))
+        }
+    }
+
+    #[test]
+    fn app_can_be_constructed() -> Result<()> {
+        let alice = test::fixtures::node_with_repo();
+        let branch = test::fixtures::branch(&alice);
+
+        let mut patches = Cache::no_cache(&alice.repo.repo).unwrap();
+        let patch = test::fixtures::patch(&alice, &branch, &mut patches)?;
+
+        let app = fixtures::app(&alice, patch)?;
+
+        assert_eq!(app.hunks().len(), 2);
+
+        Ok(())
+    }
+
+    #[test]
+    fn first_hunk_is_selected_by_default() -> Result<()> {
+        let alice = test::fixtures::node_with_repo();
+        let branch = test::fixtures::branch(&alice);
+
+        let mut patches = Cache::no_cache(&alice.repo.repo).unwrap();
+        let patch = test::fixtures::patch(&alice, &branch, &mut patches)?;
+
+        let app = fixtures::app(&alice, patch)?;
+
+        assert_eq!(app.selected_hunk_idx(), Some(0));
+
+        Ok(())
+    }
+
+    #[test]
+    fn hunk_can_be_selected() -> Result<()> {
+        let alice = test::fixtures::node_with_repo();
+        let branch = test::fixtures::branch(&alice);
+
+        let mut patches = Cache::no_cache(&alice.repo.repo).unwrap();
+        let patch = test::fixtures::patch(&alice, &branch, &mut patches)?;
+
+        let mut app = fixtures::app(&alice, patch)?;
+        app.update(Message::ItemChanged {
+            state: TableState::new(Some(1)),
+        });
+
+        assert_eq!(app.selected_hunk_idx(), Some(1));
+
+        Ok(())
+    }
+}
