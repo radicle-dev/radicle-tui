@@ -10,7 +10,6 @@
 //! matches the tree of the patch being reviewed (by accepting hunks), we can say that the patch has
 //! been fully reviewed.
 //!
-use std::collections::VecDeque;
 use std::fmt::Write as _;
 use std::io;
 use std::ops::{Not, Range};
@@ -33,7 +32,7 @@ use crate::git::HunkDiff;
 /// Queue of items (usually hunks) left to review.
 #[derive(Clone, Default)]
 pub struct Hunks {
-    hunks: Vec<(usize, HunkDiff)>,
+    hunks: Vec<HunkDiff>,
 }
 
 impl Hunks {
@@ -151,12 +150,14 @@ impl Hunks {
     }
 
     fn add_item(&mut self, item: HunkDiff) {
-        self.hunks.push((self.hunks.len(), item));
+        self.hunks.push(item);
     }
+
+    // pub fn contains(&self, )
 }
 
 impl std::ops::Deref for Hunks {
-    type Target = Vec<(usize, HunkDiff)>;
+    type Target = Vec<HunkDiff>;
 
     fn deref(&self) -> &Self::Target {
         &self.hunks

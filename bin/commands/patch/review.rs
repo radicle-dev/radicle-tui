@@ -207,7 +207,7 @@ impl<'a> App<'a> {
             .collect::<Vec<_>>();
         let hunks = hunks
             .iter()
-            .map(|(_, item)| HunkItem::from((&repo, &review, StatefulHunkDiff::from(item))))
+            .map(|item| HunkItem::from((&repo, &review, StatefulHunkDiff::from(item))))
             .collect::<Vec<_>>();
 
         let mut app = App {
@@ -267,41 +267,20 @@ impl<'a> App<'a> {
     pub fn reload_states(&mut self) -> anyhow::Result<()> {
         let repo = self.repo()?;
         let signer: &Box<dyn Signer> = &self.signer.lock().unwrap();
+        let mut hunks = self.hunks.lock().unwrap();
 
         let brain = Brain::load_or_new(self.patch, &self.revision, repo.raw(), signer)?;
-
         let rejected_hunks =
             Hunks::new(DiffUtil::new(&repo).rejected_diffs(&brain, &self.revision)?);
 
-        let mut hunks = self.hunks.lock().unwrap();
-        for hunk in &hunks.0 {
-
+        for hunk in &mut hunks.0 {
+            let state = if rejected_hunks.contains(hunk.inner.hunk()) {
+                HunkState::Rejected
+            } else {
+                HunkState::Accepted
+            };
+            *hunk.inner.state_mut() = state;
         }
-
-        // let (base_diff, queue_diff) =
-        //     DiffUtil::new(&repo).base_queue(brain.clone(), &self.revision)?;
-
-        // // Compute states
-        // let base_files = base_diff.into_files();
-        // let queue_files = queue_diff.into_files();
-
-        // let states = base_files
-        //     .iter()
-        //     .map(|file| {
-        //         if !queue_files.contains(file) {
-        //             HunkState::Accepted
-        //         } else {
-        //             HunkState::Rejected
-        //         }
-        //     })
-        //     .collect::<Vec<_>>();
-
-        // let mut queue = self.hunks.lock().unwrap();
-        // for (idx, new_state) in states.iter().enumerate() {
-        //     if let Some(hunk) = queue.0.get_mut(idx) {
-        //         *hunk.inner.state_mut() = new_state.clone();
-        //     }
-        // }
 
         Ok(())
     }
