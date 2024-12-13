@@ -45,7 +45,7 @@ use crate::ui::layout;
 
 use self::builder::Brain;
 use self::builder::FileReviewBuilder;
-use self::builder::ReviewQueue;
+use self::builder::Hunks;
 
 /// The actions that a user can carry out on a review item.
 #[derive(Debug, Copy, Clone, PartialEq, Eq)]
@@ -71,7 +71,7 @@ pub struct Tui {
     pub title: String,
     pub revision: Revision,
     pub review: Review,
-    pub hunks: ReviewQueue,
+    pub hunks: Hunks,
 }
 
 impl Tui {
@@ -84,7 +84,7 @@ impl Tui {
         title: String,
         revision: Revision,
         review: Review,
-        hunks: ReviewQueue,
+        hunks: Hunks,
     ) -> Self {
         Self {
             storage,
@@ -196,7 +196,7 @@ impl<'a> App<'a> {
         title: String,
         revision: Revision,
         review: Review,
-        hunks: ReviewQueue,
+        hunks: Hunks,
     ) -> Result<Self, anyhow::Error> {
         let repo = storage.repository(rid)?;
         let states = hunks
@@ -269,30 +269,39 @@ impl<'a> App<'a> {
         let signer: &Box<dyn Signer> = &self.signer.lock().unwrap();
 
         let brain = Brain::load_or_new(self.patch, &self.revision, repo.raw(), signer)?;
-        let (base_diff, queue_diff) =
-            DiffUtil::new(&repo).base_queue(brain.clone(), &self.revision)?;
 
-        // Compute states
-        let base_files = base_diff.into_files();
-        let queue_files = queue_diff.into_files();
+        let rejected_hunks =
+            Hunks::new(DiffUtil::new(&repo).rejected_diffs(&brain, &self.revision)?);
 
-        let states = base_files
-            .iter()
-            .map(|file| {
-                if !queue_files.contains(file) {
-                    HunkState::Accepted
-                } else {
-                    HunkState::Rejected
-                }
-            })
-            .collect::<Vec<_>>();
+        let mut hunks = self.hunks.lock().unwrap();
+        for hunk in &hunks.0 {
 
-        let mut queue = self.hunks.lock().unwrap();
-        for (idx, new_state) in states.iter().enumerate() {
-            if let Some(hunk) = queue.0.get_mut(idx) {
-                *hunk.inner.state_mut() = new_state.clone();
-            }
         }
+
+        // let (base_diff, queue_diff) =
+        //     DiffUtil::new(&repo).base_queue(brain.clone(), &self.revision)?;
+
+        // // Compute states
+        // let base_files = base_diff.into_files();
+        // let queue_files = queue_diff.into_files();
+
+        // let states = base_files
+        //     .iter()
+        //     .map(|file| {
+        //         if !queue_files.contains(file) {
+        //             HunkState::Accepted
+        //         } else {
+        //             HunkState::Rejected
+        //         }
+        //     })
+        //     .collect::<Vec<_>>();
+
+        // let mut queue = self.hunks.lock().unwrap();
+        // for (idx, new_state) in states.iter().enumerate() {
+        //     if let Some(hunk) = queue.0.get_mut(idx) {
+        //         *hunk.inner.state_mut() = new_state.clone();
+        //     }
+        // }
 
         Ok(())
     }
@@ -627,12 +636,11 @@ mod test {
         use radicle::prelude::Signer;
         use radicle::storage::git::cob::DraftStore;
         use radicle::storage::git::Repository;
-        use radicle::storage::WriteRepository;
         use radicle::test::setup::NodeWithRepo;
 
         use crate::cob::patch;
 
-        use super::builder::{Brain, ReviewBuilder};
+        use super::builder::ReviewBuilder;
         use super::App;
 
         pub fn app<'a>(
@@ -646,8 +654,7 @@ mod test {
             let (_, revision) = patch.latest();
             let (_, review) = draft_review(&node, &mut draft, revision)?;
 
-            let brain = Brain::load_or_new(*patch.id(), revision, node.repo.raw(), &node.signer)?;
-            let hunks = ReviewBuilder::new(&node.repo).hunks(&brain, revision)?;
+            let hunks = ReviewBuilder::new(&node.repo).hunks(revision)?;
 
             App::new(
                 node.storage.clone(),

@@ -32,12 +32,11 @@ use crate::git::HunkDiff;
 
 /// Queue of items (usually hunks) left to review.
 #[derive(Clone, Default)]
-pub struct ReviewQueue {
-    /// Hunks left to review.
-    queue: VecDeque<(usize, HunkDiff)>,
+pub struct Hunks {
+    hunks: Vec<(usize, HunkDiff)>,
 }
 
-impl ReviewQueue {
+impl Hunks {
     pub fn new(base: Diff) -> Self {
         let base_files = base.into_files();
 
@@ -152,29 +151,21 @@ impl ReviewQueue {
     }
 
     fn add_item(&mut self, item: HunkDiff) {
-        self.queue.push_back((self.queue.len(), item));
+        self.hunks.push((self.hunks.len(), item));
     }
 }
 
-impl std::ops::Deref for ReviewQueue {
-    type Target = VecDeque<(usize, HunkDiff)>;
+impl std::ops::Deref for Hunks {
+    type Target = Vec<(usize, HunkDiff)>;
 
     fn deref(&self) -> &Self::Target {
-        &self.queue
+        &self.hunks
     }
 }
 
-impl std::ops::DerefMut for ReviewQueue {
+impl std::ops::DerefMut for Hunks {
     fn deref_mut(&mut self) -> &mut Self::Target {
-        &mut self.queue
-    }
-}
-
-impl Iterator for ReviewQueue {
-    type Item = (usize, HunkDiff);
-
-    fn next(&mut self) -> Option<Self::Item> {
-        self.queue.pop_front()
+        &mut self.hunks
     }
 }
 
@@ -378,11 +369,7 @@ impl<'a> DiffUtil<'a> {
         Self { repo }
     }
 
-    pub fn base_queue(
-        &self,
-        brain: Brain<'a>,
-        revision: &Revision,
-    ) -> anyhow::Result<(Diff, Diff)> {
+    pub fn all_diffs(&self, revision: &Revision) -> anyhow::Result<Diff> {
         let repo = self.repo.raw();
 
         let base = repo.find_commit((*revision.base()).into())?.tree()?;
@@ -395,9 +382,23 @@ impl<'a> DiffUtil<'a> {
         opts.patience(true).minimal(true).context_lines(3_u32);
 
         let base_diff = self.diff(&base, &revision, repo, &mut opts)?;
-        let queue_diff = self.diff(brain.accepted(), &revision, repo, &mut opts)?;
 
-        Ok((base_diff, queue_diff))
+        Ok(base_diff)
+    }
+
+    pub fn rejected_diffs(&self, brain: &Brain<'a>, revision: &Revision) -> anyhow::Result<Diff> {
+        let repo = self.repo.raw();
+        let revision = {
+            let commit = repo.find_commit(revision.head().into())?;
+            commit.tree()?
+        };
+
+        let mut opts = git::raw::DiffOptions::new();
+        opts.patience(true).minimal(true).context_lines(3_u32);
+
+        let rejected = self.diff(brain.accepted(), &revision, repo, &mut opts)?;
+
+        Ok(rejected)
     }
 
     pub fn diff(
@@ -433,12 +434,19 @@ impl<'a> ReviewBuilder<'a> {
         Self { repo }
     }
 
-    /// Assemble the review for the given revision.
-    pub fn hunks(&self, brain: &'a Brain<'a>, revision: &Revision) -> anyhow::Result<ReviewQueue> {
-        DiffUtil::new(self.repo)
-            .base_queue(brain.clone(), revision)
-            .map(|(base, _)| Ok(ReviewQueue::new(base)))?
+    pub fn hunks(&self, revision: &Revision) -> anyhow::Result<Hunks> {
+        let diff = DiffUtil::new(self.repo).all_diffs(revision)?;
+        Ok(Hunks::new(diff))
     }
+
+    // pub fn rejected_hunks(
+    //     &self,
+    //     brain: &'a Brain<'a>,
+    //     revision: &Revision,
+    // ) -> anyhow::Result<Hunks> {
+    //     let diff = DiffUtil::new(self.repo).rejected_diffs(brain, revision)?;
+    //     Ok(Hunks::new(diff))
+    // }
 }
 
 #[derive(Debug, PartialEq, Eq)]

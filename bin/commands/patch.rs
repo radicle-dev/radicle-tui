@@ -256,7 +256,7 @@ mod interface {
     use radicle::patch::PatchId;
     use radicle::patch::Verdict;
     use radicle::storage::git::cob::DraftStore;
-    use radicle::storage::{ReadStorage, WriteRepository};
+    use radicle::storage::ReadStorage;
     use radicle::Profile;
 
     use radicle_cli::terminal;
@@ -269,7 +269,7 @@ mod interface {
     use crate::tui_patch::select;
 
     use super::review;
-    use super::review::builder::{Brain, ReviewBuilder};
+    use super::review::builder::ReviewBuilder;
     use super::{ReviewOptions, SelectOptions};
 
     pub async fn select(
@@ -304,9 +304,7 @@ mod interface {
             .ok_or_else(|| anyhow!("Patch `{patch_id}` not found"))?;
 
         let (_, revision) = opts.revision_or_latest(&patch, &repo)?;
-
-        let brain = Brain::load_or_new(patch_id, revision, repo.raw(), &signer)?;
-        let hunks = ReviewBuilder::new(&repo).hunks(&brain, revision)?;
+        let hunks = ReviewBuilder::new(&repo).hunks(revision)?;
 
         let drafts = DraftStore::new(&repo, *signer.public_key());
         let mut patches = cob::patch::Cache::no_cache(&drafts)?;
