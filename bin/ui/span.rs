@@ -11,8 +11,8 @@ use tui::ui::span;
 
 pub fn hunk_state(state: &HunkState) -> Span<'static> {
     match state {
+        HunkState::Unknown => span::secondary("?"),
         HunkState::Accepted => span::positive("✓"),
-        // HunkState::Rejected => span::secondary("?"),
         HunkState::Rejected => span::negative("✗"),
     }
 }

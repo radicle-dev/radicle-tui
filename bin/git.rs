@@ -215,6 +215,7 @@ impl From<&Hunk<Modification>> for HunkStats {
 #[derive(Clone, Default, Debug, PartialEq)]
 pub enum HunkState {
     #[default]
+    Unknown,
     Rejected,
     Accepted,
 }
@@ -343,8 +344,8 @@ impl StatefulHunkDiff {
     }
 }
 
-impl From<(&HunkDiff, &HunkState)> for StatefulHunkDiff {
-    fn from(value: (&HunkDiff, &HunkState)) -> Self {
-        Self(value.0.clone(), value.1.clone())
+impl From<&HunkDiff> for StatefulHunkDiff {
+    fn from(diff: &HunkDiff) -> Self {
+        Self(diff.clone(), HunkState::Unknown)
     }
 }
