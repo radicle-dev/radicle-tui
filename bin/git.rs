@@ -222,7 +222,7 @@ pub enum HunkState {
 
 /// A single review item. Can be a hunk or eg. a file move.
 /// Files are usually split into multiple review items.
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq)]
 pub enum HunkDiff {
     Added {
         path: PathBuf,
