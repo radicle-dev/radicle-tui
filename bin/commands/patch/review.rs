@@ -207,9 +207,7 @@ impl<'a> App<'a> {
             .collect::<Vec<_>>();
         let hunks = hunks
             .iter()
-            .map(|(_, item, state)| {
-                HunkItem::from((&repo, &review, StatefulHunkDiff::from((item, state))))
-            })
+            .map(|(_, item)| HunkItem::from((&repo, &review, StatefulHunkDiff::from(item))))
             .collect::<Vec<_>>();
 
         let mut app = App {

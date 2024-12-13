@@ -368,7 +368,7 @@ mod interface {
                         let hunk = selection
                             .hunk
                             .ok_or_else(|| anyhow!("expected a selected hunk"))?;
-                        let (_, item, _) = hunks
+                        let (_, item) = hunks
                             .get(hunk)
                             .ok_or_else(|| anyhow!("expected a hunk to comment on"))?;
 

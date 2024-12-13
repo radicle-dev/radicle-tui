@@ -28,142 +28,122 @@ use radicle_cli::git::unified_diff::{self, FileHeader};
 use radicle_cli::git::unified_diff::{Encode, HunkHeader};
 use radicle_cli::terminal as term;
 
-use crate::git::{HunkDiff, HunkState};
+use crate::git::HunkDiff;
 
 /// Queue of items (usually hunks) left to review.
 #[derive(Clone, Default)]
 pub struct ReviewQueue {
     /// Hunks left to review.
-    queue: VecDeque<(usize, HunkDiff, HunkState)>,
+    queue: VecDeque<(usize, HunkDiff)>,
 }
 
 impl ReviewQueue {
-    pub fn new(base: Diff, queue: Diff) -> Self {
+    pub fn new(base: Diff) -> Self {
         let base_files = base.into_files();
-        let queue_files = queue.into_files();
 
         let mut queue = Self::default();
         for file in base_files {
-            let state = if !queue_files.contains(&file) {
-                HunkState::Accepted
-            } else {
-                HunkState::Rejected
-            };
-            queue.add_file(file, state);
+            queue.add_file(file);
         }
         queue
     }
 
     /// Add a file to the queue.
     /// Mostly splits files into individual review items (eg. hunks) to review.
-    fn add_file(&mut self, file: FileDiff, state: HunkState) {
+    fn add_file(&mut self, file: FileDiff) {
         let header = FileHeader::from(&file);
 
         match file {
             FileDiff::Moved(moved) => {
-                self.add_item(HunkDiff::Moved { moved }, state);
+                self.add_item(HunkDiff::Moved { moved });
             }
             FileDiff::Copied(copied) => {
-                self.add_item(HunkDiff::Copied { copied }, state);
+                self.add_item(HunkDiff::Copied {
+                    copied: copied.clone(),
+                });
             }
             FileDiff::Added(a) => {
-                self.add_item(
-                    HunkDiff::Added {
-                        path: a.path,
-                        header: header.clone(),
-                        new: a.new,
-                        hunk: if let DiffContent::Plain {
-                            hunks: Hunks(mut hs),
-                            ..
-                        } = a.diff.clone()
-                        {
-                            hs.pop()
-                        } else {
-                            None
-                        },
-                        _stats: a.diff.stats().cloned(),
+                self.add_item(HunkDiff::Added {
+                    path: a.path.clone(),
+                    header: header.clone(),
+                    new: a.new.clone(),
+                    hunk: if let DiffContent::Plain {
+                        hunks: Hunks(mut hs),
+                        ..
+                    } = a.diff.clone()
+                    {
+                        hs.pop()
+                    } else {
+                        None
                     },
-                    state,
-                );
+                    _stats: a.diff.stats().cloned(),
+                });
             }
             FileDiff::Deleted(d) => {
-                self.add_item(
-                    HunkDiff::Deleted {
-                        path: d.path,
-                        header: header.clone(),
-                        old: d.old,
-                        hunk: if let DiffContent::Plain {
-                            hunks: Hunks(mut hs),
-                            ..
-                        } = d.diff.clone()
-                        {
-                            hs.pop()
-                        } else {
-                            None
-                        },
-                        _stats: d.diff.stats().cloned(),
+                self.add_item(HunkDiff::Deleted {
+                    path: d.path.clone(),
+                    header: header.clone(),
+                    old: d.old.clone(),
+                    hunk: if let DiffContent::Plain {
+                        hunks: Hunks(mut hs),
+                        ..
+                    } = d.diff.clone()
+                    {
+                        hs.pop()
+                    } else {
+                        None
                     },
-                    state,
-                );
+                    _stats: d.diff.stats().cloned(),
+                });
             }
             FileDiff::Modified(m) => {
                 if m.old.mode != m.new.mode {
-                    self.add_item(
-                        HunkDiff::ModeChanged {
-                            path: m.path.clone(),
-                            header: header.clone(),
-                            old: m.old.clone(),
-                            new: m.new.clone(),
-                        },
-                        state.clone(),
-                    );
+                    self.add_item(HunkDiff::ModeChanged {
+                        path: m.path.clone(),
+                        header: header.clone(),
+                        old: m.old.clone(),
+                        new: m.new.clone(),
+                    });
                 }
-                match m.diff {
+                match m.diff.clone() {
                     DiffContent::Empty => {
                         // Likely a file mode change, which is handled above.
                     }
                     DiffContent::Binary => {
-                        self.add_item(
-                            HunkDiff::Modified {
-                                path: m.path.clone(),
-                                header: header.clone(),
-                                old: m.old.clone(),
-                                new: m.new.clone(),
-                                hunk: None,
-                                _stats: m.diff.stats().cloned(),
-                            },
-                            state,
-                        );
+                        self.add_item(HunkDiff::Modified {
+                            path: m.path.clone(),
+                            header: header.clone(),
+                            old: m.old.clone(),
+                            new: m.new.clone(),
+                            hunk: None,
+                            _stats: m.diff.stats().cloned(),
+                        });
                     }
                     DiffContent::Plain {
                         hunks: Hunks(hunks),
                         eof,
                         stats,
                     } => {
-                        for hunk in hunks {
-                            self.add_item(
-                                HunkDiff::Modified {
-                                    path: m.path.clone(),
-                                    header: header.clone(),
-                                    old: m.old.clone(),
-                                    new: m.new.clone(),
-                                    hunk: Some(hunk),
-                                    _stats: Some(stats),
-                                },
-                                state.clone(),
-                            );
+                        let base_hunks = hunks.clone();
+
+                        for hunk in base_hunks {
+                            self.add_item(HunkDiff::Modified {
+                                path: m.path.clone(),
+                                header: header.clone(),
+                                old: m.old.clone(),
+                                new: m.new.clone(),
+                                hunk: Some(hunk),
+                                _stats: Some(stats),
+                            });
                         }
                         if let EofNewLine::OldMissing | EofNewLine::NewMissing = eof {
-                            self.add_item(
-                                HunkDiff::EofChanged {
-                                    path: m.path.clone(),
-                                    header: header.clone(),
-                                    old: m.old.clone(),
-                                    new: m.new.clone(),
-                                    _eof: eof,
-                                },
-                                state,
-                            )
+                            self.add_item(HunkDiff::EofChanged {
+                                path: m.path.clone(),
+                                header: header.clone(),
+                                old: m.old.clone(),
+                                new: m.new.clone(),
+                                _eof: eof,
+                            })
                         }
                     }
                 }
@@ -171,13 +151,13 @@ impl ReviewQueue {
         }
     }
 
-    fn add_item(&mut self, item: HunkDiff, state: HunkState) {
-        self.queue.push_back((self.queue.len(), item, state));
+    fn add_item(&mut self, item: HunkDiff) {
+        self.queue.push_back((self.queue.len(), item));
     }
 }
 
 impl std::ops::Deref for ReviewQueue {
-    type Target = VecDeque<(usize, HunkDiff, HunkState)>;
+    type Target = VecDeque<(usize, HunkDiff)>;
 
     fn deref(&self) -> &Self::Target {
         &self.queue
@@ -191,7 +171,7 @@ impl std::ops::DerefMut for ReviewQueue {
 }
 
 impl Iterator for ReviewQueue {
-    type Item = (usize, HunkDiff, HunkState);
+    type Item = (usize, HunkDiff);
 
     fn next(&mut self) -> Option<Self::Item> {
         self.queue.pop_front()
@@ -457,7 +437,7 @@ impl<'a> ReviewBuilder<'a> {
     pub fn hunks(&self, brain: &'a Brain<'a>, revision: &Revision) -> anyhow::Result<ReviewQueue> {
         DiffUtil::new(self.repo)
             .base_queue(brain.clone(), revision)
-            .map(|(base, queue)| Ok(ReviewQueue::new(base, queue)))?
+            .map(|(base, _)| Ok(ReviewQueue::new(base)))?
     }
 }
 
