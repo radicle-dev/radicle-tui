@@ -280,6 +280,8 @@ impl<'a> App<'a> {
                     None => file.insert(FileReviewBuilder::new(item.inner.hunk())),
                 };
 
+                log::info!("Accepting hunk ({:?})", item.inner.hunk());
+
                 let diff = file.item_diff(item.inner.hunk())?;
                 brain.accept(diff, repo.raw())?;
             }
@@ -309,7 +311,11 @@ impl<'a> App<'a> {
         let rejected_hunks =
             Hunks::new(DiffUtil::new(&repo).rejected_diffs(&brain, &self.revision)?);
 
-        for item in items {
+        log::info!("Reloaded hunk states..");
+        log::info!("Rejected hunks: {:?}", rejected_hunks);
+        log::info!("Requested to reload hunks: {:?}", items);
+
+        for item in &mut *items {
             let state = if rejected_hunks.contains(item.inner.hunk()) {
                 HunkState::Rejected
             } else {
@@ -317,6 +323,8 @@ impl<'a> App<'a> {
             };
             *item.inner.state_mut() = state;
         }
+
+        log::info!("Reloaded hunks: {:?}", items);
 
         Ok(())
     }
@@ -572,7 +580,7 @@ impl<'a> store::Update<Message<'a>> for App<'a> {
             }
             Message::Accept => {
                 match self.accept_current_hunk() {
-                    Ok(()) => log::info!("Accepted hunk."),
+                    Ok(()) => log::info!("Hunk accepted."),
                     Err(err) => log::info!("An error occured while accepting hunk: {}", err),
                 }
                 let _ = self.reload_states();

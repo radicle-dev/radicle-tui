@@ -30,7 +30,7 @@ use radicle_cli::terminal as term;
 use crate::git::HunkDiff;
 
 /// Queue of items (usually hunks) left to review.
-#[derive(Clone, Default)]
+#[derive(Clone, Default, Debug)]
 pub struct Hunks {
     hunks: Vec<HunkDiff>,
 }
@@ -153,7 +153,39 @@ impl Hunks {
         self.hunks.push(item);
     }
 
-    // pub fn contains(&self, )
+    // pub fn contains(&self, hunk: &HunkDiff) -> bool {
+    //     match hunk {
+    //         HunkDiff::Modified {
+    //             path: _,
+    //             header: _,
+    //             old: _,
+    //             new: _,
+    //             hunk,
+    //             _stats,
+    //         } => {
+    //             let mut contains = false;
+    //             let other = hunk.clone();
+
+    //             for rejected in &self.hunks {
+    //                 match rejected {
+    //                     HunkDiff::Modified {
+    //                         path,
+    //                         header,
+    //                         old,
+    //                         new,
+    //                         hunk,
+    //                         _stats,
+    //                     } => {
+    //                         contains = true;
+    //                     }
+    //                     _ => contains = other == rejected.hunk().cloned(),
+    //                 }
+    //             }
+    //             contains
+    //         }
+    //         _ => self.hunks.contains(hunk),
+    //     }
+    // }
 }
 
 impl std::ops::Deref for Hunks {
@@ -439,15 +471,6 @@ impl<'a> ReviewBuilder<'a> {
         let diff = DiffUtil::new(self.repo).all_diffs(revision)?;
         Ok(Hunks::new(diff))
     }
-
-    // pub fn rejected_hunks(
-    //     &self,
-    //     brain: &'a Brain<'a>,
-    //     revision: &Revision,
-    // ) -> anyhow::Result<Hunks> {
-    //     let diff = DiffUtil::new(self.repo).rejected_diffs(brain, revision)?;
-    //     Ok(Hunks::new(diff))
-    // }
 }
 
 #[derive(Debug, PartialEq, Eq)]
