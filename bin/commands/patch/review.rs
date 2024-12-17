@@ -7,45 +7,37 @@ use std::sync::Mutex;
 
 use anyhow::Result;
 
-use radicle::storage::git::Repository;
 use termion::event::Key;
 
-use ratatui::layout::Constraint;
-use ratatui::layout::Position;
+use ratatui::layout::{Constraint, Position};
 use ratatui::style::Stylize;
 use ratatui::text::Text;
 use ratatui::{Frame, Viewport};
 
 use radicle::crypto::Signer;
 use radicle::identity::RepoId;
-use radicle::patch::PatchId;
-use radicle::patch::Review;
-use radicle::patch::Revision;
-use radicle::storage::ReadStorage;
-use radicle::storage::WriteRepository;
+use radicle::patch::{PatchId, Review, Revision};
+use radicle::storage::git::Repository;
+use radicle::storage::{ReadStorage, WriteRepository};
 use radicle::Storage;
 
 use radicle_tui as tui;
 
 use tui::store;
-use tui::ui::im::widget::PanesState;
-use tui::ui::im::widget::{TableState, TextViewState, Window};
-use tui::ui::im::Ui;
-use tui::ui::im::{Borders, Context, Show};
+use tui::ui::im::widget::{PanesState, TableState, TextViewState, Window};
+use tui::ui::im::{Borders, Context, Show, Ui};
 use tui::ui::span;
 use tui::ui::Column;
 use tui::{Channel, Exit};
 
-use crate::git::HunkState;
-use crate::git::StatefulHunkDiff;
-use crate::tui_patch::review::builder::DiffUtil;
+use crate::git::{HunkState, StatefulHunkDiff};
 use crate::ui::format;
 use crate::ui::items::HunkItem;
 use crate::ui::layout;
 
-use self::builder::Brain;
-use self::builder::FileReviewBuilder;
-use self::builder::Hunks;
+use super::review::builder::DiffUtil;
+
+use self::builder::{Brain, FileReviewBuilder, Hunks};
 
 /// The actions that a user can carry out on a review item.
 #[derive(Debug, Copy, Clone, PartialEq, Eq)]
@@ -198,7 +190,7 @@ pub struct App<'a> {
     title: String,
     /// Revision this review belongs to.
     revision: Revision,
-    /// All hunks, their view states (cursor position is stored per hunk) 
+    /// All hunks, their view states (cursor position is stored per hunk)
     /// and the lists' table widget state.
     hunks: Arc<Mutex<HunkList<'a>>>,
     /// Current app page.
