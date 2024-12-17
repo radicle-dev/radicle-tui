@@ -1,4 +1,6 @@
 use std::collections::HashMap;
+use std::fmt;
+use std::fmt::Debug;
 use std::str::FromStr;
 
 use nom::bytes::complete::{tag, take};
@@ -1090,7 +1092,7 @@ impl From<Vec<(EntryId, Comment<CodeLocation>)>> for HunkComments {
 
 /// A [`HunkItem`] that can be rendered. Hunk items are indexed sequentially and
 /// provide access to the underlying hunk type.
-#[derive(Clone, Debug)]
+#[derive(Clone)]
 pub struct HunkItem<'a> {
     /// The underlying hunk type and its current state (accepted / rejected).
     pub inner: StatefulHunkDiff,
@@ -1577,6 +1579,15 @@ impl<'a> HunkItem<'a> {
             }
             _ => None,
         }
+    }
+}
+
+impl<'a> Debug for HunkItem<'a> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("HunkItem")
+            .field("inner", &self.inner)
+            .field("comments", &self.comments)
+            .finish()
     }
 }
 

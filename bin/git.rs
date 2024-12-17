@@ -1,3 +1,5 @@
+use std::fmt;
+use std::fmt::Debug;
 use std::path::Path;
 use std::{fs, path::PathBuf};
 
@@ -222,7 +224,7 @@ pub enum HunkState {
 
 /// A single review item. Can be a hunk or eg. a file move.
 /// Files are usually split into multiple review items.
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, PartialEq)]
 pub enum HunkDiff {
     Added {
         path: PathBuf,
@@ -324,6 +326,29 @@ impl HunkDiff {
     pub fn blobs<R: Repo>(&self, repo: &R) -> Blobs<(PathBuf, Blob)> {
         let (old, new) = self.paths();
         Blobs::from_paths(old, new, repo)
+    }
+}
+
+impl Debug for HunkDiff {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let (name, path, hunk) = match self {
+            Self::Added { path, hunk, .. } => ("Added", path, hunk),
+            Self::Deleted { path, hunk, .. } => ("Deleted", path, hunk),
+            Self::Moved { moved } => ("Moved", &moved.new_path, &None),
+            Self::Copied { copied } => ("Copied", &copied.new_path, &None),
+            Self::Modified { path, hunk, .. } => ("Modified", path, hunk),
+            Self::EofChanged { path, .. } => ("EofChanged", path, &None),
+            Self::ModeChanged { path, .. } => ("ModeChanged", path, &None),
+        };
+
+        match hunk {
+            Some(hunk) => f
+                .debug_struct(name)
+                .field("path", path)
+                .field("hunk", &(hunk.old.clone(), hunk.new.clone()))
+                .finish(),
+            _ => f.debug_struct(name).field("path", path).finish(),
+        }
     }
 }
 
