@@ -657,9 +657,9 @@ mod test {
         use radicle::prelude::Signer;
         use radicle::storage::git::cob::DraftStore;
         use radicle::storage::git::Repository;
-        use radicle::test::setup::NodeWithRepo;
 
         use crate::cob::patch;
+        use crate::test::setup::NodeWithRepo;
 
         use super::builder::ReviewBuilder;
         use super::App;
@@ -712,7 +712,7 @@ mod test {
     #[test]
     fn app_with_single_hunk_can_be_constructed() -> Result<()> {
         let alice = test::fixtures::node_with_repo();
-        let branch = test::fixtures::branch_with_line_added(&alice);
+        let branch = test::fixtures::branch_with_main_emptied(&alice);
 
         let mut patches = Cache::no_cache(&alice.repo.repo).unwrap();
         let patch = test::fixtures::patch(&alice, &branch, &mut patches)?;
@@ -742,7 +742,7 @@ mod test {
     #[test]
     fn first_hunk_is_selected_by_default() -> Result<()> {
         let alice = test::fixtures::node_with_repo();
-        let branch = test::fixtures::branch_with_line_added(&alice);
+        let branch = test::fixtures::branch_with_main_emptied(&alice);
 
         let mut patches = Cache::no_cache(&alice.repo.repo).unwrap();
         let patch = test::fixtures::patch(&alice, &branch, &mut patches)?;
@@ -757,7 +757,7 @@ mod test {
     #[test]
     fn hunks_are_rejected_by_default() -> Result<()> {
         let alice = test::fixtures::node_with_repo();
-        let branch = test::fixtures::branch_with_files_added(&alice);
+        let branch = test::fixtures::branch_with_main_deleted_and_file_added(&alice);
 
         let mut patches = Cache::no_cache(&alice.repo.repo).unwrap();
         let patch = test::fixtures::patch(&alice, &branch, &mut patches)?;
@@ -765,12 +765,12 @@ mod test {
         let app = fixtures::app(&alice, patch)?;
 
         let hunks = app.hunks();
-        let states = [
-            hunks.get(0).unwrap().inner.state(),
-            hunks.get(1).unwrap().inner.state(),
-        ];
+        let states = hunks
+            .iter()
+            .map(|item| item.inner.state())
+            .collect::<Vec<_>>();
 
-        assert_eq!(states, [&HunkState::Rejected, &HunkState::Rejected]);
+        assert_eq!(states, [&HunkState::Rejected, &HunkState::Rejected,]);
 
         Ok(())
     }
@@ -796,7 +796,7 @@ mod test {
     #[test]
     fn single_file_single_hunk_can_be_accepted() -> Result<()> {
         let alice = test::fixtures::node_with_repo();
-        let branch = test::fixtures::branch_with_line_added(&alice);
+        let branch = test::fixtures::branch_with_main_emptied(&alice);
 
         let mut patches = Cache::no_cache(&alice.repo.repo).unwrap();
         let patch = test::fixtures::patch(&alice, &branch, &mut patches)?;
@@ -813,10 +813,9 @@ mod test {
     }
 
     #[test]
-    #[ignore]
-    fn single_file_multiple_hunks_can_be_accepted_in_order() -> Result<()> {
+    fn single_file_multiple_hunks_only_first_can_be_accepted() -> Result<()> {
         let alice = test::fixtures::node_with_repo();
-        let branch = test::fixtures::branch_with_eof_removed(&alice);
+        let branch = test::fixtures::branch_with_main_changed(&alice);
 
         let mut patches = Cache::no_cache(&alice.repo.repo).unwrap();
         let patch = test::fixtures::patch(&alice, &branch, &mut patches)?;
@@ -824,18 +823,42 @@ mod test {
         let mut app = fixtures::app(&alice, patch)?;
         app.update(Message::Accept);
 
+        let hunks = app.hunks();
+        let states = hunks
+            .iter()
+            .map(|item| item.inner.state())
+            .collect::<Vec<_>>();
+
+        assert_eq!(states, [&HunkState::Accepted, &HunkState::Rejected]);
+
+        Ok(())
+    }
+
+    #[test]
+    fn single_file_multiple_hunks_only_last_can_be_accepted() -> Result<()> {
+        let alice = test::fixtures::node_with_repo();
+        let branch = test::fixtures::branch_with_main_changed(&alice);
+
+        let mut patches = Cache::no_cache(&alice.repo.repo).unwrap();
+        let patch = test::fixtures::patch(&alice, &branch, &mut patches)?;
+
+        let mut app = fixtures::app(&alice, patch)?;
+
         app.update(Message::HunkChanged {
             state: TableState::new(Some(1)),
         });
         app.update(Message::Accept);
 
         let hunks = app.hunks();
-        let states = [
-            hunks.get(0).unwrap().inner.state(),
-            hunks.get(1).unwrap().inner.state(),
-        ];
+        let states = hunks
+            .iter()
+            .map(|item| {
+                println!("{item:?}");
+                item.inner.state()
+            })
+            .collect::<Vec<_>>();
 
-        assert_eq!(states, [&HunkState::Accepted, &HunkState::Accepted]);
+        assert_eq!(states, [&HunkState::Rejected, &HunkState::Accepted]);
 
         Ok(())
     }
@@ -843,7 +866,7 @@ mod test {
     #[test]
     fn multiple_files_single_hunk_can_be_accepted() -> Result<()> {
         let alice = test::fixtures::node_with_repo();
-        let branch = test::fixtures::branch_with_files_added(&alice);
+        let branch = test::fixtures::branch_with_main_deleted_and_file_added(&alice);
 
         let mut patches = Cache::no_cache(&alice.repo.repo).unwrap();
         let patch = test::fixtures::patch(&alice, &branch, &mut patches)?;
@@ -857,10 +880,10 @@ mod test {
         app.update(Message::Accept);
 
         let hunks = app.hunks();
-        let states = [
-            hunks.get(0).unwrap().inner.state(),
-            hunks.get(1).unwrap().inner.state(),
-        ];
+        let states = hunks
+            .iter()
+            .map(|item| item.inner.state())
+            .collect::<Vec<_>>();
 
         assert_eq!(states, [&HunkState::Accepted, &HunkState::Accepted]);
 
