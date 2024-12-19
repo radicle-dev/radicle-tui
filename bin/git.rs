@@ -3,13 +3,16 @@ use std::fmt::Debug;
 use std::path::Path;
 use std::{fs, path::PathBuf};
 
+use ratatui::text::Line;
+
+use radicle_surf::diff::{Copied, DiffFile, EofNewLine, FileStats, Hunk, Modification, Moved};
+
 use radicle::git;
 use radicle::git::Oid;
+
 use radicle_cli::git::unified_diff::{FileHeader, HunkHeader};
 use radicle_cli::terminal;
 use radicle_cli::terminal::highlight::Highlighter;
-use radicle_surf::diff::{Copied, DiffFile, EofNewLine, FileStats, Hunk, Modification, Moved};
-use ratatui::text::Line;
 
 pub type FilePaths<'a> = (Option<(&'a Path, Oid)>, Option<(&'a Path, Oid)>);
 
@@ -276,6 +279,18 @@ impl HunkDiff {
             Self::Deleted { hunk, .. } => hunk.as_ref(),
             Self::Modified { hunk, .. } => hunk.as_ref(),
             _ => None,
+        }
+    }
+
+    pub fn path(&self) -> &PathBuf {
+        match self {
+            Self::Added { path, .. } => path,
+            Self::Deleted { path, .. } => path,
+            Self::Moved { moved } => &moved.new_path,
+            Self::Copied { copied } => &copied.new_path,
+            Self::Modified { path, .. } => path,
+            Self::EofChanged { path, .. } => path,
+            Self::ModeChanged { path, .. } => path,
         }
     }
 
