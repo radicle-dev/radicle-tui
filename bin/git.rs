@@ -366,26 +366,3 @@ impl Debug for HunkDiff {
         }
     }
 }
-
-#[derive(Clone, Debug)]
-pub struct StatefulHunkDiff(HunkDiff, HunkState);
-
-impl StatefulHunkDiff {
-    pub fn hunk(&self) -> &HunkDiff {
-        &self.0
-    }
-
-    pub fn state(&self) -> &HunkState {
-        &self.1
-    }
-
-    pub fn state_mut(&mut self) -> &mut HunkState {
-        &mut self.1
-    }
-}
-
-impl From<&HunkDiff> for StatefulHunkDiff {
-    fn from(diff: &HunkDiff) -> Self {
-        Self(diff.clone(), HunkState::Unknown)
-    }
-}

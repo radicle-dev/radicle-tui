@@ -43,7 +43,7 @@ use tui::ui::utils::LineMerger;
 use tui::ui::{span, Column};
 use tui::ui::{ToRow, ToTree};
 
-use crate::git::{Blobs, DiffStats, HunkDiff, HunkStats, StatefulHunkDiff};
+use crate::git::{Blobs, DiffStats, HunkDiff, HunkState, HunkStats};
 use crate::ui;
 
 use super::super::git;
@@ -1095,7 +1095,7 @@ impl From<Vec<(EntryId, Comment<CodeLocation>)>> for HunkComments {
 #[derive(Clone)]
 pub struct HunkItem<'a> {
     /// The underlying hunk type and its current state (accepted / rejected).
-    pub inner: StatefulHunkDiff,
+    pub diff: HunkDiff,
     /// Raw or highlighted hunk lines. Highlighting is expensive and needs to be asynchronously.
     /// Therefor, a hunks' lines need to stored separately.
     pub lines: Blobs<Vec<Line<'a>>>,
@@ -1103,13 +1103,13 @@ pub struct HunkItem<'a> {
     pub comments: HunkComments,
 }
 
-impl<'a> From<(&Repository, &Review, StatefulHunkDiff)> for HunkItem<'a> {
-    fn from(value: (&Repository, &Review, StatefulHunkDiff)) -> Self {
+impl<'a> From<(&Repository, &Review, &HunkDiff)> for HunkItem<'a> {
+    fn from(value: (&Repository, &Review, &HunkDiff)) -> Self {
         let (repo, review, item) = value;
         let hi = Highlighter::default();
-        let hunk = item.hunk();
+        // let hunk = item.hunk();
 
-        let path = match &hunk {
+        let path = match &item {
             HunkDiff::Added { path, .. } => path,
             HunkDiff::Modified { path, .. } => path,
             HunkDiff::Deleted { path, .. } => path,
@@ -1122,7 +1122,7 @@ impl<'a> From<(&Repository, &Review, StatefulHunkDiff)> for HunkItem<'a> {
         // TODO(erikli): Start with raw, non-highlighted lines and
         // move highlighting to separate task / thread, e.g. here:
         // `let lines = blobs.raw()`
-        let blobs = hunk.clone().blobs(repo.raw());
+        let blobs = item.clone().blobs(repo.raw());
         let lines = blobs.highlight(hi);
         let comments = review
             .comments()
@@ -1132,21 +1132,22 @@ impl<'a> From<(&Repository, &Review, StatefulHunkDiff)> for HunkItem<'a> {
             .collect::<Vec<_>>();
 
         Self {
-            inner: item.clone(),
+            diff: item.clone(),
             lines,
             comments: HunkComments::from(comments),
         }
     }
 }
 
-impl<'a> ToRow<3> for HunkItem<'a> {
+impl<'a> ToRow<3> for StatefulHunkItem<'a> {
     fn to_row(&self) -> [Cell; 3] {
         let build_stats_spans = |stats: &DiffStats| -> Vec<Span<'_>> {
             let mut cell = vec![];
+            let comments = &self.inner().comments;
 
-            if !self.comments.is_empty() {
+            if !comments.is_empty() {
                 cell.push(
-                    span::default(&format!(" {} ", self.comments.len()))
+                    span::default(&format!(" {} ", comments.len()))
                         .dim()
                         .reversed(),
                 );
@@ -1173,7 +1174,7 @@ impl<'a> ToRow<3> for HunkItem<'a> {
             cell
         };
 
-        match &self.inner.hunk() {
+        match &self.inner().diff {
             HunkDiff::Added {
                 path,
                 header: _,
@@ -1189,7 +1190,7 @@ impl<'a> ToRow<3> for HunkItem<'a> {
                 .concat();
 
                 [
-                    Line::from(ui::span::hunk_state(self.inner.state()))
+                    Line::from(ui::span::hunk_state(self.state()))
                         .right_aligned()
                         .into(),
                     Line::from(ui::span::pretty_path(path, false, false)).into(),
@@ -1212,7 +1213,7 @@ impl<'a> ToRow<3> for HunkItem<'a> {
                 .concat();
 
                 [
-                    Line::from(ui::span::hunk_state(self.inner.state()))
+                    Line::from(ui::span::hunk_state(self.state()))
                         .right_aligned()
                         .into(),
                     Line::from(ui::span::pretty_path(path, false, false)).into(),
@@ -1234,7 +1235,7 @@ impl<'a> ToRow<3> for HunkItem<'a> {
                 .concat();
 
                 [
-                    Line::from(ui::span::hunk_state(self.inner.state()))
+                    Line::from(ui::span::hunk_state(self.state()))
                         .right_aligned()
                         .into(),
                     Line::from(ui::span::pretty_path(path, false, false)).into(),
@@ -1250,7 +1251,7 @@ impl<'a> ToRow<3> for HunkItem<'a> {
                 .concat();
 
                 [
-                    Line::from(ui::span::hunk_state(self.inner.state()))
+                    Line::from(ui::span::hunk_state(self.state()))
                         .right_aligned()
                         .into(),
                     Line::from(ui::span::pretty_path(&copied.new_path, false, false)).into(),
@@ -1266,7 +1267,7 @@ impl<'a> ToRow<3> for HunkItem<'a> {
                 .concat();
 
                 [
-                    Line::from(ui::span::hunk_state(self.inner.state()))
+                    Line::from(ui::span::hunk_state(self.state()))
                         .right_aligned()
                         .into(),
                     Line::from(ui::span::pretty_path(&moved.new_path, false, false)).into(),
@@ -1280,7 +1281,7 @@ impl<'a> ToRow<3> for HunkItem<'a> {
                 new: _,
                 _eof: _,
             } => [
-                Line::from(ui::span::hunk_state(self.inner.state()))
+                Line::from(ui::span::hunk_state(self.state()))
                     .right_aligned()
                     .into(),
                 Line::from(ui::span::pretty_path(path, false, false)).into(),
@@ -1294,7 +1295,7 @@ impl<'a> ToRow<3> for HunkItem<'a> {
                 old: _,
                 new: _,
             } => [
-                Line::from(ui::span::hunk_state(self.inner.state()))
+                Line::from(ui::span::hunk_state(self.state()))
                     .right_aligned()
                     .into(),
                 Line::from(ui::span::pretty_path(path, false, false)).into(),
@@ -1321,7 +1322,7 @@ impl<'a> HunkItem<'a> {
             span::blank()
         };
 
-        match &self.inner.hunk() {
+        match &self.diff {
             HunkDiff::Added {
                 path,
                 header: _,
@@ -1504,7 +1505,7 @@ impl<'a> HunkItem<'a> {
     }
 
     pub fn hunk_text(&'a self) -> Option<Text<'a>> {
-        match &self.inner.hunk() {
+        match &self.diff {
             HunkDiff::Added { hunk, .. }
             | HunkDiff::Modified { hunk, .. }
             | HunkDiff::Deleted { hunk, .. } => {
@@ -1585,9 +1586,26 @@ impl<'a> HunkItem<'a> {
 impl<'a> Debug for HunkItem<'a> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("HunkItem")
-            .field("inner", &self.inner)
+            .field("inner", &self.diff)
             .field("comments", &self.comments)
             .finish()
+    }
+}
+
+#[derive(Clone)]
+pub struct StatefulHunkItem<'a>(HunkItem<'a>, HunkState);
+
+impl<'a> StatefulHunkItem<'a> {
+    pub fn new(inner: HunkItem<'a>, state: HunkState) -> Self {
+        Self(inner, state)
+    }
+
+    pub fn inner(&self) -> &HunkItem<'a> {
+        &self.0
+    }
+
+    pub fn state(&self) -> &HunkState {
+        &self.1
     }
 }
 
