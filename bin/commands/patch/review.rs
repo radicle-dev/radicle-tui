@@ -136,27 +136,43 @@ pub struct DiffViewState {
     cursor: Position,
 }
 
-pub struct HunkList<'a> {
-    items: Vec<HunkItem<'a>>,
+#[derive(Clone)]
+pub struct AppState {
+    /// The repository to operate on.
+    rid: RepoId,
+    /// Patch this review belongs to.
+    patch: PatchId,
+    /// Current app page.
+    page: AppPage,
+    /// State of panes widget on the main page.
+    panes: PanesState,
+    /// The hunks' table widget state.
+    hunks: TableState,
+    /// Diff view states (cursor position is stored per hunk)
     views: Vec<DiffViewState>,
-    table: TableState,
+    /// State of text view widget on the help page.
+    help: TextViewState,
 }
 
-impl<'a> HunkList<'a> {
+impl AppState {
     pub fn new(
-        items: impl IntoIterator<Item = HunkItem<'a>>,
+        rid: RepoId,
+        patch: PatchId,
+        page: AppPage,
+        panes: PanesState,
+        hunks: TableState,
         views: impl IntoIterator<Item = DiffViewState>,
-        table: TableState,
+        help: TextViewState,
     ) -> Self {
         Self {
-            items: items.into_iter().collect(),
+            rid,
+            patch,
+            page,
+            panes,
+            hunks,
             views: views.into_iter().collect(),
-            table,
+            help,
         }
-    }
-
-    pub fn item(&self, index: usize) -> Option<&HunkItem> {
-        self.items.get(index)
     }
 
     pub fn view_state(&self, index: usize) -> Option<&DiffViewState> {
@@ -169,12 +185,12 @@ impl<'a> HunkList<'a> {
         }
     }
 
-    pub fn update_table(&mut self, table: TableState) {
-        self.table = table;
+    pub fn update_hunk_list(&mut self, hunks: TableState) {
+        self.hunks = hunks;
     }
 
     pub fn selected(&self) -> Option<usize> {
-        self.table.selected()
+        self.hunks.selected()
     }
 }
 
@@ -182,25 +198,16 @@ impl<'a> HunkList<'a> {
 pub struct App<'a> {
     /// The nodes' storage.
     storage: Storage,
-    /// The repository to operate on.
-    rid: RepoId,
     /// Signer of all writes to the storage or repo.
     signer: Arc<Mutex<Box<dyn Signer>>>,
-    /// Patch this review belongs to.
-    patch: PatchId,
     /// Title of the patch this patch this review belongs to.
     title: String,
     /// Revision this review belongs to.
     revision: Revision,
-    /// All hunks, their view states (cursor position is stored per hunk)
-    /// and the lists' table widget state.
-    hunks: Arc<Mutex<HunkList<'a>>>,
-    /// Current app page.
-    page: AppPage,
-    /// State of panes widget on the main page.
-    group: PanesState,
-    /// State of text view widget on the help page.
-    help: TextViewState,
+    /// All hunks.
+    hunks: Arc<Mutex<Vec<HunkItem<'a>>>>,
+    /// The app state.
+    state: AppState,
 }
 
 impl<'a> TryFrom<Tui> for App<'a> {
@@ -233,7 +240,7 @@ impl<'a> App<'a> {
         hunks: Hunks,
     ) -> Result<Self, anyhow::Error> {
         let repo = storage.repository(rid)?;
-        let states = hunks
+        let views = hunks
             .iter()
             .map(|_| DiffViewState {
                 cursor: Position::new(0, 0),
@@ -247,18 +254,18 @@ impl<'a> App<'a> {
         let mut app = App {
             storage,
             signer: Arc::new(Mutex::new(signer)),
-            rid,
-            patch,
             title,
             revision,
-            hunks: Arc::new(Mutex::new(HunkList::new(
-                hunks,
-                states,
+            hunks: Arc::new(Mutex::new(hunks)),
+            state: AppState::new(
+                rid,
+                patch,
+                AppPage::Main,
+                PanesState::new(2, Some(0)),
                 TableState::new(Some(0)),
-            ))),
-            page: AppPage::Main,
-            group: PanesState::new(2, Some(0)),
-            help: TextViewState::new(Position::default()),
+                views,
+                TextViewState::new(Position::default()),
+            ),
         };
 
         app.reload_states()?;
@@ -268,12 +275,13 @@ impl<'a> App<'a> {
 
     #[allow(clippy::borrowed_box)]
     pub fn accept_current_hunk(&self) -> Result<()> {
-        let repo = self.storage.repository(self.rid).unwrap();
+        let repo = self.storage.repository(self.state.rid).unwrap();
         let signer: &Box<dyn Signer> = &self.signer.lock().unwrap();
 
         if let Some(selected) = self.selected_hunk_idx() {
-            let items = &self.hunks.lock().unwrap().items;
-            let mut brain = Brain::load_or_new(self.patch, &self.revision, repo.raw(), signer)?;
+            let items = &self.hunks.lock().unwrap();
+            let mut brain =
+                Brain::load_or_new(self.state.patch, &self.revision, repo.raw(), signer)?;
 
             let mut last_path: Option<&PathBuf> = None;
             let mut file: Option<FileReviewBuilder> = None;
@@ -317,7 +325,7 @@ impl<'a> App<'a> {
         let repo = self.repo()?;
         let signer: &Box<dyn Signer> = &self.signer.lock().unwrap();
 
-        let mut brain = Brain::load_or_new(self.patch, &self.revision, repo.raw(), signer)?;
+        let mut brain = Brain::load_or_new(self.state.patch, &self.revision, repo.raw(), signer)?;
         brain.discard_accepted(repo.raw())?;
 
         Ok(())
@@ -327,9 +335,9 @@ impl<'a> App<'a> {
     pub fn reload_states(&mut self) -> anyhow::Result<()> {
         let repo = self.repo()?;
         let signer: &Box<dyn Signer> = &self.signer.lock().unwrap();
-        let items = &mut self.hunks.lock().unwrap().items;
+        let mut items = self.hunks.lock().unwrap();
 
-        let brain = Brain::load_or_new(self.patch, &self.revision, repo.raw(), signer)?;
+        let brain = Brain::load_or_new(self.state.patch, &self.revision, repo.raw(), signer)?;
         let rejected_hunks =
             Hunks::new(DiffUtil::new(&repo).rejected_diffs(&brain, &self.revision)?);
 
@@ -352,11 +360,11 @@ impl<'a> App<'a> {
     }
 
     pub fn selected_hunk_idx(&self) -> Option<usize> {
-        self.hunks.lock().unwrap().selected()
+        self.state.selected()
     }
 
     pub fn repo(&self) -> Result<Repository> {
-        Ok(self.storage.repository(self.rid)?)
+        Ok(self.storage.repository(self.state.rid)?)
     }
 }
 
@@ -371,9 +379,9 @@ impl<'a> App<'a> {
         .to_vec();
 
         let hunks = self.hunks.lock().unwrap();
-        let mut selected = hunks.selected();
+        let mut selected = self.state.selected();
 
-        let table = ui.headered_table(frame, &mut selected, &hunks.items, header, columns);
+        let table = ui.headered_table(frame, &mut selected, &hunks, header, columns);
         if table.changed {
             ui.send_message(Message::HunkChanged {
                 state: TableState::new(selected),
@@ -384,8 +392,8 @@ impl<'a> App<'a> {
     fn show_hunk(&self, ui: &mut Ui<Message>, frame: &mut Frame) {
         let hunks = self.hunks.lock().unwrap();
 
-        let selected = hunks.selected();
-        let hunk = selected.and_then(|selected| hunks.item(selected));
+        let selected = self.state.selected();
+        let hunk = selected.and_then(|selected| hunks.get(selected));
 
         if let Some(hunk) = hunk {
             let empty_text = hunk
@@ -393,7 +401,7 @@ impl<'a> App<'a> {
                 .unwrap_or(Text::raw("Nothing to show.").dark_gray());
 
             let mut cursor = selected
-                .and_then(|selected| hunks.view_state(selected))
+                .and_then(|selected| self.state.view_state(selected))
                 .map(|state| state.cursor)
                 .unwrap_or_default();
 
@@ -415,9 +423,9 @@ impl<'a> App<'a> {
     }
 
     fn show_context_bar(&self, ui: &mut Ui<Message>, frame: &mut Frame) {
-        let hunks = &self.hunks.lock().unwrap().items;
+        let hunks = &self.hunks.lock().unwrap();
 
-        let id = format!(" {} ", format::cob(&self.patch));
+        let id = format!(" {} ", format::cob(&self.state.patch));
         let title = &self.title;
 
         let hunks_total = hunks.len();
@@ -473,9 +481,9 @@ impl<'a> App<'a> {
 impl<'a> Show<Message> for App<'a> {
     fn show(&self, ctx: &Context<Message>, frame: &mut Frame) -> Result<(), anyhow::Error> {
         Window::default().show(ctx, |ui| {
-            let mut page_focus = self.group.focus();
+            let mut page_focus = self.state.panes.focus();
 
-            match self.page {
+            match self.state.page {
                 AppPage::Main => {
                     ui.layout(layout::page(), Some(0), |ui| {
                         let group = ui.panes(layout::list_item(), &mut page_focus, |ui| {
@@ -484,7 +492,7 @@ impl<'a> Show<Message> for App<'a> {
                         });
                         if group.response.changed {
                             ui.send_message(Message::PanesChanged {
-                                state: PanesState::new(self.group.len(), page_focus),
+                                state: PanesState::new(self.state.panes.len(), page_focus),
                             });
                         }
 
@@ -520,7 +528,7 @@ impl<'a> Show<Message> for App<'a> {
                     ui.panes(layout::page(), &mut page_focus, |ui| {
                         ui.composite(layout::container(), 1, |ui| {
                             let header = [Column::new(" Help ", Constraint::Fill(1))].to_vec();
-                            let mut cursor = self.help.cursor();
+                            let mut cursor = self.state.help.cursor();
 
                             ui.columns(frame, header, Some(Borders::Top));
                             let help = ui.text_view(
@@ -563,43 +571,38 @@ impl<'a> store::Update<Message> for App<'a> {
 
         match message {
             Message::ShowMain => {
-                self.page = AppPage::Main;
+                self.state.page = AppPage::Main;
                 None
             }
             Message::ShowHelp => {
-                self.page = AppPage::Help;
+                self.state.page = AppPage::Help;
                 None
             }
             Message::PanesChanged { state } => {
-                self.group = state;
+                self.state.panes = state;
                 None
             }
             Message::HunkChanged { state } => {
-                let mut hunks = self.hunks.lock().unwrap();
-                hunks.update_table(state);
+                self.state.update_hunk_list(state);
                 None
             }
             Message::HunkViewChanged { state } => {
-                let hunks = &mut self.hunks.lock().unwrap();
-                if let Some(selected) = hunks.selected() {
-                    hunks.update_view_state(selected, state);
+                if let Some(selected) = self.state.selected() {
+                    self.state.update_view_state(selected, state);
                 }
                 None
             }
             Message::HelpChanged { state } => {
-                self.help = state;
+                self.state.help = state;
                 None
             }
-            Message::Comment => {
-                let hunks = self.hunks.lock().unwrap();
-                Some(Exit {
-                    value: Some(Selection {
-                        action: ReviewAction::Comment,
-                        hunk: hunks.selected(),
-                        args: None,
-                    }),
-                })
-            }
+            Message::Comment => Some(Exit {
+                value: Some(Selection {
+                    action: ReviewAction::Comment,
+                    hunk: self.state.selected(),
+                    args: None,
+                }),
+            }),
             Message::Accept => {
                 match self.accept_current_hunk() {
                     Ok(()) => log::info!("Hunk accepted."),
@@ -667,7 +670,7 @@ mod test {
 
     impl<'a> App<'a> {
         pub fn hunks(&self) -> Vec<HunkItem> {
-            self.hunks.lock().unwrap().items.clone()
+            self.hunks.lock().unwrap().clone()
         }
     }
 
