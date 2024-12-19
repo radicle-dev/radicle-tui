@@ -31,10 +31,10 @@ use tui::ui::span;
 use tui::ui::Column;
 use tui::{Channel, Exit};
 
-use crate::git::HunkDiff;
-use crate::git::{HunkState, StatefulHunkDiff};
+use crate::git::{HunkDiff, HunkState};
 use crate::ui::format;
 use crate::ui::items::HunkItem;
+use crate::ui::items::StatefulHunkItem;
 use crate::ui::layout;
 
 use super::review::builder::DiffUtil;
@@ -147,7 +147,7 @@ pub struct AppState {
     /// State of panes widget on the main page.
     panes: PanesState,
     /// The hunks' table widget state.
-    hunks: TableState,
+    hunks: (TableState, Vec<HunkState>),
     /// Diff view states (cursor position is stored per hunk)
     views: Vec<DiffViewState>,
     /// State of text view widget on the help page.
@@ -160,7 +160,7 @@ impl AppState {
         patch: PatchId,
         page: AppPage,
         panes: PanesState,
-        hunks: TableState,
+        hunks: (TableState, Vec<HunkState>),
         views: impl IntoIterator<Item = DiffViewState>,
         help: TextViewState,
     ) -> Self {
@@ -186,11 +186,19 @@ impl AppState {
     }
 
     pub fn update_hunk_list(&mut self, hunks: TableState) {
-        self.hunks = hunks;
+        self.hunks.0 = hunks;
     }
 
-    pub fn selected(&self) -> Option<usize> {
-        self.hunks.selected()
+    pub fn selected_hunk(&self) -> Option<usize> {
+        self.hunks.0.selected()
+    }
+
+    pub fn hunk_states(&self) -> &Vec<HunkState> {
+        &self.hunks.1
+    }
+
+    pub fn hunk_states_mut(&mut self) -> &mut Vec<HunkState> {
+        &mut self.hunks.1
     }
 }
 
@@ -248,8 +256,9 @@ impl<'a> App<'a> {
             .collect::<Vec<_>>();
         let hunks = hunks
             .iter()
-            .map(|item| HunkItem::from((&repo, &review, StatefulHunkDiff::from(item))))
+            .map(|item| HunkItem::from((&repo, &review, item)))
             .collect::<Vec<_>>();
+        let states = hunks.iter().map(|_| HunkState::Unknown).collect::<Vec<_>>();
 
         let mut app = App {
             storage,
@@ -262,7 +271,7 @@ impl<'a> App<'a> {
                 patch,
                 AppPage::Main,
                 PanesState::new(2, Some(0)),
-                TableState::new(Some(0)),
+                (TableState::new(Some(0)), states),
                 views,
                 TextViewState::new(Position::default()),
             ),
@@ -288,7 +297,7 @@ impl<'a> App<'a> {
 
             for (idx, item) in items.iter().enumerate() {
                 // Get file path.
-                let path = match item.inner.hunk() {
+                let path = match &item.diff {
                     HunkDiff::Added { path, .. } => path,
                     HunkDiff::Deleted { path, .. } => path,
                     HunkDiff::Modified { path, .. } => path,
@@ -301,17 +310,17 @@ impl<'a> App<'a> {
                 // Set new review builder if hunk belongs to new file.
                 if last_path.is_none() || last_path.unwrap() != path {
                     last_path = Some(path);
-                    file = Some(FileReviewBuilder::new(item.inner.hunk()));
+                    file = Some(FileReviewBuilder::new(&item.diff));
                 }
 
                 if let Some(file) = file.as_mut() {
-                    file.set_item(item.inner.hunk());
+                    file.set_item(&item.diff);
 
                     if idx == selected {
-                        let diff = file.item_diff(item.inner.hunk())?;
+                        let diff = file.item_diff(&item.diff)?;
                         brain.accept(diff, repo.raw())?;
                     } else {
-                        file.ignore_item(item.inner.hunk())
+                        file.ignore_item(&item.diff)
                     }
                 }
             }
@@ -335,7 +344,7 @@ impl<'a> App<'a> {
     pub fn reload_states(&mut self) -> anyhow::Result<()> {
         let repo = self.repo()?;
         let signer: &Box<dyn Signer> = &self.signer.lock().unwrap();
-        let mut items = self.hunks.lock().unwrap();
+        let items = self.hunks.lock().unwrap();
 
         let brain = Brain::load_or_new(self.state.patch, &self.revision, repo.raw(), signer)?;
         let rejected_hunks =
@@ -345,13 +354,15 @@ impl<'a> App<'a> {
         log::debug!("Rejected hunks: {:?}", rejected_hunks);
         log::debug!("Requested to reload hunks: {:?}", items);
 
-        for item in &mut *items {
-            let state = if rejected_hunks.contains(item.inner.hunk()) {
+        for (idx, item) in items.iter().enumerate() {
+            let new_state = if rejected_hunks.contains(&item.diff) {
                 HunkState::Rejected
             } else {
                 HunkState::Accepted
             };
-            *item.inner.state_mut() = state;
+            if let Some(state) = self.state.hunk_states_mut().get_mut(idx) {
+                *state = new_state;
+            }
         }
 
         log::debug!("Reloaded hunks: {:?}", items);
@@ -360,7 +371,7 @@ impl<'a> App<'a> {
     }
 
     pub fn selected_hunk_idx(&self) -> Option<usize> {
-        self.state.selected()
+        self.state.selected_hunk()
     }
 
     pub fn repo(&self) -> Result<Repository> {
@@ -379,7 +390,21 @@ impl<'a> App<'a> {
         .to_vec();
 
         let hunks = self.hunks.lock().unwrap();
-        let mut selected = self.state.selected();
+        let hunks = hunks
+            .iter()
+            .enumerate()
+            .map(|(idx, item)| {
+                StatefulHunkItem::new(
+                    item.clone(),
+                    self.state
+                        .hunk_states()
+                        .get(idx)
+                        .cloned()
+                        .unwrap_or_default(),
+                )
+            })
+            .collect::<Vec<_>>();
+        let mut selected = self.state.selected_hunk();
 
         let table = ui.headered_table(frame, &mut selected, &hunks, header, columns);
         if table.changed {
@@ -392,7 +417,7 @@ impl<'a> App<'a> {
     fn show_hunk(&self, ui: &mut Ui<Message>, frame: &mut Frame) {
         let hunks = self.hunks.lock().unwrap();
 
-        let selected = self.state.selected();
+        let selected = self.state.selected_hunk();
         let hunk = selected.and_then(|selected| hunks.get(selected));
 
         if let Some(hunk) = hunk {
@@ -429,9 +454,12 @@ impl<'a> App<'a> {
         let title = &self.title;
 
         let hunks_total = hunks.len();
-        let hunks_accepted = hunks
+        let hunks_accepted = self
+            .state
+            .hunks
+            .1
             .iter()
-            .filter(|hunk| *hunk.inner.state() == HunkState::Accepted)
+            .filter(|state| **state == HunkState::Accepted)
             .collect::<Vec<_>>()
             .len();
 
@@ -587,7 +615,7 @@ impl<'a> store::Update<Message> for App<'a> {
                 None
             }
             Message::HunkViewChanged { state } => {
-                if let Some(selected) = self.state.selected() {
+                if let Some(selected) = self.state.selected_hunk() {
                     self.state.update_view_state(selected, state);
                 }
                 None
@@ -599,7 +627,7 @@ impl<'a> store::Update<Message> for App<'a> {
             Message::Comment => Some(Exit {
                 value: Some(Selection {
                     action: ReviewAction::Comment,
-                    hunk: self.state.selected(),
+                    hunk: self.state.selected_hunk(),
                     args: None,
                 }),
             }),
@@ -788,14 +816,9 @@ mod test {
         let patch = test::fixtures::patch(&alice, &branch, &mut patches)?;
 
         let app = fixtures::app(&alice, patch)?;
+        let states = &app.state.hunk_states();
 
-        let hunks = app.hunks();
-        let states = hunks
-            .iter()
-            .map(|item| item.inner.state())
-            .collect::<Vec<_>>();
-
-        assert_eq!(states, [&HunkState::Rejected, &HunkState::Rejected,]);
+        assert_eq!(**states, [HunkState::Rejected, HunkState::Rejected]);
 
         Ok(())
     }
@@ -829,8 +852,7 @@ mod test {
         let mut app = fixtures::app(&alice, patch)?;
         app.update(Message::Accept);
 
-        let hunks = app.hunks();
-        let state = &hunks.get(0).unwrap().inner.state();
+        let state = &app.state.hunk_states().get(0).unwrap();
 
         assert_eq!(**state, HunkState::Accepted);
 
@@ -849,13 +871,9 @@ mod test {
         let mut app = fixtures::app(&alice, patch)?;
         app.update(Message::Accept);
 
-        let hunks = app.hunks();
-        let states = hunks
-            .iter()
-            .map(|item| item.inner.state())
-            .collect::<Vec<_>>();
+        let states = &app.state.hunk_states();
 
-        assert_eq!(states, [&HunkState::Accepted, &HunkState::Rejected]);
+        assert_eq!(**states, [HunkState::Accepted, HunkState::Rejected]);
 
         Ok(())
     }
@@ -875,13 +893,9 @@ mod test {
         });
         app.update(Message::Accept);
 
-        let hunks = app.hunks();
-        let states = hunks
-            .iter()
-            .map(|item| item.inner.state())
-            .collect::<Vec<_>>();
+        let states = &app.state.hunk_states();
 
-        assert_eq!(states, [&HunkState::Rejected, &HunkState::Accepted]);
+        assert_eq!(**states, [HunkState::Rejected, HunkState::Accepted]);
 
         Ok(())
     }
@@ -902,13 +916,9 @@ mod test {
         });
         app.update(Message::Accept);
 
-        let hunks = app.hunks();
-        let states = hunks
-            .iter()
-            .map(|item| item.inner.state())
-            .collect::<Vec<_>>();
+        let states = &app.state.hunk_states();
 
-        assert_eq!(states, [&HunkState::Accepted, &HunkState::Accepted]);
+        assert_eq!(**states, [HunkState::Accepted, HunkState::Accepted]);
 
         Ok(())
     }
