@@ -153,39 +153,15 @@ impl Hunks {
         self.hunks.push(item);
     }
 
-    // pub fn contains(&self, hunk: &HunkDiff) -> bool {
-    //     match hunk {
-    //         HunkDiff::Modified {
-    //             path: _,
-    //             header: _,
-    //             old: _,
-    //             new: _,
-    //             hunk,
-    //             _stats,
-    //         } => {
-    //             let mut contains = false;
-    //             let other = hunk.clone();
+    pub fn contains(&self, other: &HunkDiff) -> bool {
+        for item in &self.hunks {
+            if item.path() == other.path() && item.hunk() == other.hunk() {
+                return true;
+            }
+        }
 
-    //             for rejected in &self.hunks {
-    //                 match rejected {
-    //                     HunkDiff::Modified {
-    //                         path,
-    //                         header,
-    //                         old,
-    //                         new,
-    //                         hunk,
-    //                         _stats,
-    //                     } => {
-    //                         contains = true;
-    //                     }
-    //                     _ => contains = other == rejected.hunk().cloned(),
-    //                 }
-    //             }
-    //             contains
-    //         }
-    //         _ => self.hunks.contains(hunk),
-    //     }
-    // }
+        false
+    }
 }
 
 impl std::ops::Deref for Hunks {
@@ -204,6 +180,7 @@ impl std::ops::DerefMut for Hunks {
 
 /// Builds a review for a single file.
 /// Adjusts line deltas when a hunk is ignored.
+#[derive(Debug)]
 pub struct FileReviewBuilder {
     delta: i32,
     header: FileHeader,
@@ -226,6 +203,12 @@ impl FileReviewBuilder {
         self
     }
 
+    pub fn ignore_item(&mut self, item: &HunkDiff) {
+        if let Some(h) = item.hunk_header() {
+            self.delta += h.new_size as i32 - h.old_size as i32;
+        }
+    }
+
     pub fn item_diff(&mut self, item: &HunkDiff) -> Result<git::raw::Diff, Error> {
         let mut buf = Vec::new();
         let mut writer = unified_diff::Writer::new(&mut buf);
@@ -245,13 +228,14 @@ impl FileReviewBuilder {
         }
         drop(writer);
 
+        log::debug!("Building item diff ({:?})", String::from_utf8(buf.clone()));
         git::raw::Diff::from_buffer(&buf).map_err(Error::from)
     }
 }
 
 /// Represents the reviewer's brain, ie. what they have seen or not seen in terms
 /// of changes introduced by a patch.
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct Brain<'a> {
     /// Where the review draft is being stored.
     refname: git::Namespaced<'a>,
