@@ -5,6 +5,7 @@ use std::fmt::Debug;
 use std::sync::Arc;
 use std::sync::Mutex;
 
+use anyhow::bail;
 use anyhow::Result;
 
 use termion::event::Key;
@@ -52,7 +53,13 @@ pub struct Selection {
     pub args: Option<Args>,
 }
 
+pub enum ReviewMode {
+    Create,
+    Resume,
+}
+
 pub struct Tui {
+    pub mode: ReviewMode,
     pub storage: Storage,
     pub rid: RepoId,
     pub patch: PatchId,
@@ -63,7 +70,9 @@ pub struct Tui {
 }
 
 impl Tui {
+    #[allow(clippy::too_many_arguments)]
     pub fn new(
+        mode: ReviewMode,
         storage: Storage,
         rid: RepoId,
         patch: PatchId,
@@ -73,6 +82,7 @@ impl Tui {
         hunks: Hunks,
     ) -> Self {
         Self {
+            mode,
             storage,
             rid,
             patch,
@@ -88,6 +98,7 @@ impl Tui {
 
         let channel = Channel::default();
         let state = App::new(
+            self.mode,
             self.storage,
             self.rid,
             self.patch,
@@ -132,6 +143,8 @@ pub struct AppState {
     _rid: RepoId,
     /// Patch this review belongs to.
     patch: PatchId,
+    /// Patch title.
+    title: String,
     /// Revision this review belongs to.
     _revision: Revision,
     /// Current app page.
@@ -151,6 +164,7 @@ impl AppState {
     pub fn new(
         rid: RepoId,
         patch: PatchId,
+        title: String,
         revision: Revision,
         page: AppPage,
         panes: PanesState,
@@ -161,6 +175,7 @@ impl AppState {
         Self {
             _rid: rid,
             patch,
+            title,
             _revision: revision,
             page,
             panes,
@@ -207,33 +222,16 @@ impl AppState {
 
 #[derive(Clone)]
 pub struct App<'a> {
-    /// Patch title/
-    title: String,
     /// All hunks.
     hunks: Arc<Mutex<Vec<HunkItem<'a>>>>,
     /// The app state.
     state: AppState,
 }
 
-impl<'a> TryFrom<Tui> for App<'a> {
-    type Error = anyhow::Error;
-
-    fn try_from(tui: Tui) -> Result<Self, Self::Error> {
-        App::new(
-            tui.storage,
-            tui.rid,
-            tui.patch,
-            tui.title,
-            tui.revision,
-            tui.review,
-            tui.hunks,
-        )
-    }
-}
-
 impl<'a> App<'a> {
     #[allow(clippy::too_many_arguments)]
     pub fn new(
+        mode: ReviewMode,
         storage: Storage,
         rid: RepoId,
         patch: PatchId,
@@ -253,24 +251,34 @@ impl<'a> App<'a> {
             .iter()
             .map(|item| HunkItem::from((&repo, &review, item)))
             .collect::<Vec<_>>();
-        let states = hunks
-            .iter()
-            .map(|_| HunkState::Rejected)
-            .collect::<Vec<_>>();
+
+        let state = match mode {
+            ReviewMode::Create => {
+                let states = hunks
+                    .iter()
+                    .map(|_| HunkState::Rejected)
+                    .collect::<Vec<_>>();
+
+                AppState::new(
+                    rid,
+                    patch,
+                    title,
+                    revision,
+                    AppPage::Main,
+                    PanesState::new(2, Some(0)),
+                    (TableState::new(Some(0)), states),
+                    views,
+                    TextViewState::new(Position::default()),
+                )
+            }
+            ReviewMode::Resume => {
+                bail!("Resuming a review is not yet implemented.");
+            }
+        };
 
         Ok(Self {
-            title,
             hunks: Arc::new(Mutex::new(hunks)),
-            state: AppState::new(
-                rid,
-                patch,
-                revision,
-                AppPage::Main,
-                PanesState::new(2, Some(0)),
-                (TableState::new(Some(0)), states),
-                views,
-                TextViewState::new(Position::default()),
-            ),
+            state,
         })
     }
 
@@ -367,7 +375,7 @@ impl<'a> App<'a> {
         let hunks = &self.hunks.lock().unwrap();
 
         let id = format!(" {} ", format::cob(&self.state.patch));
-        let title = &self.title;
+        let title = &self.state.title;
 
         let hunks_total = hunks.len();
         let hunks_accepted = self
@@ -629,7 +637,7 @@ mod test {
         use crate::test::setup::NodeWithRepo;
 
         use super::builder::ReviewBuilder;
-        use super::App;
+        use super::{App, ReviewMode};
 
         pub fn app<'a>(
             node: &NodeWithRepo,
@@ -645,6 +653,7 @@ mod test {
             let hunks = ReviewBuilder::new(&node.repo).hunks(revision)?;
 
             App::new(
+                ReviewMode::Create,
                 node.storage.clone(),
                 node.repo.id,
                 *patch.id(),

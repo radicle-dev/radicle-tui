@@ -326,6 +326,7 @@ mod interface {
     use crate::tui_patch::list;
     use crate::tui_patch::review::builder::CommentBuilder;
     use crate::tui_patch::review::ReviewAction;
+    use crate::tui_patch::review::ReviewMode;
 
     use super::review;
     use super::review::builder::ReviewBuilder;
@@ -368,6 +369,7 @@ mod interface {
         let drafts = DraftStore::new(&repo, *signer.public_key());
         let mut patches = cob::patch::Cache::no_cache(&drafts)?;
         let mut patch = patches.get_mut(&patch_id)?;
+        let mut resume = false;
 
         if let Some(review) = revision.review_by(signer.public_key()) {
             // Review already finalized. Do nothing and warn.
@@ -381,6 +383,7 @@ mod interface {
 
         if let Some((id, _)) = patch::find_review(&patch, revision, &signer) {
             // Review already started, resume.
+            resume = true;
             log::info!("Resuming review {id}..");
         } else {
             // No review to resume, start a new one.
@@ -404,7 +407,13 @@ mod interface {
             let (review_id, review) = patch::find_review(&patch, revision, &signer)
                 .ok_or_else(|| anyhow!("Could not find review."))?;
 
+            let mode = if resume {
+                ReviewMode::Resume
+            } else {
+                ReviewMode::Create
+            };
             let selection = review::Tui::new(
+                mode,
                 profile.storage.clone(),
                 rid,
                 patch_id,
