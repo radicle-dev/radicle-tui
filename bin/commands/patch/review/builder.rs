@@ -15,7 +15,7 @@ use std::io;
 use std::ops::{Not, Range};
 use std::path::PathBuf;
 
-use radicle::cob::patch::{PatchId, Revision};
+use radicle::cob::patch::Revision;
 use radicle::cob::{CodeLocation, CodeRange};
 use radicle::git;
 use radicle::git::Oid;
@@ -152,16 +152,6 @@ impl Hunks {
     fn add_item(&mut self, item: HunkDiff) {
         self.hunks.push(item);
     }
-
-    pub fn contains(&self, other: &HunkDiff) -> bool {
-        for item in &self.hunks {
-            if item.path() == other.path() && item.hunk() == other.hunk() {
-                return true;
-            }
-        }
-
-        false
-    }
 }
 
 impl std::ops::Deref for Hunks {
@@ -175,205 +165,6 @@ impl std::ops::Deref for Hunks {
 impl std::ops::DerefMut for Hunks {
     fn deref_mut(&mut self) -> &mut Self::Target {
         &mut self.hunks
-    }
-}
-
-/// Builds a review for a single file.
-/// Adjusts line deltas when a hunk is ignored.
-#[derive(Debug)]
-pub struct FileReviewBuilder {
-    delta: i32,
-    header: FileHeader,
-}
-
-impl FileReviewBuilder {
-    pub fn new(item: &HunkDiff) -> Self {
-        Self {
-            delta: 0,
-            header: item.file_header(),
-        }
-    }
-
-    pub fn set_item(&mut self, item: &HunkDiff) -> &mut Self {
-        let header = item.file_header();
-        if self.header != header {
-            self.header = header;
-            self.delta = 0;
-        }
-        self
-    }
-
-    pub fn ignore_item(&mut self, item: &HunkDiff) {
-        if let Some(h) = item.hunk_header() {
-            self.delta += h.new_size as i32 - h.old_size as i32;
-        }
-    }
-
-    pub fn item_diff(&mut self, item: &HunkDiff) -> Result<git::raw::Diff, Error> {
-        let mut buf = Vec::new();
-        let mut writer = unified_diff::Writer::new(&mut buf);
-        writer.encode(&self.header)?;
-
-        if let (Some(h), Some(mut header)) = (item.hunk(), item.hunk_header()) {
-            header.old_line_no -= self.delta as u32;
-            header.new_line_no -= self.delta as u32;
-
-            let h = Hunk {
-                header: header.to_unified_string()?.as_bytes().to_owned().into(),
-                lines: h.lines.clone(),
-                old: h.old.clone(),
-                new: h.new.clone(),
-            };
-            writer.encode(&h)?;
-        }
-        drop(writer);
-
-        log::debug!("Building item diff ({:?})", String::from_utf8(buf.clone()));
-        git::raw::Diff::from_buffer(&buf).map_err(Error::from)
-    }
-}
-
-/// Represents the reviewer's brain, ie. what they have seen or not seen in terms
-/// of changes introduced by a patch.
-#[derive(Clone, Debug)]
-pub struct Brain<'a> {
-    /// Where the review draft is being stored.
-    refname: git::Namespaced<'a>,
-    /// The merge base
-    base: git::raw::Commit<'a>,
-    /// The commit pointed to by the ref.
-    head: git::raw::Commit<'a>,
-    /// The tree of accepted changes pointed to by the head commit.
-    accepted: git::raw::Tree<'a>,
-}
-
-impl<'a> Brain<'a> {
-    /// Create a new brain in the repository.
-    pub fn new(
-        patch: PatchId,
-        remote: &NodeId,
-        base: git::raw::Commit<'a>,
-        repo: &'a git::raw::Repository,
-    ) -> Result<Self, git::raw::Error> {
-        let refname = Self::refname(&patch, remote);
-        let author = repo.signature()?;
-        let oid = repo.commit(
-            Some(refname.as_str()),
-            &author,
-            &author,
-            &format!("Review for {patch}"),
-            &base.tree()?,
-            // TODO: Verify this is necessary, shouldn't matter.
-            &[&base],
-        )?;
-        let head = repo.find_commit(oid)?;
-        let tree = head.tree()?;
-
-        Ok(Self {
-            refname,
-            base,
-            head,
-            accepted: tree,
-        })
-    }
-
-    /// Load an existing brain from the repository.
-    pub fn load(
-        patch: PatchId,
-        remote: &NodeId,
-        base: git::raw::Commit<'a>,
-        repo: &'a git::raw::Repository,
-    ) -> Result<Self, git::raw::Error> {
-        // TODO: Validate this leads to correct UX for potentially abandoned drafts on
-        // past revisions.
-        let refname = Self::refname(&patch, remote);
-        let head = repo.find_reference(&refname)?.peel_to_commit()?;
-        let tree = head.tree()?;
-
-        Ok(Self {
-            refname,
-            base,
-            head,
-            accepted: tree,
-        })
-    }
-
-    pub fn load_or_new<G: Signer>(
-        patch: PatchId,
-        revision: &Revision,
-        repo: &'a git::raw::Repository,
-        signer: &'a G,
-    ) -> Result<Self, git::raw::Error> {
-        let base = repo.find_commit((*revision.base()).into())?;
-
-        let brain = if let Ok(b) = Brain::load(patch, signer.public_key(), base.clone(), repo) {
-            log::info!(
-                "Loaded existing brain {} for patch {}",
-                b.head().id(),
-                &patch
-            );
-            b
-        } else {
-            Brain::new(patch, signer.public_key(), base, repo)?
-        };
-
-        Ok(brain)
-    }
-
-    pub fn discard_accepted(
-        &mut self,
-        repo: &'a git::raw::Repository,
-    ) -> Result<(), git::raw::Error> {
-        // Reset brain
-        let head = self.head.amend(
-            Some(&self.refname),
-            None,
-            None,
-            None,
-            None,
-            Some(&self.base.tree()?),
-        )?;
-        self.head = repo.find_commit(head)?;
-        self.accepted = self.head.tree()?;
-
-        Ok(())
-    }
-
-    /// Accept changes to the brain.
-    pub fn accept(
-        &mut self,
-        diff: git::raw::Diff,
-        repo: &'a git::raw::Repository,
-    ) -> Result<(), git::raw::Error> {
-        let mut index = repo.apply_to_tree(&self.accepted, &diff, None)?;
-        let accepted = index.write_tree_to(repo)?;
-        self.accepted = repo.find_tree(accepted)?;
-
-        // Update review with new brain.
-        let head = self.head.amend(
-            Some(&self.refname),
-            None,
-            None,
-            None,
-            None,
-            Some(&self.accepted),
-        )?;
-        self.head = repo.find_commit(head)?;
-
-        Ok(())
-    }
-
-    /// Get the brain's refname given the patch and remote.
-    pub fn refname(patch: &PatchId, remote: &NodeId) -> git::Namespaced<'a> {
-        git::refs::storage::draft::review(remote, patch)
-    }
-
-    pub fn head(&self) -> &git::raw::Commit<'a> {
-        &self.head
-    }
-
-    pub fn accepted(&self) -> &git::raw::Tree<'a> {
-        &self.accepted
     }
 }
 
@@ -401,21 +192,6 @@ impl<'a> DiffUtil<'a> {
         let base_diff = self.diff(&base, &revision, repo, &mut opts)?;
 
         Ok(base_diff)
-    }
-
-    pub fn rejected_diffs(&self, brain: &Brain<'a>, revision: &Revision) -> anyhow::Result<Diff> {
-        let repo = self.repo.raw();
-        let revision = {
-            let commit = repo.find_commit(revision.head().into())?;
-            commit.tree()?
-        };
-
-        let mut opts = git::raw::DiffOptions::new();
-        opts.patience(true).minimal(true).context_lines(3_u32);
-
-        let rejected = self.diff(brain.accepted(), &revision, repo, &mut opts)?;
-
-        Ok(rejected)
     }
 
     pub fn diff(

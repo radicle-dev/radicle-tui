@@ -2,7 +2,6 @@
 pub mod builder;
 
 use std::fmt::Debug;
-use std::path::PathBuf;
 use std::sync::Arc;
 use std::sync::Mutex;
 
@@ -15,11 +14,9 @@ use ratatui::style::Stylize;
 use ratatui::text::Text;
 use ratatui::{Frame, Viewport};
 
-use radicle::crypto::Signer;
 use radicle::identity::RepoId;
 use radicle::patch::{PatchId, Review, Revision};
-use radicle::storage::git::Repository;
-use radicle::storage::{ReadStorage, WriteRepository};
+use radicle::storage::ReadStorage;
 use radicle::Storage;
 
 use radicle_tui as tui;
@@ -31,15 +28,13 @@ use tui::ui::span;
 use tui::ui::Column;
 use tui::{Channel, Exit};
 
-use crate::git::{HunkDiff, HunkState};
+use crate::git::HunkState;
 use crate::ui::format;
 use crate::ui::items::HunkItem;
 use crate::ui::items::StatefulHunkItem;
 use crate::ui::layout;
 
-use super::review::builder::DiffUtil;
-
-use self::builder::{Brain, FileReviewBuilder, Hunks};
+use self::builder::Hunks;
 
 /// The actions that a user can carry out on a review item.
 #[derive(Debug, Copy, Clone, PartialEq, Eq)]
@@ -60,7 +55,6 @@ pub struct Selection {
 pub struct Tui {
     pub storage: Storage,
     pub rid: RepoId,
-    pub signer: Box<dyn Signer>,
     pub patch: PatchId,
     pub title: String,
     pub revision: Revision,
@@ -69,11 +63,9 @@ pub struct Tui {
 }
 
 impl Tui {
-    #[allow(clippy::too_many_arguments)]
     pub fn new(
         storage: Storage,
         rid: RepoId,
-        signer: Box<dyn Signer>,
         patch: PatchId,
         title: String,
         revision: Revision,
@@ -83,7 +75,6 @@ impl Tui {
         Self {
             storage,
             rid,
-            signer,
             patch,
             title,
             revision,
@@ -99,7 +90,6 @@ impl Tui {
         let state = App::new(
             self.storage,
             self.rid,
-            self.signer,
             self.patch,
             self.title,
             self.revision,
@@ -121,7 +111,7 @@ pub enum Message {
     HelpChanged { state: TextViewState },
     Comment,
     Accept,
-    Discard,
+    Reject,
     Quit,
 }
 
@@ -139,9 +129,11 @@ pub struct DiffViewState {
 #[derive(Clone)]
 pub struct AppState {
     /// The repository to operate on.
-    rid: RepoId,
+    _rid: RepoId,
     /// Patch this review belongs to.
     patch: PatchId,
+    /// Revision this review belongs to.
+    _revision: Revision,
     /// Current app page.
     page: AppPage,
     /// State of panes widget on the main page.
@@ -155,9 +147,11 @@ pub struct AppState {
 }
 
 impl AppState {
+    #[allow(clippy::too_many_arguments)]
     pub fn new(
         rid: RepoId,
         patch: PatchId,
+        revision: Revision,
         page: AppPage,
         panes: PanesState,
         hunks: (TableState, Vec<HunkState>),
@@ -165,8 +159,9 @@ impl AppState {
         help: TextViewState,
     ) -> Self {
         Self {
-            rid,
+            _rid: rid,
             patch,
+            _revision: revision,
             page,
             panes,
             hunks,
@@ -185,7 +180,7 @@ impl AppState {
         }
     }
 
-    pub fn update_hunk_list(&mut self, hunks: TableState) {
+    pub fn update_hunks(&mut self, hunks: TableState) {
         self.hunks.0 = hunks;
     }
 
@@ -193,25 +188,27 @@ impl AppState {
         self.hunks.0.selected()
     }
 
-    pub fn hunk_states(&self) -> &Vec<HunkState> {
-        &self.hunks.1
+    pub fn accept_hunk(&mut self, index: usize) {
+        if let Some(state) = self.hunks.1.get_mut(index) {
+            *state = HunkState::Accepted;
+        }
     }
 
-    pub fn hunk_states_mut(&mut self) -> &mut Vec<HunkState> {
-        &mut self.hunks.1
+    pub fn reject_hunk(&mut self, index: usize) {
+        if let Some(state) = self.hunks.1.get_mut(index) {
+            *state = HunkState::Rejected;
+        }
+    }
+
+    pub fn hunk_states(&self) -> &Vec<HunkState> {
+        &self.hunks.1
     }
 }
 
 #[derive(Clone)]
 pub struct App<'a> {
-    /// The nodes' storage.
-    storage: Storage,
-    /// Signer of all writes to the storage or repo.
-    signer: Arc<Mutex<Box<dyn Signer>>>,
-    /// Title of the patch this patch this review belongs to.
+    /// Patch title/
     title: String,
-    /// Revision this review belongs to.
-    revision: Revision,
     /// All hunks.
     hunks: Arc<Mutex<Vec<HunkItem<'a>>>>,
     /// The app state.
@@ -225,7 +222,6 @@ impl<'a> TryFrom<Tui> for App<'a> {
         App::new(
             tui.storage,
             tui.rid,
-            tui.signer,
             tui.patch,
             tui.title,
             tui.revision,
@@ -240,7 +236,6 @@ impl<'a> App<'a> {
     pub fn new(
         storage: Storage,
         rid: RepoId,
-        signer: Box<dyn Signer>,
         patch: PatchId,
         title: String,
         revision: Revision,
@@ -258,124 +253,45 @@ impl<'a> App<'a> {
             .iter()
             .map(|item| HunkItem::from((&repo, &review, item)))
             .collect::<Vec<_>>();
-        let states = hunks.iter().map(|_| HunkState::Unknown).collect::<Vec<_>>();
+        let states = hunks
+            .iter()
+            .map(|_| HunkState::Rejected)
+            .collect::<Vec<_>>();
 
-        let mut app = App {
-            storage,
-            signer: Arc::new(Mutex::new(signer)),
+        Ok(Self {
             title,
-            revision,
             hunks: Arc::new(Mutex::new(hunks)),
             state: AppState::new(
                 rid,
                 patch,
+                revision,
                 AppPage::Main,
                 PanesState::new(2, Some(0)),
                 (TableState::new(Some(0)), states),
                 views,
                 TextViewState::new(Position::default()),
             ),
-        };
-
-        app.reload_states()?;
-
-        Ok(app)
+        })
     }
 
-    #[allow(clippy::borrowed_box)]
-    pub fn accept_current_hunk(&self) -> Result<()> {
-        let repo = self.storage.repository(self.state.rid).unwrap();
-        let signer: &Box<dyn Signer> = &self.signer.lock().unwrap();
-
-        if let Some(selected) = self.selected_hunk_idx() {
-            let items = &self.hunks.lock().unwrap();
-            let mut brain =
-                Brain::load_or_new(self.state.patch, &self.revision, repo.raw(), signer)?;
-
-            let mut last_path: Option<&PathBuf> = None;
-            let mut file: Option<FileReviewBuilder> = None;
-
-            for (idx, item) in items.iter().enumerate() {
-                // Get file path.
-                let path = match &item.diff {
-                    HunkDiff::Added { path, .. } => path,
-                    HunkDiff::Deleted { path, .. } => path,
-                    HunkDiff::Modified { path, .. } => path,
-                    HunkDiff::Copied { copied } => &copied.new_path,
-                    HunkDiff::Moved { moved } => &moved.new_path,
-                    HunkDiff::EofChanged { path, .. } => path,
-                    HunkDiff::ModeChanged { path, .. } => path,
-                };
-
-                // Set new review builder if hunk belongs to new file.
-                if last_path.is_none() || last_path.unwrap() != path {
-                    last_path = Some(path);
-                    file = Some(FileReviewBuilder::new(&item.diff));
-                }
-
-                if let Some(file) = file.as_mut() {
-                    file.set_item(&item.diff);
-
-                    if idx == selected {
-                        let diff = file.item_diff(&item.diff)?;
-                        brain.accept(diff, repo.raw())?;
-                    } else {
-                        file.ignore_item(&item.diff)
-                    }
-                }
-            }
+    pub fn accept_selected_hunk(&mut self) -> Result<()> {
+        if let Some(selected) = self.selected_hunk() {
+            self.state.accept_hunk(selected);
         }
 
         Ok(())
     }
 
-    #[allow(clippy::borrowed_box)]
-    pub fn discard_accepted_hunks(&self) -> Result<()> {
-        let repo = self.repo()?;
-        let signer: &Box<dyn Signer> = &self.signer.lock().unwrap();
-
-        let mut brain = Brain::load_or_new(self.state.patch, &self.revision, repo.raw(), signer)?;
-        brain.discard_accepted(repo.raw())?;
-
-        Ok(())
-    }
-
-    #[allow(clippy::borrowed_box)]
-    pub fn reload_states(&mut self) -> anyhow::Result<()> {
-        let repo = self.repo()?;
-        let signer: &Box<dyn Signer> = &self.signer.lock().unwrap();
-        let items = self.hunks.lock().unwrap();
-
-        let brain = Brain::load_or_new(self.state.patch, &self.revision, repo.raw(), signer)?;
-        let rejected_hunks =
-            Hunks::new(DiffUtil::new(&repo).rejected_diffs(&brain, &self.revision)?);
-
-        log::debug!("Reloaded hunk states..");
-        log::debug!("Rejected hunks: {:?}", rejected_hunks);
-        log::debug!("Requested to reload hunks: {:?}", items);
-
-        for (idx, item) in items.iter().enumerate() {
-            let new_state = if rejected_hunks.contains(&item.diff) {
-                HunkState::Rejected
-            } else {
-                HunkState::Accepted
-            };
-            if let Some(state) = self.state.hunk_states_mut().get_mut(idx) {
-                *state = new_state;
-            }
+    pub fn reject_selected_hunk(&mut self) -> Result<()> {
+        if let Some(selected) = self.selected_hunk() {
+            self.state.reject_hunk(selected);
         }
 
-        log::debug!("Reloaded hunks: {:?}", items);
-
         Ok(())
     }
 
-    pub fn selected_hunk_idx(&self) -> Option<usize> {
+    pub fn selected_hunk(&self) -> Option<usize> {
         self.state.selected_hunk()
-    }
-
-    pub fn repo(&self) -> Result<Repository> {
-        Ok(self.storage.repository(self.state.rid)?)
     }
 }
 
@@ -531,7 +447,7 @@ impl<'a> Show<Message> for App<'a> {
                             &[
                                 ("c", "comment"),
                                 ("a", "accept"),
-                                ("d", "discard accepted"),
+                                ("r", "reject"),
                                 ("?", "help"),
                                 ("q", "quit"),
                             ],
@@ -547,8 +463,8 @@ impl<'a> Show<Message> for App<'a> {
                         if ui.input_global(|key| key == Key::Char('a')) {
                             ui.send_message(Message::Accept);
                         }
-                        if ui.input_global(|key| key == Key::Char('d')) {
-                            ui.send_message(Message::Discard);
+                        if ui.input_global(|key| key == Key::Char('r')) {
+                            ui.send_message(Message::Reject);
                         }
                     });
                 }
@@ -611,7 +527,7 @@ impl<'a> store::Update<Message> for App<'a> {
                 None
             }
             Message::HunkChanged { state } => {
-                self.state.update_hunk_list(state);
+                self.state.update_hunks(state);
                 None
             }
             Message::HunkViewChanged { state } => {
@@ -632,19 +548,17 @@ impl<'a> store::Update<Message> for App<'a> {
                 }),
             }),
             Message::Accept => {
-                match self.accept_current_hunk() {
-                    Ok(()) => log::info!("Hunk accepted."),
+                match self.accept_selected_hunk() {
+                    Ok(()) => log::info!("Accepted selected hunk."),
                     Err(err) => log::info!("An error occured while accepting hunk: {}", err),
                 }
-                let _ = self.reload_states();
                 None
             }
-            Message::Discard => {
-                match self.discard_accepted_hunks() {
-                    Ok(()) => log::info!("Discarded all hunks."),
-                    Err(err) => log::info!("An error occured while discarding hunks: {}", err),
+            Message::Reject => {
+                match self.reject_selected_hunk() {
+                    Ok(()) => log::info!("Rejected selected hunk."),
+                    Err(err) => log::info!("An error occured while rejecting hunk: {}", err),
                 }
-                let _ = self.reload_states();
                 None
             }
             Message::Quit => Some(Exit { value: None }),
@@ -733,7 +647,6 @@ mod test {
             App::new(
                 node.storage.clone(),
                 node.repo.id,
-                Box::new(node.signer.clone()),
                 *patch.id(),
                 patch.title().to_string(),
                 revision.clone(),
@@ -802,7 +715,7 @@ mod test {
 
         let app = fixtures::app(&alice, patch)?;
 
-        assert_eq!(app.selected_hunk_idx(), Some(0));
+        assert_eq!(app.selected_hunk(), Some(0));
 
         Ok(())
     }
@@ -836,7 +749,7 @@ mod test {
             state: TableState::new(Some(1)),
         });
 
-        assert_eq!(app.selected_hunk_idx(), Some(1));
+        assert_eq!(app.selected_hunk(), Some(1));
 
         Ok(())
     }
@@ -860,7 +773,6 @@ mod test {
     }
 
     #[test]
-    #[ignore]
     fn single_file_multiple_hunks_only_first_can_be_accepted() -> Result<()> {
         let alice = test::fixtures::node_with_repo();
         let branch = test::fixtures::branch_with_main_changed(&alice);

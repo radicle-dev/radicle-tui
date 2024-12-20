@@ -407,7 +407,6 @@ mod interface {
             let selection = review::Tui::new(
                 profile.storage.clone(),
                 rid,
-                signer,
                 patch_id,
                 patch.title().to_string(),
                 revision.clone(),
