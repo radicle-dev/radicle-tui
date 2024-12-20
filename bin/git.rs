@@ -10,7 +10,7 @@ use radicle_surf::diff::{Copied, DiffFile, EofNewLine, FileStats, Hunk, Modifica
 use radicle::git;
 use radicle::git::Oid;
 
-use radicle_cli::git::unified_diff::{FileHeader, HunkHeader};
+use radicle_cli::git::unified_diff::FileHeader;
 use radicle_cli::terminal;
 use radicle_cli::terminal::highlight::Highlighter;
 
@@ -280,40 +280,6 @@ impl HunkDiff {
             Self::Modified { hunk, .. } => hunk.as_ref(),
             _ => None,
         }
-    }
-
-    pub fn path(&self) -> &PathBuf {
-        match self {
-            Self::Added { path, .. } => path,
-            Self::Deleted { path, .. } => path,
-            Self::Moved { moved } => &moved.new_path,
-            Self::Copied { copied } => &copied.new_path,
-            Self::Modified { path, .. } => path,
-            Self::EofChanged { path, .. } => path,
-            Self::ModeChanged { path, .. } => path,
-        }
-    }
-
-    pub fn file_header(&self) -> FileHeader {
-        match self {
-            Self::Added { header, .. } => header.clone(),
-            Self::Deleted { header, .. } => header.clone(),
-            Self::Moved { moved } => FileHeader::Moved {
-                old_path: moved.old_path.clone(),
-                new_path: moved.new_path.clone(),
-            },
-            Self::Copied { copied } => FileHeader::Copied {
-                old_path: copied.old_path.clone(),
-                new_path: copied.new_path.clone(),
-            },
-            Self::Modified { header, .. } => header.clone(),
-            Self::EofChanged { header, .. } => header.clone(),
-            Self::ModeChanged { header, .. } => header.clone(),
-        }
-    }
-
-    pub fn hunk_header(&self) -> Option<HunkHeader> {
-        self.hunk().and_then(|h| HunkHeader::try_from(h).ok())
     }
 
     pub fn paths(&self) -> FilePaths {
