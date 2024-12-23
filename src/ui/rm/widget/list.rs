@@ -272,7 +272,7 @@ where
                 .rows(rows)
                 .widths(widths)
                 .column_spacing(1)
-                .highlight_style(style::highlight(render.focus));
+                .row_highlight_style(style::highlight(render.focus));
 
             let table = if !render.focus && props.dim {
                 table.dim()

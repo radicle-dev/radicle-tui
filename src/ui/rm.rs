@@ -84,7 +84,7 @@ impl Frontend {
                     break Ok(interrupted);
                 }
             }
-            terminal.draw(|frame| root.render(RenderProps::from(frame.size()), frame))?;
+            terminal.draw(|frame| root.render(RenderProps::from(frame.area()), frame))?;
         };
         terminal.restore()?;
 

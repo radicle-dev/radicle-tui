@@ -15,9 +15,8 @@ use super::event::Event;
 
 pub type Backend<S> = TermionBackendExt<S>;
 
-pub type InlineTerminal = ratatui::terminal::Terminal<Backend<RawTerminal<io::Stdout>>>;
-pub type FullscreenTerminal =
-    ratatui::terminal::Terminal<Backend<AlternateScreen<RawTerminal<io::Stdout>>>>;
+pub type InlineTerminal = ratatui::Terminal<Backend<RawTerminal<io::Stdout>>>;
+pub type FullscreenTerminal = ratatui::Terminal<Backend<AlternateScreen<RawTerminal<io::Stdout>>>>;
 
 pub enum Terminal {
     Inline(InlineTerminal),
@@ -32,8 +31,9 @@ impl Terminal {
             }
             Terminal::Inline(inner) => {
                 // TODO(erikli): Check if still needed.
-                let size = inner.get_frame().size();
-                inner.set_cursor(size.x, size.y)?;
+                let area = inner.get_frame().area();
+                let position = Position::new(area.x, area.y);
+                inner.set_cursor_position(position)?;
             }
         }
 
@@ -59,10 +59,8 @@ impl TryFrom<Viewport> for Terminal {
             Viewport::Fullscreen => {
                 let stdout = io::stdout().into_raw_mode()?.into_alternate_screen()?;
                 let options = TerminalOptions { viewport };
-                let mut terminal = ratatui::terminal::Terminal::with_options(
-                    TermionBackendExt::new(stdout),
-                    options,
-                )?;
+                let mut terminal =
+                    ratatui::Terminal::with_options(TermionBackendExt::new(stdout), options)?;
 
                 terminal.clear()?;
 
@@ -71,10 +69,8 @@ impl TryFrom<Viewport> for Terminal {
             _ => {
                 let stdout = io::stdout().into_raw_mode()?;
                 let options = TerminalOptions { viewport };
-                let terminal = ratatui::terminal::Terminal::with_options(
-                    TermionBackendExt::new(stdout),
-                    options,
-                )?;
+                let terminal =
+                    ratatui::Terminal::with_options(TermionBackendExt::new(stdout), options)?;
 
                 Ok(Terminal::Inline(terminal))
             }
@@ -88,7 +84,7 @@ pub struct TermionBackendExt<W>
 where
     W: Write,
 {
-    cursor: Option<(u16, u16)>,
+    cursor: Option<Position>,
     inner: TermionBackend<W>,
 }
 
@@ -124,20 +120,20 @@ impl<W: Write> ratatui::backend::Backend for TermionBackendExt<W> {
         self.inner.show_cursor()
     }
 
-    fn get_cursor(&mut self) -> io::Result<(u16, u16)> {
-        match self.inner.get_cursor() {
-            Ok((x, y)) => {
-                let cursor = (x.saturating_sub(0), y.saturating_sub(0));
-                self.cursor = Some(cursor);
-                Ok(cursor)
+    fn get_cursor_position(&mut self) -> io::Result<Position> {
+        match self.inner.get_cursor_position() {
+            Ok(position) => {
+                self.cursor = Some(position);
+                Ok(position)
             }
-            Err(_) => Ok(self.cursor.unwrap_or((0, 0))),
+            Err(_) => Ok(self.cursor.unwrap_or_default()),
         }
     }
 
-    fn set_cursor(&mut self, x: u16, y: u16) -> io::Result<()> {
-        self.cursor = Some((x, y));
-        self.inner.set_cursor(x, y)
+    fn set_cursor_position<P: Into<Position>>(&mut self, position: P) -> io::Result<()> {
+        self.cursor = Some(position.into());
+        self.inner
+            .set_cursor_position(self.cursor.unwrap_or_default())
     }
 
     fn clear(&mut self) -> io::Result<()> {
@@ -148,7 +144,7 @@ impl<W: Write> ratatui::backend::Backend for TermionBackendExt<W> {
         self.inner.clear_region(clear_type)
     }
 
-    fn size(&self) -> io::Result<Rect> {
+    fn size(&self) -> io::Result<Size> {
         self.inner.size()
     }
 

@@ -104,7 +104,7 @@ where
             .and_then(|props| props.inner_ref::<WindowProps<Id>>())
             .unwrap_or(&default);
 
-        let area = frame.size();
+        let area = frame.area();
 
         let page = props
             .current_page

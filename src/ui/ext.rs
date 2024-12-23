@@ -1,5 +1,5 @@
 use ratatui::buffer::Buffer;
-use ratatui::layout::Rect;
+use ratatui::layout::{Position, Rect};
 use ratatui::style::Style;
 use ratatui::symbols;
 use ratatui::widgets::{BorderType, Borders, Widget};
@@ -60,55 +60,63 @@ impl Widget for HeaderBlock {
         // Sides
         if self.borders.intersects(Borders::LEFT) {
             for y in area.top()..area.bottom() {
-                buf.get_mut(area.left(), y)
-                    .set_symbol(symbols.vertical_left)
-                    .set_style(self.border_style);
+                if let Some(cell) = buf.cell_mut(Position::new(area.left(), y)) {
+                    cell.set_symbol(symbols.vertical_left)
+                        .set_style(self.border_style);
+                }
             }
         }
         if self.borders.intersects(Borders::TOP) {
             for x in area.left()..area.right() {
-                buf.get_mut(x, area.top())
-                    .set_symbol(symbols.horizontal_top)
-                    .set_style(self.border_style);
+                if let Some(cell) = buf.cell_mut(Position::new(x, area.top())) {
+                    cell.set_symbol(symbols.horizontal_top)
+                        .set_style(self.border_style);
+                }
             }
         }
         if self.borders.intersects(Borders::RIGHT) {
             let x = area.right() - 1;
             for y in area.top()..area.bottom() {
-                buf.get_mut(x, y)
-                    .set_symbol(symbols.vertical_right)
-                    .set_style(self.border_style);
+                if let Some(cell) = buf.cell_mut(Position::new(x, y)) {
+                    cell.set_symbol(symbols.vertical_right)
+                        .set_style(self.border_style);
+                }
             }
         }
         if self.borders.intersects(Borders::BOTTOM) {
             let y = area.bottom() - 1;
             for x in area.left()..area.right() {
-                buf.get_mut(x, y)
-                    .set_symbol(symbols.horizontal_bottom)
-                    .set_style(self.border_style);
+                if let Some(cell) = buf.cell_mut(Position::new(x, y)) {
+                    cell.set_symbol(symbols.horizontal_bottom)
+                        .set_style(self.border_style);
+                }
             }
         }
 
         // Corners
         if self.borders.contains(Borders::RIGHT | Borders::BOTTOM) {
-            buf.get_mut(area.right() - 1, area.bottom() - 1)
-                .set_symbol(symbols::line::VERTICAL_LEFT)
-                .set_style(self.border_style);
+            if let Some(cell) = buf.cell_mut(Position::new(area.right() - 1, area.bottom() - 1)) {
+                cell.set_symbol(symbols::line::VERTICAL_LEFT)
+                    .set_style(self.border_style);
+            }
         }
         if self.borders.contains(Borders::RIGHT | Borders::TOP) {
-            buf.get_mut(area.right() - 1, area.top())
-                .set_symbol(symbols.top_right)
-                .set_style(self.border_style);
+            if let Some(cell) = buf.cell_mut(Position::new(area.right() - 1, area.top())) {
+                cell.set_symbol(symbols.top_right)
+                    .set_style(self.border_style);
+            }
         }
         if self.borders.contains(Borders::LEFT | Borders::BOTTOM) {
-            buf.get_mut(area.left(), area.bottom() - 1)
-                .set_symbol(symbols::line::VERTICAL_RIGHT)
-                .set_style(self.border_style);
+            if let Some(cell) = buf.cell_mut(Position::new(area.left(), area.bottom() - 1)) {
+                cell.set_symbol(symbols::line::VERTICAL_RIGHT)
+                    .set_style(self.border_style);
+            }
         }
         if self.borders.contains(Borders::LEFT | Borders::TOP) {
-            buf.get_mut(area.left(), area.top())
-                .set_symbol(symbols.top_left)
-                .set_style(self.border_style);
+            if let Some(cell) = buf.cell_mut(Position::new(area.left(), area.top())) {
+                cell.set_symbol(symbols.top_left)
+                    .set_style(self.border_style);
+            }
         }
     }
 }
@@ -197,32 +205,36 @@ impl Widget for FooterBlock {
         // Sides
         if self.borders.intersects(Borders::LEFT) {
             for y in area.top()..area.bottom() {
-                buf.get_mut(area.left(), y)
-                    .set_symbol(symbols.vertical_left)
-                    .set_style(self.border_style);
+                if let Some(cell) = buf.cell_mut(Position::new(area.left(), y)) {
+                    cell.set_symbol(symbols.vertical_left)
+                        .set_style(self.border_style);
+                }
             }
         }
         if self.borders.intersects(Borders::TOP) {
             for x in area.left()..area.right() {
-                buf.get_mut(x, area.top())
-                    .set_symbol(symbols.horizontal_top)
-                    .set_style(self.border_style);
+                if let Some(cell) = buf.cell_mut(Position::new(x, area.top())) {
+                    cell.set_symbol(symbols.horizontal_top)
+                        .set_style(self.border_style);
+                }
             }
         }
         if self.borders.intersects(Borders::RIGHT) {
             let x = area.right() - 1;
             for y in area.top()..area.bottom() {
-                buf.get_mut(x, y)
-                    .set_symbol(symbols.vertical_right)
-                    .set_style(self.border_style);
+                if let Some(cell) = buf.cell_mut(Position::new(x, y)) {
+                    cell.set_symbol(symbols.vertical_right)
+                        .set_style(self.border_style);
+                }
             }
         }
         if self.borders.intersects(Borders::BOTTOM) {
             let y = area.bottom() - 1;
             for x in area.left()..area.right() {
-                buf.get_mut(x, y)
-                    .set_symbol(symbols.horizontal_bottom)
-                    .set_style(self.border_style);
+                if let Some(cell) = buf.cell_mut(Position::new(x, y)) {
+                    cell.set_symbol(symbols.horizontal_bottom)
+                        .set_style(self.border_style);
+                }
             }
         }
 
@@ -232,28 +244,30 @@ impl Widget for FooterBlock {
                 FooterBlockType::Begin | FooterBlockType::Repeat => symbols::line::HORIZONTAL_UP,
                 _ => symbols.bottom_right,
             };
-            buf.get_mut(area.right() - 1, area.bottom() - 1)
-                .set_symbol(symbol)
-                .set_style(self.border_style);
+            if let Some(cell) = buf.cell_mut(Position::new(area.right() - 1, area.bottom() - 1)) {
+                cell.set_symbol(symbol).set_style(self.border_style);
+            }
         }
         if self.borders.contains(Borders::RIGHT | Borders::TOP) {
             let symbol = match self.block_type {
                 FooterBlockType::Begin | FooterBlockType::Repeat => symbols::line::HORIZONTAL_DOWN,
                 _ => symbols::line::VERTICAL_LEFT,
             };
-            buf.get_mut(area.right() - 1, area.top())
-                .set_symbol(symbol)
-                .set_style(self.border_style);
+            if let Some(cell) = buf.cell_mut(Position::new(area.right() - 1, area.top())) {
+                cell.set_symbol(symbol).set_style(self.border_style);
+            }
         }
         if self.borders.contains(Borders::LEFT | Borders::BOTTOM) {
-            buf.get_mut(area.left(), area.bottom() - 1)
-                .set_symbol(symbols.bottom_left)
-                .set_style(self.border_style);
+            if let Some(cell) = buf.cell_mut(Position::new(area.left(), area.bottom() - 1)) {
+                cell.set_symbol(symbols.bottom_left)
+                    .set_style(self.border_style);
+            }
         }
         if self.borders.contains(Borders::LEFT | Borders::TOP) {
-            buf.get_mut(area.left(), area.top())
-                .set_symbol(symbols::line::VERTICAL_RIGHT)
-                .set_style(self.border_style);
+            if let Some(cell) = buf.cell_mut(Position::new(area.left(), area.top())) {
+                cell.set_symbol(symbols::line::VERTICAL_RIGHT)
+                    .set_style(self.border_style);
+            }
         }
     }
 }

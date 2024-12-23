@@ -453,7 +453,7 @@ where
                 .rows(rows)
                 .widths(widths)
                 .column_spacing(1)
-                .highlight_style(style::highlight(area_focus));
+                .row_highlight_style(style::highlight(area_focus));
 
             let table = if !area_focus && self.dim {
                 table.dim()
@@ -1051,7 +1051,8 @@ impl<'a> TextEdit<'a> {
             frame.render_widget(overline, layout[1]);
 
             if self.show_cursor {
-                frame.set_cursor(top_layout[2].x + cursor_pos, top_layout[2].y)
+                let position = Position::new(top_layout[2].x + cursor_pos, top_layout[2].y);
+                frame.set_cursor_position(position)
             }
         } else {
             let top = Line::from([input].to_vec());
@@ -1061,7 +1062,8 @@ impl<'a> TextEdit<'a> {
             frame.render_widget(bottom, layout[1]);
 
             if self.show_cursor {
-                frame.set_cursor(area.x + cursor_pos, area.y)
+                let position = Position::new(area.x + cursor_pos, area.y);
+                frame.set_cursor_position(position);
             }
         }
 

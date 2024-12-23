@@ -85,7 +85,7 @@ impl Frontend {
                 }
             }
             terminal.draw(|frame| {
-                let ctx = ctx.clone().with_frame_size(frame.size());
+                let ctx = ctx.clone().with_frame_size(frame.area());
 
                 if let Err(err) = state.show(&ctx, frame) {
                     log::warn!("Drawing failed: {}", err);

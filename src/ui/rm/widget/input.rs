@@ -1,12 +1,12 @@
 use std::marker::PhantomData;
 
-use ratatui::widgets::Paragraph;
-use ratatui::Frame;
 use termion::event::Key;
 
-use ratatui::layout::{Alignment, Constraint, Layout, Rect};
+use ratatui::layout::{Alignment, Constraint, Layout, Position, Rect};
 use ratatui::style::{Style, Stylize};
 use ratatui::text::{Line, Span, Text};
+use ratatui::widgets::Paragraph;
+use ratatui::Frame;
 
 use crate::ui::theme::Theme;
 
@@ -287,7 +287,10 @@ where
             frame.render_widget(overline, layout[1]);
 
             if props.show_cursor {
-                frame.set_cursor(top_layout[2].x + cursor_pos, top_layout[2].y)
+                frame.set_cursor_position(Position::new(
+                    top_layout[2].x + cursor_pos,
+                    top_layout[2].y,
+                ))
             }
         } else {
             let top = Line::from([input].to_vec());
@@ -297,7 +300,7 @@ where
             frame.render_widget(bottom, layout[1]);
 
             if props.show_cursor {
-                frame.set_cursor(area.x + cursor_pos, area.y)
+                frame.set_cursor_position(Position::new(area.x + cursor_pos, area.y))
             }
         }
     }
@@ -516,7 +519,7 @@ impl<'a, S, M> View for TextArea<'a, S, M> {
             (self.textarea.cursor().0, self.textarea.cursor().1),
         );
 
-        frame.render_widget(self.textarea.widget(), content_area);
+        frame.render_widget(&self.textarea, content_area);
 
         let mut progress_info = vec![];
 
