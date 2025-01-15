@@ -661,21 +661,13 @@ impl<'a> Widget for Bar<'a> {
 }
 
 #[derive(Clone, Debug)]
-pub struct TextViewState<'a> {
-    text: Text<'a>,
+pub struct TextViewState {
     cursor: Position,
 }
 
-impl<'a> TextViewState<'a> {
-    pub fn new(text: impl Into<Text<'a>>, cursor: Position) -> Self {
-        Self {
-            text: text.into(),
-            cursor,
-        }
-    }
-
-    pub fn text(&self) -> &Text<'a> {
-        &self.text
+impl TextViewState {
+    pub fn new(cursor: Position) -> Self {
+        Self { cursor }
     }
 
     pub fn cursor(&self) -> Position {
@@ -683,7 +675,7 @@ impl<'a> TextViewState<'a> {
     }
 }
 
-impl<'a> TextViewState<'a> {
+impl TextViewState {
     fn scroll_up(&mut self) {
         self.cursor.x = self.cursor.x.saturating_sub(1);
     }
@@ -802,7 +794,7 @@ impl<'a> Widget for TextView<'a> {
             text_area,
         );
 
-        let mut state = TextViewState::new(self.text.clone(), *self.cursor);
+        let mut state = TextViewState::new(*self.cursor);
 
         if let Some(key) = ui.input_with_key(|_| true) {
             let lines = self.text.lines.clone();
