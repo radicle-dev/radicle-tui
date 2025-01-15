@@ -112,13 +112,13 @@ impl Tui {
 }
 
 #[derive(Clone, Debug)]
-pub enum Message<'a> {
+pub enum Message {
     ShowMain,
     PanesChanged { state: PanesState },
     HunkChanged { state: TableState },
     HunkViewChanged { state: DiffViewState },
     ShowHelp,
-    HelpChanged { state: TextViewState<'a> },
+    HelpChanged { state: TextViewState },
     Comment,
     Accept,
     Discard,
@@ -200,7 +200,7 @@ pub struct App<'a> {
     /// State of panes widget on the main page.
     group: PanesState,
     /// State of text view widget on the help page.
-    help: TextViewState<'a>,
+    help: TextViewState,
 }
 
 impl<'a> TryFrom<Tui> for App<'a> {
@@ -258,7 +258,7 @@ impl<'a> App<'a> {
             ))),
             page: AppPage::Main,
             group: PanesState::new(2, Some(0)),
-            help: TextViewState::new(help_text(), Position::default()),
+            help: TextViewState::new(Position::default()),
         };
 
         app.reload_states()?;
@@ -361,7 +361,7 @@ impl<'a> App<'a> {
 }
 
 impl<'a> App<'a> {
-    fn show_hunk_list(&self, ui: &mut Ui<Message<'a>>, frame: &mut Frame) {
+    fn show_hunk_list(&self, ui: &mut Ui<Message>, frame: &mut Frame) {
         let header = [Column::new(" Hunks ", Constraint::Fill(1))].to_vec();
         let columns = [
             Column::new("", Constraint::Length(2)),
@@ -381,7 +381,7 @@ impl<'a> App<'a> {
         }
     }
 
-    fn show_hunk(&self, ui: &mut Ui<Message<'a>>, frame: &mut Frame) {
+    fn show_hunk(&self, ui: &mut Ui<Message>, frame: &mut Frame) {
         let hunks = self.hunks.lock().unwrap();
 
         let selected = hunks.selected();
@@ -414,7 +414,7 @@ impl<'a> App<'a> {
         }
     }
 
-    fn show_context_bar(&self, ui: &mut Ui<Message<'a>>, frame: &mut Frame) {
+    fn show_context_bar(&self, ui: &mut Ui<Message>, frame: &mut Frame) {
         let hunks = &self.hunks.lock().unwrap().items;
 
         let id = format!(" {} ", format::cob(&self.patch));
@@ -470,8 +470,8 @@ impl<'a> App<'a> {
     }
 }
 
-impl<'a> Show<Message<'a>> for App<'a> {
-    fn show(&self, ctx: &Context<Message<'a>>, frame: &mut Frame) -> Result<(), anyhow::Error> {
+impl<'a> Show<Message> for App<'a> {
+    fn show(&self, ctx: &Context<Message>, frame: &mut Frame) -> Result<(), anyhow::Error> {
         Window::default().show(ctx, |ui| {
             let mut page_focus = self.group.focus();
 
@@ -525,13 +525,13 @@ impl<'a> Show<Message<'a>> for App<'a> {
                             ui.columns(frame, header, Some(Borders::Top));
                             let help = ui.text_view(
                                 frame,
-                                self.help.text().to_string(),
+                                help_text().to_string(),
                                 &mut cursor,
                                 Some(Borders::BottomSides),
                             );
                             if help.changed {
                                 ui.send_message(Message::HelpChanged {
-                                    state: TextViewState::new(self.help.text().clone(), cursor),
+                                    state: TextViewState::new(cursor),
                                 })
                             }
                         });
@@ -555,10 +555,10 @@ impl<'a> Show<Message<'a>> for App<'a> {
     }
 }
 
-impl<'a> store::Update<Message<'a>> for App<'a> {
+impl<'a> store::Update<Message> for App<'a> {
     type Return = Selection;
 
-    fn update(&mut self, message: Message<'a>) -> Option<Exit<Self::Return>> {
+    fn update(&mut self, message: Message) -> Option<Exit<Self::Return>> {
         log::info!("Received message: {:?}", message);
 
         match message {

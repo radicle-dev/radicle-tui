@@ -49,7 +49,7 @@ Pattern:    is:<state> | is:authored | authors:[<did>, <did>] | <search>
 Example:    is:open is:authored improve"#;
 
 #[derive(Clone, Debug)]
-pub enum Message<'a> {
+pub enum Message {
     Quit,
     Exit {
         operation: Option<PatchOperation>,
@@ -65,7 +65,7 @@ pub enum Message<'a> {
         page: Page,
     },
     HelpChanged {
-        state: TextViewState<'a>,
+        state: TextViewState,
     },
     ShowSearch,
     UpdateSearch {
@@ -88,7 +88,7 @@ pub struct Storage {
 }
 
 #[derive(Clone, Debug)]
-pub struct App<'a> {
+pub struct App {
     storage: Storage,
     mode: Mode,
     page: Page,
@@ -96,11 +96,11 @@ pub struct App<'a> {
     patches: TableState,
     search: BufferedValue<TextEditState>,
     show_search: bool,
-    help: TextViewState<'a>,
+    help: TextViewState,
     filter: PatchItemFilter,
 }
 
-impl<'a> TryFrom<&Context> for App<'a> {
+impl TryFrom<&Context> for App {
     type Error = anyhow::Error;
 
     fn try_from(context: &Context) -> Result<Self, Self::Error> {
@@ -132,16 +132,16 @@ impl<'a> TryFrom<&Context> for App<'a> {
                 cursor: search.len(),
             }),
             show_search: false,
-            help: TextViewState::new(HELP, Position::default()),
+            help: TextViewState::new(Position::default()),
             filter,
         })
     }
 }
 
-impl<'a> store::Update<Message<'a>> for App<'a> {
+impl store::Update<Message> for App {
     type Return = Selection;
 
-    fn update(&mut self, message: Message<'a>) -> Option<tui::Exit<Selection>> {
+    fn update(&mut self, message: Message) -> Option<tui::Exit<Selection>> {
         log::debug!("[State] Received message: {:?}", message);
 
         match message {
@@ -214,7 +214,7 @@ impl<'a> store::Update<Message<'a>> for App<'a> {
     }
 }
 
-impl<'a> Show<Message<'a>> for App<'a> {
+impl Show<Message> for App {
     fn show(&self, ctx: &im::Context<Message>, frame: &mut Frame) -> Result<()> {
         Window::default().show(ctx, |ui| {
             match self.page {
@@ -328,13 +328,13 @@ impl<'a> Show<Message<'a>> for App<'a> {
 
                         let text_view = ui.text_view(
                             frame,
-                            self.help.text().to_string(),
+                            HELP.to_string(),
                             &mut cursor,
                             Some(Borders::BottomSides),
                         );
                         if text_view.changed {
                             ui.send_message(Message::HelpChanged {
-                                state: TextViewState::new(self.help.text().to_string(), cursor),
+                                state: TextViewState::new(cursor),
                             })
                         }
 
@@ -380,7 +380,7 @@ impl<'a> Show<Message<'a>> for App<'a> {
     }
 }
 
-impl<'a> App<'a> {
+impl App {
     pub fn show_patches(&self, frame: &mut Frame, ui: &mut im::Ui<Message>) {
         let patches = self
             .storage
@@ -448,7 +448,7 @@ impl<'a> App<'a> {
     }
 }
 
-impl<'a> App<'a> {
+impl App {
     pub fn selected_patch(&self) -> Option<&PatchItem> {
         let patches = self
             .storage
