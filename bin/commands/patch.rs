@@ -412,7 +412,7 @@ mod interface {
             } else {
                 ReviewMode::Create
             };
-            let selection = review::Tui::new(
+            let response = review::Tui::new(
                 mode,
                 profile.storage.clone(),
                 rid,
@@ -425,13 +425,14 @@ mod interface {
             .run()
             .await?;
 
-            log::info!("Received selection from TUI: {:?}", selection);
+            log::debug!("Received response from TUI: {:?}", response);
 
-            if let Some(selection) = selection.as_ref() {
-                match selection.action {
+            if let Some(response) = response.as_ref() {
+                match response.action {
                     ReviewAction::Comment => {
-                        let hunk = selection
-                            .hunk
+                        let hunk = response
+                            .state
+                            .selected_hunk()
                             .ok_or_else(|| anyhow!("expected a selected hunk"))?;
                         let item = hunks
                             .get(hunk)

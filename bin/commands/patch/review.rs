@@ -46,11 +46,10 @@ pub enum ReviewAction {
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct Args(String);
 
-#[derive(Clone, Debug, Eq, PartialEq)]
-pub struct Selection {
+#[derive(Clone, Debug)]
+pub struct Response {
+    pub state: AppState,
     pub action: ReviewAction,
-    pub hunk: Option<usize>,
-    pub args: Option<Args>,
 }
 
 pub enum ReviewMode {
@@ -93,7 +92,7 @@ impl Tui {
         }
     }
 
-    pub async fn run(self) -> Result<Option<Selection>> {
+    pub async fn run(self) -> Result<Option<Response>> {
         let viewport = Viewport::Fullscreen;
 
         let channel = Channel::default();
@@ -137,7 +136,7 @@ pub struct DiffViewState {
     cursor: Position,
 }
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct AppState {
     /// The repository to operate on.
     _rid: RepoId,
@@ -516,7 +515,7 @@ impl<'a> Show<Message> for App<'a> {
 }
 
 impl<'a> store::Update<Message> for App<'a> {
-    type Return = Selection;
+    type Return = Response;
 
     fn update(&mut self, message: Message) -> Option<Exit<Self::Return>> {
         log::info!("Received message: {:?}", message);
@@ -549,10 +548,9 @@ impl<'a> store::Update<Message> for App<'a> {
                 None
             }
             Message::Comment => Some(Exit {
-                value: Some(Selection {
+                value: Some(Response {
                     action: ReviewAction::Comment,
-                    hunk: self.state.selected_hunk(),
-                    args: None,
+                    state: self.state.clone(),
                 }),
             }),
             Message::Accept => {
