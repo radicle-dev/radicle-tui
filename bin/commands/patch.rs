@@ -369,7 +369,6 @@ mod interface {
         let drafts = DraftStore::new(&repo, *signer.public_key());
         let mut patches = cob::patch::Cache::no_cache(&drafts)?;
         let mut patch = patches.get_mut(&patch_id)?;
-        let mut resume = false;
 
         if let Some(review) = revision.review_by(signer.public_key()) {
             // Review already finalized. Do nothing and warn.
@@ -381,10 +380,11 @@ mod interface {
             return Ok(());
         };
 
-        if let Some((id, _)) = patch::find_review(&patch, revision, &signer) {
+        let mode = if let Some((id, _)) = patch::find_review(&patch, revision, &signer) {
             // Review already started, resume.
-            resume = true;
             log::info!("Resuming review {id}..");
+
+            ReviewMode::Resume
         } else {
             // No review to resume, start a new one.
             let id = patch.review(
@@ -397,9 +397,10 @@ mod interface {
                 vec![],
                 &signer,
             )?;
-
             log::info!("Starting new review {id}..");
-        }
+
+            ReviewMode::Create
+        };
 
         loop {
             // Reload review
@@ -407,13 +408,8 @@ mod interface {
             let (review_id, review) = patch::find_review(&patch, revision, &signer)
                 .ok_or_else(|| anyhow!("Could not find review."))?;
 
-            let mode = if resume {
-                ReviewMode::Resume
-            } else {
-                ReviewMode::Create
-            };
             let response = review::Tui::new(
-                mode,
+                mode.clone(),
                 profile.storage.clone(),
                 rid,
                 patch_id,

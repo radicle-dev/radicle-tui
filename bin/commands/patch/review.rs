@@ -52,6 +52,7 @@ pub struct Response {
     pub action: ReviewAction,
 }
 
+#[derive(Clone)]
 pub enum ReviewMode {
     Create,
     Resume,
