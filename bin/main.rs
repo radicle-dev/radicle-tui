@@ -45,7 +45,7 @@ fn main() {
         Ok(_) => process::exit(0),
         Err(err) => {
             if let Some(err) = err {
-                term::error(format!("rad: {err}"));
+                term::error(format!("rad-tui: {err}"));
             }
             process::exit(1);
         }
@@ -57,9 +57,13 @@ fn parse_args() -> anyhow::Result<Command> {
 
     let mut parser = lexopt::Parser::from_env();
     let mut command = None;
+    let mut forward = true;
 
     while let Some(arg) = parser.next()? {
         match arg {
+            Long("no-forward") => {
+                forward = false;
+            }
             Long("help") | Short('h') => {
                 command = Some(Command::Help);
             }
@@ -67,14 +71,28 @@ fn parse_args() -> anyhow::Result<Command> {
                 command = Some(Command::Version);
             }
             Value(val) if command.is_none() => {
-                let args = iter::once(val)
-                    .chain(iter::from_fn(|| parser.value().ok()))
-                    .collect();
+                command = match val.to_string_lossy().as_ref() {
+                    "help" => Some(Command::Help),
+                    "version" => Some(Command::Version),
+                    _ => {
+                        let args = iter::once(val)
+                            .chain(iter::from_fn(|| parser.value().ok()))
+                            .collect();
 
-                command = Some(Command::Other(args))
+                        Some(Command::Other(args))
+                    }
+                }
             }
             _ => return Err(anyhow::anyhow!(arg.unexpected())),
         }
+    }
+
+    if forward {
+        command = match command {
+            Some(Command::Help) => Some(Command::Other(vec!["help".into()])),
+            Some(Command::Version) => Some(Command::Other(vec!["version".into()])),
+            other => other,
+        };
     }
 
     Ok(command.unwrap_or_else(|| Command::Other(vec![])))
