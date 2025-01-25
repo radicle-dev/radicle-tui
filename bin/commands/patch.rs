@@ -60,12 +60,14 @@ pub struct Options {
 pub enum Operation {
     Select { opts: SelectOptions },
     Review { opts: ReviewOptions },
+    Other { args: Vec<OsString> },
 }
 
 #[derive(PartialEq, Eq)]
 pub enum OperationName {
     Select,
     Review,
+    Other,
 }
 
 #[derive(Debug, Default, Clone, PartialEq, Eq)]
@@ -109,8 +111,8 @@ impl Args for Options {
     fn from_args(args: Vec<OsString>) -> anyhow::Result<(Self, Vec<OsString>)> {
         use lexopt::prelude::*;
 
-        let mut parser = lexopt::Parser::from_args(args);
-        let mut op: Option<OperationName> = None;
+        let mut parser = lexopt::Parser::from_args(args.clone());
+        let mut op = OperationName::Select;
         let mut repo = None;
         let mut select_opts = SelectOptions::default();
         let mut patch_id = None;
@@ -123,7 +125,7 @@ impl Args for Options {
                 }
 
                 // select options.
-                Long("mode") | Short('m') if op == Some(OperationName::Select) => {
+                Long("mode") | Short('m') if op == OperationName::Select => {
                     let val = parser.value()?;
                     let val = val.to_str().unwrap_or_default();
 
@@ -133,25 +135,25 @@ impl Args for Options {
                         unknown => anyhow::bail!("unknown mode '{}'", unknown),
                     };
                 }
-                Long("all") if op == Some(OperationName::Select) => {
+                Long("all") if op == OperationName::Select => {
                     select_opts.filter = select_opts.filter.with_status(None);
                 }
-                Long("draft") if op == Some(OperationName::Select) => {
+                Long("draft") if op == OperationName::Select => {
                     select_opts.filter = select_opts.filter.with_status(Some(Status::Draft));
                 }
-                Long("archived") if op == Some(OperationName::Select) => {
+                Long("archived") if op == OperationName::Select => {
                     select_opts.filter = select_opts.filter.with_status(Some(Status::Archived));
                 }
-                Long("merged") if op == Some(OperationName::Select) => {
+                Long("merged") if op == OperationName::Select => {
                     select_opts.filter = select_opts.filter.with_status(Some(Status::Merged));
                 }
-                Long("open") if op == Some(OperationName::Select) => {
+                Long("open") if op == OperationName::Select => {
                     select_opts.filter = select_opts.filter.with_status(Some(Status::Open));
                 }
-                Long("authored") if op == Some(OperationName::Select) => {
+                Long("authored") if op == OperationName::Select => {
                     select_opts.filter = select_opts.filter.with_authored(true);
                 }
-                Long("author") if op == Some(OperationName::Select) => {
+                Long("author") if op == OperationName::Select => {
                     select_opts.filter = select_opts
                         .filter
                         .with_author(terminal::args::did(&parser.value()?)?);
@@ -168,16 +170,21 @@ impl Args for Options {
 
                     revision_id = Some(rev_id);
                 }
-                Value(val) if op.is_none() => match val.to_string_lossy().as_ref() {
-                    "select" => op = Some(OperationName::Select),
-                    "review" => op = Some(OperationName::Review),
-                    unknown => anyhow::bail!("unknown operation '{}'", unknown),
+                Value(val) if op == OperationName::Select => match val.to_string_lossy().as_ref() {
+                    "select" => op = OperationName::Select,
+                    "review" => op = OperationName::Review,
+                    _ => op = OperationName::Other,
                 },
                 Value(val) if patch_id.is_none() => {
                     let val = string(&val);
                     patch_id = Some(Rev::from(val));
                 }
-                _ => return Err(anyhow!(arg.unexpected())),
+                _ => match op {
+                    OperationName::Select | OperationName::Review => {
+                        return Err(anyhow!(arg.unexpected()));
+                    }
+                    _ => {}
+                },
             }
         }
 
@@ -185,7 +192,7 @@ impl Args for Options {
             select_opts.filter = Filter::default().with_status(None)
         }
 
-        let op = match op.ok_or_else(|| anyhow!("an operation must be provided"))? {
+        let op = match op {
             OperationName::Review => Operation::Review {
                 opts: ReviewOptions {
                     patch_id,
@@ -193,6 +200,7 @@ impl Args for Options {
                 },
             },
             OperationName::Select => Operation::Select { opts: select_opts },
+            OperationName::Other => Operation::Other { args },
         };
         Ok((Options { op, repo }, vec![]))
     }
@@ -240,6 +248,9 @@ pub async fn run(options: Options, ctx: impl terminal::Context) -> anyhow::Resul
 
             // Run TUI with patch review interface
             interface::review(opts.clone(), profile, rid, patch_id).await?;
+        }
+        Operation::Other { args } => {
+            println!("calling other: {args:?}");
         }
     }
 
