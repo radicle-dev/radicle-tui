@@ -3,6 +3,7 @@ mod commands;
 mod git;
 mod log;
 mod settings;
+mod terminal;
 #[cfg(test)]
 mod test;
 mod ui;
@@ -12,14 +13,12 @@ use std::io;
 use std::io::Write;
 use std::{iter, process};
 
-use anyhow::anyhow;
-
 use radicle::version::Version;
 
-use radicle_cli::terminal;
-use radicle_term as term;
+use radicle_cli::terminal as cli_term;
 
 use commands::*;
+use terminal as term;
 
 pub const NAME: &str = "rad-tui";
 pub const DESCRIPTION: &str = "Radicle terminal interfaces";
@@ -45,7 +44,7 @@ fn main() {
         Ok(_) => process::exit(0),
         Err(err) => {
             if let Some(err) = err {
-                term::error(format!("rad-tui: {err}"));
+                radicle_term::error(format!("rad-tui: {err}"));
             }
             process::exit(1);
         }
@@ -103,7 +102,7 @@ fn print_help() -> anyhow::Result<()> {
     println!("{DESCRIPTION}");
     println!();
 
-    tui_help::run(Default::default(), terminal::DefaultContext)
+    tui_help::run(Default::default(), cli_term::DefaultContext)
 }
 
 fn run(command: Command) -> Result<(), Option<anyhow::Error>> {
@@ -132,31 +131,31 @@ fn run(command: Command) -> Result<(), Option<anyhow::Error>> {
     Ok(())
 }
 
-fn run_other(exe: &str, args: &[OsString]) -> Result<(), Option<anyhow::Error>> {
-    match exe {
+fn run_other(command: &str, args: &[OsString]) -> Result<(), Option<anyhow::Error>> {
+    match command {
         "issue" => {
-            terminal::run_command_args::<tui_issue::Options, _>(
+            term::run_command_args::<tui_issue::Options, _>(
                 tui_issue::HELP,
                 tui_issue::run,
                 args.to_vec(),
             );
         }
         "patch" => {
-            terminal::run_command_args::<tui_patch::Options, _>(
+            term::run_command_args::<tui_patch::Options, _>(
                 tui_patch::HELP,
                 tui_patch::run,
                 args.to_vec(),
             );
         }
         "inbox" => {
-            terminal::run_command_args::<tui_inbox::Options, _>(
+            term::run_command_args::<tui_inbox::Options, _>(
                 tui_inbox::HELP,
                 tui_inbox::run,
                 args.to_vec(),
             );
         }
-        other => Err(Some(anyhow!(
-            "`rad-tui {other}` is not a command. See `rad-tui --help` for a list of commands.",
-        ))),
+        command => {
+            term::run_rad(command, &args)
+        }
     }
 }

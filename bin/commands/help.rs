@@ -1,9 +1,10 @@
 use std::ffi::OsString;
 
+use radicle_cli::terminal as cli_term;
 use radicle_term as term;
 
-use crate::terminal::args::{Args, Error, Help};
-use crate::terminal::Context;
+use cli_term::args::{Args, Error, Help};
+use cli_term::Context;
 
 use super::*;
 
