@@ -22,10 +22,23 @@ pub struct Options {}
 
 impl Args for Options {
     fn from_args(args: Vec<OsString>) -> anyhow::Result<(Self, Vec<OsString>)> {
-        let mut parser = lexopt::Parser::from_args(args);
+        use lexopt::prelude::*;
 
-        if let Some(arg) = parser.next()? {
-            return Err(anyhow::anyhow!(arg.unexpected()));
+        let mut parser = lexopt::Parser::from_args(args);
+        let mut forward = true;
+
+        while let Some(arg) = parser.next()? {
+            match arg {
+                Long("no-forward") => {
+                    forward = false;
+                }
+                _ => {
+                    if !forward {
+                        return Err(Error::HelpManual { name: "rad-tui" }.into());
+                    }
+                    return Err(anyhow::anyhow!(arg.unexpected()));
+                }
+            }
         }
         Err(Error::HelpManual { name: "rad-tui" }.into())
     }
