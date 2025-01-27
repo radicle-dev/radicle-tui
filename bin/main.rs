@@ -180,8 +180,21 @@ fn run_other(command: &str, args: &[OsString]) -> Result<(), Option<anyhow::Erro
                 args.to_vec(),
             );
         }
-        command => {
-            term::run_rad(command, &args)
-        }
+        command => term::run_rad(command, &args),
+    }
+}
+
+#[cfg(test)]
+mod cli {
+    use assert_cmd::prelude::*;
+    use std::process::Command;
+
+    #[test]
+    fn smoke() -> Result<(), Box<dyn std::error::Error>> {
+        let mut cmd = Command::cargo_bin("rad-tui")?;
+
+        cmd.assert().success();
+
+        Ok(())
     }
 }

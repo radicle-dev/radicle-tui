@@ -53,6 +53,8 @@ tui-textarea = { version = "0.7.0", default-features = false, features = ["termi
 tui-tree-widget = { version = "0.23.0" }
 
 [dev-dependencies]
+assert_cmd = "2.0.14"
+predicates = "3.1.0"
 pretty_assertions = "^1.4.1"
 radicle = { version = "0.14.0", features = ["test"]}
 radicle-git-ext = { version = "0.8.0", features = ["serde"] }

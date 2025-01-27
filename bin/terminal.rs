@@ -32,7 +32,7 @@ fn _run_rad(args: &[OsString]) -> Result<(), Option<anyhow::Error>> {
 
 pub fn run_rad(command: &str, args: &[OsString]) -> Result<(), Option<anyhow::Error>> {
     let args = [vec![command.into()], args.to_vec()].concat();
-    
+
     _run_rad(&args)
 }
 
