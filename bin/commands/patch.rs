@@ -48,7 +48,8 @@ Select options
 
 Other options
 
-    --help              Print help
+    --no-forward        Don't forward command to `rad` (default: true)
+    --help              Print help (enables forwarding)
 "#,
 };
 
@@ -113,6 +114,8 @@ impl Args for Options {
 
         let mut parser = lexopt::Parser::from_args(args.clone());
         let mut op = OperationName::Select;
+        let mut forward = None;
+        let mut help = false;
         let mut repo = None;
         let mut select_opts = SelectOptions::default();
         let mut patch_id = None;
@@ -120,8 +123,17 @@ impl Args for Options {
 
         while let Some(arg) = parser.next()? {
             match arg {
+                Long("no-forward") => {
+
+                    forward = Some(false);
+                }
                 Long("help") | Short('h') => {
-                    return Err(Error::Help.into());
+                    help = true;
+                    // Only enable forwarding if it was not already disabled explicitly
+                    forward = match forward {
+                        Some(false) => Some(false),
+                        _ => Some(true),
+                    };
                 }
 
                 // select options.
@@ -188,20 +200,31 @@ impl Args for Options {
             }
         }
 
+        // Disable forwarding if it was not enabled via `--help` or was 
+        // not disabled explicitly.
+        let forward = forward.unwrap_or_default();
+
+        // Show local help
+        if help && !forward {
+            return Err(Error::Help.into());
+        }
+
         if select_opts.mode == common::Mode::Id {
             select_opts.filter = Filter::default().with_status(None)
         }
 
+        // Map local commands. Forward help and ignore `no-forward`.
         let op = match op {
-            OperationName::Review => Operation::Review {
+            OperationName::Review if !forward => Operation::Review {
                 opts: ReviewOptions {
                     patch_id,
                     revision_id,
                 },
             },
-            OperationName::Select => Operation::Select { opts: select_opts },
-            OperationName::Other => Operation::Other { args },
+            OperationName::Select if !forward => Operation::Select { opts: select_opts },
+            _ => Operation::Other { args },
         };
+
         Ok((Options { op, repo }, vec![]))
     }
 }
