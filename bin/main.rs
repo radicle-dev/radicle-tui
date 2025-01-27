@@ -100,23 +100,29 @@ fn parse_args() -> anyhow::Result<Command> {
     let command = match command {
         Some(CommandName::Help) => {
             if forward {
-                Some(Command::Other(vec!["help".into()]))
+                Command::Other(vec!["help".into()])
             } else {
-                Some(Command::Help)
+                Command::Help
             }
         }
         Some(CommandName::Version) => {
             if forward {
-                Some(Command::Other(vec!["version".into()]))
+                Command::Other(vec!["version".into()])
             } else {
-                Some(Command::Version { json })
+                Command::Version { json }
             }
         }
-        Some(CommandName::Other(args)) => Some(Command::Other(args)),
-        _ => None,
+        Some(CommandName::Other(args)) => Command::Other(args),
+        _ => {
+            if forward {
+                Command::Other(vec!["help".into()])
+            } else {
+                Command::Other(vec![])
+            }
+        }
     };
 
-    Ok(command.unwrap_or_else(|| Command::Other(vec![])))
+    Ok(command)
 }
 
 fn print_help() -> anyhow::Result<()> {
