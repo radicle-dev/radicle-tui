@@ -33,10 +33,17 @@ pub const VERSION: Version = Version {
 };
 
 #[derive(Debug)]
-enum Command {
+enum CommandName {
     Other(Vec<OsString>),
     Help,
     Version,
+}
+
+#[derive(Debug)]
+enum Command {
+    Other(Vec<OsString>),
+    Help,
+    Version { json: bool },
 }
 
 fn main() {
@@ -57,28 +64,32 @@ fn parse_args() -> anyhow::Result<Command> {
     let mut parser = lexopt::Parser::from_env();
     let mut command = None;
     let mut forward = true;
+    let mut json = false;
 
     while let Some(arg) = parser.next()? {
         match arg {
             Long("no-forward") => {
                 forward = false;
             }
+            Long("json") => {
+                json = true;
+            }
             Long("help") | Short('h') => {
-                command = Some(Command::Help);
+                command = Some(CommandName::Help);
             }
             Long("version") => {
-                command = Some(Command::Version);
+                command = Some(CommandName::Version);
             }
             Value(val) if command.is_none() => {
                 command = match val.to_string_lossy().as_ref() {
-                    "help" => Some(Command::Help),
-                    "version" => Some(Command::Version),
+                    "help" => Some(CommandName::Help),
+                    "version" => Some(CommandName::Version),
                     _ => {
                         let args = iter::once(val)
                             .chain(iter::from_fn(|| parser.value().ok()))
                             .collect();
 
-                        Some(Command::Other(args))
+                        Some(CommandName::Other(args))
                     }
                 }
             }
@@ -86,13 +97,24 @@ fn parse_args() -> anyhow::Result<Command> {
         }
     }
 
-    if forward {
-        command = match command {
-            Some(Command::Help) => Some(Command::Other(vec!["help".into()])),
-            Some(Command::Version) => Some(Command::Other(vec!["version".into()])),
-            other => other,
-        };
-    }
+    let command = match command {
+        Some(CommandName::Help) => {
+            if forward {
+                Some(Command::Other(vec!["help".into()]))
+            } else {
+                Some(Command::Help)
+            }
+        }
+        Some(CommandName::Version) => {
+            if forward {
+                Some(Command::Other(vec!["version".into()]))
+            } else {
+                Some(Command::Version { json })
+            }
+        }
+        Some(CommandName::Other(args)) => Some(Command::Other(args)),
+        _ => None,
+    };
 
     Ok(command.unwrap_or_else(|| Command::Other(vec![])))
 }
@@ -107,12 +129,16 @@ fn print_help() -> anyhow::Result<()> {
 
 fn run(command: Command) -> Result<(), Option<anyhow::Error>> {
     match command {
-        Command::Version => {
+        Command::Version { json } => {
             let mut stdout = io::stdout();
-            VERSION
-                .write_json(&mut stdout)
-                .map_err(|e| Some(e.into()))?;
-            writeln!(&mut stdout).ok();
+            if json {
+                VERSION
+                    .write_json(&mut stdout)
+                    .map_err(|e| Some(e.into()))?;
+                writeln!(&mut stdout).ok();
+            } else {
+                println!("rad-tui {} ({})", VERSION.version, VERSION.commit);
+            }
         }
         Command::Help => {
             print_help()?;
