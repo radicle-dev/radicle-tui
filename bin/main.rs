@@ -193,13 +193,97 @@ fn run_other(command: &str, args: &[OsString]) -> Result<(), Option<anyhow::Erro
 #[cfg(test)]
 mod cli {
     use assert_cmd::prelude::*;
+    use predicates::prelude::*;
     use std::process::Command;
 
     #[test]
-    fn smoke() -> Result<(), Box<dyn std::error::Error>> {
+    fn can_be_executed() -> Result<(), Box<dyn std::error::Error>> {
         let mut cmd = Command::cargo_bin("rad-tui")?;
 
         cmd.assert().success();
+
+        Ok(())
+    }
+
+    #[test]
+    fn empty_command_is_forwarded() -> Result<(), Box<dyn std::error::Error>> {
+        let mut cmd = Command::cargo_bin("rad-tui")?;
+
+        cmd.assert()
+            .success()
+            .stdout(predicate::str::contains("Radicle CLI Manual"));
+
+        Ok(())
+    }
+
+    #[test]
+    fn empty_command_is_not_forwarded() -> Result<(), Box<dyn std::error::Error>> {
+        let mut cmd = Command::cargo_bin("rad-tui")?;
+
+        cmd.arg("--no-forward");
+        cmd.assert()
+            .success()
+            .stdout(predicate::str::contains("Radicle terminal interfaces"));
+
+        Ok(())
+    }
+
+    #[test]
+    fn version_command_is_forwarded() -> Result<(), Box<dyn std::error::Error>> {
+        let mut cmd = Command::cargo_bin("rad-tui")?;
+
+        cmd.arg("version");
+        cmd.assert()
+            .success()
+            .stdout(predicate::str::starts_with("rad "));
+
+        Ok(())
+    }
+
+    #[test]
+    fn version_command_is_not_forwarded() -> Result<(), Box<dyn std::error::Error>> {
+        let mut cmd = Command::cargo_bin("rad-tui")?;
+
+        cmd.arg("version").arg("--no-forward");
+        cmd.assert()
+            .success()
+            .stdout(predicate::str::starts_with("rad-tui "));
+
+        Ok(())
+    }
+
+    #[test]
+    fn version_command_prints_json() -> Result<(), Box<dyn std::error::Error>> {
+        let mut cmd = Command::cargo_bin("rad-tui")?;
+
+        cmd.arg("version").arg("--no-forward").arg("--json");
+        cmd.assert()
+            .success()
+            .stdout(predicate::str::contains("\"name\":\"rad-tui\""));
+
+        Ok(())
+    }
+
+    #[test]
+    fn help_command_is_forwarded() -> Result<(), Box<dyn std::error::Error>> {
+        let mut cmd = Command::cargo_bin("rad-tui")?;
+
+        cmd.arg("help");
+        cmd.assert()
+            .success()
+            .stdout(predicate::str::contains("Radicle CLI Manual"));
+
+        Ok(())
+    }
+
+    #[test]
+    fn help_command_is_not_forwarded() -> Result<(), Box<dyn std::error::Error>> {
+        let mut cmd = Command::cargo_bin("rad-tui")?;
+
+        cmd.arg("help").arg("--no-forward");
+        cmd.assert()
+            .success()
+            .stdout(predicate::str::contains("Radicle terminal interfaces"));
 
         Ok(())
     }
