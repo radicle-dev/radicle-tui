@@ -64,6 +64,7 @@ pub enum Operation {
     Other { args: Vec<OsString> },
 }
 
+#[allow(dead_code)]
 #[derive(PartialEq, Eq)]
 pub enum OperationName {
     Select,
@@ -124,7 +125,6 @@ impl Args for Options {
         while let Some(arg) = parser.next()? {
             match arg {
                 Long("no-forward") => {
-
                     forward = Some(false);
                 }
                 Long("help") | Short('h') => {
@@ -184,7 +184,8 @@ impl Args for Options {
                 }
                 Value(val) if op == OperationName::Select => match val.to_string_lossy().as_ref() {
                     "select" => op = OperationName::Select,
-                    "review" => op = OperationName::Review,
+                    // TODO(erikli): Enable if interface was fixed.
+                    // "review" => op = OperationName::Review,
                     _ => op = OperationName::Other,
                 },
                 Value(val) if patch_id.is_none() => {
@@ -200,7 +201,7 @@ impl Args for Options {
             }
         }
 
-        // Disable forwarding if it was not enabled via `--help` or was 
+        // Disable forwarding if it was not enabled via `--help` or was
         // not disabled explicitly.
         let forward = forward.unwrap_or_default();
 
