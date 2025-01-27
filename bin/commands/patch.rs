@@ -186,7 +186,13 @@ impl Args for Options {
                     "select" => op = OperationName::Select,
                     // TODO(erikli): Enable if interface was fixed.
                     // "review" => op = OperationName::Review,
-                    _ => op = OperationName::Other,
+                    other => {
+                        if forward == Some(true) {
+                            op = OperationName::Other
+                        } else {
+                            return Err(anyhow!("unknown operation '{other}'"));
+                        }
+                    }
                 },
                 Value(val) if patch_id.is_none() => {
                     let val = string(&val);
@@ -274,7 +280,7 @@ pub async fn run(options: Options, ctx: impl terminal::Context) -> anyhow::Resul
             interface::review(opts.clone(), profile, rid, patch_id).await?;
         }
         Operation::Other { args } => {
-            println!("calling other: {args:?}");
+            let _ = crate::terminal::run_rad("patch", &args);
         }
     }
 
