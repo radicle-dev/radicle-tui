@@ -279,7 +279,12 @@ pub async fn run(options: Options, ctx: impl terminal::Context) -> anyhow::Resul
             // Run TUI with patch review interface
             interface::review(opts.clone(), profile, rid, patch_id).await?;
         }
-        Operation::Other { args } => {
+        Operation::Other { mut args } => {
+            if let Some(arg) = args.first() {
+                if arg.to_string_lossy().as_ref() == "select" {
+                    args = [vec!["list".into()], args[1..].to_vec()].concat();
+                }
+            }
             let _ = crate::terminal::run_rad("patch", &args);
         }
     }
