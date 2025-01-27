@@ -449,3 +449,167 @@ mod interface {
         Ok(())
     }
 }
+
+#[cfg(test)]
+mod cli {
+    use assert_cmd::prelude::*;
+    use predicates::prelude::*;
+    use std::process::Command;
+
+    #[test]
+    fn empty_operation() -> Result<(), Box<dyn std::error::Error>> {
+        let mut cmd = Command::cargo_bin("rad-tui")?;
+
+        cmd.arg("patch");
+        cmd.assert()
+            .failure()
+            .stdout(predicate::str::contains("Inappropriate ioctl for device"));
+
+        Ok(())
+    }
+
+    #[test]
+    fn empty_operation_is_not_forwarded() -> Result<(), Box<dyn std::error::Error>> {
+        let mut cmd = Command::cargo_bin("rad-tui")?;
+
+        cmd.arg("patch");
+        cmd.assert()
+            .failure()
+            .stdout(predicate::str::contains("Inappropriate ioctl for device"));
+
+        Ok(())
+    }
+
+    #[test]
+    fn empty_operation_with_help_is_forwarded() -> Result<(), Box<dyn std::error::Error>> {
+        let mut cmd = Command::cargo_bin("rad-tui")?;
+
+        cmd.args(["patch", "--help"]);
+        cmd.assert()
+            .success()
+            .stdout(predicate::str::contains("Radicle CLI Manual"));
+
+        Ok(())
+    }
+
+    #[test]
+    fn empty_operation_with_help_is_not_forwarded() -> Result<(), Box<dyn std::error::Error>> {
+        let mut cmd = Command::cargo_bin("rad-tui")?;
+
+        cmd.args(["patch", "--help", "--no-forward"]);
+        cmd.assert()
+            .success()
+            .stdout(predicate::str::contains("Terminal interfaces for patches"));
+
+        Ok(())
+    }
+
+    #[test]
+    fn empty_operation_is_not_forwarded_explicitly() -> Result<(), Box<dyn std::error::Error>> {
+        let mut cmd = Command::cargo_bin("rad-tui")?;
+
+        cmd.args(["patch", "--no-forward"]);
+        cmd.assert()
+            .failure()
+            .stdout(predicate::str::contains("Inappropriate ioctl for device"));
+
+        Ok(())
+    }
+
+    #[test]
+    fn select_operation_is_not_forwarded() -> Result<(), Box<dyn std::error::Error>> {
+        let mut cmd = Command::cargo_bin("rad-tui")?;
+
+        cmd.args(["patch", "select"]);
+        cmd.assert()
+            .failure()
+            .stdout(predicate::str::contains("Inappropriate ioctl for device"));
+
+        Ok(())
+    }
+
+    #[test]
+    fn select_operation_is_not_forwarded_explicitly() -> Result<(), Box<dyn std::error::Error>> {
+        let mut cmd = Command::cargo_bin("rad-tui")?;
+
+        cmd.args(["patch", "select", "--no-forward"]);
+        cmd.assert()
+            .failure()
+            .stdout(predicate::str::contains("Inappropriate ioctl for device"));
+
+        Ok(())
+    }
+
+    #[test]
+    fn select_operation_with_help_is_forwarded() -> Result<(), Box<dyn std::error::Error>> {
+        let mut cmd = Command::cargo_bin("rad-tui")?;
+
+        cmd.args(["patch", "select", "--help"]);
+        cmd.assert()
+            .success()
+            .stdout(predicate::str::contains("Radicle CLI Manual"));
+
+        Ok(())
+    }
+
+    #[test]
+    fn select_operation_with_help_is_not_forwarded() -> Result<(), Box<dyn std::error::Error>> {
+        let mut cmd = Command::cargo_bin("rad-tui")?;
+
+        cmd.args(["patch", "select", "--help", "--no-forward"]);
+        cmd.assert()
+            .success()
+            .stdout(predicate::str::contains("Terminal interfaces for patches"));
+
+        Ok(())
+    }
+
+    #[test]
+    fn select_operation_with_help_is_not_forwarded_reversed(
+    ) -> Result<(), Box<dyn std::error::Error>> {
+        let mut cmd = Command::cargo_bin("rad-tui")?;
+
+        cmd.args(["patch", "select", "--no-forward", "--help"]);
+        cmd.assert()
+            .success()
+            .stdout(predicate::str::contains("Terminal interfaces for patches"));
+
+        Ok(())
+    }
+
+    #[test]
+    fn unknown_operation_show_is_forwarded() -> Result<(), Box<dyn std::error::Error>> {
+        let mut cmd = Command::cargo_bin("rad-tui")?;
+
+        cmd.args(["patch", "show"]);
+        cmd.assert().failure().stdout(predicate::str::contains(
+            "Error: rad patch: a patch must be provided",
+        ));
+
+        Ok(())
+    }
+
+    #[test]
+    fn unknown_operation_edit_is_forwarded() -> Result<(), Box<dyn std::error::Error>> {
+        let mut cmd = Command::cargo_bin("rad-tui")?;
+
+        cmd.args(["patch", "edit"]);
+        cmd.assert().failure().stdout(predicate::str::contains(
+            "Error: rad patch: a patch must be provided",
+        ));
+
+        Ok(())
+    }
+
+    #[test]
+    fn unknown_operation_is_not_forwarded() -> Result<(), Box<dyn std::error::Error>> {
+        let mut cmd = Command::cargo_bin("rad-tui")?;
+
+        cmd.args(["patch", "show", "--no-forward"]);
+        cmd.assert().failure().stdout(predicate::str::contains(
+            "Error: rad-tui patch: unknown operation",
+        ));
+
+        Ok(())
+    }
+}
