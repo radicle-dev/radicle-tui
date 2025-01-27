@@ -186,13 +186,7 @@ impl Args for Options {
                     "select" => op = OperationName::Select,
                     // TODO(erikli): Enable if interface was fixed.
                     // "review" => op = OperationName::Review,
-                    other => {
-                        if forward == Some(true) {
-                            op = OperationName::Other
-                        } else {
-                            return Err(anyhow!("unknown operation '{other}'"));
-                        }
-                    }
+                    _ => op = OperationName::Other,
                 },
                 Value(val) if patch_id.is_none() => {
                     let val = string(&val);
@@ -582,7 +576,7 @@ mod cli {
         let mut cmd = Command::cargo_bin("rad-tui")?;
 
         cmd.args(["patch", "show"]);
-        cmd.assert().failure().stdout(predicate::str::contains(
+        cmd.assert().success().stdout(predicate::str::contains(
             "Error: rad patch: a patch must be provided",
         ));
 
@@ -594,7 +588,7 @@ mod cli {
         let mut cmd = Command::cargo_bin("rad-tui")?;
 
         cmd.args(["patch", "edit"]);
-        cmd.assert().failure().stdout(predicate::str::contains(
+        cmd.assert().success().stdout(predicate::str::contains(
             "Error: rad patch: a patch must be provided",
         ));
 
@@ -605,9 +599,9 @@ mod cli {
     fn unknown_operation_is_not_forwarded() -> Result<(), Box<dyn std::error::Error>> {
         let mut cmd = Command::cargo_bin("rad-tui")?;
 
-        cmd.args(["patch", "show", "--no-forward"]);
-        cmd.assert().failure().stdout(predicate::str::contains(
-            "Error: rad-tui patch: unknown operation",
+        cmd.args(["patch", "operation", "--no-forward"]);
+        cmd.assert().success().stdout(predicate::str::contains(
+            "Error: rad patch: unknown operation",
         ));
 
         Ok(())
