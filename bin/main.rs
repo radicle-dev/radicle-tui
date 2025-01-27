@@ -186,7 +186,7 @@ fn run_other(command: &str, args: &[OsString]) -> Result<(), Option<anyhow::Erro
                 args.to_vec(),
             );
         }
-        command => term::run_rad(command, &args),
+        command => term::run_rad(command, args),
     }
 }
 
