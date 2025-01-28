@@ -446,18 +446,35 @@ mod interface {
 
 #[cfg(test)]
 mod cli {
-    use assert_cmd::prelude::*;
-    use predicates::prelude::*;
     use std::process::Command;
+
+    use assert_cmd::prelude::*;
+
+    use predicates::prelude::*;
+
+    mod assert {
+        use predicates::prelude::*;
+        use predicates::str::ContainsPredicate;
+
+        pub fn is_tui() -> ContainsPredicate {
+            predicate::str::contains("Inappropriate ioctl for device")
+        }
+
+        pub fn is_rad_manual() -> ContainsPredicate {
+            predicate::str::contains("Radicle CLI Manual")
+        }
+
+        pub fn is_patch_help() -> ContainsPredicate {
+            predicate::str::contains("Terminal interfaces for patches")
+        }
+    }
 
     #[test]
     fn empty_operation() -> Result<(), Box<dyn std::error::Error>> {
         let mut cmd = Command::cargo_bin("rad-tui")?;
 
         cmd.arg("patch");
-        cmd.assert()
-            .failure()
-            .stdout(predicate::str::contains("Inappropriate ioctl for device"));
+        cmd.assert().failure().stdout(assert::is_tui());
 
         Ok(())
     }
@@ -467,9 +484,7 @@ mod cli {
         let mut cmd = Command::cargo_bin("rad-tui")?;
 
         cmd.arg("patch");
-        cmd.assert()
-            .failure()
-            .stdout(predicate::str::contains("Inappropriate ioctl for device"));
+        cmd.assert().failure().stdout(assert::is_tui());
 
         Ok(())
     }
@@ -479,9 +494,7 @@ mod cli {
         let mut cmd = Command::cargo_bin("rad-tui")?;
 
         cmd.args(["patch", "--help"]);
-        cmd.assert()
-            .success()
-            .stdout(predicate::str::contains("Radicle CLI Manual"));
+        cmd.assert().success().stdout(assert::is_rad_manual());
 
         Ok(())
     }
@@ -491,9 +504,7 @@ mod cli {
         let mut cmd = Command::cargo_bin("rad-tui")?;
 
         cmd.args(["patch", "--help", "--no-forward"]);
-        cmd.assert()
-            .success()
-            .stdout(predicate::str::contains("Terminal interfaces for patches"));
+        cmd.assert().success().stdout(assert::is_patch_help());
 
         Ok(())
     }
@@ -503,9 +514,7 @@ mod cli {
         let mut cmd = Command::cargo_bin("rad-tui")?;
 
         cmd.args(["patch", "--no-forward"]);
-        cmd.assert()
-            .failure()
-            .stdout(predicate::str::contains("Inappropriate ioctl for device"));
+        cmd.assert().failure().stdout(assert::is_tui());
 
         Ok(())
     }
@@ -515,9 +524,7 @@ mod cli {
         let mut cmd = Command::cargo_bin("rad-tui")?;
 
         cmd.args(["patch", "select"]);
-        cmd.assert()
-            .failure()
-            .stdout(predicate::str::contains("Inappropriate ioctl for device"));
+        cmd.assert().failure().stdout(assert::is_tui());
 
         Ok(())
     }
@@ -527,9 +534,7 @@ mod cli {
         let mut cmd = Command::cargo_bin("rad-tui")?;
 
         cmd.args(["patch", "select", "--no-forward"]);
-        cmd.assert()
-            .failure()
-            .stdout(predicate::str::contains("Inappropriate ioctl for device"));
+        cmd.assert().failure().stdout(assert::is_tui());
 
         Ok(())
     }
@@ -539,9 +544,7 @@ mod cli {
         let mut cmd = Command::cargo_bin("rad-tui")?;
 
         cmd.args(["patch", "select", "--help"]);
-        cmd.assert()
-            .success()
-            .stdout(predicate::str::contains("Radicle CLI Manual"));
+        cmd.assert().success().stdout(assert::is_rad_manual());
 
         Ok(())
     }
@@ -551,9 +554,7 @@ mod cli {
         let mut cmd = Command::cargo_bin("rad-tui")?;
 
         cmd.args(["patch", "select", "--help", "--no-forward"]);
-        cmd.assert()
-            .success()
-            .stdout(predicate::str::contains("Terminal interfaces for patches"));
+        cmd.assert().success().stdout(assert::is_patch_help());
 
         Ok(())
     }
@@ -564,9 +565,7 @@ mod cli {
         let mut cmd = Command::cargo_bin("rad-tui")?;
 
         cmd.args(["patch", "select", "--no-forward", "--help"]);
-        cmd.assert()
-            .success()
-            .stdout(predicate::str::contains("Terminal interfaces for patches"));
+        cmd.assert().success().stdout(assert::is_patch_help());
 
         Ok(())
     }
