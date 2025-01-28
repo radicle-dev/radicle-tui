@@ -34,6 +34,8 @@ impl Terminal {
                 let area = inner.get_frame().area();
                 let position = Position::new(area.x, area.y);
                 inner.set_cursor_position(position)?;
+
+                inner.clear()?;
             }
         }
 
