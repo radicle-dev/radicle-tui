@@ -10,7 +10,7 @@ use super::*;
 
 pub const HELP: Help = Help {
     name: "help",
-    description: "TUI help",
+    description: "Print help",
     version: env!("CARGO_PKG_VERSION"),
     usage: "Usage: rad-tui help [--help]",
 };
@@ -27,7 +27,11 @@ impl Args for Options {
 }
 
 pub fn run(_options: Options, ctx: impl Context) -> anyhow::Result<()> {
-    term::print("Usage: rad-tui <command> [--help]");
+    println!(
+        "{} {}",
+        term::format::secondary("Usage:").bold(),
+        term::format::tertiary("rad-tui [COMMAND] [OPTIONS]"),
+    );
 
     if let Err(e) = ctx.profile() {
         term::blank();
@@ -46,18 +50,50 @@ pub fn run(_options: Options, ctx: impl Context) -> anyhow::Result<()> {
         term::blank();
     }
 
-    term::print("Common `rad-tui` commands used in various situations:");
     term::blank();
+    println!("{}", term::format::secondary("Options:").bold(),);
+    term::info!(
+        "\t{} {}",
+        term::format::tertiary(format!("{:-16}", "--no-forward")),
+        term::format::default("Don't forward command to `rad` (default: false)")
+    );
+    term::info!(
+        "\t{} {}",
+        term::format::tertiary(format!("{:-16}", "--json")),
+        term::format::default("Print version as JSON")
+    );
+    term::info!(
+        "\t{} {}",
+        term::format::tertiary(format!("{:-16}", "--version")),
+        term::format::default("Print version")
+    );
+    term::info!(
+        "\t{} {}",
+        term::format::tertiary(format!("{:-16}", "--help")),
+        term::format::default("Print command specific help")
+    );
 
+    term::blank();
+    println!("{}", term::format::secondary("Commands:").bold(),);
+
+    term::info!(
+        "\t{} {}",
+        term::format::tertiary(format!("{:-16}", "version")),
+        term::format::default("Print version")
+    );
     for help in COMMANDS {
         term::info!(
             "\t{} {}",
-            term::format::bold(format!("{:-12}", help.name)),
-            term::format::dim(help.description)
+            term::format::tertiary(format!("{:-16}", help.name)),
+            term::format::default(help.description)
         );
     }
+
     term::blank();
-    term::print("See `rad-tui <command> --help` to learn about a specific command.");
+    println!(
+        "See {} to learn about a specific command.",
+        term::format::tertiary("`rad-tui <command> --help`")
+    );
     term::blank();
 
     Ok(())

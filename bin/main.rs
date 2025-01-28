@@ -126,7 +126,6 @@ fn parse_args() -> anyhow::Result<Command> {
 }
 
 fn print_help() -> anyhow::Result<()> {
-    VERSION.write(&mut io::stdout())?;
     println!("{DESCRIPTION}");
     println!();
 
@@ -205,7 +204,7 @@ mod cli {
         }
 
         pub fn is_help() -> ContainsPredicate {
-            predicate::str::contains("Terminal interfaces for patches")
+            predicate::str::contains("Radicle terminal interfaces")
         }
     }
 
