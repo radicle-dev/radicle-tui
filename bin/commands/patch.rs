@@ -76,6 +76,7 @@ pub enum OperationName {
 pub struct ListOptions {
     mode: common::Mode,
     filter: patch::Filter,
+    json: bool,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -116,6 +117,7 @@ impl Args for Options {
         let mut parser = lexopt::Parser::from_args(args.clone());
         let mut op = OperationName::List;
         let mut forward = None;
+        let mut json = false;
         let mut help = false;
         let mut repo = None;
         let mut list_opts = ListOptions::default();
@@ -126,6 +128,9 @@ impl Args for Options {
             match arg {
                 Long("no-forward") => {
                     forward = Some(false);
+                }
+                Long("json") => {
+                    json = true;
                 }
                 Long("help") | Short('h') => {
                     help = true;
@@ -210,9 +215,11 @@ impl Args for Options {
             return Err(Error::Help.into());
         }
 
+        // Configure list options
         if list_opts.mode == common::Mode::Id {
             list_opts.filter = Filter::default().with_status(None)
         }
+        list_opts.json = json;
 
         // Map local commands. Forward help and ignore `no-forward`.
         let op = match op {
@@ -247,15 +254,31 @@ pub async fn run(options: Options, ctx: impl terminal::Context) -> anyhow::Resul
             let rid = options.repo.unwrap_or(rid);
 
             // Run TUI with patch list interface
-            let selection = interface::list(opts, profile, rid).await?;
-            let selection = selection
-                .map(|o| serde_json::to_string(&o).unwrap_or_default())
-                .unwrap_or_default();
+            let selection = interface::list(opts.clone(), profile, rid).await?;
 
-            log::info!("About to print to `stderr`: {}", selection);
-            log::info!("Exiting patch list interface..");
+            if opts.json {
+                let selection = selection
+                    .map(|o| serde_json::to_string(&o).unwrap_or_default())
+                    .unwrap_or_default();
 
-            eprint!("{selection}");
+                log::info!("About to print to `stderr`: {}", selection);
+                log::info!("Exiting patch list interface..");
+
+                eprint!("{selection}");
+            } else if let Some(selection) = selection {
+                let mut args = vec![];
+
+                if let Some(operation) = selection.operation {
+                    args.push(operation.to_string());
+                }
+                if let Some(id) = selection.ids.first() {
+                    args.push(format!("{id}"));
+                }
+
+                let args = args.into_iter().map(OsString::from).collect::<Vec<_>>();
+
+                let _ = crate::terminal::run_rad("patch", &args);
+            }
         }
         Operation::Review { ref opts } => {
             log::info!("Starting patch review interface in project {rid}..");
