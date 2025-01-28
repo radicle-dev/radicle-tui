@@ -1,6 +1,6 @@
-#[path = "select/imui.rs"]
+#[path = "list/imui.rs"]
 mod imui;
-#[path = "select/rmui.rs"]
+#[path = "list/rmui.rs"]
 mod rmui;
 
 use std::str::FromStr;

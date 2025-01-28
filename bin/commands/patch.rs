@@ -1,9 +1,9 @@
 #[path = "patch/common.rs"]
 mod common;
+#[path = "patch/list.rs"]
+mod list;
 #[path = "patch/review.rs"]
 mod review;
-#[path = "patch/select.rs"]
-mod select;
 
 use std::ffi::OsString;
 
@@ -28,9 +28,9 @@ pub const HELP: Help = Help {
     usage: r#"
 Usage
 
-    rad-tui patch select [<option>...]
+    rad-tui patch list [<option>...]
 
-Select options
+List options
 
     --mode <MODE>           Set selection mode; see MODE below (default: operation)
     --all                   Show all patches, including merged and archived patches
@@ -59,7 +59,7 @@ pub struct Options {
 }
 
 pub enum Operation {
-    Select { opts: SelectOptions },
+    List { opts: ListOptions },
     Review { opts: ReviewOptions },
     Other { args: Vec<OsString> },
 }
@@ -67,13 +67,13 @@ pub enum Operation {
 #[allow(dead_code)]
 #[derive(PartialEq, Eq)]
 pub enum OperationName {
-    Select,
+    List,
     Review,
     Other,
 }
 
 #[derive(Debug, Default, Clone, PartialEq, Eq)]
-pub struct SelectOptions {
+pub struct ListOptions {
     mode: common::Mode,
     filter: patch::Filter,
 }
@@ -114,11 +114,11 @@ impl Args for Options {
         use lexopt::prelude::*;
 
         let mut parser = lexopt::Parser::from_args(args.clone());
-        let mut op = OperationName::Select;
+        let mut op = OperationName::List;
         let mut forward = None;
         let mut help = false;
         let mut repo = None;
-        let mut select_opts = SelectOptions::default();
+        let mut list_opts = ListOptions::default();
         let mut patch_id = None;
         let mut revision_id = None;
 
@@ -137,36 +137,36 @@ impl Args for Options {
                 }
 
                 // select options.
-                Long("mode") | Short('m') if op == OperationName::Select => {
+                Long("mode") | Short('m') if op == OperationName::List => {
                     let val = parser.value()?;
                     let val = val.to_str().unwrap_or_default();
 
-                    select_opts.mode = match val {
+                    list_opts.mode = match val {
                         "operation" => common::Mode::Operation,
                         "id" => common::Mode::Id,
                         unknown => anyhow::bail!("unknown mode '{}'", unknown),
                     };
                 }
-                Long("all") if op == OperationName::Select => {
-                    select_opts.filter = select_opts.filter.with_status(None);
+                Long("all") if op == OperationName::List => {
+                    list_opts.filter = list_opts.filter.with_status(None);
                 }
-                Long("draft") if op == OperationName::Select => {
-                    select_opts.filter = select_opts.filter.with_status(Some(Status::Draft));
+                Long("draft") if op == OperationName::List => {
+                    list_opts.filter = list_opts.filter.with_status(Some(Status::Draft));
                 }
-                Long("archived") if op == OperationName::Select => {
-                    select_opts.filter = select_opts.filter.with_status(Some(Status::Archived));
+                Long("archived") if op == OperationName::List => {
+                    list_opts.filter = list_opts.filter.with_status(Some(Status::Archived));
                 }
-                Long("merged") if op == OperationName::Select => {
-                    select_opts.filter = select_opts.filter.with_status(Some(Status::Merged));
+                Long("merged") if op == OperationName::List => {
+                    list_opts.filter = list_opts.filter.with_status(Some(Status::Merged));
                 }
-                Long("open") if op == OperationName::Select => {
-                    select_opts.filter = select_opts.filter.with_status(Some(Status::Open));
+                Long("open") if op == OperationName::List => {
+                    list_opts.filter = list_opts.filter.with_status(Some(Status::Open));
                 }
-                Long("authored") if op == OperationName::Select => {
-                    select_opts.filter = select_opts.filter.with_authored(true);
+                Long("authored") if op == OperationName::List => {
+                    list_opts.filter = list_opts.filter.with_authored(true);
                 }
-                Long("author") if op == OperationName::Select => {
-                    select_opts.filter = select_opts
+                Long("author") if op == OperationName::List => {
+                    list_opts.filter = list_opts
                         .filter
                         .with_author(terminal::args::did(&parser.value()?)?);
                 }
@@ -182,8 +182,8 @@ impl Args for Options {
 
                     revision_id = Some(rev_id);
                 }
-                Value(val) if op == OperationName::Select => match val.to_string_lossy().as_ref() {
-                    "select" => op = OperationName::Select,
+                Value(val) if op == OperationName::List => match val.to_string_lossy().as_ref() {
+                    "list" => op = OperationName::List,
                     // TODO(erikli): Enable if interface was fixed.
                     // "review" => op = OperationName::Review,
                     _ => op = OperationName::Other,
@@ -193,7 +193,7 @@ impl Args for Options {
                     patch_id = Some(Rev::from(val));
                 }
                 _ => match op {
-                    OperationName::Select | OperationName::Review => {
+                    OperationName::List | OperationName::Review => {
                         return Err(anyhow!(arg.unexpected()));
                     }
                     _ => {}
@@ -210,8 +210,8 @@ impl Args for Options {
             return Err(Error::Help.into());
         }
 
-        if select_opts.mode == common::Mode::Id {
-            select_opts.filter = Filter::default().with_status(None)
+        if list_opts.mode == common::Mode::Id {
+            list_opts.filter = Filter::default().with_status(None)
         }
 
         // Map local commands. Forward help and ignore `no-forward`.
@@ -222,7 +222,7 @@ impl Args for Options {
                     revision_id,
                 },
             },
-            OperationName::Select if !forward => Operation::Select { opts: select_opts },
+            OperationName::List if !forward => Operation::List { opts: list_opts },
             _ => Operation::Other { args },
         };
 
@@ -242,18 +242,18 @@ pub async fn run(options: Options, ctx: impl terminal::Context) -> anyhow::Resul
     }
 
     match options.op {
-        Operation::Select { opts } => {
+        Operation::List { opts } => {
             let profile = ctx.profile()?;
             let rid = options.repo.unwrap_or(rid);
 
-            // Run TUI with patch selection interface
-            let selection = interface::select(opts, profile, rid).await?;
+            // Run TUI with patch list interface
+            let selection = interface::list(opts, profile, rid).await?;
             let selection = selection
                 .map(|o| serde_json::to_string(&o).unwrap_or_default())
                 .unwrap_or_default();
 
             log::info!("About to print to `stderr`: {}", selection);
-            log::info!("Exiting patch selection interface..");
+            log::info!("Exiting patch list interface..");
 
             eprint!("{selection}");
         }
@@ -304,16 +304,16 @@ mod interface {
     use radicle_tui::Selection;
 
     use crate::cob::patch;
+    use crate::tui_patch::list;
     use crate::tui_patch::review::builder::CommentBuilder;
     use crate::tui_patch::review::ReviewAction;
-    use crate::tui_patch::select;
 
     use super::review;
     use super::review::builder::ReviewBuilder;
-    use super::{ReviewOptions, SelectOptions};
+    use super::{ListOptions, ReviewOptions};
 
-    pub async fn select(
-        opts: SelectOptions,
+    pub async fn list(
+        opts: ListOptions,
         profile: Profile,
         rid: RepoId,
     ) -> anyhow::Result<Option<Selection<ObjectId>>> {
@@ -321,14 +321,14 @@ mod interface {
 
         log::info!("Starting patch selection interface in project {}..", rid);
 
-        let context = select::Context {
+        let context = list::Context {
             profile,
             repository,
             mode: opts.mode,
             filter: opts.filter.clone(),
         };
 
-        select::App::new(context, true).run().await
+        list::App::new(context, true).run().await
     }
 
     pub async fn review(
@@ -520,51 +520,51 @@ mod cli {
     }
 
     #[test]
-    fn select_operation_is_not_forwarded() -> Result<(), Box<dyn std::error::Error>> {
+    fn list_operation_is_not_forwarded() -> Result<(), Box<dyn std::error::Error>> {
         let mut cmd = Command::cargo_bin("rad-tui")?;
 
-        cmd.args(["patch", "select"]);
+        cmd.args(["patch", "list"]);
         cmd.assert().failure().stdout(assert::is_tui());
 
         Ok(())
     }
 
     #[test]
-    fn select_operation_is_not_forwarded_explicitly() -> Result<(), Box<dyn std::error::Error>> {
+    fn list_operation_is_not_forwarded_explicitly() -> Result<(), Box<dyn std::error::Error>> {
         let mut cmd = Command::cargo_bin("rad-tui")?;
 
-        cmd.args(["patch", "select", "--no-forward"]);
+        cmd.args(["patch", "list", "--no-forward"]);
         cmd.assert().failure().stdout(assert::is_tui());
 
         Ok(())
     }
 
     #[test]
-    fn select_operation_with_help_is_forwarded() -> Result<(), Box<dyn std::error::Error>> {
+    fn list_operation_with_help_is_forwarded() -> Result<(), Box<dyn std::error::Error>> {
         let mut cmd = Command::cargo_bin("rad-tui")?;
 
-        cmd.args(["patch", "select", "--help"]);
+        cmd.args(["patch", "list", "--help"]);
         cmd.assert().success().stdout(assert::is_rad_manual());
 
         Ok(())
     }
 
     #[test]
-    fn select_operation_with_help_is_not_forwarded() -> Result<(), Box<dyn std::error::Error>> {
+    fn list_operation_with_help_is_not_forwarded() -> Result<(), Box<dyn std::error::Error>> {
         let mut cmd = Command::cargo_bin("rad-tui")?;
 
-        cmd.args(["patch", "select", "--help", "--no-forward"]);
+        cmd.args(["patch", "list", "--help", "--no-forward"]);
         cmd.assert().success().stdout(assert::is_patch_help());
 
         Ok(())
     }
 
     #[test]
-    fn select_operation_with_help_is_not_forwarded_reversed(
-    ) -> Result<(), Box<dyn std::error::Error>> {
+    fn list_operation_with_help_is_not_forwarded_reversed() -> Result<(), Box<dyn std::error::Error>>
+    {
         let mut cmd = Command::cargo_bin("rad-tui")?;
 
-        cmd.args(["patch", "select", "--no-forward", "--help"]);
+        cmd.args(["patch", "list", "--no-forward", "--help"]);
         cmd.assert().success().stdout(assert::is_patch_help());
 
         Ok(())
