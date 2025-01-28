@@ -196,6 +196,19 @@ mod cli {
     use predicates::prelude::*;
     use std::process::Command;
 
+    mod assert {
+        use predicates::prelude::*;
+        use predicates::str::ContainsPredicate;
+
+        pub fn is_rad_manual() -> ContainsPredicate {
+            predicate::str::contains("Radicle CLI Manual")
+        }
+
+        pub fn is_help() -> ContainsPredicate {
+            predicate::str::contains("Terminal interfaces for patches")
+        }
+    }
+
     #[test]
     fn can_be_executed() -> Result<(), Box<dyn std::error::Error>> {
         let mut cmd = Command::cargo_bin("rad-tui")?;
@@ -209,9 +222,7 @@ mod cli {
     fn empty_command_is_forwarded() -> Result<(), Box<dyn std::error::Error>> {
         let mut cmd = Command::cargo_bin("rad-tui")?;
 
-        cmd.assert()
-            .success()
-            .stdout(predicate::str::contains("Radicle CLI Manual"));
+        cmd.assert().success().stdout(assert::is_rad_manual());
 
         Ok(())
     }
@@ -221,9 +232,7 @@ mod cli {
         let mut cmd = Command::cargo_bin("rad-tui")?;
 
         cmd.arg("--no-forward");
-        cmd.assert()
-            .success()
-            .stdout(predicate::str::contains("Radicle terminal interfaces"));
+        cmd.assert().success().stdout(assert::is_help());
 
         Ok(())
     }
@@ -269,9 +278,7 @@ mod cli {
         let mut cmd = Command::cargo_bin("rad-tui")?;
 
         cmd.arg("help");
-        cmd.assert()
-            .success()
-            .stdout(predicate::str::contains("Radicle CLI Manual"));
+        cmd.assert().success().stdout(assert::is_rad_manual());
 
         Ok(())
     }
@@ -281,9 +288,7 @@ mod cli {
         let mut cmd = Command::cargo_bin("rad-tui")?;
 
         cmd.arg("help").arg("--no-forward");
-        cmd.assert()
-            .success()
-            .stdout(predicate::str::contains("Radicle terminal interfaces"));
+        cmd.assert().success().stdout(assert::is_help());
 
         Ok(())
     }
