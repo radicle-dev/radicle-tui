@@ -1,4 +1,4 @@
-#[path = "select/ui.rs"]
+#[path = "list/ui.rs"]
 mod ui;
 
 use std::str::FromStr;

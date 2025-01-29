@@ -1,7 +1,7 @@
 #[path = "inbox/common.rs"]
 mod common;
-#[path = "inbox/select.rs"]
-mod select;
+#[path = "inbox/list.rs"]
+mod list;
 
 use std::ffi::OsString;
 
@@ -21,18 +21,21 @@ pub const HELP: Help = Help {
     usage: r#"
 Usage
 
-    rad-tui inbox select [<option>...]
+    rad-tui inbox list [<option>...]
 
-Other options
+List options
 
     --mode <MODE>           Set selection mode; see MODE below (default: operation)
     
     --sort-by <field>       Sort by `id` or `timestamp` (default: timestamp)
     --reverse, -r           Reverse the list
-    --help                  Print help
 
     The MODE argument can be 'operation' or 'id'. 'operation' selects a notification id and
     an operation, whereas 'id' selects a notification id only.
+
+Other options
+
+    --help                  Print help    
 "#,
 };
 
@@ -41,16 +44,16 @@ pub struct Options {
 }
 
 pub enum Operation {
-    Select { opts: SelectOptions },
+    List { opts: ListOptions },
 }
 
 #[derive(PartialEq, Eq)]
 pub enum OperationName {
-    Select,
+    List,
 }
 
 #[derive(Debug, Default, Clone, PartialEq, Eq)]
-pub struct SelectOptions {
+pub struct ListOptions {
     mode: Mode,
     filter: inbox::Filter,
     sort_by: inbox::SortBy,
@@ -65,7 +68,7 @@ impl Args for Options {
         let mut repository_mode = None;
         let mut reverse = None;
         let mut field = None;
-        let mut select_opts = SelectOptions::default();
+        let mut list_opts = ListOptions::default();
 
         while let Some(arg) = parser.next()? {
             match arg {
@@ -74,7 +77,7 @@ impl Args for Options {
                 }
 
                 // select options.
-                Long("mode") | Short('m') if op == Some(OperationName::Select) => {
+                Long("mode") | Short('m') if op == Some(OperationName::List) => {
                     let val = parser.value()?;
                     let val = val.to_str().unwrap_or_default();
 
@@ -83,7 +86,7 @@ impl Args for Options {
                         "id" => SelectionMode::Id,
                         unknown => anyhow::bail!("unknown mode '{}'", unknown),
                     };
-                    select_opts.mode = select_opts.mode.with_selection(selection_mode)
+                    list_opts.mode = list_opts.mode.with_selection(selection_mode)
                 }
 
                 Long("reverse") | Short('r') => {
@@ -110,17 +113,17 @@ impl Args for Options {
                 }
 
                 Value(val) if op.is_none() => match val.to_string_lossy().as_ref() {
-                    "select" => op = Some(OperationName::Select),
+                    "list" => op = Some(OperationName::List),
                     unknown => anyhow::bail!("unknown operation '{}'", unknown),
                 },
                 _ => return Err(anyhow!(arg.unexpected())),
             }
         }
 
-        select_opts.mode = select_opts
+        list_opts.mode = list_opts
             .mode
             .with_repository(repository_mode.unwrap_or_default());
-        select_opts.sort_by = if let Some(field) = field {
+        list_opts.sort_by = if let Some(field) = field {
             inbox::SortBy {
                 field,
                 reverse: reverse.unwrap_or(false),
@@ -130,7 +133,7 @@ impl Args for Options {
         };
 
         let op = match op.ok_or_else(|| anyhow!("an operation must be provided"))? {
-            OperationName::Select => Operation::Select { opts: select_opts },
+            OperationName::List => Operation::List { opts: list_opts },
         };
         Ok((Options { op }, vec![]))
     }
@@ -144,30 +147,30 @@ pub async fn run(options: Options, ctx: impl terminal::Context) -> anyhow::Resul
         .map_err(|_| anyhow!("this command must be run in the context of a project"))?;
 
     match options.op {
-        Operation::Select { opts } => {
+        Operation::List { opts } => {
             let profile = ctx.profile()?;
             let repository = profile.storage.repository(rid).unwrap();
 
             if let Err(err) = crate::log::enable() {
                 println!("{}", err);
             }
-            log::info!("Starting patch selection interface in project {}..", rid);
+            log::info!("Starting inbox listing interface in project {}..", rid);
 
-            let context = select::Context {
+            let context = list::Context {
                 profile,
                 repository,
                 mode: opts.mode,
                 filter: opts.filter.clone(),
                 sort_by: opts.sort_by,
             };
-            let output = select::App::new(context).run().await?;
+            let output = list::App::new(context).run().await?;
 
             let output = output
                 .map(|o| serde_json::to_string(&o).unwrap_or_default())
                 .unwrap_or_default();
 
             log::info!("About to print to `stderr`: {}", output);
-            log::info!("Exiting inbox selection interface..");
+            log::info!("Exiting inbox listing interface..");
 
             eprint!("{output}");
         }
