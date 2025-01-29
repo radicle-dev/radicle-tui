@@ -1,18 +1,43 @@
 # Changelog
 
-## [0.5.2] - Unreleased
+## [0.6.0] - 2025-01-29
 
 ### Added
+
+**Binary features**
+
+- `patch review`: Basic workflow (disabled)
 
 **Library features**
 
 - Types for inline / fullscreen terminals
+- Line merge utils
+- imUI: text view widget for centered labels
 
 ### Changed
 
-- Update Radicle dependencies to latest versions
+- Radicle dependencies to latest versions
+- TUI dependencies to **ratatui** `0.29.0`
 
-### Fixes
+**Binary features**
+
+- CLI integration: `rad-tui` is now a drop-in replacement for `rad`
+
+**Library features**
+
+- clear inline terminal on `restore`
+- imUI: Focus handling
+- imUI: Pane group widget name
+- imUI: Cursor implementation text view
+- imUI: Table header creation
+
+### Removed
+
+**Library features**
+
+- imUI: text from text view state
+
+### Fixed
 
 **Library features**
 
