@@ -33,6 +33,8 @@ Usage
 List options
 
     --mode <MODE>           Set selection mode; see MODE below (default: operation)
+    --json                  Return JSON on stderr instead of calling `rad`
+
     --all                   Show all patches, including merged and archived patches
     --archived              Show only archived patches
     --merged                Show only merged patches
@@ -276,7 +278,6 @@ pub async fn run(options: Options, ctx: impl terminal::Context) -> anyhow::Resul
                 }
 
                 let args = args.into_iter().map(OsString::from).collect::<Vec<_>>();
-
                 let _ = crate::terminal::run_rad("patch", &args);
             }
         }
@@ -296,12 +297,7 @@ pub async fn run(options: Options, ctx: impl terminal::Context) -> anyhow::Resul
             // Run TUI with patch review interface
             interface::review(opts.clone(), profile, rid, patch_id).await?;
         }
-        Operation::Other { mut args } => {
-            if let Some(arg) = args.first() {
-                if arg.to_string_lossy().as_ref() == "select" {
-                    args = [vec!["list".into()], args[1..].to_vec()].concat();
-                }
-            }
+        Operation::Other { args } => {
             let _ = crate::terminal::run_rad("patch", &args);
         }
     }
@@ -484,7 +480,7 @@ mod cli {
         }
 
         pub fn is_rad_manual() -> ContainsPredicate {
-            predicate::str::contains("Radicle CLI Manual")
+            predicate::str::contains("RAD-PATCH(1)")
         }
 
         pub fn is_patch_help() -> ContainsPredicate {
