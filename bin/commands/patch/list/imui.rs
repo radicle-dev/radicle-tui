@@ -32,7 +32,8 @@ const HELP: &str = r#"# Generic keybindings
 `PageDown`: move cursor one page down
 `Home`:     move cursor to the first line
 `End`:      move cursor to the last line
-`Esc`:      Quit / cancel
+`Esc`:      Cancel
+`q`:        Quit
 
 # Specific keybindings
 
@@ -285,7 +286,7 @@ impl Show<Message> for App {
                                     );
                                 });
 
-                                if ui.input_global(|key| key == Key::Esc) {
+                                if ui.input_global(|key| key == Key::Char('q')) {
                                     ui.send_message(Message::Quit);
                                 }
                                 if ui.input_global(|key| key == Key::Char('?')) {
@@ -366,7 +367,7 @@ impl Show<Message> for App {
                     if ui.input_global(|key| key == Key::Char('?')) {
                         ui.send_message(Message::PageChanged { page: Page::Main });
                     }
-                    if ui.input_global(|key| key == Key::Esc) {
+                    if ui.input_global(|key| key == Key::Char('q')) {
                         ui.send_message(Message::Quit);
                     }
                 }

@@ -340,7 +340,7 @@ fn browser_page(_state: &State, channel: &Channel<Message>) -> Widget<State, Mes
 
             if props.handle_keys {
                 match key {
-                    Key::Esc | Key::Ctrl('c') => Some(Message::Exit { selection: None }),
+                    Key::Char('q') | Key::Ctrl('c') => Some(Message::Exit { selection: None }),
                     Key::Char('?') => Some(Message::OpenHelp),
                     _ => None,
                 }
@@ -413,7 +413,7 @@ fn help_page(_state: &State, channel: &Channel<Message>) -> Widget<State, Messag
         .shortcuts(shortcuts)
         .to_widget(tx.clone())
         .on_event(|key, _, _| match key {
-            Key::Esc | Key::Ctrl('c') => Some(Message::Exit { selection: None }),
+            Key::Char('q') | Key::Ctrl('c') => Some(Message::Exit { selection: None }),
             Key::Char('?') => Some(Message::LeavePage),
             _ => None,
         })
@@ -429,7 +429,8 @@ fn help_text() -> String {
 `PageDown`: move cursor one page down
 `Home`:     move cursor to the first line
 `End`:      move cursor to the last line
-`Esc`:      Quit / cancel
+`Esc`:      Cancel
+`q`:        Quit
 
 # Specific keybindings
 

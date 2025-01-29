@@ -438,7 +438,7 @@ fn browser_page(channel: &Channel<Message>) -> Widget<State, Message> {
 
             if props.handle_keys {
                 match key {
-                    Key::Esc | Key::Ctrl('c') => Some(Message::Quit),
+                    Key::Char('q') | Key::Ctrl('c') => Some(Message::Quit),
                     Key::Char('p') => Some(Message::TogglePreview),
                     Key::Char('?') => Some(Message::OpenHelp),
                     Key::Char('\n') => Some(Message::ExitFromMode),
@@ -644,7 +644,7 @@ fn help_page(channel: &Channel<Message>) -> Widget<State, Message> {
         .shortcuts(shortcuts)
         .to_widget(tx.clone())
         .on_event(|key, _, _| match key {
-            Key::Esc | Key::Ctrl('c') => Some(Message::Quit),
+            Key::Char('q') | Key::Ctrl('c') => Some(Message::Quit),
             Key::Char('?') => Some(Message::LeavePage),
             _ => None,
         })
@@ -662,7 +662,8 @@ fn help_text() -> String {
 `End`:      move cursor to the last line
 `Tab`:      focus next section
 `BackTab`:  focus previous section
-`Esc`:      Quit / cancel
+`Esc`:      Cancel
+`q`:        Quit
 
 # Specific keybindings
 
