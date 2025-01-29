@@ -40,8 +40,14 @@ enum CommandName {
 }
 
 #[derive(Debug)]
+struct OtherOptions {
+    args: Vec<OsString>,
+    forward: bool,
+}
+
+#[derive(Debug)]
 enum Command {
-    Other(Vec<OsString>),
+    Other { opts: OtherOptions },
     Help,
     Version { json: bool },
 }
@@ -100,26 +106,37 @@ fn parse_args() -> anyhow::Result<Command> {
     let command = match command {
         Some(CommandName::Help) => {
             if forward {
-                Command::Other(vec!["help".into()])
+                Command::Other {
+                    opts: OtherOptions {
+                        args: vec!["help".into()],
+                        forward,
+                    },
+                }
             } else {
                 Command::Help
             }
         }
         Some(CommandName::Version) => {
             if forward {
-                Command::Other(vec!["version".into()])
+                Command::Other {
+                    opts: OtherOptions {
+                        args: vec!["version".into()],
+                        forward,
+                    },
+                }
             } else {
                 Command::Version { json }
             }
         }
-        Some(CommandName::Other(args)) => Command::Other(args),
-        _ => {
-            if forward {
-                Command::Other(vec!["help".into()])
-            } else {
-                Command::Other(vec![])
-            }
-        }
+        Some(CommandName::Other(args)) => Command::Other {
+            opts: OtherOptions { args, forward },
+        },
+        _ => Command::Other {
+            opts: OtherOptions {
+                args: vec![],
+                forward,
+            },
+        },
     };
 
     Ok(command)
@@ -148,13 +165,17 @@ fn run(command: Command) -> Result<(), Option<anyhow::Error>> {
         Command::Help => {
             print_help()?;
         }
-        Command::Other(args) => {
-            let exe = args.first();
+        Command::Other { opts } => {
+            let exe = opts.args.first();
 
-            if let Some(Some(exe)) = exe.map(|s| s.to_str()) {
-                run_other(exe, &args[1..])?;
+            if let Some(exe) = exe.map(|s| s.to_str()) {
+                run_other(exe, &opts.args[1..])?;
             } else {
-                print_help()?;
+                if opts.forward {
+                    run_other(None, &[])?;
+                } else {
+                    print_help()?;
+                }
             }
         }
     }
@@ -162,23 +183,23 @@ fn run(command: Command) -> Result<(), Option<anyhow::Error>> {
     Ok(())
 }
 
-fn run_other(command: &str, args: &[OsString]) -> Result<(), Option<anyhow::Error>> {
+fn run_other(command: Option<&str>, args: &[OsString]) -> Result<(), Option<anyhow::Error>> {
     match command {
-        "issue" => {
+        Some("issue") => {
             term::run_command_args::<tui_issue::Options, _>(
                 tui_issue::HELP,
                 tui_issue::run,
                 args.to_vec(),
             );
         }
-        "patch" => {
+        Some("patch") => {
             term::run_command_args::<tui_patch::Options, _>(
                 tui_patch::HELP,
                 tui_patch::run,
                 args.to_vec(),
             );
         }
-        "inbox" => {
+        Some("inbox") => {
             term::run_command_args::<tui_inbox::Options, _>(
                 tui_inbox::HELP,
                 tui_inbox::run,
@@ -203,6 +224,10 @@ mod cli {
             predicate::str::contains("Radicle CLI Manual")
         }
 
+        pub fn is_rad_help() -> ContainsPredicate {
+            predicate::str::contains("Radicle command line interface")
+        }
+
         pub fn is_help() -> ContainsPredicate {
             predicate::str::contains("Radicle terminal interfaces")
         }
@@ -221,7 +246,7 @@ mod cli {
     fn empty_command_is_forwarded() -> Result<(), Box<dyn std::error::Error>> {
         let mut cmd = Command::cargo_bin("rad-tui")?;
 
-        cmd.assert().success().stdout(assert::is_rad_manual());
+        cmd.assert().success().stdout(assert::is_rad_help());
 
         Ok(())
     }
