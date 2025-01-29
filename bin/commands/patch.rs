@@ -278,7 +278,7 @@ pub async fn run(options: Options, ctx: impl terminal::Context) -> anyhow::Resul
                 }
 
                 let args = args.into_iter().map(OsString::from).collect::<Vec<_>>();
-                let _ = crate::terminal::run_rad("patch", &args);
+                let _ = crate::terminal::run_rad(Some("patch"), &args);
             }
         }
         Operation::Review { ref opts } => {
@@ -298,7 +298,7 @@ pub async fn run(options: Options, ctx: impl terminal::Context) -> anyhow::Resul
             interface::review(opts.clone(), profile, rid, patch_id).await?;
         }
         Operation::Other { args } => {
-            let _ = crate::terminal::run_rad("patch", &args);
+            let _ = crate::terminal::run_rad(Some("patch"), &args);
         }
     }
 

@@ -30,8 +30,12 @@ fn _run_rad(args: &[OsString]) -> Result<(), Option<anyhow::Error>> {
     Ok(())
 }
 
-pub fn run_rad(command: &str, args: &[OsString]) -> Result<(), Option<anyhow::Error>> {
-    let args = [vec![command.into()], args.to_vec()].concat();
+pub fn run_rad(command: Option<&str>, args: &[OsString]) -> Result<(), Option<anyhow::Error>> {
+    let args = if let Some(command) = command {
+        [vec![command.into()], args.to_vec()].concat()
+    } else {
+        args.to_vec()
+    };
 
     _run_rad(&args)
 }

@@ -222,11 +222,11 @@ pub async fn run(options: Options, ctx: impl terminal::Context) -> anyhow::Resul
                 }
 
                 let args = args.into_iter().map(OsString::from).collect::<Vec<_>>();
-                let _ = crate::terminal::run_rad("inbox", &args);
+                let _ = crate::terminal::run_rad(Some("inbox"), &args);
             }
         }
         Operation::Other { args } => {
-            let _ = crate::terminal::run_rad("inbox", &args);
+            let _ = crate::terminal::run_rad(Some("inbox"), &args);
         }
     }
 
