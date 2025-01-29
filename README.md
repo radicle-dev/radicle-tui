@@ -228,19 +228,16 @@ The project roadmap is largely defined by the requirements of the [Radicle](http
 
 ### Now
 
-- [ ] Patch and issue preview in selection interfaces
-- [ ] Basic `radicle-cli` integration
+- [ ] Patch review
 
 ### Next
 
 - [ ] Support for multiple selected list and tree items
 - [ ] Read configuration from file
 - [ ] Support user-defined keybindings
-- [ ] Patch review
 
 ### Later
 
-- [ ] Streamline CLI integration w/ config and flags for `rad` commands (e.g. `rad patch edit --tui`)`
 - [ ] Read COBs from JSON input
 - [ ] Add support for custom themes
 
