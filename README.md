@@ -19,17 +19,32 @@
 
 ## Getting started
 
-This crate provides a binary called `rad-tui` which contains all user interfaces. Specific interfaces can be run by the appropriate command, e.g. `rad-tui patch select` shows a patch selector.
-
-The interfaces are designed to be modular and to integrate well with the existing Radicle CLI. Right now, the binary is meant to be called from `rad`, which will collect and process its output, e.g.
+This crate provides a binary called `rad-tui` which can be used as a drop-in replacement for `rad`. It maps known commands and operations to internal ones, running the corresponding interface, e.g.
 
 ```
-rad patch show
+rad-tui patch
 ```
 
-will show a patch selector and pass on the id of the selected patch.
+runs the patch list interface and calls `rad` with the operation and id selected. Commands or operations not known to `rad-tui` will be forwarded to `rad`, e.g. the following just calls `rad node`:
 
-> **Note:** The integration into the Radicle CLI is not fully done, yet. Please refer to the [Usage](#usage) section for information on how to use `rad-tui` already.
+```
+rad-tui node
+```
+
+The default forwarding behaviour can be overridden with a flag, e.g.
+
+```
+rad-tui help --no-forward
+```
+runs the internal help command instead of forwarding to `rad help`.
+
+### Using a shell alias
+
+In order to make the CLI integration opaque, a shell alias can be used:
+
+```
+alias rad="rad-tui"
+```
 
 ### Installation
 
@@ -99,53 +114,24 @@ home.packages = [
 
 ### Usage
 
-Soon, `rad-tui` will be integrated into [`heartwood`](https://app.radicle.xyz/nodes/seed.radicle.xyz/rad:z3gqcJUoA1n9HaHKufZs5FCSGazv5). Until then, you can use the `rad` proxy script that is provided. It's considered to be a drop-in replacement for `rad` and can be used for testing and prototyping purposes. It should reflect the current behavior, as if `rad-tui` would have been integrated, e.g.
-
-```sh
-# show an interface that let's you select a patch
-./rad.sh patch show
-```
-
-```sh
-# show an interface that let's you select a patch and an operation
-./rad.sh patch --tui
-```
-
-Both commands will call into `rad-tui`, process its output and call `rad` accordingly.
-
-#### Interfaces
-
-##### Selection
+#### List
 
 Select a patch, an issue or a notification and an operation:
 
 ```
-rad-tui <patch | issue | inbox> select
+rad-tui <patch | issue | inbox>
+rad-tui <patch | issue | inbox> list
 ```
 
-Same as above:
+#### CLI integration via JSON
+
+The interfaces are designed to be modular and could also be integrated with existing CLI tooling. The binary is can be called and its output collected and processed, e.g.
 
 ```
-rad-tui <patch | issue | inbox> select --mode operation
+rad-tui patch list --json
 ```
 
-Select a patch, an issue or a notification only and return its id:
-
-```
-rad-tui <patch | issue | inbox> select --mode id
-```
-
-##### Patch
-
-Review a patch revision:
-```
-rad-tui patch review <id>
-```
-> **Note:** When the review is done, it needs to be finalized via `rad patch review [--accept | --reject] <id>`.
-
-#### Output
-
-All interfaces return a common JSON object on `stderr` that reflects the choices made by the user, e.g.:
+runs the patch list interface and return a JSON object specifying the operation and id selected:
 
 ```
 { "operation": "show", "ids": ["546443226b300484a97a2b2d7c7000af6e8169ba"], args:[] }
