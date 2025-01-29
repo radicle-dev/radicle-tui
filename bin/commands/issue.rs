@@ -1,7 +1,7 @@
 #[path = "issue/common.rs"]
 mod common;
-#[path = "issue/select.rs"]
-mod select;
+#[path = "issue/list.rs"]
+mod list;
 
 use std::ffi::OsString;
 
@@ -31,11 +31,11 @@ pub const HELP: Help = Help {
     usage: r#"
 Usage
 
-    rad-tui patch select [<option>...]
+    rad-tui issue list [<option>...]
 
 Select options
 
-    --mode <MODE>           Set selection mode; see MODE below (default: operation)
+    --mode <MODE>       Set list mode; see MODE below (default: operation)
 
     The MODE argument can be 'operation' or 'id'. 'operation' selects an issue id and
     an operation, whereas 'id' selects an issue id only.
@@ -52,16 +52,16 @@ pub struct Options {
 }
 
 pub enum Operation {
-    Select { opts: SelectOptions },
+    List { opts: ListOptions },
 }
 
 #[derive(PartialEq, Eq)]
 pub enum OperationName {
-    Select,
+    List,
 }
 
 #[derive(Debug, Default, Clone, PartialEq, Eq)]
-pub struct SelectOptions {
+pub struct ListOptions {
     mode: common::Mode,
     filter: cob::issue::Filter,
 }
@@ -73,7 +73,7 @@ impl Args for Options {
         let mut parser = lexopt::Parser::from_args(args);
         let mut op: Option<OperationName> = None;
         let mut repo = None;
-        let mut select_opts = SelectOptions::default();
+        let mut list_opts = ListOptions::default();
 
         while let Some(arg) = parser.next()? {
             match arg {
@@ -82,40 +82,38 @@ impl Args for Options {
                 }
 
                 // select options.
-                Long("mode") | Short('m') if op == Some(OperationName::Select) => {
+                Long("mode") | Short('m') if op == Some(OperationName::List) => {
                     let val = parser.value()?;
                     let val = val.to_str().unwrap_or_default();
 
-                    select_opts.mode = match val {
+                    list_opts.mode = match val {
                         "operation" => common::Mode::Operation,
                         "id" => common::Mode::Id,
                         unknown => anyhow::bail!("unknown mode '{}'", unknown),
                     };
                 }
-                Long("all") if op == Some(OperationName::Select) => {
-                    select_opts.filter = select_opts.filter.with_state(None);
+                Long("all") if op == Some(OperationName::List) => {
+                    list_opts.filter = list_opts.filter.with_state(None);
                 }
-                Long("open") if op == Some(OperationName::Select) => {
-                    select_opts.filter = select_opts.filter.with_state(Some(issue::State::Open));
+                Long("open") if op == Some(OperationName::List) => {
+                    list_opts.filter = list_opts.filter.with_state(Some(issue::State::Open));
                 }
-                Long("solved") if op == Some(OperationName::Select) => {
-                    select_opts.filter =
-                        select_opts.filter.with_state(Some(issue::State::Closed {
-                            reason: issue::CloseReason::Solved,
-                        }));
+                Long("solved") if op == Some(OperationName::List) => {
+                    list_opts.filter = list_opts.filter.with_state(Some(issue::State::Closed {
+                        reason: issue::CloseReason::Solved,
+                    }));
                 }
-                Long("closed") if op == Some(OperationName::Select) => {
-                    select_opts.filter =
-                        select_opts.filter.with_state(Some(issue::State::Closed {
-                            reason: issue::CloseReason::Other,
-                        }));
+                Long("closed") if op == Some(OperationName::List) => {
+                    list_opts.filter = list_opts.filter.with_state(Some(issue::State::Closed {
+                        reason: issue::CloseReason::Other,
+                    }));
                 }
-                Long("assigned") if op == Some(OperationName::Select) => {
+                Long("assigned") if op == Some(OperationName::List) => {
                     if let Ok(val) = parser.value() {
-                        select_opts.filter =
-                            select_opts.filter.with_assginee(terminal::args::did(&val)?);
+                        list_opts.filter =
+                            list_opts.filter.with_assginee(terminal::args::did(&val)?);
                     } else {
-                        select_opts.filter = select_opts.filter.with_assgined(true);
+                        list_opts.filter = list_opts.filter.with_assgined(true);
                     }
                 }
 
@@ -127,7 +125,7 @@ impl Args for Options {
                 }
 
                 Value(val) if op.is_none() => match val.to_string_lossy().as_ref() {
-                    "select" => op = Some(OperationName::Select),
+                    "list" => op = Some(OperationName::List),
                     unknown => anyhow::bail!("unknown operation '{}'", unknown),
                 },
                 _ => return Err(anyhow!(arg.unexpected())),
@@ -135,7 +133,7 @@ impl Args for Options {
         }
 
         let op = match op.ok_or_else(|| anyhow!("an operation must be provided"))? {
-            OperationName::Select => Operation::Select { opts: select_opts },
+            OperationName::List => Operation::List { opts: list_opts },
         };
         Ok((Options { op, repo }, vec![]))
     }
@@ -151,7 +149,7 @@ pub async fn run(options: Options, ctx: impl terminal::Context) -> anyhow::Resul
     let terminal_info = TERMINAL_INFO.clone();
 
     match options.op {
-        Operation::Select { opts } => {
+        Operation::List { opts } => {
             let profile = ctx.profile()?;
             let rid = options.repo.unwrap_or(rid);
             let repository = profile.storage.repository(rid).unwrap();
@@ -159,23 +157,23 @@ pub async fn run(options: Options, ctx: impl terminal::Context) -> anyhow::Resul
             if let Err(err) = crate::log::enable() {
                 println!("{}", err);
             }
-            log::info!("Starting issue selection interface in project {}..", rid);
+            log::info!("Starting issue listing interface in project {}..", rid);
 
-            let context = select::Context {
+            let context = list::Context {
                 profile,
                 repository,
                 mode: opts.mode,
                 filter: opts.filter.clone(),
             };
 
-            let output = select::App::new(context, terminal_info).run().await?;
+            let output = list::App::new(context, terminal_info).run().await?;
 
             let output = output
                 .map(|o| serde_json::to_string(&o).unwrap_or_default())
                 .unwrap_or_default();
 
             log::info!("About to print to `stderr`: {}", output);
-            log::info!("Exiting issue selection interface..");
+            log::info!("Exiting issue listing interface..");
 
             eprint!("{output}");
         }
