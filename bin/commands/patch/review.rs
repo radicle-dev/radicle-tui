@@ -2,11 +2,11 @@
 pub mod builder;
 
 use std::fmt::Debug;
-use std::sync::Arc;
-use std::sync::Mutex;
+use std::sync::{Arc, Mutex};
 
-use anyhow::bail;
 use anyhow::Result;
+
+use serde::{Deserialize, Serialize};
 
 use termion::event::Key;
 
@@ -30,6 +30,7 @@ use tui::ui::Column;
 use tui::{Channel, Exit};
 
 use crate::git::HunkState;
+use crate::state::{Decode, Encode, FileStorage, Filename, ReadState, WriteState};
 use crate::ui::format;
 use crate::ui::items::HunkItem;
 use crate::ui::items::StatefulHunkItem;
@@ -95,20 +96,45 @@ impl Tui {
 
     pub async fn run(self) -> Result<Option<Response>> {
         let viewport = Viewport::Fullscreen;
-
         let channel = Channel::default();
-        let state = App::new(
-            self.mode,
-            self.storage,
+
+        let state_file = Filename::new("patch", "review", &self.patch.to_string());
+        let state_storage = FileStorage::new(state_file)?;
+
+        let state = AppState::new(
             self.rid,
             self.patch,
             self.title,
             self.revision,
-            self.review,
-            self.hunks,
-        )?;
+            AppPage::Main,
+            PanesState::new(2, Some(0)),
+            (
+                TableState::new(Some(0)),
+                vec![HunkState::Rejected; self.hunks.len()],
+            ),
+            vec![DiffViewState::default(); self.hunks.len()],
+            TextViewState::new(Position::default()),
+        );
 
-        tui::im(state, viewport, channel).await
+        let state = match self.mode {
+            ReviewMode::Resume => match state_storage.read() {
+                Ok(bytes) => AppState::from_json(&bytes)?,
+                _ => {
+                    log::warn!("Failed to load state. Falling back to default.");
+                    state
+                }
+            },
+            ReviewMode::Create => state,
+        };
+
+        let app = App::new(self.mode, self.storage, self.review, self.hunks, state)?;
+        let response = tui::im(app, viewport, channel).await?;
+
+        if let Some(response) = response.as_ref() {
+            state_storage.write(&response.state.clone().to_json()?)?;
+        }
+
+        Ok(response)
     }
 }
 
@@ -126,21 +152,21 @@ pub enum Message {
     Quit,
 }
 
-#[derive(Clone, Debug, Eq, PartialEq, Hash)]
+#[derive(Clone, Debug, Eq, PartialEq, Hash, Serialize, Deserialize)]
 pub enum AppPage {
     Main,
     Help,
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Copy, Debug, Default, Serialize, Deserialize)]
 pub struct DiffViewState {
     cursor: Position,
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct AppState {
     /// The repository to operate on.
-    _rid: RepoId,
+    rid: RepoId,
     /// Patch this review belongs to.
     patch: PatchId,
     /// Patch title.
@@ -173,7 +199,7 @@ impl AppState {
         help: TextViewState,
     ) -> Self {
         Self {
-            _rid: rid,
+            rid,
             patch,
             title,
             _revision: revision,
@@ -226,6 +252,8 @@ pub struct App<'a> {
     hunks: Arc<Mutex<Vec<HunkItem<'a>>>>,
     /// The app state.
     state: AppState,
+    /// Review mode: create or resume.
+    _mode: ReviewMode,
 }
 
 impl<'a> App<'a> {
@@ -233,52 +261,20 @@ impl<'a> App<'a> {
     pub fn new(
         mode: ReviewMode,
         storage: Storage,
-        rid: RepoId,
-        patch: PatchId,
-        title: String,
-        revision: Revision,
         review: Review,
         hunks: Hunks,
+        state: AppState,
     ) -> Result<Self, anyhow::Error> {
-        let repo = storage.repository(rid)?;
-        let views = hunks
-            .iter()
-            .map(|_| DiffViewState {
-                cursor: Position::new(0, 0),
-            })
-            .collect::<Vec<_>>();
+        let repo = storage.repository(state.rid)?;
         let hunks = hunks
             .iter()
             .map(|item| HunkItem::from((&repo, &review, item)))
             .collect::<Vec<_>>();
 
-        let state = match mode {
-            ReviewMode::Create => {
-                let states = hunks
-                    .iter()
-                    .map(|_| HunkState::Rejected)
-                    .collect::<Vec<_>>();
-
-                AppState::new(
-                    rid,
-                    patch,
-                    title,
-                    revision,
-                    AppPage::Main,
-                    PanesState::new(2, Some(0)),
-                    (TableState::new(Some(0)), states),
-                    views,
-                    TextViewState::new(Position::default()),
-                )
-            }
-            ReviewMode::Resume => {
-                bail!("Resuming a review is not yet implemented.");
-            }
-        };
-
         Ok(Self {
             hunks: Arc::new(Mutex::new(hunks)),
             state,
+            _mode: mode,
         })
     }
 
@@ -637,11 +633,14 @@ mod test {
         use radicle::storage::git::cob::DraftStore;
         use radicle::storage::git::Repository;
 
+        use radicle_tui::ui::im::widget::{PanesState, TableState, TextViewState};
+        use ratatui::layout::Position;
+
         use crate::cob::patch;
         use crate::test::setup::NodeWithRepo;
 
         use super::builder::ReviewBuilder;
-        use super::{App, ReviewMode};
+        use super::{App, AppPage, AppState, DiffViewState, HunkState, ReviewMode};
 
         pub fn app<'a>(
             node: &NodeWithRepo,
@@ -656,15 +655,27 @@ mod test {
 
             let hunks = ReviewBuilder::new(&node.repo).hunks(revision)?;
 
-            App::new(
-                ReviewMode::Create,
-                node.storage.clone(),
+            let state = AppState::new(
                 node.repo.id,
                 *patch.id(),
                 patch.title().to_string(),
                 revision.clone(),
+                AppPage::Main,
+                PanesState::new(2, Some(0)),
+                (
+                    TableState::new(Some(0)),
+                    vec![HunkState::Rejected; hunks.len()],
+                ),
+                vec![DiffViewState::default(); hunks.len()],
+                TextViewState::new(Position::default()),
+            );
+
+            App::new(
+                ReviewMode::Create,
+                node.storage.clone(),
                 review.clone(),
                 hunks,
+                state,
             )
         }
 
