@@ -2,11 +2,11 @@
 pub mod builder;
 
 use std::fmt::Debug;
-use std::sync::Arc;
-use std::sync::Mutex;
+use std::sync::{Arc, Mutex};
 
-use anyhow::bail;
 use anyhow::Result;
+
+use serde::{Deserialize, Serialize};
 
 use termion::event::Key;
 
@@ -16,7 +16,7 @@ use ratatui::text::Text;
 use ratatui::{Frame, Viewport};
 
 use radicle::identity::RepoId;
-use radicle::patch::{PatchId, Review, Revision};
+use radicle::patch::{PatchId, Review, Revision, RevisionId};
 use radicle::storage::ReadStorage;
 use radicle::Storage;
 
@@ -30,6 +30,7 @@ use tui::ui::Column;
 use tui::{Channel, Exit};
 
 use crate::git::HunkState;
+use crate::state::{self, FileIdentifier, FileStore, ReadState, WriteState};
 use crate::ui::format;
 use crate::ui::items::HunkItem;
 use crate::ui::items::StatefulHunkItem;
@@ -95,20 +96,37 @@ impl Tui {
 
     pub async fn run(self) -> Result<Option<Response>> {
         let viewport = Viewport::Fullscreen;
-
         let channel = Channel::default();
-        let state = App::new(
-            self.mode,
-            self.storage,
+
+        let identifier = FileIdentifier::new("patch", "review", &self.rid, Some(&self.patch));
+        let store = FileStore::new(identifier)?;
+
+        let default = AppState::new(
             self.rid,
             self.patch,
             self.title,
-            self.revision,
-            self.review,
-            self.hunks,
-        )?;
+            self.revision.id(),
+            &self.hunks,
+        );
+        let state = match self.mode {
+            ReviewMode::Resume => match store.read() {
+                Ok(bytes) => state::from_json(&bytes)?,
+                _ => {
+                    log::warn!("Failed to load state. Falling back to default.");
+                    default
+                }
+            },
+            ReviewMode::Create => default,
+        };
 
-        tui::im(state, viewport, channel).await
+        let app = App::new(self.mode, self.storage, self.review, self.hunks, state)?;
+        let response = tui::im(app, viewport, channel).await?;
+
+        if let Some(response) = response.as_ref() {
+            store.write(&state::to_json(&response.state)?)?;
+        }
+
+        Ok(response)
     }
 }
 
@@ -126,27 +144,27 @@ pub enum Message {
     Quit,
 }
 
-#[derive(Clone, Debug, Eq, PartialEq, Hash)]
+#[derive(Clone, Debug, Eq, PartialEq, Hash, Serialize, Deserialize)]
 pub enum AppPage {
     Main,
     Help,
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Copy, Debug, Default, Serialize, Deserialize)]
 pub struct DiffViewState {
     cursor: Position,
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct AppState {
     /// The repository to operate on.
-    _rid: RepoId,
+    rid: RepoId,
     /// Patch this review belongs to.
     patch: PatchId,
     /// Patch title.
     title: String,
     /// Revision this review belongs to.
-    _revision: Revision,
+    revision: RevisionId,
     /// Current app page.
     page: AppPage,
     /// State of panes widget on the main page.
@@ -165,23 +183,22 @@ impl AppState {
         rid: RepoId,
         patch: PatchId,
         title: String,
-        revision: Revision,
-        page: AppPage,
-        panes: PanesState,
-        hunks: (TableState, Vec<HunkState>),
-        views: impl IntoIterator<Item = DiffViewState>,
-        help: TextViewState,
+        revision: RevisionId,
+        hunks: &Hunks,
     ) -> Self {
         Self {
-            _rid: rid,
+            rid,
             patch,
             title,
-            _revision: revision,
-            page,
-            panes,
-            hunks,
-            views: views.into_iter().collect(),
-            help,
+            revision,
+            page: AppPage::Main,
+            panes: PanesState::new(2, Some(0)),
+            hunks: (
+                TableState::new(Some(0)),
+                vec![HunkState::Rejected; hunks.len()],
+            ),
+            views: vec![DiffViewState::default(); hunks.len()],
+            help: TextViewState::new(Position::default()),
         }
     }
 
@@ -226,6 +243,8 @@ pub struct App<'a> {
     hunks: Arc<Mutex<Vec<HunkItem<'a>>>>,
     /// The app state.
     state: AppState,
+    /// Review mode: create or resume.
+    _mode: ReviewMode,
 }
 
 impl<'a> App<'a> {
@@ -233,52 +252,20 @@ impl<'a> App<'a> {
     pub fn new(
         mode: ReviewMode,
         storage: Storage,
-        rid: RepoId,
-        patch: PatchId,
-        title: String,
-        revision: Revision,
         review: Review,
         hunks: Hunks,
+        state: AppState,
     ) -> Result<Self, anyhow::Error> {
-        let repo = storage.repository(rid)?;
-        let views = hunks
-            .iter()
-            .map(|_| DiffViewState {
-                cursor: Position::new(0, 0),
-            })
-            .collect::<Vec<_>>();
+        let repo = storage.repository(state.rid)?;
         let hunks = hunks
             .iter()
             .map(|item| HunkItem::from((&repo, &review, item)))
             .collect::<Vec<_>>();
 
-        let state = match mode {
-            ReviewMode::Create => {
-                let states = hunks
-                    .iter()
-                    .map(|_| HunkState::Rejected)
-                    .collect::<Vec<_>>();
-
-                AppState::new(
-                    rid,
-                    patch,
-                    title,
-                    revision,
-                    AppPage::Main,
-                    PanesState::new(2, Some(0)),
-                    (TableState::new(Some(0)), states),
-                    views,
-                    TextViewState::new(Position::default()),
-                )
-            }
-            ReviewMode::Resume => {
-                bail!("Resuming a review is not yet implemented.");
-            }
-        };
-
         Ok(Self {
             hunks: Arc::new(Mutex::new(hunks)),
             state,
+            _mode: mode,
         })
     }
 
@@ -641,7 +628,7 @@ mod test {
         use crate::test::setup::NodeWithRepo;
 
         use super::builder::ReviewBuilder;
-        use super::{App, ReviewMode};
+        use super::{App, AppState, ReviewMode};
 
         pub fn app<'a>(
             node: &NodeWithRepo,
@@ -656,15 +643,20 @@ mod test {
 
             let hunks = ReviewBuilder::new(&node.repo).hunks(revision)?;
 
-            App::new(
-                ReviewMode::Create,
-                node.storage.clone(),
+            let state = AppState::new(
                 node.repo.id,
                 *patch.id(),
                 patch.title().to_string(),
-                revision.clone(),
+                revision.id(),
+                &hunks,
+            );
+
+            App::new(
+                ReviewMode::Create,
+                node.storage.clone(),
                 review.clone(),
                 hunks,
+                state,
             )
         }
 
