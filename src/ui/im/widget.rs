@@ -6,6 +6,7 @@ use ratatui::text::{Line, Span, Text};
 use ratatui::widgets::{Block, BorderType, Row, Scrollbar, ScrollbarState};
 use ratatui::Frame;
 use ratatui::{layout::Constraint, widgets::Paragraph};
+use serde::{Deserialize, Serialize};
 use termion::event::Key;
 
 use crate::ui::ext::{FooterBlock, FooterBlockType, HeaderBlock};
@@ -60,7 +61,7 @@ impl Window {
     }
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct PanesState {
     len: usize,
     focus: Option<usize>,
@@ -151,7 +152,7 @@ impl<'a> Panes<'a> {
     }
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct CompositeState {
     len: usize,
     focus: usize,
@@ -235,7 +236,7 @@ impl<'a> Widget for Label<'a> {
     }
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct TableState {
     internal: ratatui::widgets::TableState,
 }
@@ -660,7 +661,7 @@ impl<'a> Widget for Bar<'a> {
     }
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct TextViewState {
     cursor: Position,
 }
@@ -879,7 +880,7 @@ impl<'a> Widget for CenteredTextView<'a> {
     }
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct TextEditState {
     pub text: String,
     pub cursor: usize,
