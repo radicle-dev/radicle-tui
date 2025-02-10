@@ -3,6 +3,7 @@ mod commands;
 mod git;
 mod log;
 mod settings;
+mod state;
 mod terminal;
 #[cfg(test)]
 mod test;
