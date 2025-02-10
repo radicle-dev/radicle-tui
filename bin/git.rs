@@ -13,6 +13,7 @@ use radicle::git::Oid;
 use radicle_cli::git::unified_diff::FileHeader;
 use radicle_cli::terminal;
 use radicle_cli::terminal::highlight::Highlighter;
+use serde::{Deserialize, Serialize};
 
 pub type FilePaths<'a> = (Option<(&'a Path, Oid)>, Option<(&'a Path, Oid)>);
 
@@ -217,7 +218,7 @@ impl From<&Hunk<Modification>> for HunkStats {
     }
 }
 
-#[derive(Clone, Default, Debug, PartialEq)]
+#[derive(Clone, Default, Debug, PartialEq, Serialize, Deserialize)]
 pub enum HunkState {
     #[default]
     Unknown,
