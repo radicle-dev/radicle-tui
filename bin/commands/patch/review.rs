@@ -49,7 +49,7 @@ pub struct Args(String);
 #[derive(Clone, Debug)]
 pub struct Response {
     pub state: AppState,
-    pub action: ReviewAction,
+    pub action: Option<ReviewAction>,
 }
 
 #[derive(Clone)]
@@ -550,7 +550,7 @@ impl<'a> store::Update<Message> for App<'a> {
             }
             Message::Comment => Some(Exit {
                 value: Some(Response {
-                    action: ReviewAction::Comment,
+                    action: Some(ReviewAction::Comment),
                     state: self.state.clone(),
                 }),
             }),
@@ -568,7 +568,12 @@ impl<'a> store::Update<Message> for App<'a> {
                 }
                 None
             }
-            Message::Quit => Some(Exit { value: None }),
+            Message::Quit => Some(Exit {
+                value: Some(Response {
+                    action: None,
+                    state: self.state.clone(),
+                }),
+            }),
         }
     }
 }
