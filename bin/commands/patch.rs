@@ -191,8 +191,7 @@ impl Args for Options {
                 }
                 Value(val) if op == OperationName::List => match val.to_string_lossy().as_ref() {
                     "list" => op = OperationName::List,
-                    // TODO(erikli): Enable if interface was fixed.
-                    // "review" => op = OperationName::Review,
+                    "review" => op = OperationName::Review,
                     _ => op = OperationName::Other,
                 },
                 Value(val) if patch_id.is_none() => {
