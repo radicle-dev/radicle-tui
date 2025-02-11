@@ -424,40 +424,40 @@ mod interface {
             log::debug!("Received response from TUI: {:?}", response);
 
             if let Some(response) = response.as_ref() {
-                match response.action {
-                    ReviewAction::Comment => {
-                        let hunk = response
-                            .state
-                            .selected_hunk()
-                            .ok_or_else(|| anyhow!("expected a selected hunk"))?;
-                        let item = hunks
-                            .get(hunk)
-                            .ok_or_else(|| anyhow!("expected a hunk to comment on"))?;
+                if let Some(ReviewAction::Comment) = response.action {
+                    let hunk = response
+                        .state
+                        .selected_hunk()
+                        .ok_or_else(|| anyhow!("expected a selected hunk"))?;
+                    let item = hunks
+                        .get(hunk)
+                        .ok_or_else(|| anyhow!("expected a hunk to comment on"))?;
 
-                        let (old, new) = item.paths();
-                        let path = old.or(new);
+                    let (old, new) = item.paths();
+                    let path = old.or(new);
 
-                        if let (Some(hunk), Some((path, _))) = (item.hunk(), path) {
-                            let builder = CommentBuilder::new(revision.head(), path.to_path_buf());
-                            let comments = builder.edit(hunk)?;
+                    if let (Some(hunk), Some((path, _))) = (item.hunk(), path) {
+                        let builder = CommentBuilder::new(revision.head(), path.to_path_buf());
+                        let comments = builder.edit(hunk)?;
 
-                            let signer = profile.signer()?;
-                            patch.transaction("Review comments", &signer, |tx| {
-                                for comment in comments {
-                                    tx.review_comment(
-                                        review_id,
-                                        comment.body,
-                                        Some(comment.location),
-                                        None,   // Not a reply.
-                                        vec![], // No embeds.
-                                    )?;
-                                }
-                                Ok(())
-                            })?;
-                        } else {
-                            log::warn!("Commenting on binary blobs is not yet implemented");
-                        }
+                        let signer = profile.signer()?;
+                        patch.transaction("Review comments", &signer, |tx| {
+                            for comment in comments {
+                                tx.review_comment(
+                                    review_id,
+                                    comment.body,
+                                    Some(comment.location),
+                                    None,   // Not a reply.
+                                    vec![], // No embeds.
+                                )?;
+                            }
+                            Ok(())
+                        })?;
+                    } else {
+                        log::warn!("Commenting on binary blobs is not yet implemented");
                     }
+                } else {
+                    break;
                 }
             } else {
                 break;
