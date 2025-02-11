@@ -170,12 +170,10 @@ fn run(command: Command) -> Result<(), Option<anyhow::Error>> {
 
             if let Some(exe) = exe.map(|s| s.to_str()) {
                 run_other(exe, &opts.args[1..])?;
+            } else if opts.forward {
+                run_other(None, &[])?;
             } else {
-                if opts.forward {
-                    run_other(None, &[])?;
-                } else {
-                    print_help()?;
-                }
+                print_help()?;
             }
         }
     }
