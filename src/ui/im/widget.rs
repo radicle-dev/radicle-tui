@@ -1,6 +1,6 @@
 use std::cmp;
 
-use ratatui::layout::{Direction, Layout, Position, Rect};
+use ratatui::layout::{Direction, Flex, Layout, Position, Rect};
 use ratatui::style::{Style, Stylize};
 use ratatui::text::{Line, Span, Text};
 use ratatui::widgets::{Block, BorderType, Row, Scrollbar, ScrollbarState};
@@ -212,6 +212,75 @@ impl Composite {
         let inner = add_contents(&mut ui);
 
         InnerResponse::new(inner, Response::default())
+    }
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct PopupState {
+    active: bool,
+}
+
+pub struct Popup {
+    active: bool,
+}
+
+impl Popup {
+    pub fn new(active: bool) -> Self {
+        Self { active }
+    }
+
+    pub fn show<M, R>(
+        self,
+        ui: &mut Ui<M>,
+        add_contents: impl FnOnce(&mut Ui<M>) -> R,
+    ) -> InnerResponse<R>
+    where
+        M: Clone,
+    {
+        self.show_dyn(ui, Box::new(add_contents))
+    }
+
+    pub fn show_dyn<M, R>(
+        self,
+        ui: &mut Ui<M>,
+        add_contents: Box<AddContentFn<M, R>>,
+    ) -> InnerResponse<R>
+    where
+        M: Clone,
+    {
+        let mut response = Response::default();
+
+        let mut state = PopupState {
+            active: self.active,
+        };
+
+        // if ui.input_global(|key| key == Key::Char('\t')) {
+        //     state.focus_next();
+        //     response.changed = true;
+        // }
+        // if ui.input_global(|key| key == Key::BackTab) {
+        //     state.focus_prev();
+        //     response.changed = true;
+        // }
+        // *self.focus = state.focus;
+
+        let mut ui = Ui {
+            // focus_area: state.focus,
+            area: Self::popup_area(ui.area, 80, 80),
+            ..ui.clone()
+        };
+
+        let inner = add_contents(&mut ui);
+
+        InnerResponse::new(inner, response)
+    }
+
+    fn popup_area(area: Rect, percent_x: u16, percent_y: u16) -> Rect {
+        let vertical = Layout::vertical([Constraint::Percentage(percent_y)]).flex(Flex::Center);
+        let horizontal = Layout::horizontal([Constraint::Percentage(percent_x)]).flex(Flex::Center);
+        let [area] = vertical.areas(area);
+        let [area] = horizontal.areas(area);
+        area
     }
 }
 

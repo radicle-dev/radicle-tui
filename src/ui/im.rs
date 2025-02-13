@@ -487,6 +487,20 @@ where
         widget::Composite::new(focus).show(&mut child_ui, add_contents)
     }
 
+    pub fn popup<R>(
+        &mut self,
+        layout: impl Into<Layout>,
+        active: bool,
+        add_contents: impl FnOnce(&mut Ui<M>) -> R,
+    ) -> InnerResponse<R> {
+        let (area, area_focus) = self.next_area().unwrap_or_default();
+
+        let mut child_ui = self.child_ui(area, layout);
+        child_ui.has_focus = area_focus;
+
+        widget::Popup::new(active).show(&mut child_ui, add_contents)
+    }
+
     pub fn label<'a>(&mut self, frame: &mut Frame, content: impl Into<Text<'a>>) -> Response {
         widget::Label::new(content).ui(self, frame)
     }
