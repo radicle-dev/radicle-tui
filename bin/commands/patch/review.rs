@@ -178,7 +178,6 @@ pub struct AppState {
 }
 
 impl AppState {
-    #[allow(clippy::too_many_arguments)]
     pub fn new(
         rid: RepoId,
         patch: PatchId,
@@ -240,15 +239,14 @@ impl AppState {
 #[derive(Clone)]
 pub struct App<'a> {
     /// All hunks.
-    hunks: Arc<Mutex<Vec<HunkItem<'a>>>>,
+    hunks: Arc<Mutex<Vec<StatefulHunkItem<'a>>>>,
     /// The app state.
-    state: AppState,
+    state: Arc<Mutex<AppState>>,
     /// Review mode: create or resume.
     _mode: ReviewMode,
 }
 
 impl<'a> App<'a> {
-    #[allow(clippy::too_many_arguments)]
     pub fn new(
         mode: ReviewMode,
         storage: Storage,
@@ -259,39 +257,66 @@ impl<'a> App<'a> {
         let repo = storage.repository(state.rid)?;
         let hunks = hunks
             .iter()
-            .map(|item| HunkItem::from((&repo, &review, item)))
+            .enumerate()
+            .map(|(idx, item)| {
+                StatefulHunkItem::new(
+                    HunkItem::from((&repo, &review, item)),
+                    state.hunk_states().get(idx).cloned().unwrap_or_default(),
+                )
+            })
             .collect::<Vec<_>>();
 
         Ok(Self {
             hunks: Arc::new(Mutex::new(hunks)),
-            state,
+            state: Arc::new(Mutex::new(state)),
             _mode: mode,
         })
     }
 
     pub fn accept_selected_hunk(&mut self) -> Result<()> {
         if let Some(selected) = self.selected_hunk() {
-            self.state.accept_hunk(selected);
+            let mut state = self.state.lock().unwrap();
+            state.accept_hunk(selected);
         }
+        self.synchronize_hunk_state();
 
         Ok(())
     }
 
     pub fn reject_selected_hunk(&mut self) -> Result<()> {
         if let Some(selected) = self.selected_hunk() {
-            self.state.reject_hunk(selected);
+            let mut state = self.state.lock().unwrap();
+            state.reject_hunk(selected);
         }
+        self.synchronize_hunk_state();
 
         Ok(())
     }
 
     pub fn selected_hunk(&self) -> Option<usize> {
-        self.state.selected_hunk()
+        let state = self.state.lock().unwrap();
+        state.selected_hunk()
+    }
+
+    fn synchronize_hunk_state(&mut self) {
+        let state = self.state.lock().unwrap();
+        let mut hunks = self.hunks.lock().unwrap();
+
+        if let Some(selected) = state.selected_hunk() {
+            if let Some(item) = hunks.get_mut(selected) {
+                if let Some(state) = state.hunk_states().get(selected) {
+                    item.update_state(state);
+                }
+            }
+        }
     }
 }
 
 impl<'a> App<'a> {
     fn show_hunk_list(&self, ui: &mut Ui<Message>, frame: &mut Frame) {
+        let hunks = self.hunks.lock().unwrap();
+        let state = self.state.lock().unwrap();
+
         let header = [Column::new(" Hunks ", Constraint::Fill(1))].to_vec();
         let columns = [
             Column::new("", Constraint::Length(2)),
@@ -300,22 +325,7 @@ impl<'a> App<'a> {
         ]
         .to_vec();
 
-        let hunks = self.hunks.lock().unwrap();
-        let hunks = hunks
-            .iter()
-            .enumerate()
-            .map(|(idx, item)| {
-                StatefulHunkItem::new(
-                    item.clone(),
-                    self.state
-                        .hunk_states()
-                        .get(idx)
-                        .cloned()
-                        .unwrap_or_default(),
-                )
-            })
-            .collect::<Vec<_>>();
-        let mut selected = self.state.selected_hunk();
+        let mut selected = state.selected_hunk();
 
         let table = ui.headered_table(frame, &mut selected, &hunks, header, columns);
         if table.changed {
@@ -327,24 +337,26 @@ impl<'a> App<'a> {
 
     fn show_hunk(&self, ui: &mut Ui<Message>, frame: &mut Frame) {
         let hunks = self.hunks.lock().unwrap();
+        let state = self.state.lock().unwrap();
 
-        let selected = self.state.selected_hunk();
+        let selected = state.selected_hunk();
         let hunk = selected.and_then(|selected| hunks.get(selected));
 
         if let Some(hunk) = hunk {
             let empty_text = hunk
+                .inner()
                 .hunk_text()
                 .unwrap_or(Text::raw("Nothing to show.").dark_gray());
 
             let mut cursor = selected
-                .and_then(|selected| self.state.view_state(selected))
+                .and_then(|selected| state.view_state(selected))
                 .map(|state| state.cursor)
                 .unwrap_or_default();
 
             ui.composite(layout::container(), 1, |ui| {
-                ui.columns(frame, hunk.header(), Some(Borders::Top));
+                ui.columns(frame, hunk.inner().header(), Some(Borders::Top));
 
-                if let Some(text) = hunk.hunk_text() {
+                if let Some(text) = hunk.inner().hunk_text() {
                     let diff = ui.text_view(frame, text, &mut cursor, Some(Borders::BottomSides));
                     if diff.changed {
                         ui.send_message(Message::HunkViewChanged {
@@ -360,13 +372,13 @@ impl<'a> App<'a> {
 
     fn show_context_bar(&self, ui: &mut Ui<Message>, frame: &mut Frame) {
         let hunks = &self.hunks.lock().unwrap();
+        let state = self.state.lock().unwrap();
 
-        let id = format!(" {} ", format::cob(&self.state.patch));
-        let title = &self.state.title;
+        let id = format!(" {} ", format::cob(&state.patch));
+        let title = &state.title;
 
         let hunks_total = hunks.len();
-        let hunks_accepted = self
-            .state
+        let hunks_accepted = state
             .hunks
             .1
             .iter()
@@ -420,18 +432,26 @@ impl<'a> App<'a> {
 impl<'a> Show<Message> for App<'a> {
     fn show(&self, ctx: &Context<Message>, frame: &mut Frame) -> Result<(), anyhow::Error> {
         Window::default().show(ctx, |ui| {
-            let mut page_focus = self.state.panes.focus();
+            let page = {
+                let state = self.state.lock().unwrap();
+                state.page.clone()
+            };
 
-            match self.state.page {
+            match page {
                 AppPage::Main => {
+                    let (mut focus, count) = {
+                        let state = self.state.lock().unwrap();
+                        (state.panes.focus(), state.panes.len())
+                    };
+
                     ui.layout(layout::page(), Some(0), |ui| {
-                        let group = ui.panes(layout::list_item(), &mut page_focus, |ui| {
+                        let group = ui.panes(layout::list_item(), &mut focus, |ui| {
                             self.show_hunk_list(ui, frame);
                             self.show_hunk(ui, frame);
                         });
                         if group.response.changed {
                             ui.send_message(Message::PanesChanged {
-                                state: PanesState::new(self.state.panes.len(), page_focus),
+                                state: PanesState::new(count, focus),
                             });
                         }
 
@@ -464,10 +484,13 @@ impl<'a> Show<Message> for App<'a> {
                     });
                 }
                 AppPage::Help => {
-                    ui.panes(layout::page(), &mut page_focus, |ui| {
+                    ui.layout(layout::page(), Some(0), |ui| {
                         ui.composite(layout::container(), 1, |ui| {
+                            let mut cursor = {
+                                let state = self.state.lock().unwrap();
+                                state.help.cursor()
+                            };
                             let header = [Column::new(" Help ", Constraint::Fill(1))].to_vec();
-                            let mut cursor = self.state.help.cursor();
 
                             ui.columns(frame, header, Some(Borders::Top));
                             let help = ui.text_view(
@@ -510,37 +533,46 @@ impl<'a> store::Update<Message> for App<'a> {
 
         match message {
             Message::ShowMain => {
-                self.state.page = AppPage::Main;
+                let mut state = self.state.lock().unwrap();
+                state.page = AppPage::Main;
                 None
             }
             Message::ShowHelp => {
-                self.state.page = AppPage::Help;
+                let mut state = self.state.lock().unwrap();
+                state.page = AppPage::Help;
                 None
             }
             Message::PanesChanged { state } => {
-                self.state.panes = state;
+                let mut app_state = self.state.lock().unwrap();
+                app_state.panes = state;
                 None
             }
             Message::HunkChanged { state } => {
-                self.state.update_hunks(state);
+                let mut app_state = self.state.lock().unwrap();
+                app_state.update_hunks(state);
                 None
             }
             Message::HunkViewChanged { state } => {
-                if let Some(selected) = self.state.selected_hunk() {
-                    self.state.update_view_state(selected, state);
+                let mut app_state = self.state.lock().unwrap();
+                if let Some(selected) = app_state.selected_hunk() {
+                    app_state.update_view_state(selected, state);
                 }
                 None
             }
             Message::HelpChanged { state } => {
-                self.state.help = state;
+                let mut app_state = self.state.lock().unwrap();
+                app_state.help = state;
                 None
             }
-            Message::Comment => Some(Exit {
-                value: Some(Response {
-                    action: Some(ReviewAction::Comment),
-                    state: self.state.clone(),
-                }),
-            }),
+            Message::Comment => {
+                let state = self.state.lock().unwrap();
+                Some(Exit {
+                    value: Some(Response {
+                        action: Some(ReviewAction::Comment),
+                        state: state.clone(),
+                    }),
+                })
+            }
             Message::Accept => {
                 match self.accept_selected_hunk() {
                     Ok(()) => log::info!("Accepted selected hunk."),
@@ -555,12 +587,15 @@ impl<'a> store::Update<Message> for App<'a> {
                 }
                 None
             }
-            Message::Quit => Some(Exit {
-                value: Some(Response {
-                    action: None,
-                    state: self.state.clone(),
-                }),
-            }),
+            Message::Quit => {
+                let state = self.state.lock().unwrap();
+                Some(Exit {
+                    value: Some(Response {
+                        action: None,
+                        state: state.clone(),
+                    }),
+                })
+            }
         }
     }
 }
@@ -610,7 +645,7 @@ mod test {
     use crate::test;
 
     impl<'a> App<'a> {
-        pub fn hunks(&self) -> Vec<HunkItem> {
+        pub fn hunks(&self) -> Vec<StatefulHunkItem> {
             self.hunks.lock().unwrap().clone()
         }
     }
@@ -734,7 +769,8 @@ mod test {
         let patch = test::fixtures::patch(&alice, &branch, &mut patches)?;
 
         let app = fixtures::app(&alice, patch)?;
-        let states = &app.state.hunk_states();
+        let state = app.state.lock().unwrap();
+        let states = &state.hunk_states();
 
         assert_eq!(**states, [HunkState::Rejected, HunkState::Rejected]);
 
@@ -770,7 +806,8 @@ mod test {
         let mut app = fixtures::app(&alice, patch)?;
         app.update(Message::Accept);
 
-        let state = &app.state.hunk_states().get(0).unwrap();
+        let state = app.state.lock().unwrap();
+        let state = &state.hunk_states().get(0).unwrap();
 
         assert_eq!(**state, HunkState::Accepted);
 
@@ -788,7 +825,8 @@ mod test {
         let mut app = fixtures::app(&alice, patch)?;
         app.update(Message::Accept);
 
-        let states = &app.state.hunk_states();
+        let state = app.state.lock().unwrap();
+        let states = &state.hunk_states();
 
         assert_eq!(**states, [HunkState::Accepted, HunkState::Rejected]);
 
@@ -810,7 +848,8 @@ mod test {
         });
         app.update(Message::Accept);
 
-        let states = &app.state.hunk_states();
+        let state = app.state.lock().unwrap();
+        let states = &state.hunk_states();
 
         assert_eq!(**states, [HunkState::Rejected, HunkState::Accepted]);
 
@@ -833,9 +872,35 @@ mod test {
         });
         app.update(Message::Accept);
 
-        let states = &app.state.hunk_states();
+        let state = app.state.lock().unwrap();
+        let states = &state.hunk_states();
 
         assert_eq!(**states, [HunkState::Accepted, HunkState::Accepted]);
+
+        Ok(())
+    }
+
+    #[test]
+    fn hunk_state_is_synchronized() -> Result<()> {
+        let alice = test::fixtures::node_with_repo();
+        let branch = test::fixtures::branch_with_main_changed(&alice);
+
+        let mut patches = Cache::no_cache(&alice.repo.repo).unwrap();
+        let patch = test::fixtures::patch(&alice, &branch, &mut patches)?;
+
+        let mut app = fixtures::app(&alice, patch)?;
+        app.update(Message::Accept);
+
+        let state = app.state.lock().unwrap();
+        let hunks = app.hunks.lock().unwrap();
+
+        let item_states = hunks
+            .iter()
+            .map(|item| item.state().clone())
+            .collect::<Vec<_>>();
+        let states = &state.hunk_states();
+
+        assert_eq!(**states, item_states);
 
         Ok(())
     }
