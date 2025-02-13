@@ -1072,10 +1072,12 @@ impl From<Vec<(EntryId, Comment<CodeLocation>)>> for HunkComments {
 
         for comment in comments {
             // TODO(erikli): Check why we need range end instead of range start.
-            let line = match comment.1.location().as_ref().unwrap().new.as_ref().unwrap() {
-                CodeRange::Lines { range } => range.end,
-                _ => 0,
+            let line = match comment.1.location().as_ref().unwrap().new.as_ref() {
+                Some(CodeRange::Lines { range }) => range.end - 1,
+                _ => 1,
             };
+
+            log::warn!("Inserting {:?} at line {line}", comment.1);
 
             if let Some(comments) = line_comments.get_mut(&line) {
                 comments.push(comment.clone());
@@ -1109,14 +1111,14 @@ impl<'a> From<(&Repository, &Review, &HunkDiff)> for HunkItem<'a> {
         let hi = Highlighter::default();
         // let hunk = item.hunk();
 
-        let path = match &item {
-            HunkDiff::Added { path, .. } => path,
-            HunkDiff::Modified { path, .. } => path,
-            HunkDiff::Deleted { path, .. } => path,
-            HunkDiff::Copied { copied } => &copied.new_path,
-            HunkDiff::Moved { moved } => &moved.new_path,
-            HunkDiff::ModeChanged { path, .. } => path,
-            HunkDiff::EofChanged { path, .. } => path,
+        let (path, hunk) = match &item {
+            HunkDiff::Added { path, hunk, .. } => (path, hunk),
+            HunkDiff::Modified { path, hunk, .. } => (path, hunk),
+            HunkDiff::Deleted { path, hunk, .. } => (path, hunk),
+            HunkDiff::Copied { copied } => (&copied.new_path, &None),
+            HunkDiff::Moved { moved } => (&moved.new_path, &None),
+            HunkDiff::ModeChanged { path, .. } => (path, &None),
+            HunkDiff::EofChanged { path, .. } => (path, &None),
         };
 
         // TODO(erikli): Start with raw, non-highlighted lines and
@@ -1124,10 +1126,32 @@ impl<'a> From<(&Repository, &Review, &HunkDiff)> for HunkItem<'a> {
         // `let lines = blobs.raw()`
         let blobs = item.clone().blobs(repo.raw());
         let lines = blobs.highlight(hi);
+
+        // Filter comments and include them, if:
+        // - comment has a code location
+        // - comment path matches hunk path
+        // - hunk code range contains comment code range
         let comments = review
             .comments()
-            .filter(|(_, comment)| comment.location().is_some())
-            .filter(|(_, comment)| comment.location().unwrap().path == *path)
+            .filter(|(_, comment)| {
+                if let Some(location) = comment.location() {
+                    if location.path == *path {
+                        let range = location.new.clone().and_then(|range| match range {
+                            CodeRange::Lines { range } => Some(range),
+                            CodeRange::Chars { line: _, range } => Some(range),
+                        });
+
+                        // if let Some(range) = range {
+                        //     if let Some(hunk) = hunk {
+                        //         return range.start >= hunk.new.start as usize
+                        //             && range.end <= hunk.new.end as usize;
+                        //     }
+                        // }
+                        return true;
+                    }
+                }
+                return false;
+            })
             .map(|(id, comment)| (*id, comment.clone()))
             .collect::<Vec<_>>();
 
@@ -1810,6 +1834,9 @@ impl<'a> ToText<'a> for Hunk<Modification> {
 #[cfg(test)]
 mod tests {
     use anyhow::Result;
+    use radicle::{cob::ActorId, crypto::Signer};
+
+    use crate::test;
 
     use super::*;
 
@@ -1873,6 +1900,23 @@ mod tests {
         };
 
         assert_eq!(expected, actual);
+
+        Ok(())
+    }
+
+    #[test]
+    fn hunk_comments_are_created_correctly() -> Result<()> {
+        let alice = test::fixtures::node_with_repo();
+
+        let comments = [Comment::new(
+            *alice.node.signer.public_key(),
+            "Before hunk header".to_string(),
+            None,
+            CodeLocation {
+                commit: Oid::from("")
+            }
+        )];
+        let comments = HunkComments::from(comments.to_vec());
 
         Ok(())
     }
