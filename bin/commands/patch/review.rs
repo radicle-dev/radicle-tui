@@ -485,25 +485,27 @@ impl<'a> Show<Message> for App<'a> {
                 }
                 AppPage::Help => {
                     ui.layout(layout::page(), Some(0), |ui| {
-                        ui.composite(layout::container(), 1, |ui| {
-                            let mut cursor = {
-                                let state = self.state.lock().unwrap();
-                                state.help.cursor()
-                            };
-                            let header = [Column::new(" Help ", Constraint::Fill(1))].to_vec();
+                        ui.popup(layout::container(), true, |ui| {
+                            ui.composite(layout::container(), 1, |ui| {
+                                let header = [Column::new(" Help ", Constraint::Fill(1))].to_vec();
+                                let mut cursor = {
+                                    let state = self.state.lock().unwrap();
+                                    state.help.cursor()
+                                };
 
-                            ui.columns(frame, header, Some(Borders::Top));
-                            let help = ui.text_view(
-                                frame,
-                                help_text().to_string(),
-                                &mut cursor,
-                                Some(Borders::BottomSides),
-                            );
-                            if help.changed {
-                                ui.send_message(Message::HelpChanged {
-                                    state: TextViewState::new(cursor),
-                                })
-                            }
+                                ui.columns(frame, header, Some(Borders::Top));
+                                let help = ui.text_view(
+                                    frame,
+                                    help_text().to_string(),
+                                    &mut cursor,
+                                    Some(Borders::BottomSides),
+                                );
+                                if help.changed {
+                                    ui.send_message(Message::HelpChanged {
+                                        state: TextViewState::new(cursor),
+                                    })
+                                }
+                            });
                         });
 
                         self.show_context_bar(ui, frame);
@@ -658,6 +660,9 @@ mod test {
         use radicle::prelude::Signer;
         use radicle::storage::git::cob::DraftStore;
         use radicle::storage::git::Repository;
+
+        use radicle_tui::ui::im::widget::{PanesState, TableState, TextViewState};
+        use ratatui::layout::Position;
 
         use crate::cob::patch;
         use crate::test::setup::NodeWithRepo;
