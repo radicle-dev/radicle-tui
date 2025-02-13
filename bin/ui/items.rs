@@ -1607,6 +1607,10 @@ impl<'a> StatefulHunkItem<'a> {
     pub fn state(&self) -> &HunkState {
         &self.1
     }
+
+    pub fn update_state(&mut self, state: &HunkState) {
+        self.1 = state.clone();
+    }
 }
 
 pub struct HighlightedLine<'a>(Line<'a>);
