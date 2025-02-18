@@ -2,23 +2,45 @@ use std::collections::HashMap;
 
 pub struct LineMerger;
 
+#[derive(Default, Clone, Debug, Hash, Eq, PartialEq)]
+pub enum MergeLocation {
+    Start,
+    Line(usize),
+    End,
+    #[default]
+    Unknown,
+}
+
 impl LineMerger {
     pub fn merge<T: Clone>(
         lines: Vec<T>,
-        mixins: HashMap<usize, Vec<Vec<T>>>,
-        start: usize,
+        mixins: HashMap<MergeLocation, Vec<Vec<T>>>,
+        start: Option<usize>,
     ) -> Vec<T> {
         let mut merged = vec![];
         for (idx, line) in lines.iter().enumerate() {
-            merged.push(line.clone());
+            let location = if idx == 0 {
+                MergeLocation::Start
+            } else if idx == lines.len().saturating_sub(1) {
+                MergeLocation::End
+            } else {
+                MergeLocation::Line(idx.saturating_add(start.unwrap_or_default()))
+            };
 
-            let actual_idx = idx.saturating_add(start);
-            if let Some(mixins) = mixins.get(&actual_idx) {
+            if location != MergeLocation::Start {
+                merged.push(line.clone());
+            }
+
+            if let Some(mixins) = mixins.get(&location) {
                 for mixin in mixins {
                     for mixin_line in mixin {
                         merged.push(mixin_line.clone());
                     }
                 }
+            }
+
+            if location == MergeLocation::Start {
+                merged.push(line.clone());
             }
         }
 
@@ -32,7 +54,7 @@ mod test {
 
     use pretty_assertions::assert_eq;
 
-    use crate::ui::utils::LineMerger;
+    use crate::ui::utils::{LineMerger, MergeLocation};
 
     #[test]
     fn lines_should_be_merged_correctly() -> anyhow::Result<()> {
@@ -55,8 +77,8 @@ Is this needed?
 
         let merged = LineMerger::merge(
             diff.lines().collect(),
-            HashMap::from([(3_usize, vec![comment])]),
-            1,
+            HashMap::from([(MergeLocation::Line(3), vec![comment])]),
+            Some(1),
         );
         let actual = build_string(merged);
 
@@ -102,8 +124,8 @@ Is this needed?
 
         let merged = LineMerger::merge(
             diff.lines().collect(),
-            HashMap::from([(104_usize, vec![comment])]),
-            100,
+            HashMap::from([(MergeLocation::Line(104), vec![comment])]),
+            Some(100),
         );
         let actual = build_string(merged);
 

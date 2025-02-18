@@ -343,11 +343,6 @@ impl<'a> App<'a> {
         let hunk = selected.and_then(|selected| hunks.get(selected));
 
         if let Some(hunk) = hunk {
-            let empty_text = hunk
-                .inner()
-                .hunk_text()
-                .unwrap_or(Text::raw("Nothing to show.").dark_gray());
-
             let mut cursor = selected
                 .and_then(|selected| state.view_state(selected))
                 .map(|state| state.cursor)
@@ -364,6 +359,10 @@ impl<'a> App<'a> {
                         })
                     }
                 } else {
+                    let empty_text = hunk
+                        .inner()
+                        .hunk_text()
+                        .unwrap_or(Text::raw("Nothing to show.").dark_gray());
                     ui.centered_text_view(frame, empty_text, Some(Borders::BottomSides));
                 }
             });
