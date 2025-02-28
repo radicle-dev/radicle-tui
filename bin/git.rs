@@ -283,6 +283,18 @@ impl HunkDiff {
         }
     }
 
+    pub fn path(&self) -> &PathBuf {
+        match self {
+            HunkDiff::Added { path, .. } => path,
+            HunkDiff::Modified { path, .. } => path,
+            HunkDiff::Deleted { path, .. } => path,
+            HunkDiff::Copied { copied } => &copied.new_path,
+            HunkDiff::Moved { moved } => &moved.new_path,
+            HunkDiff::ModeChanged { path, .. } => path,
+            HunkDiff::EofChanged { path, .. } => path,
+        }
+    }
+
     pub fn paths(&self) -> FilePaths {
         match self {
             Self::Added { path, new, .. } => (None, Some((path, new.oid))),
