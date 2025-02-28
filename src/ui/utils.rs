@@ -1,24 +1,63 @@
 use std::collections::HashMap;
 
-pub struct LineMerger;
+/// A type that specifies the location of a line merge.
+/// The lines to merge will be either added before, within or after
+/// the base lines.
+#[derive(Default, Clone, Debug, Hash, Eq, PartialEq)]
+pub enum MergeLocation {
+    Start,
+    Line(usize),
+    End,
+    #[default]
+    Unknown,
+}
 
-impl LineMerger {
-    pub fn merge<T: Clone>(
-        lines: Vec<T>,
-        mixins: HashMap<usize, Vec<Vec<T>>>,
-        start: usize,
+/// A type that can merge lines based on their merge location.
+#[derive(Default)]
+pub struct LineMerger<T> {
+    /// Base lines that other lines will be merged with.
+    lines: Vec<T>,
+}
+
+impl<T: Clone> LineMerger<T> {
+    pub fn new(lines: impl IntoIterator<Item = T>) -> Self {
+        Self {
+            lines: lines.into_iter().collect::<Vec<_>>(),
+        }
+    }
+
+    pub fn merge(
+        &self,
+        merge: HashMap<MergeLocation, Vec<Vec<T>>>,
+        start: Option<usize>,
     ) -> Vec<T> {
         let mut merged = vec![];
-        for (idx, line) in lines.iter().enumerate() {
-            merged.push(line.clone());
+        for (idx, line) in self.lines.iter().enumerate() {
+            let location = if idx == 0 {
+                MergeLocation::Start
+            } else if idx == self.lines.len().saturating_sub(1) {
+                MergeLocation::End
+            } else {
+                let idx = idx
+                    .saturating_add(start.unwrap_or_default())
+                    .saturating_sub(1);
+                MergeLocation::Line(idx)
+            };
 
-            let actual_idx = idx.saturating_add(start);
-            if let Some(mixins) = mixins.get(&actual_idx) {
-                for mixin in mixins {
-                    for mixin_line in mixin {
-                        merged.push(mixin_line.clone());
+            if location != MergeLocation::Start {
+                merged.push(line.clone());
+            }
+
+            if let Some(merges) = merge.get(&location) {
+                for merge in merges {
+                    for line in merge {
+                        merged.push(line.clone());
                     }
                 }
+            }
+
+            if location == MergeLocation::Start {
+                merged.push(line.clone());
             }
         }
 
@@ -32,7 +71,7 @@ mod test {
 
     use pretty_assertions::assert_eq;
 
-    use crate::ui::utils::LineMerger;
+    use crate::ui::utils::{LineMerger, MergeLocation};
 
     #[test]
     fn lines_should_be_merged_correctly() -> anyhow::Result<()> {
@@ -53,10 +92,9 @@ Is this needed?
             .to_string();
         let comment = comment.lines().collect::<Vec<_>>();
 
-        let merged = LineMerger::merge(
-            diff.lines().collect(),
-            HashMap::from([(3_usize, vec![comment])]),
-            1,
+        let merged = LineMerger::new(diff.lines()).merge(
+            HashMap::from([(MergeLocation::Line(2), vec![comment])]),
+            Some(1),
         );
         let actual = build_string(merged);
 
@@ -100,10 +138,9 @@ Is this needed?
             .to_string();
         let comment = comment.lines().collect::<Vec<_>>();
 
-        let merged = LineMerger::merge(
-            diff.lines().collect(),
-            HashMap::from([(104_usize, vec![comment])]),
-            100,
+        let merged = LineMerger::new(diff.lines()).merge(
+            HashMap::from([(MergeLocation::Line(103), vec![comment])]),
+            Some(100),
         );
         let actual = build_string(merged);
 
