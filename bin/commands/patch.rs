@@ -255,7 +255,7 @@ pub async fn run(options: Options, ctx: impl terminal::Context) -> anyhow::Resul
             let rid = options.repo.unwrap_or(rid);
 
             // Run TUI with patch list interface
-            let selection = interface::list(opts.clone(), profile, rid).await?;
+            let selection = interface::list(opts.clone(), profile.clone(), rid).await?;
 
             if opts.json {
                 let selection = selection
@@ -269,7 +269,7 @@ pub async fn run(options: Options, ctx: impl terminal::Context) -> anyhow::Resul
             } else if let Some(selection) = selection {
                 let mut args = vec![];
 
-                if let Some(operation) = selection.operation {
+                if let Some(operation) = selection.operation.clone() {
                     args.push(operation.to_string());
                 }
                 if let Some(id) = selection.ids.first() {
@@ -277,7 +277,20 @@ pub async fn run(options: Options, ctx: impl terminal::Context) -> anyhow::Resul
                 }
 
                 let args = args.into_iter().map(OsString::from).collect::<Vec<_>>();
-                let _ = crate::terminal::run_rad(Some("patch"), &args);
+
+                if selection.operation.unwrap_or_default() == "review" {
+                    if let Some(id) = selection.ids.first() {
+                        let opts = ReviewOptions {
+                            patch_id: None,
+                            revision_id: None,
+                        };
+                        interface::review(opts.clone(), profile, rid, *id).await?;
+                    } else {
+                        anyhow::bail!("a patch must be provided");
+                    }
+                } else {
+                    let _ = crate::terminal::run_rad(Some("patch"), &args);
+                }
             }
         }
         Operation::Review { ref opts } => {

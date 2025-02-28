@@ -19,6 +19,7 @@ pub enum Mode {
 pub enum PatchOperation {
     Checkout,
     Diff,
+    Review,
     Show,
 }
 
@@ -30,6 +31,9 @@ impl Display for PatchOperation {
             }
             PatchOperation::Diff => {
                 write!(f, "diff")
+            }
+            PatchOperation::Review => {
+                write!(f, "review")
             }
             PatchOperation::Show => {
                 write!(f, "show")

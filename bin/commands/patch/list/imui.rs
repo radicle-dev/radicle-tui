@@ -277,6 +277,7 @@ impl Show<Message> for App {
                                                 ("enter", "show"),
                                                 ("c", "checkout"),
                                                 ("d", "diff"),
+                                                ("r", "review"),
                                                 ("/", "search"),
                                                 ("?", "help"),
                                             ]
@@ -298,6 +299,11 @@ impl Show<Message> for App {
                                 if ui.input_global(|key| key == Key::Char('d')) {
                                     ui.send_message(Message::Exit {
                                         operation: Some(PatchOperation::Diff),
+                                    });
+                                }
+                                if ui.input_global(|key| key == Key::Char('r')) {
+                                    ui.send_message(Message::Exit {
+                                        operation: Some(PatchOperation::Review),
                                     });
                                 }
                                 if ui.input_global(|key| key == Key::Char('c')) {
