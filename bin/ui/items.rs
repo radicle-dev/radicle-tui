@@ -1043,6 +1043,21 @@ impl<'a> From<TermLine> for Line<'a> {
     }
 }
 
+/// Represents the old and new ranges of a unified diff.
+pub struct DiffLineRanges {
+    old: Range<u32>,
+    new: Range<u32>,
+}
+
+impl From<&Hunk<Modification>> for DiffLineRanges {
+    fn from(hunk: &Hunk<Modification>) -> Self {
+        Self {
+            old: hunk.old.clone(),
+            new: hunk.new.clone(),
+        }
+    }
+}
+
 /// Identifies a line in a unified diff by its old and new line number.
 #[derive(Clone, Debug, Default, Hash, Eq, PartialEq)]
 pub struct DiffLineIndex {
@@ -1051,7 +1066,7 @@ pub struct DiffLineIndex {
 }
 
 impl DiffLineIndex {
-    pub fn starts(&self, new: &Range<u32>) -> bool {
+    pub fn is_start_of(&self, ranges: &DiffLineRanges) -> bool {
         // TODO(erikli): Find out, why comments inserted right before or after
         // the hunk header can have such weird values.
         let old = self
@@ -1060,33 +1075,33 @@ impl DiffLineIndex {
             .unwrap_or_default();
         let new = self
             .new
-            .map(|n| n == u32::MAX.saturating_sub(1) || n == new.end)
+            .map(|n| n == u32::MAX.saturating_sub(1) || n == ranges.new.end)
             .unwrap_or_default();
 
         old || new
     }
 
-    pub fn ends(&self, old: &Range<u32>, new: &Range<u32>) -> bool {
+    pub fn is_end_of(&self, ranges: &DiffLineRanges) -> bool {
         let old = self
             .old
-            .map(|o| o == old.end.saturating_sub(1))
+            .map(|o| o == ranges.old.end.saturating_sub(1))
             .unwrap_or_default();
         let new = self
             .new
-            .map(|n| n == new.end.saturating_sub(1))
+            .map(|n| n == ranges.new.end.saturating_sub(1))
             .unwrap_or_default();
 
         old || new
     }
 
-    pub fn inside(&self, old: &Range<u32>, new: &Range<u32>) -> bool {
+    pub fn is_inside_of(&self, ranges: &DiffLineRanges) -> bool {
         let old = self
             .old
-            .map(|o| o >= old.start && o < old.end.saturating_sub(1))
+            .map(|o| o >= ranges.old.start && o < ranges.old.end.saturating_sub(1))
             .unwrap_or_default();
         let new = self
             .new
-            .map(|n| n >= new.start && n < new.end.saturating_sub(1))
+            .map(|n| n >= ranges.new.start && n < ranges.new.end.saturating_sub(1))
             .unwrap_or_default();
 
         old || new
@@ -1167,11 +1182,12 @@ impl HunkComments {
         for comment in comments {
             let line = if let Some(location) = comment.1.location() {
                 if let Some(hunk) = diff.hunk() {
+                    let ranges = DiffLineRanges::from(hunk);
                     let index = DiffLineIndex::from(location);
 
-                    if index.starts(&hunk.new) {
+                    if index.is_start_of(&ranges) {
                         MergeLocation::Start
-                    } else if index.ends(&hunk.old, &hunk.new) {
+                    } else if index.is_end_of(&ranges) {
                         MergeLocation::End
                     } else {
                         let mut line = indexed
@@ -1256,13 +1272,14 @@ impl<'a> From<(&Repository, &Review, &HunkDiff)> for HunkItem<'a> {
                 if let Some(location) = comment.location() {
                     if location.path == *item.path() {
                         if let Some(hunk) = item.hunk() {
+                            let ranges = DiffLineRanges::from(hunk);
                             let index = DiffLineIndex::from(location);
 
                             log::warn!("Checking comment {comment:?} at {index:?}");
 
-                            return index.starts(&hunk.new)
-                                || index.inside(&hunk.old, &hunk.new)
-                                || index.ends(&hunk.old, &hunk.new);
+                            return index.is_start_of(&ranges)
+                                || index.is_inside_of(&ranges)
+                                || index.is_end_of(&ranges);
                         } else {
                             return true;
                         }
@@ -2042,10 +2059,7 @@ mod tests {
         // At the end.
         // ---------------------------------------------------------------------
         let diff = test::fixtures::simple_modified_hunk_diff(&path, commit)?;
-        let (old, new) = {
-            let hunk = diff.hunk().unwrap();
-            (hunk.old.clone(), hunk.new.clone())
-        };
+        let ranges = DiffLineRanges::from(diff.hunk().unwrap());
 
         let start = CodeLocation {
             commit,
@@ -2053,9 +2067,9 @@ mod tests {
             old: Some(CodeRange::Lines { range: 3..12 }),
             new: Some(CodeRange::Lines { range: 3..11 }),
         };
-        assert!(DiffLineIndex::from(&start).starts(&new));
-        assert!(!DiffLineIndex::from(&start).inside(&old, &new));
-        assert!(!DiffLineIndex::from(&start).ends(&old, &new));
+        assert!(DiffLineIndex::from(&start).is_start_of(&ranges));
+        assert!(!DiffLineIndex::from(&start).is_inside_of(&ranges));
+        assert!(!DiffLineIndex::from(&start).is_end_of(&ranges));
 
         let inside = CodeLocation {
             commit,
@@ -2063,9 +2077,9 @@ mod tests {
             old: Some(CodeRange::Lines { range: 3..8 }),
             new: Some(CodeRange::Lines { range: 3..7 }),
         };
-        assert!(DiffLineIndex::from(&inside).inside(&old, &new));
-        assert!(!DiffLineIndex::from(&inside).starts(&new));
-        assert!(!DiffLineIndex::from(&inside).ends(&old, &new));
+        assert!(DiffLineIndex::from(&inside).is_inside_of(&ranges));
+        assert!(!DiffLineIndex::from(&inside).is_start_of(&ranges));
+        assert!(!DiffLineIndex::from(&inside).is_end_of(&ranges));
 
         let end = CodeLocation {
             commit,
@@ -2073,9 +2087,9 @@ mod tests {
             old: Some(CodeRange::Lines { range: 3..11 }),
             new: Some(CodeRange::Lines { range: 3..10 }),
         };
-        assert!(DiffLineIndex::from(&end).ends(&old, &new));
-        assert!(!DiffLineIndex::from(&end).starts(&new));
-        assert!(!DiffLineIndex::from(&end).inside(&old, &new));
+        assert!(DiffLineIndex::from(&end).is_end_of(&ranges));
+        assert!(!DiffLineIndex::from(&end).is_start_of(&ranges));
+        assert!(!DiffLineIndex::from(&end).is_inside_of(&ranges));
 
         let outside = CodeLocation {
             commit,
@@ -2083,9 +2097,9 @@ mod tests {
             old: Some(CodeRange::Lines { range: 125..127 }),
             new: Some(CodeRange::Lines { range: 125..128 }),
         };
-        assert!(!DiffLineIndex::from(&outside).starts(&new));
-        assert!(!DiffLineIndex::from(&outside).inside(&old, &new));
-        assert!(!DiffLineIndex::from(&outside).ends(&old, &new));
+        assert!(!DiffLineIndex::from(&outside).is_start_of(&ranges));
+        assert!(!DiffLineIndex::from(&outside).is_inside_of(&ranges));
+        assert!(!DiffLineIndex::from(&outside).is_end_of(&ranges));
 
         Ok(())
     }
