@@ -118,7 +118,7 @@ pub mod setup {
 }
 
 pub mod fixtures {
-    use std::path::Path;
+    use std::path::{Path, PathBuf};
 
     use anyhow::Result;
 
@@ -133,6 +133,11 @@ pub mod fixtures {
     use radicle::storage::ReadStorage;
     use radicle::test::setup::{BranchWith, Node};
     use radicle::Storage;
+    use radicle_cli::git::unified_diff::FileHeader;
+    use radicle_git_ext::Oid;
+    use radicle_surf::diff::{self, DiffFile, Hunk, Line, Modification};
+
+    use crate::git::HunkDiff;
 
     use super::setup::{NodeRepo, NodeRepoCheckout, NodeWithRepo};
 
@@ -279,5 +284,187 @@ fn main() {
         drop(head);
 
         (repo, oid)
+    }
+
+    /// @@ -3,8 +3,7 @@
+    /// 3   3     // or if you prefer to use your keyboard, you can use the "Ctrl + Enter"
+    /// 4   4     // shortcut.
+    /// 5   5
+    /// 6       - // This code is editable, feel free to hack it!
+    /// 7       - // You can always return to the original code by clicking the "Reset" button ->
+    ///     6   + // This is still a comment.
+    /// 8   7
+    /// 9   8     // This is the main function.
+    /// 10  9     fn main() {
+    pub fn simple_modified_hunk_diff(path: &PathBuf, commit: Oid) -> Result<HunkDiff> {
+        let diff = DiffFile {
+            oid: commit,
+            mode: diff::FileMode::Blob,
+        };
+
+        Ok(HunkDiff::Modified {
+            path: path.clone(),
+            header: FileHeader::Modified {
+                path: path.to_path_buf(),
+                old: diff.clone(),
+                new: diff.clone(),
+                binary: false,
+            },
+            old: diff.clone(),
+            new: diff,
+            hunk: Some(Hunk {
+                header: Line::from(b"@@ -3,8 +3,7 @@\n".to_vec()),
+                lines: vec![
+                    Modification::context(
+                        b"// or if you prefer to use your keyboard, you can use the \"Ctrl + Enter\"\n"
+                            .to_vec(),
+                        3,
+                        3,
+                    ),
+                    Modification::context(b"// shortcut.\n".to_vec(), 4, 4),
+                    Modification::context(b"\n".to_vec(), 5, 5),
+                    Modification::deletion(
+                        b"// This code is editable, feel free to hack it!\n".to_vec(),
+                        6,
+                    ),
+                    Modification::deletion(
+                        b"// You can always return to the original code by clicking the \"Reset\" button ->\n".to_vec(),
+                        7,
+                    ),
+                    Modification::addition(b"// This is still a comment.\n".to_vec(), 6),
+                    Modification::context(b"\n".to_vec(), 8, 7),
+                    Modification::context(b"// This is the main function.\n".to_vec(), 9, 8),
+                    Modification::context(b"fn main() {\n".to_vec(), 10, 9),
+                ],
+                old: 3..11,
+                new: 3..10,
+            }),
+            _stats: None,
+        })
+    }
+
+    /// @@ -1,17 +1,15 @@
+    /// 1       - use radicle::issue::IssueId;
+    /// 2       - use tui::ui::state::ItemState;
+    /// 3       - use tui::SelectionExit;
+    /// 4   1     use tuirealm::command::{Cmd, CmdResult, Direction as MoveDirection};
+    /// 5   2     use tuirealm::event::{Event, Key, KeyEvent};
+    /// 6   3     use tuirealm::{MockComponent, NoUserEvent};
+    /// 7   4
+    /// 8   5     use radicle_tui as tui;
+    /// 9   6
+    ///     7   + use tui::ui::state::ItemState;
+    /// 10  8     use tui::ui::widget::container::{AppHeader, GlobalListener, LabeledContainer};
+    /// 11  9     use tui::ui::widget::context::{ContextBar, Shortcuts};
+    /// 12  10    use tui::ui::widget::list::PropertyList;
+    /// 13      -
+    /// 14  11    use tui::ui::widget::Widget;
+    ///     12  + use tui::{Id, SelectionExit};
+    /// 15  13
+    /// 16  14    use super::ui::{IdSelect, OperationSelect};
+    /// 17  15    use super::{IssueOperation, Message};
+    pub fn complex_modified_hunk_diff(path: &PathBuf, commit: Oid) -> Result<HunkDiff> {
+        let diff = DiffFile {
+            oid: commit,
+            mode: diff::FileMode::Blob,
+        };
+
+        Ok(HunkDiff::Modified {
+            path: path.clone(),
+            header: FileHeader::Modified {
+                path: path.to_path_buf(),
+                old: diff.clone(),
+                new: diff.clone(),
+                binary: false,
+            },
+            old: diff.clone(),
+            new: diff,
+            hunk: Some(Hunk {
+                header: Line::from(b"@@ -1,17 +1,15 @@\n".to_vec()),
+                lines: vec![
+                    Modification::deletion(b"use radicle::issue::IssueId;\n".to_vec(), 1),
+                    Modification::deletion(b"use tui::ui::state::ItemState;\n".to_vec(), 2),
+                    Modification::deletion(b"use tui::SelectionExit;\n".to_vec(), 3),
+                    Modification::context(
+                        b"use tuirealm::command::{Cmd, CmdResult, Direction as MoveDirection};\n"
+                            .to_vec(),
+                        4,
+                        1,
+                    ),
+                    Modification::context(
+                        b"use tuirealm::event::{Event, Key, KeyEvent};\n".to_vec(),
+                        5,
+                        2,
+                    ),
+                    Modification::context(
+                        b"use tuirealm::{MockComponent, NoUserEvent};\n".to_vec(),
+                        6,
+                        3,
+                    ),
+                    Modification::context(b"\n".to_vec(), 7, 4),
+                    Modification::context(b"use radicle_tui as tui;\n".to_vec(), 8, 5),
+                    Modification::context(b"\n".to_vec(), 9, 6),
+                    Modification::addition(b"use tui::ui::state::ItemState;\n".to_vec(), 7),
+                    Modification::context(b"use tui::ui::widget::container::{AppHeader, GlobalListener, LabeledContainer};\n"
+                        .to_vec(),
+                        10,
+                        8,
+                    ),
+                    Modification::context(
+                        b"use tui::ui::widget::context::{ContextBar, Shortcuts};\n".to_vec(),
+                        11,
+                        9,
+                    ),
+                    Modification::context(
+                        b"use tui::ui::widget::list::PropertyList;\n".to_vec(),
+                        12,
+                        10,
+                    ),
+                    Modification::deletion(b"\n".to_vec(), 13),
+                    Modification::context(b"use tui::ui::widget::Widget;\n".to_vec(), 14, 11),
+                    Modification::addition(b"use tui::{Id, SelectionExit};\n".to_vec(), 12),
+                    Modification::context(b"\n".to_vec(), 15, 13),
+                    Modification::context(
+                        b"use super::ui::{IdSelect, OperationSelect};\n".to_vec(),
+                        16,
+                        14,
+                    ),
+                    Modification::context(
+                        b"use super::{IssueOperation, Message};\n".to_vec(),
+                        17,
+                        15,
+                    ),
+                ],
+                old: 1..18,
+                new: 1..16,
+            }),
+            _stats: None,
+        })
+    }
+
+    /// @@ -1,1 +0,0 @@
+    /// - TBD
+    pub fn deleted_hunk_diff(path: &PathBuf, commit: Oid) -> Result<HunkDiff> {
+        let diff = DiffFile {
+            oid: commit,
+            mode: diff::FileMode::Blob,
+        };
+
+        Ok(HunkDiff::Deleted {
+            path: path.clone(),
+            header: FileHeader::Deleted {
+                path: path.to_path_buf(),
+                old: diff.clone(),
+                binary: false,
+            },
+            old: diff.clone(),
+            hunk: Some(Hunk {
+                header: Line::from(b"@@ -1,1 +0,0 @@\n".to_vec()),
+                lines: vec![Modification::deletion(b"TBD\n".to_vec(), 1)],
+                old: 1..2,
+                new: 0..0,
+            }),
+            _stats: None,
+        })
     }
 }

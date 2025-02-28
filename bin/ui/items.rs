@@ -1,6 +1,7 @@
 use std::collections::HashMap;
 use std::fmt;
 use std::fmt::Debug;
+use std::ops::Range;
 use std::str::FromStr;
 
 use nom::bytes::complete::{tag, take};
@@ -18,13 +19,14 @@ use radicle::issue;
 use radicle::issue::{CloseReason, Issue, IssueId, Issues};
 use radicle::node::notifications::{Notification, NotificationId, NotificationKind};
 use radicle::node::{Alias, AliasStore, NodeId};
-use radicle::patch::{self, Review};
-use radicle::patch::{Patch, PatchId, Patches};
+use radicle::patch;
+use radicle::patch::{Patch, PatchId, Patches, Review};
 use radicle::storage::git::Repository;
 use radicle::storage::{ReadRepository, ReadStorage, RefUpdate, WriteRepository};
 use radicle::Profile;
 
-use radicle_surf::diff::{self, Hunk, Modification};
+use radicle_surf::diff;
+use radicle_surf::diff::{Hunk, Modification};
 
 use radicle_cli::git::unified_diff::{Decode, HunkHeader};
 use radicle_cli::terminal;
@@ -39,7 +41,7 @@ use tui_tree_widget::TreeItem;
 use radicle_tui as tui;
 
 use tui::ui::theme::style;
-use tui::ui::utils::LineMerger;
+use tui::ui::utils::{LineMerger, MergeLocation};
 use tui::ui::{span, Column};
 use tui::ui::{ToRow, ToTree};
 
@@ -1041,40 +1043,155 @@ impl<'a> From<TermLine> for Line<'a> {
     }
 }
 
-/// All comments per hunk, indexed by their starting line.
+/// Identifies a line in a unified diff by its old and new line number.
+#[derive(Clone, Debug, Default, Hash, Eq, PartialEq)]
+pub struct DiffLineIndex {
+    old: Option<u32>,
+    new: Option<u32>,
+}
+
+impl DiffLineIndex {
+    pub fn starts(&self, new: &Range<u32>) -> bool {
+        // TODO(erikli): Find out, why comments inserted right before or after
+        // the hunk header can have such weird values.
+        let old = self
+            .old
+            .map(|o| self.new.is_none() && o >= 4294967294)
+            .unwrap_or_default();
+        let new = self
+            .new
+            .map(|n| n == u32::MAX.saturating_sub(1) || n == new.end)
+            .unwrap_or_default();
+
+        old || new
+    }
+
+    pub fn ends(&self, old: &Range<u32>, new: &Range<u32>) -> bool {
+        let old = self
+            .old
+            .map(|o| o == old.end.saturating_sub(1))
+            .unwrap_or_default();
+        let new = self
+            .new
+            .map(|n| n == new.end.saturating_sub(1))
+            .unwrap_or_default();
+
+        old || new
+    }
+
+    pub fn inside(&self, old: &Range<u32>, new: &Range<u32>) -> bool {
+        let old = self
+            .old
+            .map(|o| o >= old.start && o < old.end.saturating_sub(1))
+            .unwrap_or_default();
+        let new = self
+            .new
+            .map(|n| n >= new.start && n < new.end.saturating_sub(1))
+            .unwrap_or_default();
+
+        old || new
+    }
+}
+
+impl From<&CodeLocation> for DiffLineIndex {
+    fn from(location: &CodeLocation) -> Self {
+        Self {
+            old: location.old.as_ref().map(|r| match r {
+                CodeRange::Lines { range } => range.end.saturating_sub(1) as u32,
+                CodeRange::Chars { line, range: _ } => line.saturating_sub(1) as u32,
+            }),
+            new: location.new.as_ref().map(|r| match r {
+                CodeRange::Lines { range } => range.end.saturating_sub(1) as u32,
+                CodeRange::Chars { line, range: _ } => line.saturating_sub(1) as u32,
+            }),
+        }
+    }
+}
+
+/// A type that can map a line index to a line number in a unified diff.
+#[derive(Debug)]
+pub struct IndexedDiffLines {
+    lines: HashMap<DiffLineIndex, u32>,
+}
+
+impl IndexedDiffLines {
+    pub fn new(diff: &HunkDiff) -> Self {
+        let mut indexed = HashMap::new();
+
+        if let Some(hunk) = diff.hunk() {
+            for (index, line) in hunk.lines.iter().enumerate() {
+                let line_index = match line {
+                    Modification::Addition(addition) => DiffLineIndex {
+                        old: None,
+                        new: Some(addition.line_no),
+                    },
+                    Modification::Deletion(deletion) => DiffLineIndex {
+                        old: Some(deletion.line_no),
+                        new: None,
+                    },
+                    Modification::Context {
+                        line: _,
+                        line_no_old,
+                        line_no_new,
+                    } => DiffLineIndex {
+                        old: Some(*line_no_old),
+                        new: Some(*line_no_new),
+                    },
+                };
+
+                indexed.insert(line_index, index as u32);
+            }
+        }
+
+        Self { lines: indexed }
+    }
+
+    pub fn line(&self, index: DiffLineIndex) -> Option<u32> {
+        self.lines.get(&index).copied()
+    }
+}
+
+/// All comments per hunk, indexed by their merge location: start, line or end.
 #[derive(Clone, Debug)]
 pub struct HunkComments {
     /// All comments. Can be unsorted.
-    comments: HashMap<usize, Vec<(EntryId, Comment<CodeLocation>)>>,
+    comments: HashMap<MergeLocation, Vec<(EntryId, Comment<CodeLocation>)>>,
 }
 
 impl HunkComments {
-    pub fn all(&self) -> &HashMap<usize, Vec<(EntryId, Comment<CodeLocation>)>> {
-        &self.comments
-    }
-
-    pub fn is_empty(&self) -> bool {
-        self.comments.is_empty()
-    }
-
-    pub fn len(&self) -> usize {
-        self.comments.values().fold(0_usize, |mut count, comments| {
-            count += comments.len();
-            count
-        })
-    }
-}
-
-impl From<Vec<(EntryId, Comment<CodeLocation>)>> for HunkComments {
-    fn from(comments: Vec<(EntryId, Comment<CodeLocation>)>) -> Self {
-        let mut line_comments: HashMap<usize, Vec<(EntryId, Comment<CodeLocation>)>> =
+    pub fn new(diff: &HunkDiff, comments: Vec<(EntryId, Comment<CodeLocation>)>) -> Self {
+        let mut line_comments: HashMap<MergeLocation, Vec<(EntryId, Comment<CodeLocation>)>> =
             HashMap::new();
+        let indexed = IndexedDiffLines::new(diff);
 
         for comment in comments {
-            // TODO(erikli): Check why we need range end instead of range start.
-            let line = match comment.1.location().as_ref().unwrap().new.as_ref().unwrap() {
-                CodeRange::Lines { range } => range.end,
-                _ => 0,
+            let line = if let Some(location) = comment.1.location() {
+                if let Some(hunk) = diff.hunk() {
+                    let index = DiffLineIndex::from(location);
+
+                    if index.starts(&hunk.new) {
+                        MergeLocation::Start
+                    } else if index.ends(&hunk.old, &hunk.new) {
+                        MergeLocation::End
+                    } else {
+                        let mut line = indexed
+                            .line(index.clone())
+                            .map(|line| MergeLocation::Line(line as usize));
+
+                        // TODO(erikli): Properly fix index lookup rules for addition:
+                        // old line number need to be ignored.
+                        if line.is_none() {
+                            line = indexed
+                                .line(DiffLineIndex { old: None, ..index })
+                                .map(|line| MergeLocation::Line(line as usize))
+                        }
+                        line.unwrap_or_default()
+                    }
+                } else {
+                    MergeLocation::Unknown
+                }
+            } else {
+                MergeLocation::Unknown
             };
 
             if let Some(comments) = line_comments.get_mut(&line) {
@@ -1087,6 +1204,21 @@ impl From<Vec<(EntryId, Comment<CodeLocation>)>> for HunkComments {
         Self {
             comments: line_comments,
         }
+    }
+
+    pub fn all(&self) -> &HashMap<MergeLocation, Vec<(EntryId, Comment<CodeLocation>)>> {
+        &self.comments
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.comments.is_empty()
+    }
+
+    pub fn len(&self) -> usize {
+        self.comments.values().fold(0_usize, |mut count, comments| {
+            count += comments.len();
+            count
+        })
     }
 }
 
@@ -1107,34 +1239,44 @@ impl<'a> From<(&Repository, &Review, &HunkDiff)> for HunkItem<'a> {
     fn from(value: (&Repository, &Review, &HunkDiff)) -> Self {
         let (repo, review, item) = value;
         let hi = Highlighter::default();
-        // let hunk = item.hunk();
-
-        let path = match &item {
-            HunkDiff::Added { path, .. } => path,
-            HunkDiff::Modified { path, .. } => path,
-            HunkDiff::Deleted { path, .. } => path,
-            HunkDiff::Copied { copied } => &copied.new_path,
-            HunkDiff::Moved { moved } => &moved.new_path,
-            HunkDiff::ModeChanged { path, .. } => path,
-            HunkDiff::EofChanged { path, .. } => path,
-        };
 
         // TODO(erikli): Start with raw, non-highlighted lines and
         // move highlighting to separate task / thread, e.g. here:
         // `let lines = blobs.raw()`
         let blobs = item.clone().blobs(repo.raw());
         let lines = blobs.highlight(hi);
+
+        // Filter comments and include them, if:
+        // - comment has a code location
+        // - comment path matches hunk path
+        // - comment code location is inside hunk code range
         let comments = review
             .comments()
-            .filter(|(_, comment)| comment.location().is_some())
-            .filter(|(_, comment)| comment.location().unwrap().path == *path)
+            .filter(|(_, comment)| {
+                if let Some(location) = comment.location() {
+                    if location.path == *item.path() {
+                        if let Some(hunk) = item.hunk() {
+                            let index = DiffLineIndex::from(location);
+
+                            log::warn!("Checking comment {comment:?} at {index:?}");
+
+                            return index.starts(&hunk.new)
+                                || index.inside(&hunk.old, &hunk.new)
+                                || index.ends(&hunk.old, &hunk.new);
+                        } else {
+                            return true;
+                        }
+                    }
+                }
+                false
+            })
             .map(|(id, comment)| (*id, comment.clone()))
             .collect::<Vec<_>>();
 
         Self {
             diff: item.clone(),
             lines,
-            comments: HunkComments::from(comments),
+            comments: HunkComments::new(item, comments),
         }
     }
 }
@@ -1512,24 +1654,18 @@ impl<'a> HunkItem<'a> {
                 let mut lines = hunk
                     .as_ref()
                     .map(|hunk| Text::from(hunk.to_text(&self.lines)));
-                let start = hunk
-                    .as_ref()
-                    .map(|hunk| hunk.new.start as usize)
-                    .unwrap_or_default();
 
                 lines = lines.map(|lines| {
-                    let mut mixins = HashMap::new();
-
                     let divider = span::default(&"─".to_string().repeat(500)).gray().dim();
 
+                    let mut merge = HashMap::new();
                     for (line, comments) in self.comments.all() {
-                        mixins.insert(
-                            *line,
+                        merge.insert(
+                            line.clone(),
                             comments
                                 .iter()
                                 .enumerate()
                                 .map(|(idx, comment)| {
-                                    // let body = span::default(comment.1.body()).gray();
                                     let timestamp =
                                         span::timestamp(&format::timestamp(&comment.1.timestamp()));
                                     let author =
@@ -1571,8 +1707,7 @@ impl<'a> HunkItem<'a> {
                                 .collect(),
                         );
                     }
-                    let merged = LineMerger::merge(lines.lines.clone(), mixins, start);
-
+                    let merged = LineMerger::new(lines.lines).merge(merge, None);
                     Text::from(merged)
                 });
 
@@ -1809,7 +1944,12 @@ impl<'a> ToText<'a> for Hunk<Modification> {
 
 #[cfg(test)]
 mod tests {
+    use std::path::PathBuf;
+
     use anyhow::Result;
+    use radicle::crypto::Signer;
+
+    use crate::test;
 
     use super::*;
 
@@ -1873,6 +2013,356 @@ mod tests {
         };
 
         assert_eq!(expected, actual);
+
+        Ok(())
+    }
+
+    #[test]
+    fn diff_line_index_checks_ranges_correctly() -> Result<()> {
+        let commit = Oid::from_str("a32c4b93e2573fd83b15ac1ad6bf1317dc8fd760").unwrap();
+        let path = PathBuf::from_str("main.rs").unwrap();
+
+        // --------------------------------------------------------------------
+        // At the top.
+        // --------------------------------------------------------------------
+        // @@ -3,8 +3,7 @@
+        // 3   3     // or if you prefer to use your keyboard, you can use the "Ctrl + Enter"
+        // 4   4     // shortcut.
+        // 5   5
+        // 6       - // This code is editable, feel free to hack it!
+        // 7       - // You can always return to the original code by clicking the "Reset" button ->
+        //     6   + // This is still a comment.
+        // --------------------------------------------------------------------
+        // In the middle.
+        // --------------------------------------------------------------------
+        // 8   7
+        // 9   8     // This is the main function.
+        // 10  9     fn main() {
+        // ---------------------------------------------------------------------
+        // At the end.
+        // ---------------------------------------------------------------------
+        let diff = test::fixtures::simple_modified_hunk_diff(&path, commit)?;
+        let (old, new) = {
+            let hunk = diff.hunk().unwrap();
+            (hunk.old.clone(), hunk.new.clone())
+        };
+
+        let start = CodeLocation {
+            commit,
+            path: path.clone(),
+            old: Some(CodeRange::Lines { range: 3..12 }),
+            new: Some(CodeRange::Lines { range: 3..11 }),
+        };
+        assert!(DiffLineIndex::from(&start).starts(&new));
+        assert!(!DiffLineIndex::from(&start).inside(&old, &new));
+        assert!(!DiffLineIndex::from(&start).ends(&old, &new));
+
+        let inside = CodeLocation {
+            commit,
+            path: path.clone(),
+            old: Some(CodeRange::Lines { range: 3..8 }),
+            new: Some(CodeRange::Lines { range: 3..7 }),
+        };
+        assert!(DiffLineIndex::from(&inside).inside(&old, &new));
+        assert!(!DiffLineIndex::from(&inside).starts(&new));
+        assert!(!DiffLineIndex::from(&inside).ends(&old, &new));
+
+        let end = CodeLocation {
+            commit,
+            path: path.clone(),
+            old: Some(CodeRange::Lines { range: 3..11 }),
+            new: Some(CodeRange::Lines { range: 3..10 }),
+        };
+        assert!(DiffLineIndex::from(&end).ends(&old, &new));
+        assert!(!DiffLineIndex::from(&end).starts(&new));
+        assert!(!DiffLineIndex::from(&end).inside(&old, &new));
+
+        let outside = CodeLocation {
+            commit,
+            path: path.clone(),
+            old: Some(CodeRange::Lines { range: 125..127 }),
+            new: Some(CodeRange::Lines { range: 125..128 }),
+        };
+        assert!(!DiffLineIndex::from(&outside).starts(&new));
+        assert!(!DiffLineIndex::from(&outside).inside(&old, &new));
+        assert!(!DiffLineIndex::from(&outside).ends(&old, &new));
+
+        Ok(())
+    }
+
+    #[test]
+    fn hunk_comments_on_modified_simple_are_inserted_correctly() -> Result<()> {
+        let alice = test::fixtures::node_with_repo();
+
+        let commit = Oid::from_str("a32c4b93e2573fd83b15ac1ad6bf1317dc8fd760").unwrap();
+        let path = PathBuf::from_str("main.rs").unwrap();
+
+        // --------------------------------------------------------------------
+        // At the top.
+        // --------------------------------------------------------------------
+        // @@ -3,8 +3,7 @@
+        // 3   3     // or if you prefer to use your keyboard, you can use the "Ctrl + Enter"
+        // 4   4     // shortcut.
+        // 5   5
+        // 6       - // This code is editable, feel free to hack it!
+        // 7       - // You can always return to the original code by clicking the "Reset" button ->
+        //     6   + // This is still a comment.
+        // --------------------------------------------------------------------
+        // In the middle.
+        // --------------------------------------------------------------------
+        // 8   7
+        // 9   8     // This is the main function.
+        // 10  9     fn main() {
+        // ---------------------------------------------------------------------
+        // At the end.
+        // ---------------------------------------------------------------------
+        let diff = test::fixtures::simple_modified_hunk_diff(&path, commit)?;
+
+        let top = (
+            Oid::from_str("05ac6202655dcde6c2613702fec07c2e2fe8f382").unwrap(),
+            Comment::new(
+                *alice.node.signer.public_key(),
+                "At the top.".to_string(),
+                None,
+                Some(CodeLocation {
+                    commit,
+                    path: path.clone(),
+                    old: Some(CodeRange::Lines { range: 3..12 }),
+                    new: Some(CodeRange::Lines { range: 3..11 }),
+                }),
+                vec![],
+                Timestamp::from_secs(0),
+            ),
+        );
+        let middle = (
+            Oid::from_str("2d09104bf2d6ad328aa72594b679d2d6c5a61865").unwrap(),
+            Comment::new(
+                *alice.node.signer.public_key(),
+                "In the middle.".to_string(),
+                None,
+                Some(CodeLocation {
+                    commit,
+                    path: path.clone(),
+                    old: Some(CodeRange::Lines { range: 3..8 }),
+                    new: Some(CodeRange::Lines { range: 3..7 }),
+                }),
+                vec![],
+                Timestamp::from_secs(0),
+            ),
+        );
+        let end = (
+            Oid::from_str("8280317b308ba1bf2cef04533efb15d920431e86").unwrap(),
+            Comment::new(
+                *alice.node.signer.public_key(),
+                "At the end.".to_string(),
+                None,
+                Some(CodeLocation {
+                    commit,
+                    path: path.clone(),
+                    old: Some(CodeRange::Lines { range: 3..11 }),
+                    new: Some(CodeRange::Lines { range: 3..10 }),
+                }),
+                vec![],
+                Timestamp::from_secs(0),
+            ),
+        );
+
+        let comments = {
+            let comments = [top.clone(), middle.clone(), end.clone()];
+            HunkComments::new(&diff, comments.to_vec())
+        };
+
+        for expected in [
+            (top, MergeLocation::Start),
+            (middle, MergeLocation::Line(5)),
+            (end, MergeLocation::End),
+        ] {
+            let (line, expected) = (expected.1, expected.0);
+            let actual = comments.all().get(&line);
+            assert_ne!(actual, None, "No comment found at {line:?}");
+
+            let actual = actual.unwrap().first().unwrap();
+            assert_eq!(actual.0, expected.0);
+        }
+
+        Ok(())
+    }
+
+    #[test]
+    fn hunk_comments_on_modified_complex_are_inserted_correctly() -> Result<()> {
+        let alice = test::fixtures::node_with_repo();
+
+        let commit = Oid::from_str("a32c4b93e2573fd83b15ac1ad6bf1317dc8fd760").unwrap();
+        let path = PathBuf::from_str("main.rs").unwrap();
+
+        // --------------------------------------------------------------------
+        // At the top.
+        // --------------------------------------------------------------------
+        // @@ -1,17 +1,15 @@
+        // 1       - use radicle::issue::IssueId;
+        // 2       - use tui::ui::state::ItemState;
+        // 3       - use tui::SelectionExit;
+        // --------------------------------------------------------------------
+        // After deletion.
+        // --------------------------------------------------------------------
+        // 4   1     use tuirealm::command::{Cmd, CmdResult, Direction as MoveDirection};
+        // 5   2     use tuirealm::event::{Event, Key, KeyEvent};
+        // 6   3     use tuirealm::{MockComponent, NoUserEvent};
+        // 7   4
+        // 8   5     use radicle_tui as tui;
+        // 9   6
+        //     7   + use tui::ui::state::ItemState;
+        // 10  8     use tui::ui::widget::container::{AppHeader, GlobalListener, LabeledContainer};
+        // 11  9     use tui::ui::widget::context::{ContextBar, Shortcuts};
+        // 12  10    use tui::ui::widget::list::PropertyList;
+        // 13      -
+        // 14  11    use tui::ui::widget::Widget;
+        //     12  + use tui::{Id, SelectionExit};
+        // 15  13
+        // 16  14    use super::ui::{IdSelect, OperationSelect};
+        // --------------------------------------------------------------------
+        // Before last line.
+        // --------------------------------------------------------------------
+        // 17  15    use super::{IssueOperation, Message};
+        let diff = test::fixtures::complex_modified_hunk_diff(&path, commit)?;
+
+        let top = (
+            Oid::from_str("05ac6202655dcde6c2613702fec07c2e2fe8f382").unwrap(),
+            Comment::new(
+                *alice.node.signer.public_key(),
+                "At the top.".to_string(),
+                None,
+                Some(CodeLocation {
+                    commit,
+                    path: path.clone(),
+                    old: Some(CodeRange::Lines { range: 1..18 }),
+                    new: Some(CodeRange::Lines { range: 1..17 }),
+                }),
+                vec![],
+                Timestamp::from_secs(0),
+            ),
+        );
+        let after_deletion = (
+            Oid::from_str("2d09104bf2d6ad328aa72594b679d2d6c5a61865").unwrap(),
+            Comment::new(
+                *alice.node.signer.public_key(),
+                "After deletion.".to_string(),
+                None,
+                Some(CodeLocation {
+                    commit,
+                    path: path.clone(),
+                    old: Some(CodeRange::Lines { range: 1..4 }),
+                    new: None,
+                }),
+                vec![],
+                Timestamp::from_secs(0),
+            ),
+        );
+        let before_last_line = (
+            Oid::from_str("60972bca0c9e686e76b0a5123acb3c8c60c38b1e").unwrap(),
+            Comment::new(
+                *alice.node.signer.public_key(),
+                "Before last line".to_string(),
+                None,
+                Some(CodeLocation {
+                    commit,
+                    path: path.clone(),
+                    old: Some(CodeRange::Lines { range: 1..17 }),
+                    new: Some(CodeRange::Lines { range: 1..15 }),
+                }),
+                vec![],
+                Timestamp::from_secs(0),
+            ),
+        );
+
+        let comments = {
+            let comments = [
+                top.clone(),
+                after_deletion.clone(),
+                before_last_line.clone(),
+            ];
+            HunkComments::new(&diff, comments.to_vec())
+        };
+
+        for expected in [
+            (top, MergeLocation::Start),
+            (after_deletion, MergeLocation::Line(2)),
+            (before_last_line, MergeLocation::Line(17)),
+        ] {
+            let (line, expected) = (expected.1, expected.0);
+            let actual = comments.all().get(&line);
+            assert_ne!(actual, None, "No comment found at {line:?}");
+
+            let actual = actual.unwrap().first().unwrap();
+            assert_eq!(actual.0, expected.0);
+        }
+
+        Ok(())
+    }
+
+    #[test]
+    fn hunk_comments_on_deleted_simple_are_inserted_correctly() -> Result<()> {
+        let alice = test::fixtures::node_with_repo();
+
+        let commit = Oid::from_str("a32c4b93e2573fd83b15ac1ad6bf1317dc8fd760").unwrap();
+        let path = PathBuf::from_str("README.md").unwrap();
+
+        // --------------------------------------------------------------------
+        // At the top.
+        // --------------------------------------------------------------------
+        // @@ -1,1 +0,0 @@
+        //  -TBD
+        // --------------------------------------------------------------------
+        // At the end.
+        // --------------------------------------------------------------------
+        let diff = test::fixtures::deleted_hunk_diff(&path, commit)?;
+
+        let top = (
+            Oid::from_str("05ac6202655dcde6c2613702fec07c2e2fe8f382").unwrap(),
+            Comment::new(
+                *alice.node.signer.public_key(),
+                "At the top.".to_string(),
+                None,
+                Some(CodeLocation {
+                    commit,
+                    path: path.clone(),
+                    old: Some(CodeRange::Lines { range: 1..3 }),
+                    new: Some(CodeRange::Lines { range: 0..1 }),
+                }),
+                vec![],
+                Timestamp::from_secs(0),
+            ),
+        );
+        let end = (
+            Oid::from_str("8280317b308ba1bf2cef04533efb15d920431e86").unwrap(),
+            Comment::new(
+                *alice.node.signer.public_key(),
+                "At the end.".to_string(),
+                None,
+                Some(CodeLocation {
+                    commit,
+                    path: path.clone(),
+                    old: Some(CodeRange::Lines { range: 1..2 }),
+                    new: None,
+                }),
+                vec![],
+                Timestamp::from_secs(0),
+            ),
+        );
+
+        let comments = {
+            let comments = [top.clone(), end.clone()];
+            HunkComments::new(&diff, comments.to_vec())
+        };
+
+        for expected in [(top, MergeLocation::Start), (end, MergeLocation::End)] {
+            let (line, expected) = (expected.1, expected.0);
+            let actual = comments.all().get(&line);
+            assert_ne!(actual, None, "No comment found at {line:?}");
+
+            let actual = actual.unwrap().first().unwrap();
+            assert_eq!(actual.0, expected.0);
+        }
 
         Ok(())
     }
