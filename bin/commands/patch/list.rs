@@ -233,6 +233,7 @@ fn browser_page(_state: &State, channel: &Channel<Message>) -> Widget<State, Mes
                         ("enter", "show"),
                         ("c", "checkout"),
                         ("d", "diff"),
+                        ("r", "review"),
                         ("/", "search"),
                         ("?", "help"),
                     ],
@@ -265,6 +266,9 @@ fn browser_page(_state: &State, channel: &Channel<Message>) -> Widget<State, Mes
                     }),
                     Key::Char('d') => Some(Message::Exit {
                         operation: Some(PatchOperation::Diff),
+                    }),
+                    Key::Char('r') => Some(Message::Exit {
+                        operation: Some(PatchOperation::Review),
                     }),
                     _ => None,
                 }

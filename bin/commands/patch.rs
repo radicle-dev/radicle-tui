@@ -81,7 +81,7 @@ pub struct ListOptions {
     json: bool,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Default, Clone, PartialEq, Eq)]
 pub struct ReviewOptions {
     patch_id: Option<Rev>,
     revision_id: Option<Rev>,
@@ -255,7 +255,7 @@ pub async fn run(options: Options, ctx: impl terminal::Context) -> anyhow::Resul
             let rid = options.repo.unwrap_or(rid);
 
             // Run TUI with patch list interface
-            let selection = interface::list(opts.clone(), profile, rid).await?;
+            let selection = interface::list(opts.clone(), profile.clone(), rid).await?;
 
             if opts.json {
                 let selection = selection
@@ -267,17 +267,24 @@ pub async fn run(options: Options, ctx: impl terminal::Context) -> anyhow::Resul
 
                 eprint!("{selection}");
             } else if let Some(selection) = selection {
-                let mut args = vec![];
+                if let Some(operation) = selection.operation.clone() {
+                    let mut args = vec![operation.to_string()];
 
-                if let Some(operation) = selection.operation {
-                    args.push(operation.to_string());
-                }
-                if let Some(id) = selection.ids.first() {
-                    args.push(format!("{id}"));
-                }
+                    if let Some(id) = selection.ids.first() {
+                        args.push(format!("{id}"));
 
-                let args = args.into_iter().map(OsString::from).collect::<Vec<_>>();
-                let _ = crate::terminal::run_rad(Some("patch"), &args);
+                        match operation.as_str() {
+                            "review" => {
+                                let opts = ReviewOptions::default();
+                                interface::review(opts, profile, rid, *id).await?;
+                            }
+                            _ => {
+                                let args = args.into_iter().map(OsString::from).collect::<Vec<_>>();
+                                let _ = crate::terminal::run_rad(Some("patch"), &args);
+                            }
+                        }
+                    }
+                }
             }
         }
         Operation::Review { ref opts } => {
