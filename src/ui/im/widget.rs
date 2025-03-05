@@ -215,6 +215,34 @@ impl Composite {
     }
 }
 
+#[derive(Default)]
+pub struct Popup {}
+
+impl Popup {
+    pub fn show<M, R>(
+        self,
+        ui: &mut Ui<M>,
+        add_contents: impl FnOnce(&mut Ui<M>) -> R,
+    ) -> InnerResponse<R>
+    where
+        M: Clone,
+    {
+        self.show_dyn(ui, Box::new(add_contents))
+    }
+
+    pub fn show_dyn<M, R>(
+        self,
+        ui: &mut Ui<M>,
+        add_contents: Box<AddContentFn<M, R>>,
+    ) -> InnerResponse<R>
+    where
+        M: Clone,
+    {
+        let inner = add_contents(ui);
+        InnerResponse::new(inner, Response::default())
+    }
+}
+
 pub struct Label<'a> {
     content: Text<'a>,
 }

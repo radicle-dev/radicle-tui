@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.7.0] - Unreleased
+
+### Added
+
+**Library features**
+
+- imUI: Support for popups
+
 ## [0.6.0] - 2025-01-29
 
 ### Added

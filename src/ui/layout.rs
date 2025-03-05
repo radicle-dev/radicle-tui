@@ -1,5 +1,4 @@
 use ratatui::layout::{Constraint, Direction, Layout, Rect};
-
 pub struct DefaultPage {
     pub component: Rect,
     pub context: Rect,
@@ -50,4 +49,8 @@ pub fn centered_rect(r: Rect, percent_x: u16, percent_y: u16) -> Rect {
             Constraint::Percentage((100 - percent_x) / 2),
         ])
         .split(layout[1])[1]
+}
+
+pub fn fill() -> Layout {
+    Layout::vertical([Constraint::Fill(1)].to_vec())
 }

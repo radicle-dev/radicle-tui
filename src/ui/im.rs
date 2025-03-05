@@ -14,7 +14,7 @@ use tokio::sync::mpsc::{UnboundedReceiver, UnboundedSender};
 
 use termion::event::Key;
 
-use ratatui::layout::{Constraint, Position, Rect};
+use ratatui::layout::{Constraint, Flex, Position, Rect};
 use ratatui::{Frame, Viewport};
 
 use crate::event::Event;
@@ -28,6 +28,8 @@ use crate::ui::{Column, ToRow};
 use crate::ui::im::widget::{HeaderedTable, Widget};
 
 use self::widget::AddContentFn;
+
+use super::layout;
 
 const RENDERING_TICK_RATE: Duration = Duration::from_millis(250);
 
@@ -202,6 +204,10 @@ pub enum Layout {
     Expandable3 {
         left_only: bool,
     },
+    Popup {
+        percent_x: u16,
+        percent_y: u16,
+    },
 }
 
 impl From<ratatui::layout::Layout> for Layout {
@@ -222,6 +228,10 @@ impl Layout {
                     3
                 }
             }
+            Layout::Popup {
+                percent_x: _,
+                percent_y: _,
+            } => 1,
         }
     }
 
@@ -257,6 +267,21 @@ impl Layout {
                     ])
                     .split(area)
                 }
+            }
+            Layout::Popup {
+                percent_x,
+                percent_y,
+            } => {
+                use ratatui::layout::Layout;
+
+                let vertical =
+                    Layout::vertical([Constraint::Percentage(*percent_y)]).flex(Flex::Center);
+                let horizontal =
+                    Layout::horizontal([Constraint::Percentage(*percent_x)]).flex(Flex::Center);
+                let [area] = vertical.areas(area);
+                let [area] = horizontal.areas(area);
+
+                [area].into()
             }
         }
     }
@@ -346,6 +371,11 @@ impl<M> Ui<M> {
 
     pub fn with_focus(mut self) -> Self {
         self.has_focus = true;
+        self
+    }
+
+    pub fn without_focus(mut self) -> Self {
+        self.has_focus = false;
         self
     }
 
@@ -485,6 +515,21 @@ where
         child_ui.has_focus = area_focus;
 
         widget::Composite::new(focus).show(&mut child_ui, add_contents)
+    }
+
+    pub fn popup<R>(
+        &mut self,
+        layout: impl Into<Layout>,
+        add_contents: impl FnOnce(&mut Ui<M>) -> R,
+    ) -> InnerResponse<R> {
+        let layout: Layout = layout.into();
+        let areas = layout.split(self.area());
+        let area = areas.first().cloned().unwrap_or(self.area());
+
+        let mut child_ui = self.child_ui(area, layout::fill());
+        child_ui.has_focus = true;
+
+        widget::Popup::default().show(&mut child_ui, add_contents)
     }
 
     pub fn label<'a>(&mut self, frame: &mut Frame, content: impl Into<Text<'a>>) -> Response {
