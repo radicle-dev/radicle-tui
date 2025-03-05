@@ -13,6 +13,7 @@ use termion::event::Key;
 use ratatui::layout::{Constraint, Position};
 use ratatui::style::Stylize;
 use ratatui::text::Text;
+use ratatui::widgets::Clear;
 use ratatui::{Frame, Viewport};
 
 use radicle::identity::RepoId;
@@ -435,15 +436,23 @@ impl<'a> Show<Message> for App<'a> {
                 let state = self.state.lock().unwrap();
                 state.page.clone()
             };
+            let show_quit_popup = true;
 
             match page {
                 AppPage::Main => {
-                    let (mut focus, count) = {
-                        let state = self.state.lock().unwrap();
-                        (state.panes.focus(), state.panes.len())
-                    };
+                    let focus = (!show_quit_popup).then(|| 0);
 
-                    ui.layout(layout::page(), Some(0), |ui| {
+                    ui.layout(layout::page(), focus, |ui| {
+                        let (mut focus, count) = {
+                            let state = self.state.lock().unwrap();
+
+                            if show_quit_popup {
+                                (None, state.panes.len())
+                            } else {
+                                (state.panes.focus(), state.panes.len())
+                            }
+                        };
+
                         let group = ui.panes(layout::list_item(), &mut focus, |ui| {
                             self.show_hunk_list(ui, frame);
                             self.show_hunk(ui, frame);
@@ -468,22 +477,26 @@ impl<'a> Show<Message> for App<'a> {
                             '∙',
                         );
 
-                        if ui.input_global(|key| key == Key::Char('?')) {
-                            ui.send_message(Message::ShowHelp);
-                        }
-                        if ui.input_global(|key| key == Key::Char('c')) {
-                            ui.send_message(Message::Comment);
-                        }
-                        if ui.input_global(|key| key == Key::Char('a')) {
-                            ui.send_message(Message::Accept);
-                        }
-                        if ui.input_global(|key| key == Key::Char('r')) {
-                            ui.send_message(Message::Reject);
+                        if !show_quit_popup {
+                            if ui.input_global(|key| key == Key::Char('?')) {
+                                ui.send_message(Message::ShowHelp);
+                            }
+                            if ui.input_global(|key| key == Key::Char('c')) {
+                                ui.send_message(Message::Comment);
+                            }
+                            if ui.input_global(|key| key == Key::Char('a')) {
+                                ui.send_message(Message::Accept);
+                            }
+                            if ui.input_global(|key| key == Key::Char('r')) {
+                                ui.send_message(Message::Reject);
+                            }
                         }
                     });
                 }
                 AppPage::Help => {
-                    ui.layout(layout::page(), Some(0), |ui| {
+                    let focus = (!show_quit_popup).then(|| 0);
+
+                    ui.layout(layout::page(), focus, |ui| {
                         ui.composite(layout::container(), 1, |ui| {
                             let mut cursor = {
                                 let state = self.state.lock().unwrap();
@@ -514,6 +527,28 @@ impl<'a> Show<Message> for App<'a> {
                         ui.send_message(Message::ShowMain);
                     }
                 }
+            }
+
+            if show_quit_popup {
+                ui.popup(layout::ext::popup(60, 15), |ui| {
+                    frame.render_widget(Clear, ui.area());
+
+                    ui.composite(layout::container(), 1, |ui| {
+                        let mut ui = ui.clone().with_focus();
+                        ui.columns(
+                            frame,
+                            vec![Column::new(" How to quit? ", Constraint::Fill(1))],
+                            Some(Borders::Top),
+                        );
+
+                        ui.text_view(
+                            frame,
+                            "...",
+                            &mut Position::default(),
+                            Some(Borders::BottomSides),
+                        );
+                    });
+                });
             }
 
             if ui.input_global(|key| key == Key::Char('q')) {

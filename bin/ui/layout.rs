@@ -15,3 +15,14 @@ pub fn container() -> Layout {
 pub fn list_item() -> Layout {
     Layout::horizontal([Constraint::Ratio(1, 3), Constraint::Ratio(2, 3)])
 }
+
+pub mod ext {
+    use radicle_tui::ui::im::Layout;
+
+    pub fn popup(percent_x: u16, percent_y: u16) -> Layout {
+        Layout::Popup {
+            percent_x,
+            percent_y,
+        }
+    }
+}
