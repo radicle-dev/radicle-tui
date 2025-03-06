@@ -11,7 +11,7 @@ use serde::{Deserialize, Serialize};
 use termion::event::Key;
 
 use ratatui::layout::{Constraint, Position};
-use ratatui::style::Stylize;
+use ratatui::style::{Style, Stylize};
 use ratatui::text::Text;
 use ratatui::{Frame, Viewport};
 
@@ -53,10 +53,10 @@ pub struct Response {
     pub action: Option<ReviewAction>,
 }
 
-#[derive(Clone)]
+#[derive(Clone, Debug, Deserialize, Serialize, PartialEq, Eq)]
 pub enum ReviewMode {
-    Create,
-    Resume,
+    Show,
+    Edit { resume: bool },
 }
 
 pub struct Tui {
@@ -102,24 +102,38 @@ impl Tui {
         let store = FileStore::new(identifier)?;
 
         let default = AppState::new(
+            ReviewMode::Show,
             self.rid,
             self.patch,
             self.title,
             self.revision.id(),
             &self.hunks,
         );
-        let state = match self.mode {
-            ReviewMode::Resume => match store.read() {
-                Ok(bytes) => state::from_json(&bytes)?,
-                _ => {
-                    log::warn!("Failed to load state. Falling back to default.");
-                    default
-                }
-            },
-            ReviewMode::Create => default,
-        };
 
-        let app = App::new(self.mode, self.storage, self.review, self.hunks, state)?;
+        let state = store
+            .read()
+            .map(|bytes| state::from_json::<AppState>(&bytes).ok())?
+            .unwrap_or(default);
+
+        // let state = match self.mode {
+        //     ReviewMode::Edit { resume } => {
+        //         if resume {
+
+        //         } else {
+        //             default
+        //         }
+        //     }
+        //     ReviewMode::Resume => match store.read() {
+        //         Ok(bytes) => state::from_json(&bytes)?,
+        //         _ => {
+        //             log::warn!("Failed to load state. Falling back to default.");
+        //             default
+        //         }
+        //     },
+        //     ReviewMode::Create => default,
+        // };
+
+        let app = App::new(self.storage, self.review, self.hunks, state, self.mode)?;
         let response = tui::im(app, viewport, channel).await?;
 
         if let Some(response) = response.as_ref() {
@@ -157,6 +171,8 @@ pub struct DiffViewState {
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct AppState {
+    /// Review mode: edit or show.
+    mode: ReviewMode,
     /// The repository to operate on.
     rid: RepoId,
     /// Patch this review belongs to.
@@ -179,6 +195,7 @@ pub struct AppState {
 
 impl AppState {
     pub fn new(
+        mode: ReviewMode,
         rid: RepoId,
         patch: PatchId,
         title: String,
@@ -186,6 +203,7 @@ impl AppState {
         hunks: &Hunks,
     ) -> Self {
         Self {
+            mode,
             rid,
             patch,
             title,
@@ -242,19 +260,25 @@ pub struct App<'a> {
     hunks: Arc<Mutex<Vec<StatefulHunkItem<'a>>>>,
     /// The app state.
     state: Arc<Mutex<AppState>>,
-    /// Review mode: create or resume.
-    _mode: ReviewMode,
 }
 
 impl<'a> App<'a> {
     pub fn new(
-        mode: ReviewMode,
         storage: Storage,
         review: Review,
         hunks: Hunks,
         state: AppState,
+        mode: ReviewMode,
     ) -> Result<Self, anyhow::Error> {
         let repo = storage.repository(state.rid)?;
+        let mode = match state.mode {
+            ReviewMode::Edit { resume: _ } if mode == ReviewMode::Show => {
+                // TODO: Ask user what to do.
+                anyhow::bail!("Review not finalized, yet. Current state would be lost.")
+            }
+            _ => mode,
+        };
+
         let hunks = hunks
             .iter()
             .enumerate()
@@ -268,8 +292,7 @@ impl<'a> App<'a> {
 
         Ok(Self {
             hunks: Arc::new(Mutex::new(hunks)),
-            state: Arc::new(Mutex::new(state)),
-            _mode: mode,
+            state: Arc::new(Mutex::new(AppState { mode, ..state })),
         })
     }
 
@@ -385,13 +408,19 @@ impl<'a> App<'a> {
             .collect::<Vec<_>>()
             .len();
 
-        let accepted_stats = format!(" Accepted {hunks_accepted}/{hunks_total} ");
+        let (context, context_style) = match state.mode {
+            ReviewMode::Show => ("".into(), Style::default().cyan().dim().reversed()),
+            ReviewMode::Edit { resume: _ } => (
+                format!(" Accepted {hunks_accepted}/{hunks_total} "),
+                Style::default().light_red().dim().reversed(),
+            ),
+        };
 
         ui.bar(
             frame,
             [
                 Column::new(
-                    span::default(" Review ").cyan().dim().reversed(),
+                    span::default(" Review ").style(context_style),
                     Constraint::Length(8),
                 ),
                 Column::new(
@@ -414,17 +443,54 @@ impl<'a> App<'a> {
                     Constraint::Fill(1),
                 ),
                 Column::new(
-                    span::default(&accepted_stats)
+                    span::default(&context)
                         .into_right_aligned_line()
-                        .cyan()
-                        .dim()
-                        .reversed(),
-                    Constraint::Length(accepted_stats.chars().count() as u16),
+                        .style(context_style),
+                    Constraint::Length(context.chars().count() as u16),
                 ),
             ]
             .to_vec(),
             Some(Borders::None),
         );
+    }
+
+    fn show_footer(&self, ui: &mut Ui<Message>, frame: &mut Frame) {
+        let state = self.state.lock().unwrap();
+        match state.mode {
+            ReviewMode::Edit { resume: _ } => {
+                ui.shortcuts(
+                    frame,
+                    &[
+                        ("c", "comment"),
+                        ("a", "accept"),
+                        ("r", "reject"),
+                        ("?", "help"),
+                        ("q", "quit"),
+                    ],
+                    '∙',
+                );
+
+                if ui.input_global(|key| key == Key::Char('?')) {
+                    ui.send_message(Message::ShowHelp);
+                }
+                if ui.input_global(|key| key == Key::Char('c')) {
+                    ui.send_message(Message::Comment);
+                }
+                if ui.input_global(|key| key == Key::Char('a')) {
+                    ui.send_message(Message::Accept);
+                }
+                if ui.input_global(|key| key == Key::Char('r')) {
+                    ui.send_message(Message::Reject);
+                }
+            }
+            ReviewMode::Show => {
+                ui.shortcuts(frame, &[("?", "help"), ("q", "quit")], '∙');
+
+                if ui.input_global(|key| key == Key::Char('?')) {
+                    ui.send_message(Message::ShowHelp);
+                }
+            }
+        }
     }
 }
 
@@ -455,31 +521,7 @@ impl<'a> Show<Message> for App<'a> {
                         }
 
                         self.show_context_bar(ui, frame);
-
-                        ui.shortcuts(
-                            frame,
-                            &[
-                                ("c", "comment"),
-                                ("a", "accept"),
-                                ("r", "reject"),
-                                ("?", "help"),
-                                ("q", "quit"),
-                            ],
-                            '∙',
-                        );
-
-                        if ui.input_global(|key| key == Key::Char('?')) {
-                            ui.send_message(Message::ShowHelp);
-                        }
-                        if ui.input_global(|key| key == Key::Char('c')) {
-                            ui.send_message(Message::Comment);
-                        }
-                        if ui.input_global(|key| key == Key::Char('a')) {
-                            ui.send_message(Message::Accept);
-                        }
-                        if ui.input_global(|key| key == Key::Char('r')) {
-                            ui.send_message(Message::Reject);
-                        }
+                        self.show_footer(ui, frame);
                     });
                 }
                 AppPage::Help => {
@@ -677,7 +719,9 @@ mod test {
 
             let hunks = ReviewBuilder::new(&node.repo).hunks(revision)?;
 
+            let mode = ReviewMode::Edit { resume: false };
             let state = AppState::new(
+                mode.clone(),
                 node.repo.id,
                 *patch.id(),
                 patch.title().to_string(),
@@ -685,13 +729,7 @@ mod test {
                 &hunks,
             );
 
-            App::new(
-                ReviewMode::Create,
-                node.storage.clone(),
-                review.clone(),
-                hunks,
-                state,
-            )
+            App::new(node.storage.clone(), review.clone(), hunks, state, mode)
         }
 
         pub fn draft_review<'a>(
