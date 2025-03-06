@@ -83,6 +83,7 @@ pub struct ListOptions {
 
 #[derive(Debug, Default, Clone, PartialEq, Eq)]
 pub struct ReviewOptions {
+    edit: bool,
     patch_id: Option<Rev>,
     revision_id: Option<Rev>,
 }
@@ -121,6 +122,7 @@ impl Args for Options {
         let mut forward = None;
         let mut json = false;
         let mut help = false;
+        let mut edit = false;
         let mut repo = None;
         let mut list_opts = ListOptions::default();
         let mut patch_id = None;
@@ -189,6 +191,9 @@ impl Args for Options {
 
                     revision_id = Some(rev_id);
                 }
+                Long("edit") => {
+                    edit = true;
+                }
                 Value(val) if op == OperationName::List => match val.to_string_lossy().as_ref() {
                     "list" => op = OperationName::List,
                     "review" => op = OperationName::Review,
@@ -226,6 +231,7 @@ impl Args for Options {
         let op = match op {
             OperationName::Review if !forward => Operation::Review {
                 opts: ReviewOptions {
+                    edit,
                     patch_id,
                     revision_id,
                 },
@@ -386,26 +392,30 @@ mod interface {
             return Ok(());
         };
 
-        let mode = if let Some((id, _)) = patch::find_review(&patch, revision, &signer) {
-            // Review already started, resume.
-            log::info!("Resuming review {id}..");
+        let mode = if opts.edit {
+            if let Some((id, _)) = patch::find_review(&patch, revision, &signer) {
+                // Review already started, resume.
+                log::info!("Resuming review {id}..");
 
-            ReviewMode::Resume
+                ReviewMode::Edit { resume: true }
+            } else {
+                // No review to resume, start a new one.
+                let id = patch.review(
+                    revision.id(),
+                    // This is amended before the review is finalized, if all hunks are
+                    // accepted. We can't set this to `None`, as that will be invalid without
+                    // a review summary.
+                    Some(Verdict::Reject),
+                    None,
+                    vec![],
+                    &signer,
+                )?;
+                log::info!("Starting new review {id}..");
+
+                ReviewMode::Edit { resume: false }
+            }
         } else {
-            // No review to resume, start a new one.
-            let id = patch.review(
-                revision.id(),
-                // This is amended before the review is finalized, if all hunks are
-                // accepted. We can't set this to `None`, as that will be invalid without
-                // a review summary.
-                Some(Verdict::Reject),
-                None,
-                vec![],
-                &signer,
-            )?;
-            log::info!("Starting new review {id}..");
-
-            ReviewMode::Create
+            ReviewMode::Show
         };
 
         loop {

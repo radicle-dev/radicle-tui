@@ -1108,6 +1108,7 @@ impl DiffLineIndex {
     }
 }
 
+/// Mention hunk header
 impl From<&CodeLocation> for DiffLineIndex {
     fn from(location: &CodeLocation) -> Self {
         Self {
