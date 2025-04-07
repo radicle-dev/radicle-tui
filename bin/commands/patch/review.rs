@@ -10,7 +10,7 @@ use serde::{Deserialize, Serialize};
 
 use termion::event::Key;
 
-use ratatui::layout::{Constraint, Position};
+use ratatui::layout::{Constraint, Layout, Position};
 use ratatui::style::{Style, Stylize};
 use ratatui::text::Text;
 use ratatui::{Frame, Viewport};
@@ -319,6 +319,17 @@ impl<'a> App<'a> {
 }
 
 impl<'a> App<'a> {
+    fn show_sidebar(&self, ui: &mut Ui<Message>, frame: &mut Frame) {
+        ui.composite(
+            Layout::vertical([Constraint::Min(1), Constraint::Min(1)]),
+            0,
+            |ui| {
+                self.show_hunk_list(ui, frame);
+                self.show_review_list(ui, frame);
+            },
+        );
+    }
+
     fn show_hunk_list(&self, ui: &mut Ui<Message>, frame: &mut Frame) {
         let hunks = self.hunks.lock().unwrap();
         let state = self.state.lock().unwrap();
@@ -338,6 +349,33 @@ impl<'a> App<'a> {
         let mut selected = state.selected_hunk();
 
         let table = ui.headered_table(frame, &mut selected, &hunks, header, columns);
+        if table.changed {
+            ui.send_message(Message::HunkChanged {
+                state: TableState::new(selected),
+            })
+        }
+    }
+
+    fn show_review_list(&self, ui: &mut Ui<Message>, frame: &mut Frame) {
+        // let hunks = self.hunks.lock().unwrap();
+        let reviews = vec![];
+        let state = self.state.lock().unwrap();
+
+        let state_column_width = match state.mode {
+            ReviewMode::Show => 0,
+            ReviewMode::Edit { resume: _ } => 2,
+        };
+        let header = [Column::new(" Reviews ", Constraint::Fill(1))].to_vec();
+        let columns = [
+            Column::new("", Constraint::Length(state_column_width)),
+            Column::new("", Constraint::Fill(1)),
+            Column::new("", Constraint::Length(15)),
+        ]
+        .to_vec();
+
+        let mut selected = state.selected_hunk();
+
+        let table = ui.headered_table(frame, &mut selected, &reviews, header, columns);
         if table.changed {
             ui.send_message(Message::HunkChanged {
                 state: TableState::new(selected),
@@ -503,7 +541,7 @@ impl<'a> Show<Message> for App<'a> {
 
                     ui.layout(layout::page(), Some(0), |ui| {
                         let group = ui.panes(layout::list_item(), &mut focus, |ui| {
-                            self.show_hunk_list(ui, frame);
+                            self.show_sidebar(ui, frame);
                             self.show_hunk(ui, frame);
                         });
                         if group.response.changed {
