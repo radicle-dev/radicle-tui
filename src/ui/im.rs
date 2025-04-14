@@ -555,12 +555,13 @@ where
         selected: &mut Option<usize>,
         items: &'a Vec<R>,
         columns: Vec<Column<'a>>,
+        empty_message: Option<String>,
         borders: Option<Borders>,
     ) -> Response
     where
         R: ToRow<W> + Clone,
     {
-        widget::Table::new(selected, items, columns, borders).ui(self, frame)
+        widget::Table::new(selected, items, columns, empty_message, borders).ui(self, frame)
     }
 
     pub fn headered_table<'a, R, const W: usize>(
@@ -570,11 +571,12 @@ where
         items: &'a Vec<R>,
         header: impl IntoIterator<Item = Column<'a>>,
         columns: impl IntoIterator<Item = Column<'a>>,
+        empty_message: Option<String>,
     ) -> Response
     where
         R: ToRow<W> + Clone,
     {
-        HeaderedTable::<R, W>::new(selected, items, header, columns).ui(self, frame)
+        HeaderedTable::<R, W>::new(selected, items, header, columns, empty_message).ui(self, frame)
     }
 
     pub fn shortcuts(

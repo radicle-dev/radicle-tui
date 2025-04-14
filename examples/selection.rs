@@ -102,6 +102,7 @@ impl Show<Message> for App {
                         &mut selected,
                         &self.items,
                         columns,
+                        None,
                         Some(Borders::None),
                     );
                     if table.changed {

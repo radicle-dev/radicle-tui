@@ -348,6 +348,7 @@ pub struct Table<'a, R, const W: usize> {
     columns: Vec<Column<'a>>,
     borders: Option<Borders>,
     show_scrollbar: bool,
+    empty_message: Option<String>,
     dim: bool,
 }
 
@@ -359,12 +360,14 @@ where
         selected: &'a mut Option<usize>,
         items: &'a Vec<R>,
         columns: Vec<Column<'a>>,
+        empty_message: Option<String>,
         borders: Option<Borders>,
     ) -> Self {
         Self {
             items,
             selected,
             columns,
+            empty_message,
             borders,
             show_scrollbar: true,
             dim: false,
@@ -513,13 +516,15 @@ where
                 frame.render_stateful_widget(scroller, scroller_area, &mut state);
             }
         } else {
-            let center = layout::centered_rect(area, 50, 10);
-            let hint = Text::from(span::default("Nothing to show"))
-                .centered()
-                .light_magenta()
-                .dim();
+            if let Some(message) = self.empty_message {
+                let center = layout::centered_rect(area, 50, 10);
+                let hint = Text::from(span::default(&message))
+                    .centered()
+                    .light_magenta()
+                    .dim();
 
-            frame.render_widget(hint, center);
+                frame.render_widget(hint, center);
+            }
         }
 
         *self.selected = state.selected();
@@ -533,6 +538,7 @@ pub struct HeaderedTable<'a, R, const W: usize> {
     selected: &'a mut Option<usize>,
     header: Vec<Column<'a>>,
     columns: Vec<Column<'a>>,
+    empty_message: Option<String>,
 }
 
 impl<'a, R, const W: usize> HeaderedTable<'a, R, W> {
@@ -541,12 +547,14 @@ impl<'a, R, const W: usize> HeaderedTable<'a, R, W> {
         items: &'a Vec<R>,
         header: impl IntoIterator<Item = Column<'a>>,
         columns: impl IntoIterator<Item = Column<'a>>,
+        empty_message: Option<String>,
     ) -> Self {
         Self {
             items,
             selected,
             header: header.into_iter().collect(),
             columns: columns.into_iter().collect(),
+            empty_message,
         }
     }
 
@@ -578,6 +586,7 @@ where
                     self.selected,
                     self.items,
                     self.columns.to_vec(),
+                    self.empty_message,
                     Some(Borders::BottomSides),
                 );
                 response.changed |= table.changed;
