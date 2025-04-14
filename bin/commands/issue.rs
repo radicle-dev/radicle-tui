@@ -1,3 +1,5 @@
+#[path = "issue/board.rs"]
+mod board;
 #[path = "issue/common.rs"]
 mod common;
 #[path = "issue/list.rs"]
@@ -53,22 +55,27 @@ pub struct Options {
     repo: Option<RepoId>,
 }
 
+#[derive(Debug, Default, Clone, PartialEq, Eq)]
+pub struct ListOptions {
+    mode: common::Mode,
+    filter: cob::issue::Filter,
+    json: bool,
+}
+
+#[derive(Debug, Default, Clone, PartialEq, Eq)]
+pub struct BoardOptions {}
+
 pub enum Operation {
     List { opts: ListOptions },
+    Board { opts: BoardOptions },
     Other { args: Vec<OsString> },
 }
 
 #[derive(PartialEq, Eq)]
 pub enum OperationName {
     List,
+    Board,
     Other,
-}
-
-#[derive(Debug, Default, Clone, PartialEq, Eq)]
-pub struct ListOptions {
-    mode: common::Mode,
-    filter: cob::issue::Filter,
-    json: bool,
 }
 
 impl Args for Options {
@@ -82,6 +89,7 @@ impl Args for Options {
         let mut json = false;
         let mut help = false;
         let mut list_opts = ListOptions::default();
+        let mut board_opts = BoardOptions::default();
 
         while let Some(arg) = parser.next()? {
             match arg {
@@ -145,6 +153,7 @@ impl Args for Options {
 
                 Value(val) if op == OperationName::List => match val.to_string_lossy().as_ref() {
                     "list" => op = OperationName::List,
+                    "board" => op = OperationName::Board,
                     _ => op = OperationName::Other,
                 },
                 _ => {
@@ -169,6 +178,7 @@ impl Args for Options {
             OperationName::List if !forward => Operation::List {
                 opts: ListOptions { json, ..list_opts },
             },
+            OperationName::Board => Operation::Board { opts: board_opts },
             _ => Operation::Other { args },
         };
 
@@ -228,12 +238,60 @@ pub async fn run(options: Options, ctx: impl terminal::Context) -> anyhow::Resul
                 let _ = crate::terminal::run_rad(Some("issue"), &args);
             }
         }
+        Operation::Board { opts } => {
+            let profile = ctx.profile()?;
+            let rid = options.repo.unwrap_or(rid);
+
+            if let Err(err) = crate::log::enable() {
+                println!("{}", err);
+            }
+
+            // Run TUI with issue board interface
+            interface::board(opts.clone(), profile, rid).await?;
+        }
         Operation::Other { args } => {
             let _ = crate::terminal::run_rad(Some("issue"), &args);
         }
     }
 
     Ok(())
+}
+
+mod interface {
+    use anyhow::anyhow;
+
+    use radicle::cob;
+    use radicle::cob::ObjectId;
+    use radicle::crypto::Signer;
+    use radicle::identity::RepoId;
+    use radicle::patch::PatchId;
+    use radicle::patch::Verdict;
+    use radicle::storage::git::cob::DraftStore;
+    use radicle::storage::ReadStorage;
+    use radicle::Profile;
+
+    use radicle_cli::terminal;
+
+    use radicle_tui::Selection;
+
+    use crate::cob::issue;
+    use crate::cob::patch;
+
+    use super::board;
+    use super::{BoardOptions, ListOptions};
+
+    pub async fn board(opts: BoardOptions, profile: Profile, rid: RepoId) -> anyhow::Result<()> {
+        let repository = profile.storage.repository(rid).unwrap();
+        let issues = issue::all(&profile, &repository)?;
+
+        log::info!("Starting issue board interface in project {}..", rid);
+
+        let response = board::Tui::new(profile, rid, issues)
+            .run()
+            .await?;
+
+        Ok(())
+    }
 }
 
 #[cfg(test)]
