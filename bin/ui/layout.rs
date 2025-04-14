@@ -15,3 +15,7 @@ pub fn container() -> Layout {
 pub fn list_item() -> Layout {
     Layout::horizontal([Constraint::Ratio(1, 3), Constraint::Ratio(2, 3)])
 }
+
+pub fn columns(len: usize) -> Layout {
+    Layout::horizontal(vec![Constraint::Fill(1); len])
+}
