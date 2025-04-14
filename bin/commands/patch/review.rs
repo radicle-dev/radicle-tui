@@ -337,7 +337,7 @@ impl<'a> App<'a> {
 
         let mut selected = state.selected_hunk();
 
-        let table = ui.headered_table(frame, &mut selected, &hunks, header, columns);
+        let table = ui.headered_table(frame, &mut selected, &hunks, header, columns, None);
         if table.changed {
             ui.send_message(Message::HunkChanged {
                 state: TableState::new(selected),

@@ -131,6 +131,7 @@ where
                     self.selected,
                     self.items,
                     self.header.to_vec(),
+                    None,
                     if *self.show_search {
                         Some(Borders::BottomSides)
                     } else {

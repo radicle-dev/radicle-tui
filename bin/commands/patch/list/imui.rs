@@ -410,7 +410,14 @@ impl App {
             Column::new(Span::raw("Updated").bold(), Constraint::Length(16)).hide_small(),
         ];
 
-        let table = ui.headered_table(frame, &mut selected, &patches, header.clone(), header);
+        let table = ui.headered_table(
+            frame,
+            &mut selected,
+            &patches,
+            header.clone(),
+            header,
+            Some("No patches found".into()),
+        );
         if table.changed {
             ui.send_message(Message::PatchesChanged {
                 state: TableState::new(selected),
