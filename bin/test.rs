@@ -128,6 +128,7 @@ pub mod fixtures {
     use radicle::git;
     use radicle::identity::{RepoId, Visibility};
     use radicle::node::device::Device;
+    use radicle::patch;
     use radicle::patch::{Cache, MergeTarget, PatchMut, Patches};
     use radicle::rad;
     use radicle::storage::git::Repository;
@@ -137,9 +138,10 @@ pub mod fixtures {
     use radicle::Storage;
     use radicle_cli::git::unified_diff::FileHeader;
     use radicle_git_ext::Oid;
-    use radicle_surf::diff::{self, DiffFile, Hunk, Line, Modification};
+    use radicle_surf::diff;
+    use radicle_surf::diff::{DiffFile, Line, Modification};
 
-    use crate::git::HunkDiff;
+    use crate::git::{Hunk, HunkDiff};
 
     use super::setup::{NodeRepo, NodeRepoCheckout, NodeWithRepo};
 
@@ -226,6 +228,7 @@ fn main() {
             MergeTarget::Delegates,
             branch.base,
             branch.oid,
+            Some(patch::diff::Options::default()),
             &[],
             &node.signer,
         )?;
@@ -317,7 +320,7 @@ fn main() {
             },
             old: diff.clone(),
             new: diff,
-            hunk: Some(Hunk {
+            hunk: Some(Hunk::new(0, diff::Hunk {
                 header: Line::from(b"@@ -3,8 +3,7 @@\n".to_vec()),
                 lines: vec![
                     Modification::context(
@@ -343,7 +346,7 @@ fn main() {
                 ],
                 old: 3..11,
                 new: 3..10,
-            }),
+            })),
             _stats: None,
         })
     }
@@ -384,7 +387,7 @@ fn main() {
             },
             old: diff.clone(),
             new: diff,
-            hunk: Some(Hunk {
+            hunk:Some(Hunk::new(0, diff::Hunk {
                 header: Line::from(b"@@ -1,17 +1,15 @@\n".to_vec()),
                 lines: vec![
                     Modification::deletion(b"use radicle::issue::IssueId;\n".to_vec(), 1),
@@ -442,7 +445,7 @@ fn main() {
                 ],
                 old: 1..18,
                 new: 1..16,
-            }),
+            })),
             _stats: None,
         })
     }
@@ -463,12 +466,15 @@ fn main() {
                 binary: false,
             },
             old: diff.clone(),
-            hunk: Some(Hunk {
-                header: Line::from(b"@@ -1,1 +0,0 @@\n".to_vec()),
-                lines: vec![Modification::deletion(b"TBD\n".to_vec(), 1)],
-                old: 1..2,
-                new: 0..0,
-            }),
+            hunk: Some(Hunk::new(
+                0,
+                diff::Hunk {
+                    header: Line::from(b"@@ -1,1 +0,0 @@\n".to_vec()),
+                    lines: vec![Modification::deletion(b"TBD\n".to_vec(), 1)],
+                    old: 1..2,
+                    new: 0..0,
+                },
+            )),
             _stats: None,
         })
     }

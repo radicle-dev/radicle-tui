@@ -12,22 +12,21 @@
 //!
 use std::fmt::Write as _;
 use std::io;
-use std::ops::{Not, Range};
 use std::path::PathBuf;
 
 use radicle::cob::patch::Revision;
-use radicle::cob::{CodeLocation, CodeRange};
+use radicle::cob::{DiffLocation, HunkIndex};
 use radicle::git;
 use radicle::git::Oid;
 use radicle::prelude::*;
 use radicle::storage::git::Repository;
 use radicle_surf::diff::*;
 
+use radicle_cli::git::unified_diff::Encode;
 use radicle_cli::git::unified_diff::{self, FileHeader};
-use radicle_cli::git::unified_diff::{Encode, HunkHeader};
 use radicle_cli::terminal as term;
 
-use crate::git::HunkDiff;
+use crate::git::{Hunk, HunkDiff};
 
 /// Queue of items (usually hunks) left to review.
 #[derive(Clone, Default, Debug)]
@@ -70,7 +69,9 @@ impl Hunks {
                         ..
                     } = a.diff.clone()
                     {
-                        hs.pop()
+                        hs.len()
+                            .checked_sub(1)
+                            .and_then(|i| hs.pop().map(|h| Hunk::new(i, h)))
                     } else {
                         None
                     },
@@ -87,7 +88,9 @@ impl Hunks {
                         ..
                     } = d.diff.clone()
                     {
-                        hs.pop()
+                        hs.len()
+                            .checked_sub(1)
+                            .and_then(|i| hs.pop().map(|h| Hunk::new(i, h)))
                     } else {
                         None
                     },
@@ -124,13 +127,13 @@ impl Hunks {
                     } => {
                         let base_hunks = hunks.clone();
 
-                        for hunk in base_hunks {
+                        for (i, hunk) in base_hunks.iter().enumerate() {
                             self.add_item(HunkDiff::Modified {
                                 path: m.path.clone(),
                                 header: header.clone(),
                                 old: m.old.clone(),
                                 new: m.new.clone(),
-                                hunk: Some(hunk),
+                                hunk: Some(Hunk::new(i, hunk.clone())),
                                 _stats: Some(stats),
                             });
                         }
@@ -235,7 +238,7 @@ impl<'a> ReviewBuilder<'a> {
 
 #[derive(Debug, PartialEq, Eq)]
 pub struct ReviewComment {
-    pub location: CodeLocation,
+    pub location: DiffLocation,
     pub body: String,
 }
 
@@ -251,71 +254,74 @@ pub enum Error {
     Format(#[from] std::fmt::Error),
     #[error(transparent)]
     Git(#[from] git::raw::Error),
+    #[error(transparent)]
+    Editor(#[from] term::editor::Error),
 }
 
 #[derive(Debug)]
 pub struct CommentBuilder {
+    base: Oid,
     commit: Oid,
     path: PathBuf,
     comments: Vec<ReviewComment>,
 }
 
 impl CommentBuilder {
-    pub fn new(commit: Oid, path: PathBuf) -> Self {
+    pub fn new(base: Oid, commit: Oid, path: PathBuf) -> Self {
         Self {
+            base,
             commit,
             path,
             comments: Vec::new(),
         }
     }
 
-    pub fn edit(mut self, hunk: &Hunk<Modification>) -> Result<Vec<ReviewComment>, Error> {
+    pub fn edit(mut self, hunk: &Hunk) -> Result<Vec<ReviewComment>, Error> {
         let mut input = String::new();
-        for line in hunk.to_unified_string()?.lines() {
+        for line in hunk.inner().to_unified_string()?.lines() {
             writeln!(&mut input, "> {line}")?;
         }
-
         let output = term::Editor::comment()
             .extension("diff")
-            .initial(input)?
+            .initial(&input)
             .edit()?;
 
         if let Some(output) = output {
-            let header = HunkHeader::try_from(hunk)?;
-            self.add_hunk(header, &output);
+            self.add_hunk(hunk, &output);
         }
         Ok(self.comments())
     }
 
-    pub fn add_hunk(&mut self, hunk: HunkHeader, input: &str) -> &mut Self {
-        let lines = input.trim().lines().map(|l| l.trim());
-        let (mut old_line, mut new_line) = (hunk.old_line_no as usize, hunk.new_line_no as usize);
-        let (mut old_start, mut new_start) = (old_line, new_line);
+    fn add_hunk(&mut self, hunk: &Hunk, input: &str) -> &mut Self {
+        let lines = input
+            .trim()
+            .lines()
+            .map(|l| l.trim())
+            // Skip the hunk header
+            .filter(|l| !l.starts_with("> @@"));
         let mut comment = String::new();
+        // Keeps track of the line index within the hunk itself
+        let mut line_ix = 0_usize;
+        // Keeps track of whether the first comment is at the top-level
+        let mut top_level = true;
 
         for line in lines {
             if line.starts_with('>') {
                 if !comment.is_empty() {
-                    self.add_comment(
-                        &hunk,
-                        &comment,
-                        old_start..old_line - 1,
-                        new_start..new_line - 1,
-                    );
-
-                    old_start = old_line - 1;
-                    new_start = new_line - 1;
-
+                    if top_level {
+                        // Top-level comment
+                        self.add_comment(hunk.as_index(None), &comment);
+                    } else {
+                        self.add_comment(
+                            hunk.as_index(Some(line_ix.saturating_sub(1)..line_ix)),
+                            &comment,
+                        );
+                    }
                     comment.clear();
                 }
-                match line.trim_start_matches('>').trim_start().chars().next() {
-                    Some('-') => old_line += 1,
-                    Some('+') => new_line += 1,
-                    _ => {
-                        old_line += 1;
-                        new_line += 1;
-                    }
-                }
+                line_ix += 1;
+                // Can no longer be a top-level comment
+                top_level = false;
             } else {
                 comment.push_str(line);
                 comment.push('\n');
@@ -323,49 +329,26 @@ impl CommentBuilder {
         }
         if !comment.is_empty() {
             self.add_comment(
-                &hunk,
+                hunk.as_index(Some(line_ix.saturating_sub(1)..line_ix)),
                 &comment,
-                old_start..old_line - 1,
-                new_start..new_line - 1,
             );
         }
         self
     }
 
-    fn add_comment(
-        &mut self,
-        hunk: &HunkHeader,
-        comment: &str,
-        mut old_range: Range<usize>,
-        mut new_range: Range<usize>,
-    ) {
+    fn add_comment(&mut self, selection: Option<HunkIndex>, comment: &str) {
         // Empty lines between quoted text can generate empty comments
         // that should be filtered out.
         if comment.trim().is_empty() {
             return;
         }
-        // Top-level comment, it should apply to the whole hunk.
-        if old_range.is_empty() && new_range.is_empty() {
-            old_range = hunk.old_line_no as usize..(hunk.old_line_no + hunk.old_size + 1) as usize;
-            new_range = hunk.new_line_no as usize..(hunk.new_line_no + hunk.new_size + 1) as usize;
-        }
-        let old_range = old_range
-            .is_empty()
-            .not()
-            .then_some(old_range)
-            .map(|range| CodeRange::Lines { range });
-        let new_range = (new_range)
-            .is_empty()
-            .not()
-            .then_some(new_range)
-            .map(|range| CodeRange::Lines { range });
 
         self.comments.push(ReviewComment {
-            location: CodeLocation {
-                commit: self.commit,
+            location: DiffLocation {
+                base: self.base,
+                head: self.commit,
                 path: self.path.clone(),
-                old: old_range,
-                new: new_range,
+                selection,
             },
             body: comment.trim().to_owned(),
         });
@@ -378,6 +361,8 @@ impl CommentBuilder {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use radicle::cob::CodeRange;
+    use radicle_surf::diff;
     use std::str::FromStr;
 
     #[test]
@@ -427,65 +412,73 @@ Comment #5.
 
 "#;
 
+        let base = git::raw::Oid::zero().into();
         let commit = Oid::from_str("a32c4b93e2573fd83b15ac1ad6bf1317dc8fd760").unwrap();
         let path = PathBuf::from_str("main.rs").unwrap();
         let expected = &[
             (ReviewComment {
-                location: CodeLocation {
+                location: DiffLocation::hunk_level(
+                    git::raw::Oid::zero().into(),
                     commit,
-                    path: path.clone(),
-                    old: Some(CodeRange::Lines { range: 2559..2565 }),
-                    new: Some(CodeRange::Lines { range: 2560..2563 }),
-                },
+                    path.clone(),
+                    HunkIndex::new(0, CodeRange::lines(5..6)),
+                ),
                 body: "Comment #1.".to_owned(),
             }),
             (ReviewComment {
-                location: CodeLocation {
+                location: DiffLocation::hunk_level(
+                    git::raw::Oid::zero().into(),
                     commit,
-                    path: path.clone(),
-                    old: Some(CodeRange::Lines { range: 2565..2568 }),
-                    new: Some(CodeRange::Lines { range: 2563..2567 }),
-                },
+                    path.clone(),
+                    HunkIndex::new(0, CodeRange::lines(11..12)),
+                ),
                 body: "Comment #2.".to_owned(),
             }),
             (ReviewComment {
-                location: CodeLocation {
+                location: DiffLocation::hunk_level(
+                    git::raw::Oid::zero().into(),
                     commit,
-                    path: path.clone(),
-                    old: Some(CodeRange::Lines { range: 2568..2571 }),
-                    new: Some(CodeRange::Lines { range: 2567..2570 }),
-                },
+                    path.clone(),
+                    HunkIndex::new(0, CodeRange::lines(16..17)),
+                ),
                 body: "Comment #3.".to_owned(),
             }),
             (ReviewComment {
-                location: CodeLocation {
+                location: DiffLocation::hunk_level(
+                    git::raw::Oid::zero().into(),
                     commit,
-                    path: path.clone(),
-                    old: None,
-                    new: Some(CodeRange::Lines { range: 2570..2571 }),
-                },
+                    path.clone(),
+                    HunkIndex::new(0, CodeRange::lines(17..18)),
+                ),
                 body: "Comment #4.".to_owned(),
             }),
             (ReviewComment {
-                location: CodeLocation {
+                location: DiffLocation::hunk_level(
+                    git::raw::Oid::zero().into(),
                     commit,
-                    path: path.clone(),
-                    old: Some(CodeRange::Lines { range: 2571..2577 }),
-                    new: Some(CodeRange::Lines { range: 2571..2578 }),
-                },
+                    path.clone(),
+                    HunkIndex::new(0, CodeRange::lines(25..26)),
+                ),
                 body: "Comment #5.".to_owned(),
             }),
         ];
 
-        let mut builder = CommentBuilder::new(commit, path.clone());
+        let mut builder = CommentBuilder::new(base, commit, path.clone());
         builder.add_hunk(
-            HunkHeader {
-                old_line_no: 2559,
-                old_size: 18,
-                new_line_no: 2560,
-                new_size: 18,
-                text: vec![],
-            },
+            &Hunk::new(
+                0,
+                diff::Hunk {
+                    header: diff::Line::from(vec![]),
+                    lines: std::iter::repeat(diff::Modification::addition(
+                        diff::Line::from(vec![]),
+                        1,
+                    ))
+                    .take(26)
+                    .collect(),
+                    old: 2559..2578,
+                    new: 2560..2579,
+                },
+            ),
             input,
         );
         let actual = builder.comments();
@@ -531,16 +524,17 @@ Woof.
 
 "#;
 
+        let base = git::raw::Oid::zero().into();
         let commit = Oid::from_str("a32c4b93e2573fd83b15ac1ad6bf1317dc8fd760").unwrap();
         let path = PathBuf::from_str("main.rs").unwrap();
         let expected = &[
             (ReviewComment {
-                location: CodeLocation {
+                location: DiffLocation::hunk_level(
+                    git::raw::Oid::zero().into(),
                     commit,
-                    path: path.clone(),
-                    old: Some(CodeRange::Lines { range: 2559..2565 }),
-                    new: Some(CodeRange::Lines { range: 2560..2563 }),
-                },
+                    path.clone(),
+                    HunkIndex::new(0, CodeRange::lines(5..6)),
+                ),
                 body: r#"
 Blah blah blah blah blah blah blah.
 Blah blah blah.
@@ -554,12 +548,12 @@ Blaaah blaaah blaaah.
                 .to_owned(),
             }),
             (ReviewComment {
-                location: CodeLocation {
+                location: DiffLocation::hunk_level(
+                    git::raw::Oid::zero().into(),
                     commit,
-                    path: path.clone(),
-                    old: Some(CodeRange::Lines { range: 2565..2568 }),
-                    new: Some(CodeRange::Lines { range: 2563..2567 }),
-                },
+                    path.clone(),
+                    HunkIndex::new(0, CodeRange::lines(11..12)),
+                ),
                 body: r#"
 Woof woof.
 Woof.
@@ -572,15 +566,22 @@ Woof.
             }),
         ];
 
-        let mut builder = CommentBuilder::new(commit, path.clone());
+        let mut builder = CommentBuilder::new(base, commit, path.clone());
         builder.add_hunk(
-            HunkHeader {
-                old_line_no: 2559,
-                old_size: 9,
-                new_line_no: 2560,
-                new_size: 7,
-                text: vec![],
-            },
+            &Hunk::new(
+                0,
+                diff::Hunk {
+                    header: diff::Line::from(vec![]),
+                    lines: std::iter::repeat(diff::Modification::addition(
+                        diff::Line::from(vec![]),
+                        1,
+                    ))
+                    .take(12)
+                    .collect(),
+                    old: 2559..2569,
+                    new: 2560..2568,
+                },
+            ),
             input,
         );
         let actual = builder.comments();
@@ -612,27 +613,30 @@ This is a top-level comment.
 > +        let connect = available.take(wanted).collect::<Vec<_>>();
 "#;
 
+        let base = git::raw::Oid::zero().into();
         let commit = Oid::from_str("a32c4b93e2573fd83b15ac1ad6bf1317dc8fd760").unwrap();
         let path = PathBuf::from_str("main.rs").unwrap();
         let expected = &[(ReviewComment {
-            location: CodeLocation {
-                commit,
-                path: path.clone(),
-                old: Some(CodeRange::Lines { range: 2559..2569 }),
-                new: Some(CodeRange::Lines { range: 2560..2568 }),
-            },
+            location: DiffLocation::file_level(git::raw::Oid::zero().into(), commit, path.clone()),
             body: "This is a top-level comment.".to_owned(),
         })];
 
-        let mut builder = CommentBuilder::new(commit, path.clone());
+        let mut builder = CommentBuilder::new(base, commit, path.clone());
         builder.add_hunk(
-            HunkHeader {
-                old_line_no: 2559,
-                old_size: 9,
-                new_line_no: 2560,
-                new_size: 7,
-                text: vec![],
-            },
+            &Hunk::new(
+                0,
+                diff::Hunk {
+                    header: diff::Line::from(vec![]),
+                    lines: std::iter::repeat(diff::Modification::addition(
+                        diff::Line::from(vec![]),
+                        1,
+                    ))
+                    .take(12)
+                    .collect(),
+                    old: 2559..2569,
+                    new: 2560..2568,
+                },
+            ),
             input,
         );
         let actual = builder.comments();
@@ -660,27 +664,30 @@ This is a top-level comment.
 Comment on a split hunk.
 "#;
 
+        let base = git::raw::Oid::zero().into();
         let commit = Oid::from_str("a32c4b93e2573fd83b15ac1ad6bf1317dc8fd760").unwrap();
         let path = PathBuf::from_str("main.rs").unwrap();
         let expected = &[(ReviewComment {
-            location: CodeLocation {
+            location: DiffLocation::hunk_level(
+                git::raw::Oid::zero().into(),
                 commit,
-                path: path.clone(),
-                old: Some(CodeRange::Lines { range: 2564..2565 }),
-                new: Some(CodeRange::Lines { range: 2563..2564 }),
-            },
+                path.clone(),
+                HunkIndex::new(0, CodeRange::lines(6..7)),
+            ),
             body: "Comment on a split hunk.".to_owned(),
         })];
 
-        let mut builder = CommentBuilder::new(commit, path.clone());
+        let mut builder = CommentBuilder::new(base, commit, path.clone());
         builder.add_hunk(
-            HunkHeader {
-                old_line_no: 2559,
-                old_size: 6,
-                new_line_no: 2560,
-                new_size: 4,
-                text: vec![],
-            },
+            &Hunk::new(
+                0,
+                diff::Hunk {
+                    header: diff::Line::from(vec![]),
+                    lines: vec![],
+                    old: 2559..2566,
+                    new: 2560..2565,
+                },
+            ),
             input,
         );
         let actual = builder.comments();

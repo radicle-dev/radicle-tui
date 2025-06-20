@@ -452,7 +452,11 @@ mod interface {
                     let path = old.or(new);
 
                     if let (Some(hunk), Some((path, _))) = (item.hunk(), path) {
-                        let builder = CommentBuilder::new(revision.head(), path.to_path_buf());
+                        let builder = CommentBuilder::new(
+                            *revision.base(),
+                            revision.head(),
+                            path.to_path_buf(),
+                        );
                         let comments = builder.edit(hunk)?;
 
                         let signer = profile.signer()?;

@@ -5,11 +5,9 @@ use std::collections::HashMap;
 /// the base lines.
 #[derive(Default, Clone, Debug, Hash, Eq, PartialEq)]
 pub enum MergeLocation {
-    Start,
-    Line(usize),
-    End,
     #[default]
-    Unknown,
+    Top,
+    Line(usize),
 }
 
 /// A type that can merge lines based on their merge location.
@@ -34,9 +32,7 @@ impl<T: Clone> LineMerger<T> {
         let mut merged = vec![];
         for (idx, line) in self.lines.iter().enumerate() {
             let location = if idx == 0 {
-                MergeLocation::Start
-            } else if idx == self.lines.len().saturating_sub(1) {
-                MergeLocation::End
+                MergeLocation::Top
             } else {
                 let idx = idx
                     .saturating_add(start.unwrap_or_default())
@@ -44,7 +40,7 @@ impl<T: Clone> LineMerger<T> {
                 MergeLocation::Line(idx)
             };
 
-            if location != MergeLocation::Start {
+            if location != MergeLocation::Top {
                 merged.push(line.clone());
             }
 
@@ -56,7 +52,7 @@ impl<T: Clone> LineMerger<T> {
                 }
             }
 
-            if location == MergeLocation::Start {
+            if location == MergeLocation::Top {
                 merged.push(line.clone());
             }
         }

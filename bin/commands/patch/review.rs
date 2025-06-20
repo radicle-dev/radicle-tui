@@ -267,7 +267,7 @@ impl App<'_> {
             .enumerate()
             .map(|(idx, item)| {
                 StatefulHunkItem::new(
-                    HunkItem::from((&repo, &review, item)),
+                    HunkItem::from((&repo, &review, item, &idx)),
                     state.hunk_states().get(idx).cloned().unwrap_or_default(),
                 )
             })

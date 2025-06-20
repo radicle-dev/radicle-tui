@@ -1,19 +1,23 @@
 use std::fmt;
 use std::fmt::Debug;
+use std::ops::Range;
 use std::path::Path;
 use std::{fs, path::PathBuf};
 
+use serde::{Deserialize, Serialize};
+
 use ratatui::text::Line;
 
-use radicle_surf::diff::{Copied, DiffFile, EofNewLine, FileStats, Hunk, Modification, Moved};
+use radicle_surf::diff;
+use radicle_surf::diff::{Copied, DiffFile, EofNewLine, FileStats, Modification, Moved};
 
+use radicle::cob::{CodeRange, HunkIndex};
 use radicle::git;
 use radicle::git::Oid;
 
-use radicle_cli::git::unified_diff::FileHeader;
+use radicle_cli::git::unified_diff::{self, FileHeader, HunkHeader};
 use radicle_cli::terminal;
 use radicle_cli::terminal::highlight::Highlighter;
-use serde::{Deserialize, Serialize};
 
 pub type FilePaths<'a> = (Option<(&'a Path, Oid)>, Option<(&'a Path, Oid)>);
 
@@ -201,8 +205,8 @@ impl HunkStats {
     }
 }
 
-impl From<&Hunk<Modification>> for HunkStats {
-    fn from(hunk: &Hunk<Modification>) -> Self {
+impl From<&diff::Hunk<Modification>> for HunkStats {
+    fn from(hunk: &diff::Hunk<Modification>) -> Self {
         let mut added = 0_usize;
         let mut deleted = 0_usize;
 
@@ -228,20 +232,20 @@ pub enum HunkState {
 
 /// A single review item. Can be a hunk or eg. a file move.
 /// Files are usually split into multiple review items.
-#[derive(Clone, PartialEq)]
+#[derive(Clone, Debug)]
 pub enum HunkDiff {
     Added {
         path: PathBuf,
         header: FileHeader,
         new: DiffFile,
-        hunk: Option<Hunk<Modification>>,
+        hunk: Option<Hunk>,
         _stats: Option<FileStats>,
     },
     Deleted {
         path: PathBuf,
         header: FileHeader,
         old: DiffFile,
-        hunk: Option<Hunk<Modification>>,
+        hunk: Option<Hunk>,
         _stats: Option<FileStats>,
     },
     Modified {
@@ -249,7 +253,7 @@ pub enum HunkDiff {
         header: FileHeader,
         old: DiffFile,
         new: DiffFile,
-        hunk: Option<Hunk<Modification>>,
+        hunk: Option<Hunk>,
         _stats: Option<FileStats>,
     },
     Moved {
@@ -274,7 +278,7 @@ pub enum HunkDiff {
 }
 
 impl HunkDiff {
-    pub fn hunk(&self) -> Option<&Hunk<Modification>> {
+    pub fn hunk(&self) -> Option<&Hunk> {
         match self {
             Self::Added { hunk, .. } => hunk.as_ref(),
             Self::Deleted { hunk, .. } => hunk.as_ref(),
@@ -323,25 +327,33 @@ impl HunkDiff {
     }
 }
 
-impl Debug for HunkDiff {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        let (name, path, hunk) = match self {
-            Self::Added { path, hunk, .. } => ("Added", path, hunk),
-            Self::Deleted { path, hunk, .. } => ("Deleted", path, hunk),
-            Self::Moved { moved } => ("Moved", &moved.new_path, &None),
-            Self::Copied { copied } => ("Copied", &copied.new_path, &None),
-            Self::Modified { path, hunk, .. } => ("Modified", path, hunk),
-            Self::EofChanged { path, .. } => ("EofChanged", path, &None),
-            Self::ModeChanged { path, .. } => ("ModeChanged", path, &None),
-        };
+/// Keep track of the [`diff::Hunk`] and its `index` within the diff patch.
+#[derive(Clone, Debug)]
+pub struct Hunk {
+    /// Index of the hunk within its respective patch.
+    index: usize,
+    /// The [`diff::Hunk`] that is being kept track of.
+    inner: diff::Hunk<Modification>,
+}
 
-        match hunk {
-            Some(hunk) => f
-                .debug_struct(name)
-                .field("path", path)
-                .field("hunk", &(hunk.old.clone(), hunk.new.clone()))
-                .finish(),
-            _ => f.debug_struct(name).field("path", path).finish(),
-        }
+impl Hunk {
+    pub fn new(index: usize, hunk: diff::Hunk<Modification>) -> Self {
+        Self { index, inner: hunk }
+    }
+
+    pub fn as_index(&self, range: Option<Range<usize>>) -> Option<HunkIndex> {
+        range.map(|range| HunkIndex::new(self.index, CodeRange::lines(range)))
+    }
+
+    pub fn inner(&self) -> &diff::Hunk<Modification> {
+        &self.inner
+    }
+}
+
+impl TryFrom<&Hunk> for HunkHeader {
+    type Error = unified_diff::Error;
+
+    fn try_from(Hunk { ref inner, .. }: &Hunk) -> Result<Self, Self::Error> {
+        Self::try_from(inner)
     }
 }

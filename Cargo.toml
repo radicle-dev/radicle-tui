@@ -35,11 +35,15 @@ lazy_static = { version = "1.5.0" }
 libc = { version = "^0.2" }
 log = { version = "0.4.19" }
 nom = { version = "^7.1.0" }
-radicle = { version = "0.16.1" }
-radicle-term = { version = "0.13.0" }
-radicle-cli = { version = "0.14.0" }
+# radicle = { version = "0.16.1" }
+# radicle-term = { version = "0.13.0" }
+# radicle-cli = { version = "0.14.0" }
 radicle-surf = { version = "0.22.0" }
-radicle-signals = { version = "0.11.0" }
+# radicle-signals = { version = "0.11.0" }
+radicle = { path = "../heartwood/crates/radicle" }
+radicle-term = { path = "../heartwood/crates/radicle-term" }
+radicle-cli = { path = "../heartwood/crates/radicle-cli" }
+radicle-signals = { path = "../heartwood/crates/radicle-signals" }
 ratatui = { version = "0.29.0", default-features = false, features = [
     "all-widgets",
     "termion",
@@ -66,7 +70,8 @@ tui-tree-widget = { version = "0.23.0" }
 assert_cmd = "2.0.14"
 predicates = "3.1.0"
 pretty_assertions = "^1.4.1"
-radicle = { version = "0.16.1", features = ["test"] }
+# radicle = { version = "0.16.1", features = ["test"] }
+radicle = { path = "../heartwood/crates/radicle", features = ["test"] }
 radicle-git-ext = { version = "0.8.0", features = ["serde"] }
 
 
