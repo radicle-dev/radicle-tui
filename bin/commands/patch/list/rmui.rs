@@ -51,7 +51,7 @@ pub struct BrowserProps<'a> {
     search: String,
 }
 
-impl<'a> From<&State> for BrowserProps<'a> {
+impl From<&State> for BrowserProps<'_> {
     fn from(state: &State) -> Self {
         let mut draft = 0;
         let mut open = 0;

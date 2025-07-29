@@ -335,7 +335,7 @@ pub struct TextAreaProps<'a> {
     dim: bool,
 }
 
-impl<'a> Default for TextAreaProps<'a> {
+impl Default for TextAreaProps<'_> {
     fn default() -> Self {
         Self {
             content: String::new().into(),
@@ -392,7 +392,7 @@ pub struct TextArea<'a, S, M> {
     area: (u16, u16),
 }
 
-impl<'a, S, M> Default for TextArea<'a, S, M> {
+impl<S, M> Default for TextArea<'_, S, M> {
     fn default() -> Self {
         Self {
             phantom: PhantomData,
@@ -402,7 +402,7 @@ impl<'a, S, M> Default for TextArea<'a, S, M> {
     }
 }
 
-impl<'a, S, M> View for TextArea<'a, S, M> {
+impl<S, M> View for TextArea<'_, S, M> {
     type State = S;
     type Message = M;
 
@@ -663,7 +663,7 @@ impl<'a> TextViewProps<'a> {
     }
 }
 
-impl<'a> Default for TextViewProps<'a> {
+impl Default for TextViewProps<'_> {
     fn default() -> Self {
         let theme = Theme::default();
 

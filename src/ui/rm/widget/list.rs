@@ -34,7 +34,7 @@ where
     pub dim: bool,
 }
 
-impl<'a, R, const W: usize> Default for TableProps<'a, R, W>
+impl<R, const W: usize> Default for TableProps<'_, R, W>
 where
     R: ToRow<W>,
 {

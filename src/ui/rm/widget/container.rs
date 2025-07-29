@@ -44,7 +44,7 @@ impl<'a> HeaderProps<'a> {
     }
 }
 
-impl<'a> Default for HeaderProps<'a> {
+impl Default for HeaderProps<'_> {
     fn default() -> Self {
         let theme = Theme::default();
 
@@ -71,7 +71,7 @@ impl<S, M> Default for Header<S, M> {
     }
 }
 
-impl<'a: 'static, S, M> View for Header<S, M> {
+impl<S, M> View for Header<S, M> {
     type Message = M;
     type State = S;
 
@@ -169,7 +169,7 @@ impl<'a> FooterProps<'a> {
     }
 }
 
-impl<'a> Default for FooterProps<'a> {
+impl Default for FooterProps<'_> {
     fn default() -> Self {
         let theme = Theme::default();
 
@@ -220,7 +220,7 @@ impl<'a, S, M> Footer<S, M> {
     }
 }
 
-impl<'a: 'static, S, M> View for Footer<S, M> {
+impl<S, M> View for Footer<S, M> {
     type Message = M;
     type State = S;
 

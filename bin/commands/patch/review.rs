@@ -244,7 +244,7 @@ pub struct App<'a> {
     state: Arc<Mutex<AppState>>,
 }
 
-impl<'a> App<'a> {
+impl App<'_> {
     pub fn new(
         storage: Storage,
         review: Review,
@@ -318,7 +318,7 @@ impl<'a> App<'a> {
     }
 }
 
-impl<'a> App<'a> {
+impl App<'_> {
     fn show_hunk_list(&self, ui: &mut Ui<Message>, frame: &mut Frame) {
         let hunks = self.hunks.lock().unwrap();
         let state = self.state.lock().unwrap();
@@ -486,7 +486,7 @@ impl<'a> App<'a> {
     }
 }
 
-impl<'a> Show<Message> for App<'a> {
+impl Show<Message> for App<'_> {
     fn show(&self, ctx: &Context<Message>, frame: &mut Frame) -> Result<(), anyhow::Error> {
         Window::default().show(ctx, |ui| {
             let page = {
@@ -558,7 +558,7 @@ impl<'a> Show<Message> for App<'a> {
     }
 }
 
-impl<'a> store::Update<Message> for App<'a> {
+impl store::Update<Message> for App<'_> {
     type Return = Response;
 
     fn update(&mut self, message: Message) -> Option<Exit<Self::Return>> {
@@ -677,7 +677,7 @@ mod test {
     use super::*;
     use crate::test;
 
-    impl<'a> App<'a> {
+    impl App<'_> {
         pub fn hunks(&self) -> Vec<StatefulHunkItem> {
             self.hunks.lock().unwrap().clone()
         }
@@ -703,10 +703,10 @@ mod test {
         ) -> Result<App<'a>> {
             let draft_store = DraftStore::new(&node.repo.repo, *node.signer.public_key());
             let mut drafts = Cache::no_cache(&draft_store)?;
-            let mut draft = drafts.get_mut(&patch.id())?;
+            let mut draft = drafts.get_mut(patch.id())?;
 
             let (_, revision) = patch.latest();
-            let (_, review) = draft_review(&node, &mut draft, revision)?;
+            let (_, review) = draft_review(node, &mut draft, revision)?;
 
             let hunks = ReviewBuilder::new(&node.repo).hunks(revision)?;
 
@@ -835,7 +835,7 @@ mod test {
         app.update(Message::Accept);
 
         let state = app.state.lock().unwrap();
-        let state = &state.hunk_states().get(0).unwrap();
+        let state = &state.hunk_states().first().unwrap();
 
         assert_eq!(**state, HunkState::Accepted);
 

@@ -105,7 +105,7 @@ impl<'a, R, const W: usize> Browser<'a, R, W> {
 
 /// TODO(erikli): Implement `show` that returns an `InnerResponse` such that it can
 /// used like a group.
-impl<'a, R, const W: usize> Widget for Browser<'a, R, W>
+impl<R, const W: usize> Widget for Browser<'_, R, W>
 where
     R: ToRow<W> + Clone,
 {

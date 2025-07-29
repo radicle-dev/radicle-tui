@@ -118,7 +118,7 @@ pub mod setup {
 }
 
 pub mod fixtures {
-    use std::path::{Path, PathBuf};
+    use std::path::Path;
 
     use anyhow::Result;
 
@@ -301,14 +301,14 @@ fn main() {
     /// 8   7
     /// 9   8     // This is the main function.
     /// 10  9     fn main() {
-    pub fn simple_modified_hunk_diff(path: &PathBuf, commit: Oid) -> Result<HunkDiff> {
+    pub fn simple_modified_hunk_diff(path: &Path, commit: Oid) -> Result<HunkDiff> {
         let diff = DiffFile {
             oid: commit,
             mode: diff::FileMode::Blob,
         };
 
         Ok(HunkDiff::Modified {
-            path: path.clone(),
+            path: path.to_path_buf(),
             header: FileHeader::Modified {
                 path: path.to_path_buf(),
                 old: diff.clone(),
@@ -368,14 +368,14 @@ fn main() {
     /// 15  13
     /// 16  14    use super::ui::{IdSelect, OperationSelect};
     /// 17  15    use super::{IssueOperation, Message};
-    pub fn complex_modified_hunk_diff(path: &PathBuf, commit: Oid) -> Result<HunkDiff> {
+    pub fn complex_modified_hunk_diff(path: &Path, commit: Oid) -> Result<HunkDiff> {
         let diff = DiffFile {
             oid: commit,
             mode: diff::FileMode::Blob,
         };
 
         Ok(HunkDiff::Modified {
-            path: path.clone(),
+            path: path.to_path_buf(),
             header: FileHeader::Modified {
                 path: path.to_path_buf(),
                 old: diff.clone(),
@@ -449,14 +449,14 @@ fn main() {
 
     /// @@ -1,1 +0,0 @@
     /// - TBD
-    pub fn deleted_hunk_diff(path: &PathBuf, commit: Oid) -> Result<HunkDiff> {
+    pub fn deleted_hunk_diff(path: &Path, commit: Oid) -> Result<HunkDiff> {
         let diff = DiffFile {
             oid: commit,
             mode: diff::FileMode::Blob,
         };
 
         Ok(HunkDiff::Deleted {
-            path: path.clone(),
+            path: path.to_path_buf(),
             header: FileHeader::Deleted {
                 path: path.to_path_buf(),
                 old: diff.clone(),

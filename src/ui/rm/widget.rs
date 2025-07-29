@@ -245,7 +245,7 @@ pub trait View {
 /// define the data, configuration etc. of a widget. They are updated by the framework
 /// taking the properties built by the `on_update` callback. The `on_event` callback is
 /// used to emit application messages whenever a widget receives an event.
-
+///
 /// The main idea is to build widgets that handle their specific events already,
 /// and that are updated with the properties built by the `on_update` callback.
 /// Custom logic is added by setting the `on_event` callback. E.g. the `Table` widget

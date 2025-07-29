@@ -255,7 +255,7 @@ impl<'a> Label<'a> {
     }
 }
 
-impl<'a> Widget for Label<'a> {
+impl Widget for Label<'_> {
     fn ui<M>(self, ui: &mut Ui<M>, frame: &mut Frame) -> Response {
         let (area, _) = ui.next_area().unwrap_or_default();
         frame.render_widget(self.content, area);
@@ -380,7 +380,7 @@ where
     }
 }
 
-impl<'a, R, const W: usize> Widget for Table<'a, R, W>
+impl<R, const W: usize> Widget for Table<'_, R, W>
 where
     R: ToRow<W> + Clone,
 {
@@ -515,16 +515,14 @@ where
 
                 frame.render_stateful_widget(scroller, scroller_area, &mut state);
             }
-        } else {
-            if let Some(message) = self.empty_message {
-                let center = layout::centered_rect(area, 50, 10);
-                let hint = Text::from(span::default(&message))
-                    .centered()
-                    .light_magenta()
-                    .dim();
+        } else if let Some(message) = self.empty_message {
+            let center = layout::centered_rect(area, 50, 10);
+            let hint = Text::from(span::default(&message))
+                .centered()
+                .light_magenta()
+                .dim();
 
-                frame.render_widget(hint, center);
-            }
+            frame.render_widget(hint, center);
         }
 
         *self.selected = state.selected();
@@ -565,7 +563,7 @@ impl<'a, R, const W: usize> HeaderedTable<'a, R, W> {
 
 /// TODO(erikli): Implement `show` that returns an `InnerResponse` such that it can
 /// used like a group.
-impl<'a, R, const W: usize> Widget for HeaderedTable<'a, R, W>
+impl<R, const W: usize> Widget for HeaderedTable<'_, R, W>
 where
     R: ToRow<W> + Clone,
 {
@@ -608,7 +606,7 @@ impl<'a> Columns<'a> {
     }
 }
 
-impl<'a> Widget for Columns<'a> {
+impl Widget for Columns<'_> {
     fn ui<M>(self, ui: &mut Ui<M>, frame: &mut Frame) -> Response
     where
         M: Clone,
@@ -667,7 +665,7 @@ impl<'a> Bar<'a> {
     }
 }
 
-impl<'a> Widget for Bar<'a> {
+impl Widget for Bar<'_> {
     fn ui<M>(self, ui: &mut Ui<M>, frame: &mut Frame) -> Response
     where
         M: Clone,
@@ -773,7 +771,7 @@ impl<'a> TextView<'a> {
     }
 }
 
-impl<'a> Widget for TextView<'a> {
+impl Widget for TextView<'_> {
     fn ui<M>(self, ui: &mut Ui<M>, frame: &mut Frame) -> Response
     where
         M: Clone,
@@ -893,7 +891,7 @@ impl<'a> CenteredTextView<'a> {
     }
 }
 
-impl<'a> Widget for CenteredTextView<'a> {
+impl Widget for CenteredTextView<'_> {
     fn ui<M>(self, ui: &mut Ui<M>, frame: &mut Frame) -> Response {
         let (area, area_focus) = ui.next_area().unwrap_or_default();
 
@@ -1024,7 +1022,7 @@ impl<'a> TextEdit<'a> {
     }
 }
 
-impl<'a> TextEdit<'a> {
+impl TextEdit<'_> {
     pub fn show<M>(self, ui: &mut Ui<M>, frame: &mut Frame) -> TextEditOutput
     where
         M: Clone,
@@ -1130,7 +1128,7 @@ impl<'a> TextEdit<'a> {
     }
 }
 
-impl<'a> Widget for TextEdit<'a> {
+impl Widget for TextEdit<'_> {
     fn ui<M>(self, ui: &mut Ui<M>, frame: &mut Frame) -> Response
     where
         M: Clone,

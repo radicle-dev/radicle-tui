@@ -1037,7 +1037,7 @@ impl ToTree<String> for CommentItem {
 
 pub struct TermLine(terminal::Line);
 
-impl<'a> From<TermLine> for Line<'a> {
+impl From<TermLine> for Line<'_> {
     fn from(val: TermLine) -> Self {
         Line::raw(val.0.to_string())
     }
@@ -1252,7 +1252,7 @@ pub struct HunkItem<'a> {
     pub comments: HunkComments,
 }
 
-impl<'a> From<(&Repository, &Review, &HunkDiff)> for HunkItem<'a> {
+impl From<(&Repository, &Review, &HunkDiff)> for HunkItem<'_> {
     fn from(value: (&Repository, &Review, &HunkDiff)) -> Self {
         let (repo, review, item) = value;
         let hi = Highlighter::default();
@@ -1299,7 +1299,7 @@ impl<'a> From<(&Repository, &Review, &HunkDiff)> for HunkItem<'a> {
     }
 }
 
-impl<'a> ToRow<3> for StatefulHunkItem<'a> {
+impl ToRow<3> for StatefulHunkItem<'_> {
     fn to_row(&self) -> [Cell; 3] {
         let build_stats_spans = |stats: &DiffStats| -> Vec<Span<'_>> {
             let mut cell = vec![];
@@ -1736,7 +1736,7 @@ impl<'a> HunkItem<'a> {
     }
 }
 
-impl<'a> Debug for HunkItem<'a> {
+impl Debug for HunkItem<'_> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("HunkItem")
             .field("inner", &self.diff)

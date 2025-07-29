@@ -54,9 +54,8 @@ where
     }
 }
 
-impl<'a, S, M, Id> View for Window<S, M, Id>
+impl<S, M, Id> View for Window<S, M, Id>
 where
-    'a: 'static,
     S: 'static,
     M: 'static,
     Id: Clone + Hash + Eq + PartialEq + 'static,
