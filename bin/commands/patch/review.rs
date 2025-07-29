@@ -640,7 +640,7 @@ A terminal interface for reviewing patch revisions.
 
 Starts a new or resumes an existing review for a given revision (default: latest). When the
 review is done, it needs to be finalized via `rad patch review --accept | --reject <id>`.
-    
+
 # Keybindings
 
 `←,h`       move cursor to the left
@@ -688,7 +688,6 @@ mod test {
 
         use radicle::cob::cache::NoCache;
         use radicle::patch::{Cache, PatchMut, Review, ReviewId, Revision, Verdict};
-        use radicle::prelude::Signer;
         use radicle::storage::git::cob::DraftStore;
         use radicle::storage::git::Repository;
 

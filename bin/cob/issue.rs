@@ -4,10 +4,9 @@ use std::fmt::Write as _;
 use anyhow::Result;
 
 use radicle::cob::issue::{Issue, IssueId};
-use radicle::cob::Label;
 use radicle::issue::cache::Issues;
 use radicle::issue::State;
-use radicle::prelude::{Did, Signer};
+use radicle::prelude::Did;
 use radicle::storage::git::Repository;
 use radicle::Profile;
 
@@ -79,28 +78,6 @@ pub fn all(profile: &Profile, repository: &Repository) -> Result<Vec<(IssueId, I
     let issues = cache.list()?;
 
     Ok(issues.flatten().collect())
-}
-
-#[allow(dead_code)]
-pub fn find(profile: &Profile, repository: &Repository, id: &IssueId) -> Result<Option<Issue>> {
-    let cache = profile.issues(repository)?;
-    Ok(cache.get(id)?)
-}
-
-#[allow(dead_code)]
-pub fn create<G: Signer>(
-    profile: &Profile,
-    repository: &Repository,
-    signer: &G,
-    title: String,
-    description: String,
-    labels: &[Label],
-    assignees: &[Did],
-) -> Result<IssueId> {
-    let mut issues = profile.issues_mut(repository)?;
-    let issue = issues.create(title, description.trim(), labels, assignees, [], signer)?;
-
-    Ok(*issue.id())
 }
 
 #[cfg(test)]

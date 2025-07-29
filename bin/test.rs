@@ -123,9 +123,11 @@ pub mod fixtures {
     use anyhow::Result;
 
     use radicle::cob::cache::NoCache;
-    use radicle::crypto::{Signer, Verified};
+    use radicle::crypto;
+    use radicle::crypto::Verified;
     use radicle::git;
     use radicle::identity::{RepoId, Visibility};
+    use radicle::node::device::Device;
     use radicle::patch::{Cache, MergeTarget, PatchMut, Patches};
     use radicle::rad;
     use radicle::storage::git::Repository;
@@ -232,11 +234,14 @@ fn main() {
     }
 
     /// Create a new repository at the given path, and initialize it into a project.
-    pub fn project<P: AsRef<Path>, G: Signer>(
+    pub fn project<P: AsRef<Path>, G>(
         path: P,
         storage: &Storage,
-        signer: &G,
-    ) -> Result<(RepoId, SignedRefs<Verified>, git2::Repository, git2::Oid), rad::InitError> {
+        signer: &Device<G>,
+    ) -> Result<(RepoId, SignedRefs<Verified>, git2::Repository, git2::Oid), rad::InitError>
+    where
+        G: crypto::signature::Signer<crypto::Signature>,
+    {
         radicle::storage::git::transport::local::register(storage.clone());
 
         let (working, head) = repository(path);

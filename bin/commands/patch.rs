@@ -46,7 +46,7 @@ List options
 
     The MODE argument can be 'operation' or 'id'. 'operation' selects a patch id and
     an operation, whereas 'id' selects a patch id only.
-    
+
 
 Other options
 
@@ -93,7 +93,7 @@ impl ReviewOptions {
         &'a self,
         patch: &'a Patch,
         repo: &Repository,
-    ) -> anyhow::Result<(RevisionId, &Revision)> {
+    ) -> anyhow::Result<(RevisionId, &'a Revision)> {
         let revision_id = self
             .revision_id
             .as_ref()
@@ -322,7 +322,6 @@ mod interface {
 
     use radicle::cob;
     use radicle::cob::ObjectId;
-    use radicle::crypto::Signer;
     use radicle::identity::RepoId;
     use radicle::patch::PatchId;
     use radicle::patch::Verdict;

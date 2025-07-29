@@ -1965,7 +1965,6 @@ mod tests {
     use std::path::PathBuf;
 
     use anyhow::Result;
-    use radicle::crypto::Signer;
 
     use crate::test;
 
