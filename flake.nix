@@ -2,7 +2,7 @@
   description = "A TUI for the Radicle code forge";
 
   inputs = {
-    nixpkgs.url = "github:NixOS/nixpkgs/release-24.05";
+    nixpkgs.url = "github:NixOS/nixpkgs/release-25.05";
 
     crane = {
       url = "github:ipetkov/crane";
