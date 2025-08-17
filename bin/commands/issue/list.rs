@@ -189,25 +189,27 @@ impl TryFrom<(&Context, &TerminalInfo)> for State {
         };
 
         // Convert into UI items
-        let mut items = vec![];
-        for issue in issues {
-            if let Ok(item) = IssueItem::new(&context.profile, issue.clone()) {
-                items.push(item);
-            }
-        }
+        let mut items: Vec<_> = issues
+            .into_iter()
+            .flat_map(|issue| IssueItem::new(&context.profile, issue).ok())
+            .collect();
+
         items.sort_by(|a, b| b.timestamp.cmp(&a.timestamp));
 
         // Pre-select first comment
-        let mut selected_comments = HashMap::new();
-        for item in &items {
-            selected_comments.insert(
-                item.id,
-                item.root_comments()
+        let selected_comments: HashMap<_, _> = items
+            .iter()
+            .map(|item| {
+                let id = item.id;
+                let comm = item
+                    .root_comments()
                     .first()
-                    .map(|comment| vec![comment.id])
-                    .unwrap_or_default(),
-            );
-        }
+                    .map(|c| vec![c.id])
+                    .unwrap_or_default();
+
+                (id, comm)
+            })
+            .collect();
 
         Ok(Self {
             mode: context.mode.clone(),
