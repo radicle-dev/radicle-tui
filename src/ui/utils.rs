@@ -48,13 +48,14 @@ impl<T: Clone> LineMerger<T> {
                 merged.push(line.clone());
             }
 
-            if let Some(merges) = merge.get(&location) {
-                for merge in merges {
-                    for line in merge {
-                        merged.push(line.clone());
-                    }
-                }
-            }
+            merged.extend(
+                merge
+                    .get(&location)
+                    .into_iter()
+                    .flatten()
+                    .flat_map(|merge| merge.iter())
+                    .cloned(),
+            );
 
             if location == MergeLocation::Start {
                 merged.push(line.clone());
