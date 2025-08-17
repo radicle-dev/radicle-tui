@@ -111,7 +111,7 @@ impl Args for Options {
                     list_opts.mode = match val {
                         "operation" => common::Mode::Operation,
                         "id" => common::Mode::Id,
-                        unknown => anyhow::bail!("unknown mode '{}'", unknown),
+                        unknown => anyhow::bail!("unknown mode '{unknown}'"),
                     };
                 }
                 Long("all") if op == OperationName::List => {
