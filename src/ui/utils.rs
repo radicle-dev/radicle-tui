@@ -97,7 +97,7 @@ Is this needed?
             HashMap::from([(MergeLocation::Line(2), vec![comment])]),
             Some(1),
         );
-        let actual = build_string(merged);
+        let actual = merged.join("\n");
 
         let expected = r#"
 fn main() {
@@ -143,7 +143,7 @@ Is this needed?
             HashMap::from([(MergeLocation::Line(103), vec![comment])]),
             Some(100),
         );
-        let actual = build_string(merged);
+        let actual = merged.join("\n");
 
         let expected = r#"
 fn main() {
@@ -164,18 +164,5 @@ fn another_function() {
         assert_eq!(expected, actual);
 
         Ok(())
-    }
-
-    fn build_string(lines: Vec<&str>) -> String {
-        let mut actual = String::new();
-        for (idx, line) in lines.iter().enumerate() {
-            if idx == lines.len() - 1 {
-                actual.push_str(line);
-            } else {
-                actual.push_str(&format!("{line}\n"));
-            }
-        }
-
-        actual
     }
 }
