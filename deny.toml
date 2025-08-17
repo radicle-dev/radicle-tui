@@ -1,7 +1,33 @@
 [licenses]
+# List of explicitly allowed licenses
 allow = [
-  "MIT",
-  "Apache-2.0",
-  "Unicode-DFS-2016",
-  "BSD-3-Clause"
+    "MIT",
+    "Apache-2.0",
+    "Unlicense",
+    "Unicode-DFS-2016",
+    "Unicode-3.0",
+    "BSD-3-Clause",
+    "MPL-2.0",
+]
+# Allow 1 or more licenses on a per-crate basis, so that particular licenses
+# aren't accepted for every possible crate as with the normal allow list
+exceptions = [
+    { allow = [
+        "GPL-3.0",
+    ], name = "radicle-surf", version = "*" },
+    { allow = [
+        "GPL-3.0",
+    ], name = "radicle-std-ext", version = "*" },
+    { allow = [
+        "GPL-3.0",
+    ], name = "radicle-git-ext", version = "*" },
+    { allow = [
+        "GPL-3.0",
+    ], name = "git-ref-format-core", version = "*" },
+    { allow = [
+        "GPL-3.0",
+    ], name = "git-ref-format-macro", version = "*" },
+    { allow = [
+        "GPL-3.0",
+    ], name = "git-ref-format", version = "*" },
 ]
