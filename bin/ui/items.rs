@@ -1382,16 +1382,9 @@ impl<'a> HunkItem<'a> {
                                     }
 
                                     // Add comment body
-                                    rendered.extend(
-                                        comment
-                                            .1
-                                            .body()
-                                            .lines()
-                                            .map(|line| {
-                                                Line::from([span::default(line).gray()].to_vec())
-                                            })
-                                            .collect::<Vec<_>>(),
-                                    );
+                                    rendered.extend(comment.1.body().lines().map(|line| {
+                                        Line::from([span::default(line).gray()].to_vec())
+                                    }));
 
                                     // Add metadata
                                     rendered.push(
