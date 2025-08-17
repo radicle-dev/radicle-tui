@@ -226,16 +226,15 @@ pub async fn run(options: Options, ctx: impl terminal::Context) -> anyhow::Resul
 
                 eprint!("{selection}");
             } else if let Some(selection) = selection {
-                let mut args = vec![];
+                let args = [
+                    selection.operation.as_ref().cloned(),
+                    selection.ids.first().map(ToString::to_string),
+                ]
+                .into_iter()
+                .flatten()
+                .map(OsString::from)
+                .collect::<Vec<_>>();
 
-                if let Some(operation) = selection.operation {
-                    args.push(operation.to_string());
-                }
-                if let Some(id) = selection.ids.first() {
-                    args.push(format!("{id}"));
-                }
-
-                let args = args.into_iter().map(OsString::from).collect::<Vec<_>>();
                 let _ = crate::terminal::run_rad(Some("issue"), &args);
             }
         }
