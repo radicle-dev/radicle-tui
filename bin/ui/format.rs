@@ -76,17 +76,11 @@ pub fn author(did: &Did, alias: &Option<Alias>, is_you: bool) -> String {
 }
 
 pub fn assignees(assignees: &[(Option<PublicKey>, Option<Alias>, bool)]) -> String {
-    let mut output = String::new();
-    let mut assignees = assignees.iter().peekable();
-
-    while let Some((assignee, alias, is_you)) = assignees.next() {
-        if let Some(assignee) = assignee {
-            output.push_str(&self::author(&Did::from(assignee), alias, *is_you));
-        }
-
-        if assignees.peek().is_some() {
-            output.push(',');
-        }
-    }
-    output
+    assignees
+        .iter()
+        .flat_map(|(assignee, alias, is_you)| {
+            assignee.map(|a| self::author(&Did::from(a), alias, *is_you))
+        })
+        .collect::<Vec<_>>()
+        .join(",")
 }
