@@ -55,17 +55,11 @@ pub fn patch_state(state: &patch::State) -> (String, Color) {
 }
 
 pub fn labels(labels: &[Label]) -> String {
-    let mut output = String::new();
-    let mut labels = labels.iter().peekable();
-
-    while let Some(label) = labels.next() {
-        output.push_str(&label.to_string());
-
-        if labels.peek().is_some() {
-            output.push_str(", ");
-        }
-    }
-    output
+    labels
+        .iter()
+        .map(|l| l.name())
+        .collect::<Vec<_>>()
+        .join(", ")
 }
 
 pub fn author(did: &Did, alias: &Option<Alias>, is_you: bool) -> String {
