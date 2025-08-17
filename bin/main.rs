@@ -11,8 +11,9 @@ mod ui;
 
 use std::ffi::OsString;
 use std::io;
-use std::io::Write;
 use std::{iter, process};
+
+use thiserror::Error;
 
 use radicle::version::Version;
 
@@ -20,6 +21,8 @@ use radicle_cli::terminal as cli_term;
 
 use commands::*;
 use terminal as term;
+
+use crate::terminal::ForwardError;
 
 pub const NAME: &str = "rad-tui";
 pub const DESCRIPTION: &str = "Radicle terminal interfaces";
@@ -32,6 +35,18 @@ pub const VERSION: Version = Version {
     commit: GIT_HEAD,
     timestamp: TIMESTAMP,
 };
+
+#[derive(Error, Debug)]
+pub enum Error {
+    #[error("{0}")]
+    Forward(#[from] term::ForwardError),
+    #[error("{0}")]
+    Args(#[from] lexopt::Error),
+    #[error("{0}")]
+    Json(#[from] serde_json::Error),
+    #[error("{0}")]
+    Other(#[from] anyhow::Error),
+}
 
 #[derive(Debug)]
 enum CommandName {
@@ -54,18 +69,21 @@ enum Command {
 }
 
 fn main() {
-    match parse_args().map_err(Some).and_then(run) {
+    match parse_args().and_then(run) {
         Ok(_) => process::exit(0),
         Err(err) => {
-            if let Some(err) = err {
-                radicle_term::error(format!("rad-tui: {err}"));
+            match err {
+                // Do not print an additonal error message if `rad` itself
+                // already printed its error(s).
+                Error::Forward(ForwardError::RadInternal) => {}
+                _ => radicle_term::error(format!("rad-tui: {err}")),
             }
             process::exit(1);
         }
     }
 }
 
-fn parse_args() -> anyhow::Result<Command> {
+fn parse_args() -> anyhow::Result<Command, Error> {
     use lexopt::prelude::*;
 
     let mut parser = lexopt::Parser::from_env();
@@ -100,7 +118,7 @@ fn parse_args() -> anyhow::Result<Command> {
                     }
                 }
             }
-            _ => return Err(anyhow::anyhow!(arg.unexpected())),
+            _ => return Err(arg.unexpected().into()),
         }
     }
 
@@ -150,15 +168,13 @@ fn print_help() -> anyhow::Result<()> {
     tui_help::run(Default::default(), cli_term::DefaultContext)
 }
 
-fn run(command: Command) -> Result<(), Option<anyhow::Error>> {
+fn run(command: Command) -> Result<(), Error> {
     match command {
         Command::Version { json } => {
             let mut stdout = io::stdout();
             if json {
-                VERSION
-                    .write_json(&mut stdout)
-                    .map_err(|e| Some(e.into()))?;
-                writeln!(&mut stdout).ok();
+                VERSION.write_json(&mut stdout)?;
+                println!();
             } else {
                 println!("rad-tui {} ({})", VERSION.version, VERSION.commit);
             }
@@ -182,7 +198,7 @@ fn run(command: Command) -> Result<(), Option<anyhow::Error>> {
     Ok(())
 }
 
-fn run_other(command: Option<&str>, args: &[OsString]) -> Result<(), Option<anyhow::Error>> {
+fn run_other(command: Option<&str>, args: &[OsString]) -> Result<(), Error> {
     match command {
         Some("issue") => {
             term::run_command_args::<tui_issue::Options, _>(
@@ -205,7 +221,7 @@ fn run_other(command: Option<&str>, args: &[OsString]) -> Result<(), Option<anyh
                 args.to_vec(),
             );
         }
-        command => term::run_rad(command, args),
+        command => term::run_rad(command, args).map_err(|err| err.into()),
     }
 }
 

@@ -1,36 +1,36 @@
 use std::ffi::OsString;
-use std::io::ErrorKind;
 use std::process;
 
-use anyhow::anyhow;
+use thiserror::Error;
 
 use radicle_cli::terminal;
 use radicle_cli::terminal::args;
 use radicle_cli::terminal::io;
 use radicle_cli::terminal::{Args, Command, DefaultContext, Error, Help};
 
-fn _run_rad(args: &[OsString]) -> Result<(), Option<anyhow::Error>> {
+#[derive(Error, Debug)]
+pub enum ForwardError {
+    #[error("an internal error occured while executing 'rad'")]
+    RadInternal,
+    #[error("an I/O error occured while trying to forward command to 'rad': {0}")]
+    Io(#[from] std::io::Error),
+}
+
+fn _run_rad(args: &[OsString]) -> Result<(), ForwardError> {
     let status = process::Command::new("rad").args(args).status();
 
     match status {
         Ok(status) => {
             if !status.success() {
-                return Err(None);
+                return Err(ForwardError::RadInternal);
             }
+            Ok(())
         }
-        Err(err) => {
-            if let ErrorKind::NotFound = err.kind() {
-                return Err(Some(anyhow!("'rad' was not found.",)));
-            } else {
-                return Err(Some(err.into()));
-            }
-        }
+        Err(err) => Err(err.into()),
     }
-
-    Ok(())
 }
 
-pub fn run_rad(command: Option<&str>, args: &[OsString]) -> Result<(), Option<anyhow::Error>> {
+pub fn run_rad(command: Option<&str>, args: &[OsString]) -> Result<(), ForwardError> {
     let args = if let Some(command) = command {
         [vec![command.into()], args.to_vec()].concat()
     } else {
