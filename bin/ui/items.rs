@@ -688,10 +688,7 @@ impl CommentItem {
 
 impl ToTree<String> for CommentItem {
     fn rows(&self) -> Vec<TreeItem<'_, String>> {
-        let mut children = vec![];
-        for comment in &self.replies {
-            children.extend(comment.rows());
-        }
+        let children = self.replies.iter().flat_map(CommentItem::rows).collect();
 
         let author = match &self.author.alias {
             Some(alias) => {
