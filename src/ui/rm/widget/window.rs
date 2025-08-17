@@ -217,9 +217,11 @@ impl ShortcutsProps {
 
     pub fn shortcuts(mut self, shortcuts: &[(&str, &str)]) -> Self {
         self.shortcuts.clear();
-        for (short, long) in shortcuts {
-            self.shortcuts.push((short.to_string(), long.to_string()));
-        }
+        self.shortcuts.extend(
+            shortcuts
+                .iter()
+                .map(|(s, l)| (s.to_string(), l.to_string())),
+        );
         self
     }
 
