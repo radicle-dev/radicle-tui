@@ -114,12 +114,13 @@ impl TryFrom<&Context> for State {
         let filter = PatchItemFilter::from_str(&context.filter.to_string()).unwrap_or_default();
 
         // Convert into UI items
-        let mut items = vec![];
-        for patch in patches {
-            if let Ok(item) = PatchItem::new(&context.profile, &context.repository, patch.clone()) {
-                items.push(item);
-            }
-        }
+        let mut items: Vec<_> = patches
+            .into_iter()
+            .flat_map(|patch| {
+                PatchItem::new(&context.profile, &context.repository, patch.clone()).ok()
+            })
+            .collect();
+
         items.sort_by(|a, b| b.timestamp.cmp(&a.timestamp));
 
         Ok(Self {
