@@ -174,8 +174,8 @@ fn print_help() -> anyhow::Result<()> {
 fn run(command: Command) -> Result<(), Error> {
     match command {
         Command::Version { json } => {
-            let mut stdout = io::stdout();
             if json {
+                let mut stdout = io::stdout();
                 VERSION.write_json(&mut stdout)?;
                 println!();
             } else {
