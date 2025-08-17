@@ -382,7 +382,7 @@ mod interface {
         rid: RepoId,
         patch_id: PatchId,
     ) -> anyhow::Result<()> {
-        let repo = profile.storage.repository(rid).unwrap();
+        let repo = profile.storage.repository(rid)?;
         let signer = terminal::signer(&profile)?;
 
         let patch = patch::find(&profile, &repo, &patch_id)?
