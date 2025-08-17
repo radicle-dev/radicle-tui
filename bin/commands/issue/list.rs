@@ -124,14 +124,7 @@ impl PreviewState {
             self.selected_comments
                 .get(&item.id)
                 .and_then(|selection| selection.last().copied())
-                .and_then(|comment_id| {
-                    item.comments
-                        .iter()
-                        .filter(|item| item.id == comment_id)
-                        .collect::<Vec<_>>()
-                        .first()
-                        .cloned()
-                })
+                .and_then(|comment_id| item.comments.iter().find(|item| item.id == comment_id))
         })
     }
 
