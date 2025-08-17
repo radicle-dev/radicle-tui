@@ -199,7 +199,7 @@ pub async fn run(options: Options, ctx: impl terminal::Context) -> anyhow::Resul
     match options.op {
         Operation::List { opts } => {
             let profile = ctx.profile()?;
-            let repository = profile.storage.repository(rid).unwrap();
+            let repository = profile.storage.repository(rid)?;
 
             if let Err(err) = crate::log::enable() {
                 println!("{err}");
