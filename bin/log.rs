@@ -21,7 +21,7 @@ pub fn enable() -> Result<(), anyhow::Error> {
             fs::create_dir_all(path.clone())?;
 
             simple_logging::log_to_file(
-                format!("{}/{}{}.log", path, PREFIX, now.as_millis()),
+                format!("{path}/{PREFIX}{}.log", now.as_millis()),
                 LevelFilter::Info,
             )?;
 
