@@ -288,7 +288,7 @@ pub async fn run(options: Options, ctx: impl terminal::Context) -> anyhow::Resul
                     let mut args = vec![operation.to_string()];
 
                     if let Some(id) = selection.ids.first() {
-                        args.push(format!("{id}"));
+                        args.push(id.to_string());
 
                         match operation.as_str() {
                             "review" => {
