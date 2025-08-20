@@ -64,7 +64,7 @@ pub fn labels(labels: &[Label]) -> String {
 
 pub fn author(did: &Did, alias: &Option<Alias>, is_you: bool) -> String {
     let author = match alias {
-        Some(alias) => format!("{alias}"),
+        Some(alias) => alias.to_string(),
         None => self::did(did),
     };
 

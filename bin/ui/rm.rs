@@ -184,13 +184,7 @@ impl<S, M> View for IssueDetails<S, M> {
 
         if let Some(issue) = props.issue.as_ref() {
             let author = match &issue.author.alias {
-                Some(alias) => {
-                    if issue.author.you {
-                        span::alias(&format!("{alias}"))
-                    } else {
-                        span::alias(alias)
-                    }
-                }
+                Some(alias) => span::alias(alias.as_ref()),
                 None => match &issue.author.human_nid {
                     Some(nid) => span::alias(nid).dim(),
                     None => span::blank(),
