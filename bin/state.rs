@@ -49,7 +49,7 @@ impl FileStore {
             Some(home) => format!("{}/{}", home.to_string_lossy(), PATH),
             _ => anyhow::bail!("Failed to read home directory"),
         };
-        let path = format!("{}/{}.json", folder, filename.to_string());
+        let path = format!("{folder}/{}.json", filename.to_string());
 
         fs::create_dir_all(folder.clone())?;
 
