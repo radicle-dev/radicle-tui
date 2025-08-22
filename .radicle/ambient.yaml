@@ -1,0 +1,7 @@
+pre_plan:
+  - action: cargo_fetch
+plan:
+  - action: cargo_fmt
+  - action: cargo_clippy
+  - action: cargo_build
+  - action: cargo_test
