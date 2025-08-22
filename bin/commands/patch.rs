@@ -55,14 +55,17 @@ Other options
 "#,
 };
 
+#[derive(Debug, PartialEq)]
 pub struct Options {
     op: Operation,
     repo: Option<RepoId>,
 }
 
+#[derive(Debug, PartialEq)]
 pub enum Operation {
     List { opts: ListOptions },
     Review { opts: ReviewOptions },
+    Unknown { args: Vec<OsString> },
     Other { args: Vec<OsString> },
 }
 
@@ -71,7 +74,7 @@ pub enum Operation {
 pub enum OperationName {
     List,
     Review,
-    Other,
+    Unknown,
 }
 
 #[derive(Debug, Default, Clone, PartialEq, Eq)]
@@ -197,7 +200,14 @@ impl Args for Options {
                 Value(val) if op == OperationName::List => match val.to_string_lossy().as_ref() {
                     "list" => op = OperationName::List,
                     "review" => op = OperationName::Review,
-                    _ => op = OperationName::Other,
+                    _ => {
+                        op = OperationName::Unknown;
+                        // Only enable forwarding if it was not already disabled explicitly
+                        forward = match forward {
+                            Some(false) => Some(false),
+                            _ => Some(true),
+                        };
+                    }
                 },
                 Value(val) if patch_id.is_none() => {
                     let val = string(&val);
@@ -237,6 +247,7 @@ impl Args for Options {
                 },
             },
             OperationName::List if !forward => Operation::List { opts: list_opts },
+            OperationName::Unknown if !forward => Operation::Unknown { args },
             _ => Operation::Other { args },
         };
 
@@ -312,6 +323,9 @@ pub async fn run(options: Options, ctx: impl terminal::Context) -> anyhow::Resul
         Operation::Other { args } => {
             let _ = crate::terminal::run_rad(Some("patch"), &args);
         }
+        Operation::Unknown { .. } => {
+            anyhow::bail!("unknown operation provided");
+        }
     }
 
     Ok(())
@@ -373,7 +387,6 @@ mod interface {
 
         let patch = patch::find(&profile, &repo, &patch_id)?
             .ok_or_else(|| anyhow!("Patch `{patch_id}` not found"))?;
-
         let (_, revision) = opts.revision_or_latest(&patch, &repo)?;
         let hunks = ReviewBuilder::new(&repo).hunks(revision)?;
 
@@ -485,175 +498,138 @@ mod interface {
 
 #[cfg(test)]
 mod cli {
-    use std::process::Command;
+    use radicle_cli::terminal::args::Error;
+    use radicle_cli::terminal::Args;
 
-    use assert_cmd::prelude::*;
-
-    use predicates::prelude::*;
-
-    mod assert {
-        use predicates::prelude::*;
-        use predicates::str::ContainsPredicate;
-
-        pub fn is_tui() -> ContainsPredicate {
-            predicate::str::contains("Inappropriate ioctl for device")
-        }
-
-        pub fn is_rad_manual() -> ContainsPredicate {
-            predicate::str::contains("RAD-PATCH(1)")
-        }
-
-        pub fn is_patch_help() -> ContainsPredicate {
-            predicate::str::contains("Terminal interfaces for patches")
-        }
-    }
+    use super::{ListOptions, Operation, Options};
 
     #[test]
-    #[ignore = "requires binary"]
-    fn empty_operation() -> Result<(), Box<dyn std::error::Error>> {
-        let mut cmd = Command::cargo_bin("rad-tui")?;
+    fn empty_operation_should_default_to_list_and_not_be_forwarded(
+    ) -> Result<(), Box<dyn std::error::Error>> {
+        let expected_op = Operation::List {
+            opts: ListOptions::default(),
+        };
 
-        cmd.arg("patch");
-        cmd.assert().failure().stdout(assert::is_tui());
+        let args = vec![];
+        let (actual, _) = Options::from_args(args)?;
+        assert_eq!(actual.op, expected_op);
 
         Ok(())
     }
 
     #[test]
-    #[ignore = "requires binary"]
-    fn empty_operation_is_not_forwarded() -> Result<(), Box<dyn std::error::Error>> {
-        let mut cmd = Command::cargo_bin("rad-tui")?;
+    fn empty_operation_with_help_should_be_forwarded() -> Result<(), Box<dyn std::error::Error>> {
+        let args = vec!["--help".into()];
+        let expected_op = Operation::Other { args: args.clone() };
 
-        cmd.arg("patch");
-        cmd.assert().failure().stdout(assert::is_tui());
-
-        Ok(())
-    }
-
-    #[test]
-    #[ignore = "requires binary"]
-    fn empty_operation_with_help_is_forwarded() -> Result<(), Box<dyn std::error::Error>> {
-        let mut cmd = Command::cargo_bin("rad-tui")?;
-
-        cmd.args(["patch", "--help"]);
-        cmd.assert().success().stdout(assert::is_rad_manual());
+        let (actual, _) = Options::from_args(args)?;
+        assert_eq!(actual.op, expected_op);
 
         Ok(())
     }
 
     #[test]
-    #[ignore = "requires binary"]
-    fn empty_operation_with_help_is_not_forwarded() -> Result<(), Box<dyn std::error::Error>> {
-        let mut cmd = Command::cargo_bin("rad-tui")?;
-
-        cmd.args(["patch", "--help", "--no-forward"]);
-        cmd.assert().success().stdout(assert::is_patch_help());
-
-        Ok(())
-    }
-
-    #[test]
-    #[ignore = "requires binary"]
-    fn empty_operation_is_not_forwarded_explicitly() -> Result<(), Box<dyn std::error::Error>> {
-        let mut cmd = Command::cargo_bin("rad-tui")?;
-
-        cmd.args(["patch", "--no-forward"]);
-        cmd.assert().failure().stdout(assert::is_tui());
-
-        Ok(())
-    }
-
-    #[test]
-    #[ignore = "requires binary"]
-    fn list_operation_is_not_forwarded() -> Result<(), Box<dyn std::error::Error>> {
-        let mut cmd = Command::cargo_bin("rad-tui")?;
-
-        cmd.args(["patch", "list"]);
-        cmd.assert().failure().stdout(assert::is_tui());
-
-        Ok(())
-    }
-
-    #[test]
-    #[ignore = "requires binary"]
-    fn list_operation_is_not_forwarded_explicitly() -> Result<(), Box<dyn std::error::Error>> {
-        let mut cmd = Command::cargo_bin("rad-tui")?;
-
-        cmd.args(["patch", "list", "--no-forward"]);
-        cmd.assert().failure().stdout(assert::is_tui());
-
-        Ok(())
-    }
-
-    #[test]
-    #[ignore = "requires binary"]
-    fn list_operation_with_help_is_forwarded() -> Result<(), Box<dyn std::error::Error>> {
-        let mut cmd = Command::cargo_bin("rad-tui")?;
-
-        cmd.args(["patch", "list", "--help"]);
-        cmd.assert().success().stdout(assert::is_rad_manual());
-
-        Ok(())
-    }
-
-    #[test]
-    #[ignore = "requires binary"]
-    fn list_operation_with_help_is_not_forwarded() -> Result<(), Box<dyn std::error::Error>> {
-        let mut cmd = Command::cargo_bin("rad-tui")?;
-
-        cmd.args(["patch", "list", "--help", "--no-forward"]);
-        cmd.assert().success().stdout(assert::is_patch_help());
-
-        Ok(())
-    }
-
-    #[test]
-    #[ignore = "requires binary"]
-    fn list_operation_with_help_is_not_forwarded_reversed() -> Result<(), Box<dyn std::error::Error>>
+    fn empty_operation_with_help_should_not_be_forwarded() -> Result<(), Box<dyn std::error::Error>>
     {
-        let mut cmd = Command::cargo_bin("rad-tui")?;
+        let args = vec!["--help".into(), "--no-forward".into()];
 
-        cmd.args(["patch", "list", "--no-forward", "--help"]);
-        cmd.assert().success().stdout(assert::is_patch_help());
-
-        Ok(())
-    }
-
-    #[test]
-    #[ignore = "requires binary"]
-    fn unknown_operation_show_is_forwarded() -> Result<(), Box<dyn std::error::Error>> {
-        let mut cmd = Command::cargo_bin("rad-tui")?;
-
-        cmd.args(["patch", "show"]);
-        cmd.assert().success().stdout(predicate::str::contains(
-            "Error: rad patch: a patch must be provided",
-        ));
+        let actual = Options::from_args(args).unwrap_err().downcast::<Error>()?;
+        assert!(matches!(actual, Error::Help));
 
         Ok(())
     }
 
     #[test]
-    #[ignore = "requires binary"]
-    fn unknown_operation_edit_is_forwarded() -> Result<(), Box<dyn std::error::Error>> {
-        let mut cmd = Command::cargo_bin("rad-tui")?;
+    fn empty_operation_should_not_be_forwarded() -> Result<(), Box<dyn std::error::Error>> {
+        let expected_op = Operation::List {
+            opts: ListOptions::default(),
+        };
 
-        cmd.args(["patch", "edit"]);
-        cmd.assert().success().stdout(predicate::str::contains(
-            "Error: rad patch: a patch must be provided",
-        ));
+        let args = vec!["--no-forward".into()];
+        let (actual, _) = Options::from_args(args)?;
+        assert_eq!(actual.op, expected_op);
 
         Ok(())
     }
 
     #[test]
-    #[ignore = "requires binary"]
-    fn unknown_operation_is_not_forwarded() -> Result<(), Box<dyn std::error::Error>> {
-        let mut cmd = Command::cargo_bin("rad-tui")?;
+    fn list_operation_should_not_be_forwarded() -> Result<(), Box<dyn std::error::Error>> {
+        let expected_op = Operation::List {
+            opts: ListOptions::default(),
+        };
 
-        cmd.args(["patch", "operation", "--no-forward"]);
-        cmd.assert().success().stdout(predicate::str::contains(
-            "Error: rad patch: unknown operation",
-        ));
+        let args = vec!["list".into()];
+        let (actual, _) = Options::from_args(args)?;
+        assert_eq!(actual.op, expected_op);
+
+        Ok(())
+    }
+
+    #[test]
+    fn list_operation_should_not_be_forwarded_explicitly() -> Result<(), Box<dyn std::error::Error>>
+    {
+        let expected_op = Operation::List {
+            opts: ListOptions::default(),
+        };
+
+        let args = vec!["list".into(), "--no-forward".into()];
+        let (actual, _) = Options::from_args(args)?;
+        assert_eq!(actual.op, expected_op);
+
+        Ok(())
+    }
+
+    #[test]
+    fn list_operation_with_help_should_be_forwarded() -> Result<(), Box<dyn std::error::Error>> {
+        let args = vec!["list".into(), "--help".into()];
+        let expected_op = Operation::Other { args: args.clone() };
+
+        let (actual, _) = Options::from_args(args)?;
+        assert_eq!(actual.op, expected_op);
+
+        Ok(())
+    }
+
+    #[test]
+    fn list_operation_with_help_should_not_be_forwarded() -> Result<(), Box<dyn std::error::Error>>
+    {
+        let args = vec!["list".into(), "--help".into(), "--no-forward".into()];
+        let actual = Options::from_args(args).unwrap_err().downcast::<Error>()?;
+
+        assert!(matches!(actual, Error::Help));
+
+        Ok(())
+    }
+
+    #[test]
+    fn list_operation_with_help_should_not_be_forwarded_reversed(
+    ) -> Result<(), Box<dyn std::error::Error>> {
+        let args = vec!["list".into(), "--no-forward".into(), "--help".into()];
+        let actual = Options::from_args(args).unwrap_err().downcast::<Error>()?;
+
+        assert!(matches!(actual, Error::Help));
+
+        Ok(())
+    }
+
+    #[test]
+    fn unknown_operation_should_be_forwarded() -> Result<(), Box<dyn std::error::Error>> {
+        let args = vec!["operation".into()];
+        let expected_op = Operation::Other { args: args.clone() };
+
+        let (actual, _) = Options::from_args(args)?;
+        assert_eq!(actual.op, expected_op);
+
+        Ok(())
+    }
+
+    #[test]
+    fn unknown_operation_should_not_be_forwarded() -> Result<(), Box<dyn std::error::Error>> {
+        let args = vec!["operation".into(), "--no-forward".into()];
+        let expected_op = Operation::Unknown { args: args.clone() };
+
+        let (actual, _) = Options::from_args(args)?;
+        assert_eq!(actual.op, expected_op);
 
         Ok(())
     }

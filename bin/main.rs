@@ -9,6 +9,7 @@ mod terminal;
 mod test;
 mod ui;
 
+use std::env::args_os;
 use std::ffi::OsString;
 use std::io;
 use std::{iter, process};
@@ -55,13 +56,13 @@ enum CommandName {
     Version,
 }
 
-#[derive(Debug)]
+#[derive(Default, Debug, PartialEq)]
 struct OtherOptions {
     args: Vec<OsString>,
     forward: bool,
 }
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 enum Command {
     Other { opts: OtherOptions },
     Help,
@@ -69,7 +70,9 @@ enum Command {
 }
 
 fn main() {
-    match parse_args().and_then(run) {
+    let args = args_os().collect::<Vec<_>>();
+
+    match parse_args(&args[1..]).and_then(run) {
         Ok(_) => process::exit(0),
         Err(err) => {
             match err {
@@ -83,10 +86,10 @@ fn main() {
     }
 }
 
-fn parse_args() -> anyhow::Result<Command, Error> {
+fn parse_args(args: &[OsString]) -> anyhow::Result<Command, Error> {
     use lexopt::prelude::*;
 
-    let mut parser = lexopt::Parser::from_env();
+    let mut parser = lexopt::Parser::from_args(args);
     let mut command = None;
     let mut forward = true;
     let mut json = false;
@@ -227,115 +230,97 @@ fn run_other(command: Option<&str>, args: &[OsString]) -> Result<(), Error> {
 
 #[cfg(test)]
 mod cli {
-    use assert_cmd::prelude::*;
-    use predicates::prelude::*;
-    use std::process::Command;
-
-    mod assert {
-        use predicates::prelude::*;
-        use predicates::str::ContainsPredicate;
-
-        pub fn is_rad_manual() -> ContainsPredicate {
-            predicate::str::contains("Radicle CLI Manual")
-        }
-
-        pub fn is_rad_help() -> ContainsPredicate {
-            predicate::str::contains("Radicle command line interface")
-        }
-
-        pub fn is_help() -> ContainsPredicate {
-            predicate::str::contains("Radicle terminal interfaces")
-        }
-    }
+    use crate::{parse_args, OtherOptions};
 
     #[test]
-    #[ignore = "requires binary"]
-    fn can_be_executed() -> Result<(), Box<dyn std::error::Error>> {
-        let mut cmd = Command::cargo_bin("rad-tui")?;
+    fn empty_command_should_be_forwarded() -> Result<(), Box<dyn std::error::Error>> {
+        let args = vec![];
+        let expected = super::Command::Other {
+            opts: OtherOptions {
+                args: args.clone(),
+                forward: true,
+            },
+        };
 
-        cmd.assert().success();
+        let actual = parse_args(&args)?;
+        assert_eq!(actual, expected);
 
         Ok(())
     }
 
     #[test]
-    #[ignore = "requires binary"]
-    fn empty_command_is_forwarded() -> Result<(), Box<dyn std::error::Error>> {
-        let mut cmd = Command::cargo_bin("rad-tui")?;
+    fn empty_command_should_not_be_forwarded() -> Result<(), Box<dyn std::error::Error>> {
+        let args = vec!["--no-forward".into()];
+        let expected = super::Command::Other {
+            opts: OtherOptions::default(),
+        };
 
-        cmd.assert().success().stdout(assert::is_rad_help());
-
-        Ok(())
-    }
-
-    #[test]
-    #[ignore = "requires binary"]
-    fn empty_command_is_not_forwarded() -> Result<(), Box<dyn std::error::Error>> {
-        let mut cmd = Command::cargo_bin("rad-tui")?;
-
-        cmd.arg("--no-forward");
-        cmd.assert().success().stdout(assert::is_help());
+        let actual = parse_args(&args)?;
+        assert_eq!(actual, expected);
 
         Ok(())
     }
 
     #[test]
-    #[ignore = "requires binary"]
-    fn version_command_is_forwarded() -> Result<(), Box<dyn std::error::Error>> {
-        let mut cmd = Command::cargo_bin("rad-tui")?;
+    fn version_command_should_be_forwarded() -> Result<(), Box<dyn std::error::Error>> {
+        let args = vec!["version".into()];
+        let expected = super::Command::Other {
+            opts: OtherOptions {
+                args: args.clone(),
+                forward: true,
+            },
+        };
 
-        cmd.arg("version");
-        cmd.assert()
-            .success()
-            .stdout(predicate::str::starts_with("rad "));
-
-        Ok(())
-    }
-
-    #[test]
-    #[ignore = "requires binary"]
-    fn version_command_is_not_forwarded() -> Result<(), Box<dyn std::error::Error>> {
-        let mut cmd = Command::cargo_bin("rad-tui")?;
-
-        cmd.arg("version").arg("--no-forward");
-        cmd.assert()
-            .success()
-            .stdout(predicate::str::starts_with("rad-tui "));
+        let actual = parse_args(&args)?;
+        assert_eq!(actual, expected);
 
         Ok(())
     }
 
     #[test]
-    #[ignore = "requires binary"]
-    fn version_command_prints_json() -> Result<(), Box<dyn std::error::Error>> {
-        let mut cmd = Command::cargo_bin("rad-tui")?;
+    fn version_command_should_not_be_forwarded() -> Result<(), Box<dyn std::error::Error>> {
+        let args = vec!["version".into(), "--no-forward".into()];
+        let expected = super::Command::Version { json: false };
 
-        cmd.arg("version").arg("--no-forward").arg("--json");
-        cmd.assert()
-            .success()
-            .stdout(predicate::str::contains("\"name\":\"rad-tui\""));
+        let actual = parse_args(&args)?;
+        assert_eq!(actual, expected);
 
         Ok(())
     }
 
     #[test]
-    #[ignore = "requires binary"]
-    fn help_command_is_forwarded() -> Result<(), Box<dyn std::error::Error>> {
-        let mut cmd = Command::cargo_bin("rad-tui")?;
+    fn version_command_should_print_json() -> Result<(), Box<dyn std::error::Error>> {
+        let args = vec!["version".into(), "--no-forward".into(), "--json".into()];
+        let expected = super::Command::Version { json: true };
 
-        cmd.arg("help");
-        cmd.assert().success().stdout(assert::is_rad_manual());
+        let actual = parse_args(&args)?;
+        assert_eq!(actual, expected);
 
         Ok(())
     }
 
     #[test]
-    #[ignore = "requires binary"]
-    fn help_command_is_not_forwarded() -> Result<(), Box<dyn std::error::Error>> {
-        let mut cmd = Command::cargo_bin("rad-tui")?;
+    fn help_command_should_be_forwarded() -> Result<(), Box<dyn std::error::Error>> {
+        let args = vec!["help".into()];
+        let expected = super::Command::Other {
+            opts: OtherOptions {
+                args: args.clone(),
+                forward: true,
+            },
+        };
 
-        cmd.arg("help").arg("--no-forward");
-        cmd.assert().success().stdout(assert::is_help());
+        let actual = parse_args(&args)?;
+        assert_eq!(actual, expected);
+
+        Ok(())
+    }
+
+    #[test]
+    fn help_command_should_not_be_forwarded() -> Result<(), Box<dyn std::error::Error>> {
+        let args = vec!["help".into(), "--no-forward".into()];
+
+        let actual = parse_args(&args)?;
+        assert!(matches!(actual, super::Command::Help));
 
         Ok(())
     }
