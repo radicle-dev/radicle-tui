@@ -1,0 +1,9 @@
+shell: |
+  cargo --version
+  rustc --version
+
+  cargo fmt --check
+  cargo clippy --all-targets -- --deny warnings
+  cargo build --all-targets
+  cargo doc --no-deps
+  cargo test --no-fail-fast
