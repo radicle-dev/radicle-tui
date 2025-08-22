@@ -41,19 +41,22 @@ Other options
 "#,
 };
 
+#[derive(Debug, PartialEq)]
 pub struct Options {
     op: Operation,
 }
 
+#[derive(Debug, PartialEq)]
 pub enum Operation {
     List { opts: ListOptions },
     Other { args: Vec<OsString> },
+    Unknown { args: Vec<OsString> },
 }
 
 #[derive(PartialEq, Eq)]
 pub enum OperationName {
     List,
-    Other,
+    Unknown,
 }
 
 #[derive(Debug, Default, Clone, PartialEq, Eq)]
@@ -133,7 +136,14 @@ impl Args for Options {
 
                 Value(val) if op == OperationName::List => match val.to_string_lossy().as_ref() {
                     "list" => op = OperationName::List,
-                    _ => op = OperationName::Other,
+                    _ => {
+                        op = OperationName::Unknown;
+                        // Only enable forwarding if it was not already disabled explicitly
+                        forward = match forward {
+                            Some(false) => Some(false),
+                            _ => Some(true),
+                        };
+                    }
                 },
                 _ => {
                     if op == OperationName::List {
@@ -169,6 +179,7 @@ impl Args for Options {
             OperationName::List if !forward => Operation::List {
                 opts: ListOptions { json, ..list_opts },
             },
+            OperationName::Unknown if !forward => Operation::Unknown { args },
             _ => Operation::Other { args },
         };
 
@@ -228,6 +239,9 @@ pub async fn run(options: Options, ctx: impl terminal::Context) -> anyhow::Resul
         Operation::Other { args } => {
             let _ = crate::terminal::run_rad(Some("inbox"), &args);
         }
+        Operation::Unknown { .. } => {
+            anyhow::bail!("unknown operation provided");
+        }
     }
 
     Ok(())
@@ -235,149 +249,138 @@ pub async fn run(options: Options, ctx: impl terminal::Context) -> anyhow::Resul
 
 #[cfg(test)]
 mod cli {
-    use std::process::Command;
+    use radicle_cli::terminal::args::Error;
+    use radicle_cli::terminal::Args;
 
-    use assert_cmd::prelude::*;
-
-    use predicates::prelude::*;
-
-    mod assert {
-        use predicates::prelude::*;
-        use predicates::str::ContainsPredicate;
-
-        pub fn is_tui() -> ContainsPredicate {
-            predicate::str::contains("Inappropriate ioctl for device")
-        }
-
-        pub fn is_rad_manual() -> ContainsPredicate {
-            predicate::str::contains("rad-inbox")
-        }
-
-        pub fn is_inbox_help() -> ContainsPredicate {
-            predicate::str::contains("Terminal interfaces for notifications")
-        }
-    }
+    use super::{ListOptions, Operation, Options};
 
     #[test]
-    #[ignore = "requires binary"]
-    fn empty_operation() -> Result<(), Box<dyn std::error::Error>> {
-        let mut cmd = Command::cargo_bin("rad-tui")?;
+    fn empty_operation_should_default_to_list_and_not_be_forwarded(
+    ) -> Result<(), Box<dyn std::error::Error>> {
+        let expected_op = Operation::List {
+            opts: ListOptions::default(),
+        };
 
-        cmd.arg("inbox");
-        cmd.assert().failure().stdout(assert::is_tui());
+        let args = vec![];
+        let (actual, _) = Options::from_args(args)?;
+        assert_eq!(actual.op, expected_op);
 
         Ok(())
     }
 
     #[test]
-    #[ignore]
-    fn empty_operation_is_not_forwarded() -> Result<(), Box<dyn std::error::Error>> {
-        let mut cmd = Command::cargo_bin("rad-tui")?;
+    fn empty_operation_with_help_should_be_forwarded() -> Result<(), Box<dyn std::error::Error>> {
+        let args = vec!["--help".into()];
+        let expected_op = Operation::Other { args: args.clone() };
 
-        cmd.arg("inbox");
-        cmd.assert().failure().stdout(assert::is_tui());
-
-        Ok(())
-    }
-
-    #[test]
-    #[ignore = "requires binary"]
-    fn empty_operation_with_help_is_forwarded() -> Result<(), Box<dyn std::error::Error>> {
-        let mut cmd = Command::cargo_bin("rad-tui")?;
-
-        cmd.args(["inbox", "--help"]);
-        cmd.assert().success().stdout(assert::is_rad_manual());
+        let (actual, _) = Options::from_args(args)?;
+        assert_eq!(actual.op, expected_op);
 
         Ok(())
     }
 
     #[test]
-    #[ignore = "requires binary"]
-    fn empty_operation_with_help_is_not_forwarded() -> Result<(), Box<dyn std::error::Error>> {
-        let mut cmd = Command::cargo_bin("rad-tui")?;
-
-        cmd.args(["inbox", "--help", "--no-forward"]);
-        cmd.assert().success().stdout(assert::is_inbox_help());
-
-        Ok(())
-    }
-
-    #[test]
-    #[ignore = "requires binary"]
-    fn empty_operation_is_not_forwarded_explicitly() -> Result<(), Box<dyn std::error::Error>> {
-        let mut cmd = Command::cargo_bin("rad-tui")?;
-
-        cmd.args(["inbox", "--no-forward"]);
-        cmd.assert().failure().stdout(assert::is_tui());
-
-        Ok(())
-    }
-
-    #[test]
-    #[ignore = "requires binary"]
-    fn list_operation_is_not_forwarded() -> Result<(), Box<dyn std::error::Error>> {
-        let mut cmd = Command::cargo_bin("rad-tui")?;
-
-        cmd.args(["inbox", "list"]);
-        cmd.assert().failure().stdout(assert::is_tui());
-
-        Ok(())
-    }
-
-    #[test]
-    #[ignore = "requires binary"]
-    fn list_operation_is_not_forwarded_explicitly() -> Result<(), Box<dyn std::error::Error>> {
-        let mut cmd = Command::cargo_bin("rad-tui")?;
-
-        cmd.args(["inbox", "list", "--no-forward"]);
-        cmd.assert().failure().stdout(assert::is_tui());
-
-        Ok(())
-    }
-
-    #[test]
-    #[ignore = "requires binary"]
-    fn list_operation_with_help_is_forwarded() -> Result<(), Box<dyn std::error::Error>> {
-        let mut cmd = Command::cargo_bin("rad-tui")?;
-
-        cmd.args(["inbox", "list", "--help"]);
-        cmd.assert().success().stdout(assert::is_rad_manual());
-
-        Ok(())
-    }
-
-    #[test]
-    #[ignore = "requires binary"]
-    fn list_operation_with_help_is_not_forwarded() -> Result<(), Box<dyn std::error::Error>> {
-        let mut cmd = Command::cargo_bin("rad-tui")?;
-
-        cmd.args(["inbox", "list", "--help", "--no-forward"]);
-        cmd.assert().success().stdout(assert::is_inbox_help());
-
-        Ok(())
-    }
-
-    #[test]
-    #[ignore = "requires binary"]
-    fn list_operation_with_help_is_not_forwarded_reversed() -> Result<(), Box<dyn std::error::Error>>
+    fn empty_operation_with_help_should_not_be_forwarded() -> Result<(), Box<dyn std::error::Error>>
     {
-        let mut cmd = Command::cargo_bin("rad-tui")?;
+        let args = vec!["--help".into(), "--no-forward".into()];
 
-        cmd.args(["inbox", "list", "--no-forward", "--help"]);
-        cmd.assert().success().stdout(assert::is_inbox_help());
+        let actual = Options::from_args(args).unwrap_err().downcast::<Error>()?;
+        assert!(matches!(actual, Error::Help));
 
         Ok(())
     }
 
     #[test]
-    #[ignore = "requires binary"]
-    fn unknown_operation_show_is_forwarded() -> Result<(), Box<dyn std::error::Error>> {
-        let mut cmd = Command::cargo_bin("rad-tui")?;
+    fn empty_operation_should_not_be_forwarded() -> Result<(), Box<dyn std::error::Error>> {
+        let expected_op = Operation::List {
+            opts: ListOptions::default(),
+        };
 
-        cmd.args(["inbox", "show"]);
-        cmd.assert()
-            .success()
-            .stdout(predicate::str::contains("a Notification ID must be given"));
+        let args = vec!["--no-forward".into()];
+        let (actual, _) = Options::from_args(args)?;
+        assert_eq!(actual.op, expected_op);
+
+        Ok(())
+    }
+
+    #[test]
+    fn list_operation_should_not_be_forwarded() -> Result<(), Box<dyn std::error::Error>> {
+        let expected_op = Operation::List {
+            opts: ListOptions::default(),
+        };
+
+        let args = vec!["list".into()];
+        let (actual, _) = Options::from_args(args)?;
+        assert_eq!(actual.op, expected_op);
+
+        Ok(())
+    }
+
+    #[test]
+    fn list_operation_should_not_be_forwarded_explicitly() -> Result<(), Box<dyn std::error::Error>>
+    {
+        let expected_op = Operation::List {
+            opts: ListOptions::default(),
+        };
+
+        let args = vec!["list".into(), "--no-forward".into()];
+        let (actual, _) = Options::from_args(args)?;
+        assert_eq!(actual.op, expected_op);
+
+        Ok(())
+    }
+
+    #[test]
+    fn list_operation_with_help_should_be_forwarded() -> Result<(), Box<dyn std::error::Error>> {
+        let args = vec!["list".into(), "--help".into()];
+        let expected_op = Operation::Other { args: args.clone() };
+
+        let (actual, _) = Options::from_args(args)?;
+        assert_eq!(actual.op, expected_op);
+
+        Ok(())
+    }
+
+    #[test]
+    fn list_operation_with_help_should_not_be_forwarded() -> Result<(), Box<dyn std::error::Error>>
+    {
+        let args = vec!["list".into(), "--help".into(), "--no-forward".into()];
+        let actual = Options::from_args(args).unwrap_err().downcast::<Error>()?;
+
+        assert!(matches!(actual, Error::Help));
+
+        Ok(())
+    }
+
+    #[test]
+    fn list_operation_with_help_should_not_be_forwarded_reversed(
+    ) -> Result<(), Box<dyn std::error::Error>> {
+        let args = vec!["list".into(), "--no-forward".into(), "--help".into()];
+        let actual = Options::from_args(args).unwrap_err().downcast::<Error>()?;
+
+        assert!(matches!(actual, Error::Help));
+
+        Ok(())
+    }
+
+    #[test]
+    fn unknown_operation_should_be_forwarded() -> Result<(), Box<dyn std::error::Error>> {
+        let args = vec!["operation".into()];
+        let expected_op = Operation::Other { args: args.clone() };
+
+        let (actual, _) = Options::from_args(args)?;
+        assert_eq!(actual.op, expected_op);
+
+        Ok(())
+    }
+
+    #[test]
+    fn unknown_operation_should_not_be_forwarded() -> Result<(), Box<dyn std::error::Error>> {
+        let args = vec!["operation".into(), "--no-forward".into()];
+        let expected_op = Operation::Unknown { args: args.clone() };
+
+        let (actual, _) = Options::from_args(args)?;
+        assert_eq!(actual.op, expected_op);
 
         Ok(())
     }
