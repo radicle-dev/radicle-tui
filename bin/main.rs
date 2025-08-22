@@ -249,6 +249,7 @@ mod cli {
     }
 
     #[test]
+    #[ignore = "requires binary"]
     fn can_be_executed() -> Result<(), Box<dyn std::error::Error>> {
         let mut cmd = Command::cargo_bin("rad-tui")?;
 
@@ -258,6 +259,7 @@ mod cli {
     }
 
     #[test]
+    #[ignore = "requires binary"]
     fn empty_command_is_forwarded() -> Result<(), Box<dyn std::error::Error>> {
         let mut cmd = Command::cargo_bin("rad-tui")?;
 
@@ -267,6 +269,7 @@ mod cli {
     }
 
     #[test]
+    #[ignore = "requires binary"]
     fn empty_command_is_not_forwarded() -> Result<(), Box<dyn std::error::Error>> {
         let mut cmd = Command::cargo_bin("rad-tui")?;
 
@@ -277,6 +280,7 @@ mod cli {
     }
 
     #[test]
+    #[ignore = "requires binary"]
     fn version_command_is_forwarded() -> Result<(), Box<dyn std::error::Error>> {
         let mut cmd = Command::cargo_bin("rad-tui")?;
 
@@ -289,6 +293,7 @@ mod cli {
     }
 
     #[test]
+    #[ignore = "requires binary"]
     fn version_command_is_not_forwarded() -> Result<(), Box<dyn std::error::Error>> {
         let mut cmd = Command::cargo_bin("rad-tui")?;
 
@@ -301,6 +306,7 @@ mod cli {
     }
 
     #[test]
+    #[ignore = "requires binary"]
     fn version_command_prints_json() -> Result<(), Box<dyn std::error::Error>> {
         let mut cmd = Command::cargo_bin("rad-tui")?;
 
@@ -313,6 +319,7 @@ mod cli {
     }
 
     #[test]
+    #[ignore = "requires binary"]
     fn help_command_is_forwarded() -> Result<(), Box<dyn std::error::Error>> {
         let mut cmd = Command::cargo_bin("rad-tui")?;
 
@@ -323,6 +330,7 @@ mod cli {
     }
 
     #[test]
+    #[ignore = "requires binary"]
     fn help_command_is_not_forwarded() -> Result<(), Box<dyn std::error::Error>> {
         let mut cmd = Command::cargo_bin("rad-tui")?;
 

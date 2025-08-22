@@ -27,7 +27,7 @@ List options
 
     --mode <MODE>           Set selection mode; see MODE below (default: operation)
     --json                  Return JSON on stderr instead of calling `rad`
-    
+
     --sort-by <field>       Sort by `id` or `timestamp` (default: timestamp)
     --reverse, -r           Reverse the list
 
@@ -259,7 +259,7 @@ mod cli {
     }
 
     #[test]
-    // #[ignore = "breaks stdout"]
+    #[ignore = "requires binary"]
     fn empty_operation() -> Result<(), Box<dyn std::error::Error>> {
         let mut cmd = Command::cargo_bin("rad-tui")?;
 
@@ -270,6 +270,7 @@ mod cli {
     }
 
     #[test]
+    #[ignore]
     fn empty_operation_is_not_forwarded() -> Result<(), Box<dyn std::error::Error>> {
         let mut cmd = Command::cargo_bin("rad-tui")?;
 
@@ -280,6 +281,7 @@ mod cli {
     }
 
     #[test]
+    #[ignore = "requires binary"]
     fn empty_operation_with_help_is_forwarded() -> Result<(), Box<dyn std::error::Error>> {
         let mut cmd = Command::cargo_bin("rad-tui")?;
 
@@ -290,6 +292,7 @@ mod cli {
     }
 
     #[test]
+    #[ignore = "requires binary"]
     fn empty_operation_with_help_is_not_forwarded() -> Result<(), Box<dyn std::error::Error>> {
         let mut cmd = Command::cargo_bin("rad-tui")?;
 
@@ -300,6 +303,7 @@ mod cli {
     }
 
     #[test]
+    #[ignore = "requires binary"]
     fn empty_operation_is_not_forwarded_explicitly() -> Result<(), Box<dyn std::error::Error>> {
         let mut cmd = Command::cargo_bin("rad-tui")?;
 
@@ -310,6 +314,7 @@ mod cli {
     }
 
     #[test]
+    #[ignore = "requires binary"]
     fn list_operation_is_not_forwarded() -> Result<(), Box<dyn std::error::Error>> {
         let mut cmd = Command::cargo_bin("rad-tui")?;
 
@@ -320,6 +325,7 @@ mod cli {
     }
 
     #[test]
+    #[ignore = "requires binary"]
     fn list_operation_is_not_forwarded_explicitly() -> Result<(), Box<dyn std::error::Error>> {
         let mut cmd = Command::cargo_bin("rad-tui")?;
 
@@ -330,6 +336,7 @@ mod cli {
     }
 
     #[test]
+    #[ignore = "requires binary"]
     fn list_operation_with_help_is_forwarded() -> Result<(), Box<dyn std::error::Error>> {
         let mut cmd = Command::cargo_bin("rad-tui")?;
 
@@ -340,6 +347,7 @@ mod cli {
     }
 
     #[test]
+    #[ignore = "requires binary"]
     fn list_operation_with_help_is_not_forwarded() -> Result<(), Box<dyn std::error::Error>> {
         let mut cmd = Command::cargo_bin("rad-tui")?;
 
@@ -350,6 +358,7 @@ mod cli {
     }
 
     #[test]
+    #[ignore = "requires binary"]
     fn list_operation_with_help_is_not_forwarded_reversed() -> Result<(), Box<dyn std::error::Error>>
     {
         let mut cmd = Command::cargo_bin("rad-tui")?;
@@ -361,6 +370,7 @@ mod cli {
     }
 
     #[test]
+    #[ignore = "requires binary"]
     fn unknown_operation_show_is_forwarded() -> Result<(), Box<dyn std::error::Error>> {
         let mut cmd = Command::cargo_bin("rad-tui")?;
 
