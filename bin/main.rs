@@ -39,13 +39,13 @@ pub const VERSION: Version = Version {
 
 #[derive(Error, Debug)]
 pub enum Error {
-    #[error("{0}")]
+    #[error(transparent)]
     Forward(#[from] term::ForwardError),
-    #[error("{0}")]
+    #[error(transparent)]
     Args(#[from] lexopt::Error),
-    #[error("{0}")]
+    #[error(transparent)]
     Json(#[from] serde_json::Error),
-    #[error("{0}")]
+    #[error(transparent)]
     Other(#[from] anyhow::Error),
 }
 
