@@ -75,7 +75,7 @@ pub fn author(did: &Did, alias: &Option<Alias>, is_you: bool) -> String {
     };
 
     if is_you {
-        format!("{} (you)", author)
+        format!("{author} (you)")
     } else {
         author
     }

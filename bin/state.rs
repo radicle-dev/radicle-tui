@@ -82,8 +82,8 @@ pub struct FileIdentifier {
 impl FileIdentifier {
     pub fn new(command: &str, operation: &str, rid: &RepoId, id: Option<&ObjectId>) -> Self {
         let id = match id {
-            Some(id) => format!("{}-{}-{}-{}", command, operation, rid, id),
-            _ => format!("{}-{}-{}", command, operation, rid),
+            Some(id) => format!("{command}-{operation}-{rid}-{id}"),
+            _ => format!("{command}-{operation}-{rid}"),
         };
         let id = format!("{:x}", md5::compute(id));
 

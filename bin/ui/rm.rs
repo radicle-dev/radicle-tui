@@ -186,7 +186,7 @@ impl<S, M> View for IssueDetails<S, M> {
             let author = match &issue.author.alias {
                 Some(alias) => {
                     if issue.author.you {
-                        span::alias(&format!("{}", alias))
+                        span::alias(&format!("{alias}"))
                     } else {
                         span::alias(alias)
                     }

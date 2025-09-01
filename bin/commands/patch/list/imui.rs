@@ -498,7 +498,7 @@ fn browser_context<'a>(ui: &im::Ui<Message>, app: &'a App) -> Vec<Column<'a>> {
             ),
             Column::new(Span::raw("".to_string()), Constraint::Length(1)),
             Column::new(
-                Span::raw(format!(" {} ", search))
+                Span::raw(format!(" {search} "))
                     .into_left_aligned_line()
                     .cyan()
                     .dim()

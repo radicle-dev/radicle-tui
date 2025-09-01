@@ -47,7 +47,7 @@ impl Filter {
 impl fmt::Display for Filter {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         if let Some(state) = &self.state {
-            write!(f, "is:{}", state)?;
+            write!(f, "is:{state}")?;
             f.write_char(' ')?;
         }
         if self.assigned {

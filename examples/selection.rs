@@ -134,7 +134,7 @@ pub async fn main() -> Result<()> {
         items: (0..200)
             .map(|id| Item {
                 id,
-                title: format!("Title of item #{}", id),
+                title: format!("Title of item #{id}"),
                 timestamp: SystemTime::now()
                     .duration_since(UNIX_EPOCH)
                     .expect("Could not read system time")

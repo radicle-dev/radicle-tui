@@ -171,7 +171,7 @@ fn another_function() {
             if idx == lines.len() - 1 {
                 actual.push_str(line);
             } else {
-                actual.push_str(&format!("{}\n", line));
+                actual.push_str(&format!("{line}\n"));
             }
         }
 

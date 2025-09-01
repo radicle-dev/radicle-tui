@@ -263,7 +263,7 @@ pub async fn run(options: Options, ctx: impl terminal::Context) -> anyhow::Resul
         .map_err(|_| anyhow!("this command must be run in the context of a project"))?;
 
     if let Err(err) = crate::log::enable() {
-        println!("{}", err);
+        println!("{err}");
     }
 
     match options.op {

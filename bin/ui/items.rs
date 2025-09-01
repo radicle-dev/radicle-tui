@@ -305,7 +305,7 @@ impl ToRow<9> for NotificationItem {
         let author = match &self.author.alias {
             Some(alias) => {
                 if self.author.you {
-                    span::alias(&format!("{} (you)", alias))
+                    span::alias(&format!("{alias} (you)"))
                 } else {
                     span::alias(alias)
                 }
@@ -390,13 +390,11 @@ impl Filter<NotificationItem> for NotificationItemFilter {
             None => true,
         };
 
-        let matches_authors = (!self.authors.is_empty())
-            .then(|| {
+        let matches_authors = if !self.authors.is_empty() { {
                 self.authors
                     .iter()
                     .any(|other| notif.author.nid == Some(**other))
-            })
-            .unwrap_or(true);
+            } } else { true };
 
         let matches_search = match &self.search {
             Some(search) => {
@@ -540,7 +538,7 @@ impl ToRow<8> for IssueItem {
         let author = match &self.author.alias {
             Some(alias) => {
                 if self.author.you {
-                    span::alias(&format!("{} (you)", alias))
+                    span::alias(&format!("{alias} (you)"))
                 } else {
                     span::alias(alias)
                 }
@@ -613,21 +611,16 @@ impl Filter<IssueItem> for IssueItemFilter {
             true
         };
 
-        let matches_authors = (!self.authors.is_empty())
-            .then(|| {
+        let matches_authors = if !self.authors.is_empty() { {
                 self.authors
                     .iter()
                     .any(|other| issue.author.nid == Some(**other))
-            })
-            .unwrap_or(true);
+            } } else { true };
 
-        let matches_assigned = self
-            .assigned
-            .then(|| issue.assignees.iter().any(|assignee| assignee.you))
-            .unwrap_or(true);
+        let matches_assigned = if self
+            .assigned { issue.assignees.iter().any(|assignee| assignee.you) } else { true };
 
-        let matches_assignees = (!self.assignees.is_empty())
-            .then(|| {
+        let matches_assignees = if !self.assignees.is_empty() { {
                 self.assignees.iter().any(|other| {
                     issue
                         .assignees
@@ -636,8 +629,7 @@ impl Filter<IssueItem> for IssueItemFilter {
                         .collect::<Vec<_>>()
                         .contains(other)
                 })
-            })
-            .unwrap_or(true);
+            } } else { true };
 
         let matches_search = match &self.search {
             Some(search) => match matcher.fuzzy_match(&issue.title, search) {
@@ -787,7 +779,7 @@ impl ToRow<9> for PatchItem {
         let author = match &self.author.alias {
             Some(alias) => {
                 if self.author.you {
-                    span::alias(&format!("{} (you)", alias))
+                    span::alias(&format!("{alias} (you)"))
                 } else {
                     span::alias(alias)
                 }
@@ -860,13 +852,11 @@ impl Filter<PatchItem> for PatchItemFilter {
             true
         };
 
-        let matches_authors = (!self.authors.is_empty())
-            .then(|| {
+        let matches_authors = if !self.authors.is_empty() { {
                 self.authors
                     .iter()
                     .any(|other| patch.author.nid == Some(**other))
-            })
-            .unwrap_or(true);
+            } } else { true };
 
         let matches_search = match &self.search {
             Some(search) => match matcher.fuzzy_match(&patch.title, search) {
@@ -1008,7 +998,7 @@ impl ToTree<String> for CommentItem {
         let author = match &self.author.alias {
             Some(alias) => {
                 if self.author.you {
-                    span::alias(&format!("{} (you)", alias))
+                    span::alias(&format!("{alias} (you)"))
                 } else {
                     span::alias(alias)
                 }
@@ -1320,7 +1310,7 @@ impl ToRow<3> for StatefulHunkItem<'_> {
             };
 
             if added > 0 {
-                cell.push(span::default(&format!("+{}", added)).light_green().dim());
+                cell.push(span::default(&format!("+{added}")).light_green().dim());
             }
 
             if added > 0 && deleted > 0 {
@@ -1328,7 +1318,7 @@ impl ToRow<3> for StatefulHunkItem<'_> {
             }
 
             if deleted > 0 {
-                cell.push(span::default(&format!("-{}", deleted)).light_red().dim());
+                cell.push(span::default(&format!("-{deleted}")).light_red().dim());
             }
 
             cell
@@ -1474,7 +1464,7 @@ impl<'a> HunkItem<'a> {
             if count == 1 {
                 span::default(" 1 comment ").dim().reversed()
             } else {
-                span::default(&format!(" {} comments ", count))
+                span::default(&format!(" {count} comments "))
                     .dim()
                     .reversed()
             }

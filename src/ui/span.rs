@@ -59,23 +59,23 @@ pub fn notification_type(content: &str) -> Span<'static> {
 pub fn step(step: usize, len: usize, fill_zeros: bool) -> Span<'static> {
     if fill_zeros {
         if len > 10 {
-            badge(&format!("{:-02}/{:-02}", step, len))
+            badge(&format!("{step:-02}/{len:-02}"))
         } else if len > 100 {
-            badge(&format!("{:-03}/{:-03}", step, len))
+            badge(&format!("{step:-03}/{len:-03}"))
         } else if len > 1000 {
-            badge(&format!("{:-04}/{:-04}", step, len))
+            badge(&format!("{step:-04}/{len:-04}"))
         } else if len > 10000 {
-            badge(&format!("{:-05}/{:-05}", step, len))
+            badge(&format!("{step:-05}/{len:-05}"))
         } else {
-            badge(&format!("{}/{}", step, len))
+            badge(&format!("{step}/{len}"))
         }
     } else {
-        badge(&format!("{}/{}", step, len))
+        badge(&format!("{step}/{len}"))
     }
 }
 
 pub fn progress(step: usize, len: usize) -> Span<'static> {
     let progress = step as f32 / len as f32 * 100_f32;
     let progress = progress as usize;
-    default(&format!("{}%", progress)).dim()
+    default(&format!("{progress}%")).dim()
 }

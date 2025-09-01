@@ -200,7 +200,7 @@ pub async fn run(options: Options, ctx: impl terminal::Context) -> anyhow::Resul
             let repository = profile.storage.repository(rid).unwrap();
 
             if let Err(err) = crate::log::enable() {
-                println!("{}", err);
+                println!("{err}");
             }
             log::info!("Starting inbox listing interface in project {}..", rid);
 

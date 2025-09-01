@@ -549,9 +549,9 @@ fn comment(channel: &Channel<Message>) -> Widget<State, Message> {
                                 String::new(),
                                 |all, (r, acc)| {
                                     if *acc > 1_usize {
-                                        [all, format!("{}{} ", r, acc)].concat()
+                                        [all, format!("{r}{acc} ")].concat()
                                     } else {
-                                        [all, format!("{} ", r)].concat()
+                                        [all, format!("{r} ")].concat()
                                     }
                                 },
                             );

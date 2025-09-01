@@ -525,7 +525,7 @@ impl<S, M> View for TextArea<'_, S, M> {
 
         if props.show_scroll_progress {
             progress_info.push(Span::styled(
-                format!("{}%", scroll_progress),
+                format!("{scroll_progress}%"),
                 Style::default().dim(),
             ))
         }
@@ -784,7 +784,7 @@ impl<S, M> TextView<S, M> {
             );
             if (content_height as usize) < content_len {
                 // vec![Span::styled(format!("All / {}", content_len), scroll_style)]
-                scroll = vec![Span::styled(format!("{}%", scroll_progress), scroll_style)];
+                scroll = vec![Span::styled(format!("{scroll_progress}%"), scroll_style)];
             }
         }
 
