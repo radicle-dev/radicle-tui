@@ -390,11 +390,15 @@ impl Filter<NotificationItem> for NotificationItemFilter {
             None => true,
         };
 
-        let matches_authors = if !self.authors.is_empty() { {
+        let matches_authors = if !self.authors.is_empty() {
+            {
                 self.authors
                     .iter()
                     .any(|other| notif.author.nid == Some(**other))
-            } } else { true };
+            }
+        } else {
+            true
+        };
 
         let matches_search = match &self.search {
             Some(search) => {
@@ -611,16 +615,24 @@ impl Filter<IssueItem> for IssueItemFilter {
             true
         };
 
-        let matches_authors = if !self.authors.is_empty() { {
+        let matches_authors = if !self.authors.is_empty() {
+            {
                 self.authors
                     .iter()
                     .any(|other| issue.author.nid == Some(**other))
-            } } else { true };
+            }
+        } else {
+            true
+        };
 
-        let matches_assigned = if self
-            .assigned { issue.assignees.iter().any(|assignee| assignee.you) } else { true };
+        let matches_assigned = if self.assigned {
+            issue.assignees.iter().any(|assignee| assignee.you)
+        } else {
+            true
+        };
 
-        let matches_assignees = if !self.assignees.is_empty() { {
+        let matches_assignees = if !self.assignees.is_empty() {
+            {
                 self.assignees.iter().any(|other| {
                     issue
                         .assignees
@@ -629,7 +641,10 @@ impl Filter<IssueItem> for IssueItemFilter {
                         .collect::<Vec<_>>()
                         .contains(other)
                 })
-            } } else { true };
+            }
+        } else {
+            true
+        };
 
         let matches_search = match &self.search {
             Some(search) => match matcher.fuzzy_match(&issue.title, search) {
@@ -852,11 +867,15 @@ impl Filter<PatchItem> for PatchItemFilter {
             true
         };
 
-        let matches_authors = if !self.authors.is_empty() { {
+        let matches_authors = if !self.authors.is_empty() {
+            {
                 self.authors
                     .iter()
                     .any(|other| patch.author.nid == Some(**other))
-            } } else { true };
+            }
+        } else {
+            true
+        };
 
         let matches_search = match &self.search {
             Some(search) => match matcher.fuzzy_match(&patch.title, search) {
