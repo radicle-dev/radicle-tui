@@ -68,7 +68,7 @@ impl Frontend {
                 _ = ticker.tick() => (),
                 // Handle input events
                 Some(event) = events_rx.recv() => {
-                    log::info!("Received event: {:?}", event);
+                    log::info!("Received event: {event:?}");
                     match event {
                         Event::Key(key) => ctx.store_input(key),
                         Event::Resize => (),
@@ -80,7 +80,7 @@ impl Frontend {
                 },
                 // Catch and handle interrupt signal to gracefully shutdown
                 Ok(interrupted) = interrupt_rx.recv() => {
-                    log::info!("Received interrupt: {:?}", interrupted);
+                    log::info!("Received interrupt: {interrupted:?}");
                     terminal.restore()?;
 
                     break Ok(interrupted);
@@ -90,7 +90,7 @@ impl Frontend {
                 let ctx = ctx.clone().with_frame_size(frame.area());
 
                 if let Err(err) = state.show(&ctx, frame) {
-                    log::warn!("Drawing failed: {}", err);
+                    log::warn!("Drawing failed: {err}");
                 }
             })?;
 

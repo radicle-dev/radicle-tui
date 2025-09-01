@@ -143,7 +143,7 @@ impl store::Update<Message> for App {
     type Return = Selection;
 
     fn update(&mut self, message: Message) -> Option<tui::Exit<Selection>> {
-        log::debug!("[State] Received message: {:?}", message);
+        log::debug!("[State] Received message: {message:?}");
 
         match message {
             Message::Quit => Some(Exit { value: None }),

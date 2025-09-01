@@ -279,7 +279,7 @@ pub async fn run(options: Options, ctx: impl terminal::Context) -> anyhow::Resul
                     .map(|o| serde_json::to_string(&o).unwrap_or_default())
                     .unwrap_or_default();
 
-                log::info!("About to print to `stderr`: {}", selection);
+                log::info!("About to print to `stderr`: {selection}");
                 log::info!("Exiting patch list interface..");
 
                 eprint!("{selection}");
@@ -364,7 +364,7 @@ mod interface {
     ) -> anyhow::Result<Option<Selection<ObjectId>>> {
         let repository = profile.storage.repository(rid).unwrap();
 
-        log::info!("Starting patch selection interface in project {}..", rid);
+        log::info!("Starting patch selection interface in project {rid}..");
 
         let context = list::Context {
             profile,
@@ -449,7 +449,7 @@ mod interface {
             .run()
             .await?;
 
-            log::debug!("Received response from TUI: {:?}", response);
+            log::debug!("Received response from TUI: {response:?}");
 
             if let Some(response) = response.as_ref() {
                 if let Some(ReviewAction::Comment) = response.action {

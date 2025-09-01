@@ -202,7 +202,7 @@ pub async fn run(options: Options, ctx: impl terminal::Context) -> anyhow::Resul
             if let Err(err) = crate::log::enable() {
                 println!("{err}");
             }
-            log::info!("Starting inbox listing interface in project {}..", rid);
+            log::info!("Starting inbox listing interface in project {rid}..");
 
             let context = list::Context {
                 profile,
@@ -218,7 +218,7 @@ pub async fn run(options: Options, ctx: impl terminal::Context) -> anyhow::Resul
                     .map(|o| serde_json::to_string(&o).unwrap_or_default())
                     .unwrap_or_default();
 
-                log::info!("About to print to `stderr`: {}", selection);
+                log::info!("About to print to `stderr`: {selection}");
                 log::info!("Exiting inbox listing interface..");
 
                 eprint!("{selection}");
