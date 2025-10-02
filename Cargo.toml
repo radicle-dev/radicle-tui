@@ -63,3 +63,13 @@ radicle-git-ext = { version = "0.8.1", features = ["serde"] }
 version = "0.19"
 default-features = false
 features = ["vendored-libgit2"]
+
+[package.metadata.deb]
+# Install `cargo-deb` and run `cargo deb` to create a package in `target/debian/`
+maintainer = "Erik Kundt <erik@zirkular.io>"
+copyright = "Copyright 2025 Erik Kundt"
+license-file = "LICENSE-MIT"
+section = "vcs"
+priority = "optional"
+extended-description = "Radicle RCS terminal user interface"
+default-features = true
