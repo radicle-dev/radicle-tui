@@ -123,6 +123,7 @@ pub mod fixtures {
     use anyhow::Result;
 
     use radicle::cob::cache::NoCache;
+    use radicle::cob::Title;
     use radicle::crypto;
     use radicle::crypto::Verified;
     use radicle::git;
@@ -221,7 +222,7 @@ fn main() {
         patches: &'a mut Cache<Patches<'a, Repository>, NoCache>,
     ) -> Result<PatchMut<'a, 'g, Repository, NoCache>> {
         let patch = patches.create(
-            "My first patch",
+            Title::new("My first patch")?,
             "Blah blah blah.",
             MergeTarget::Delegates,
             branch.base,

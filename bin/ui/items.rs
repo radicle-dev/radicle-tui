@@ -12,7 +12,7 @@ use nom::{IResult, Parser};
 use ansi_to_tui::IntoText;
 
 use radicle::cob::thread::{Comment, CommentId};
-use radicle::cob::{CodeLocation, CodeRange, EntryId, Label, ObjectId, Timestamp, TypedId};
+use radicle::cob::{CodeLocation, CodeRange, EntryId, Label, ObjectId, Timestamp, Title, TypedId};
 use radicle::git::Oid;
 use radicle::identity::{Did, Identity};
 use radicle::issue;
@@ -150,8 +150,8 @@ impl NotificationKindItem {
                         return Ok(None);
                     };
                     (
-                        String::from("issue"),
-                        issue.title().to_owned(),
+                        "issue".to_string(),
+                        Title::new(issue.title())?,
                         issue.state().to_string(),
                     )
                 } else if typed_id.is_patch() {
@@ -160,8 +160,8 @@ impl NotificationKindItem {
                         return Ok(None);
                     };
                     (
-                        String::from("patch"),
-                        patch.title().to_owned(),
+                        "patch".to_string(),
+                        Title::new(patch.title())?,
                         patch.state().to_string(),
                     )
                 } else if typed_id.is_identity() {
@@ -185,7 +185,11 @@ impl NotificationKindItem {
                     };
                     (String::from("id"), rev.title.clone(), rev.state.to_string())
                 } else {
-                    (typed_id.type_name.to_string(), "".to_owned(), String::new())
+                    (
+                        typed_id.type_name.to_string(),
+                        Title::new("")?,
+                        "".to_string(),
+                    )
                 };
 
                 Ok(Some(NotificationKindItem::Cob {

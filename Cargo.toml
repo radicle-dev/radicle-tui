@@ -35,9 +35,9 @@ lazy_static = { version = "1.5.0" }
 libc = { version = "^0.2" }
 log = { version = "0.4.19" }
 nom = { version = "^7.0.0" }
-radicle = { version = "0.18.0" }
-radicle-term = { version = "0.14.0" }
-radicle-cli = { version = "0.15.0" }
+radicle = { version = "0.20.0" }
+radicle-term = { version = "0.16.0" }
+radicle-cli = { version = "0.17.0" }
 radicle-surf = { version = "0.22.0" }
 radicle-signals = { version = "0.11.0" }
 ratatui = { version = "0.29.0", default-features = false, features = [
@@ -64,7 +64,7 @@ tui-tree-widget = { version = "0.23.0" }
 
 [dev-dependencies]
 pretty_assertions = "^1.4.1"
-radicle = { version = "0.18.0", features = ["test"] }
+radicle = { version = "0.20.0", features = ["test"] }
 radicle-git-ext = { version = "0.8.1", features = ["serde"] }
 
 
