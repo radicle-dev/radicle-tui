@@ -1,0 +1,16 @@
+#!/bin/sh
+set -e
+
+main() {
+  export PACKAGE_NAME="radicle-tui"
+  export BINARY_NAME="rad-tui"
+  export CONFIG_PATH="build/config.toml"
+  export TARGETS_PATH="build/TARGETS"
+  export OUTDIR="build/artifacts"
+  export VERSION_CMD_ARGS="--no-forward"
+
+  build/radicle-build/build
+}
+
+# Run build.
+main "$@"

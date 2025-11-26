@@ -1,0 +1,2 @@
+#!/bin/sh
+find "$OUTDIR" -type f -name '*.sha256' -exec cat {} +
