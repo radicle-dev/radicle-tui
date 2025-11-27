@@ -85,7 +85,7 @@ impl From<&State> for BrowserProps<'_> {
         Self {
             mode: context.mode.clone(),
             header,
-            notifications: notifications,
+            notifications,
             selected: state.browser.selected,
             stats,
             columns: [

@@ -19,7 +19,6 @@ use ratatui::{Frame, Viewport};
 
 use crate::event::Event;
 use crate::store::Update;
-use crate::terminal;
 use crate::terminal::Terminal;
 use crate::ui::theme::Theme;
 use crate::ui::{Column, ToRow};
@@ -46,6 +45,7 @@ impl Frontend {
         self,
         message_tx: broadcast::Sender<M>,
         mut state_rx: UnboundedReceiver<S>,
+        mut event_rx: UnboundedReceiver<Event>,
         mut interrupt_rx: broadcast::Receiver<Interrupted<R>>,
         viewport: Viewport,
     ) -> anyhow::Result<Interrupted<R>>
@@ -55,9 +55,7 @@ impl Frontend {
         R: Clone + Send + Sync + Debug,
     {
         let mut ticker = tokio::time::interval(RENDERING_TICK_RATE);
-
         let mut terminal = Terminal::try_from(viewport)?;
-        let mut events_rx = terminal::events();
 
         let mut state = state_rx.recv().await.unwrap();
         let mut ctx = Context::default().with_sender(message_tx);
@@ -67,8 +65,7 @@ impl Frontend {
                 // Tick to terminate the select every N milliseconds
                 _ = ticker.tick() => (),
                 // Handle input events
-                Some(event) = events_rx.recv() => {
-                    log::info!("Received event: {event:?}");
+                Some(event) = event_rx.recv() => {
                     match event {
                         Event::Key(key) => ctx.store_input(key),
                         Event::Resize => (),

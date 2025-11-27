@@ -24,6 +24,7 @@ required-features = ["bin"]
 [dependencies]
 ansi-to-tui = { version = "7.0.0" }
 anyhow = { version = "1" }
+async-stdin = { version = "0.3.1" }
 inquire = { version = "0.7.4", default-features = false, features = [
     "termion",
     "editor",
@@ -56,6 +57,7 @@ terminal-light = { version = "1.4.0" }
 textwrap = { version = "0.16.0" }
 thiserror = { version = "2.0.16" }
 tokio = { version = "1.32.0", features = ["full"] }
+tokio-util = { version = "0.7.17" }
 tokio-stream = { version = "0.1.14" }
 tui-textarea = { version = "0.7.0", default-features = false, features = [
     "termion",

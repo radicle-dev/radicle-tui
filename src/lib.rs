@@ -9,17 +9,17 @@ use std::fmt::Debug;
 
 use anyhow::Result;
 
+use serde::ser::{Serialize, SerializeStruct, Serializer};
+
 #[cfg(unix)]
 use tokio::signal::unix::signal;
-
 use tokio::sync::broadcast;
 use tokio::sync::mpsc::unbounded_channel;
-
-use serde::ser::{Serialize, SerializeStruct, Serializer};
 
 use ratatui::Viewport;
 
 use store::Update;
+use terminal::StdinReader;
 use ui::im;
 use ui::im::Show;
 use ui::rm;
@@ -183,42 +183,36 @@ where
 {
     let (terminator, mut interrupt_rx) = create_termination();
     let (state_tx, state_rx) = unbounded_channel();
+    let (event_tx, event_rx) = unbounded_channel();
     let (work_tx, work_rx) = unbounded_channel();
 
     let store = store::Store::<S, M, R>::new(state_tx.clone());
     let worker = task::Worker::<T, M, R>::new(work_tx.clone());
     let frontend = rm::Frontend::default();
+    let stdin_reader = StdinReader::default();
 
-    let worker_interrupt_rx = interrupt_rx.resubscribe();
-    let store_interrupt_rx = interrupt_rx.resubscribe();
-    let frontend_interrupt_rx = interrupt_rx.resubscribe();
-
-    let worker_message_rx = channel.rx.resubscribe();
-    let store_message_rx = channel.rx.resubscribe();
-
-    // TODO(erikli): Handle errors properly
+    // TODO(erikli): Handle errors
     let _ = tokio::try_join!(
-        tokio::spawn(async move {
-            worker
-                .run(processors, worker_message_rx, worker_interrupt_rx)
-                .await
-        }),
-        tokio::spawn(async move {
-            store
-                .run(
-                    state,
-                    terminator,
-                    store_message_rx,
-                    work_rx,
-                    store_interrupt_rx,
-                )
-                .await
-        }),
-        tokio::spawn(async move {
-            frontend
-                .run(root, state_rx, frontend_interrupt_rx, viewport)
-                .await
-        }),
+        worker.run(
+            processors,
+            channel.rx.resubscribe(),
+            interrupt_rx.resubscribe()
+        ),
+        store.run(
+            state,
+            terminator,
+            channel.rx.resubscribe(),
+            work_rx,
+            interrupt_rx.resubscribe(),
+        ),
+        frontend.run(
+            root,
+            state_rx,
+            event_rx,
+            interrupt_rx.resubscribe(),
+            viewport
+        ),
+        stdin_reader.run(event_tx, interrupt_rx.resubscribe()),
     )?;
 
     if let Ok(reason) = interrupt_rx.recv().await {
@@ -250,13 +244,16 @@ where
 {
     let (terminator, mut interrupt_rx) = create_termination();
     let (state_tx, state_rx) = unbounded_channel();
+    let (event_tx, event_rx) = unbounded_channel();
     let (work_tx, work_rx) = unbounded_channel();
 
     let store = store::Store::<S, M, R>::new(state_tx.clone());
     let worker = task::Worker::<T, M, R>::new(work_tx.clone());
     let frontend = im::Frontend::default();
+    let stdin_reader = StdinReader::default();
 
-    tokio::try_join!(
+    // TODO(erikli): Handle errors
+    let _ = tokio::try_join!(
         worker.run(
             processors,
             channel.rx.resubscribe(),
@@ -267,9 +264,16 @@ where
             terminator,
             channel.rx.resubscribe(),
             work_rx,
-            interrupt_rx.resubscribe()
+            interrupt_rx.resubscribe(),
         ),
-        frontend.run(channel.tx, state_rx, interrupt_rx.resubscribe(), viewport),
+        frontend.run(
+            channel.tx,
+            state_rx,
+            event_rx,
+            interrupt_rx.resubscribe(),
+            viewport
+        ),
+        stdin_reader.run(event_tx, interrupt_rx.resubscribe()),
     )?;
 
     if let Ok(reason) = interrupt_rx.recv().await {

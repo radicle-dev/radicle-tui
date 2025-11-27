@@ -9,7 +9,6 @@ use tokio::sync::mpsc::UnboundedReceiver;
 
 use crate::event::Event;
 use crate::store::Update;
-use crate::terminal;
 use crate::terminal::Terminal;
 use crate::ui::rm::widget::RenderProps;
 use crate::ui::rm::widget::Widget;
@@ -44,6 +43,7 @@ impl Frontend {
         self,
         mut root: Widget<S, M>,
         mut state_rx: UnboundedReceiver<S>,
+        mut events_rx: UnboundedReceiver<Event>,
         mut interrupt_rx: broadcast::Receiver<Interrupted<R>>,
         viewport: Viewport,
     ) -> anyhow::Result<Interrupted<R>>
@@ -53,10 +53,7 @@ impl Frontend {
         R: Clone + Send + Sync + Debug,
     {
         let mut ticker = tokio::time::interval(RENDERING_TICK_RATE);
-
         let mut terminal = Terminal::try_from(viewport)?;
-        let mut events_rx = terminal::events();
-
         let mut root = {
             let state = state_rx.recv().await.unwrap();
 
@@ -72,7 +69,9 @@ impl Frontend {
                 // Handle input events
                 Some(event) = events_rx.recv() => match event {
                     Event::Key(key) => root.handle_event(key),
-                    Event::Resize => (),
+                    Event::Resize => {
+                        log::info!("Resizing frontend...");
+                    },
                 },
                 // Handle state updates
                 Some(state) = state_rx.recv() => {

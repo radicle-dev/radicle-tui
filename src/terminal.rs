@@ -1,20 +1,28 @@
-use std::io::{self, Write};
+use std::fmt::Debug;
+use std::io;
+use std::io::Write;
 use std::thread;
-use std::time::Instant;
+use std::time::Duration;
 
-use ratatui::termion::screen::{AlternateScreen, IntoAlternateScreen};
+use signal_hook::iterator::Signals;
+
+use tokio::sync::broadcast;
+use tokio::sync::mpsc::UnboundedSender;
+
+use tokio_util::sync::CancellationToken;
+
+use termion::async_stdin;
 use termion::input::TermRead;
 use termion::raw::{IntoRawMode, RawTerminal};
 
+use ratatui::termion::screen::{AlternateScreen, IntoAlternateScreen};
 use ratatui::{prelude::*, CompletedFrame};
 use ratatui::{TerminalOptions, Viewport};
 
-use tokio::sync::mpsc::{self};
-
 use super::event::Event;
+use super::Interrupted;
 
 pub type Backend<S> = TermionBackendExt<S>;
-
 pub type InlineTerminal = ratatui::Terminal<Backend<RawTerminal<io::Stdout>>>;
 pub type FullscreenTerminal = ratatui::Terminal<Backend<AlternateScreen<RawTerminal<io::Stdout>>>>;
 
@@ -159,32 +167,57 @@ impl<W: Write> ratatui::backend::Backend for TermionBackendExt<W> {
     }
 }
 
-/// Spawn one thread that polls `stdin` for new user input and another thread
-/// that polls UNIX signals, e.g. `SIGWINCH` when the terminal window size is
-/// being changed.
-pub fn events() -> mpsc::UnboundedReceiver<Event> {
-    let (tx, rx) = mpsc::unbounded_channel();
-    let events_tx = tx.clone();
-    thread::spawn(move || {
-        let start = Instant::now();
-        let stdin = io::stdin();
-        for key in stdin.keys().flatten() {
-            // TODO(erikli): Remove this hack! Perhaps use `tokio::CancellationToken`?
-            if start.elapsed().as_millis() > 200 && events_tx.send(Event::Key(key)).is_err() {
-                return;
-            }
-        }
-    });
+#[derive(Default)]
+pub struct StdinReader {}
 
-    let events_tx = tx.clone();
-    if let Ok(mut signals) = signal_hook::iterator::Signals::new([libc::SIGWINCH]) {
+impl StdinReader {
+    pub async fn run<P: Clone + Send + Sync + Debug>(
+        self,
+        event_tx: UnboundedSender<Event>,
+        mut interrupt_rx: broadcast::Receiver<Interrupted<P>>,
+    ) -> anyhow::Result<Interrupted<P>> {
+        let token = CancellationToken::new();
+        let token_clone = token.clone();
+
+        let key_event_tx = event_tx.clone();
+        let key_listener = tokio::spawn(async move {
+            let mut stdin = async_stdin().keys();
+            loop {
+                if let Some(Ok(key)) = stdin.next() {
+                    if key_event_tx.send(Event::Key(key)).is_err() {
+                        return;
+                    }
+                }
+                tokio::select! {
+                    _ = token_clone.cancelled() => {
+                        break;
+                    }
+                    _ = tokio::time::sleep(Duration::from_millis(50)) => {}
+                }
+            }
+        });
+
+        let mut signals = Signals::new([libc::SIGWINCH])?;
+        let signal_handle = signals.handle();
+        let signal_event_tx = event_tx.clone();
         thread::spawn(move || {
             for _ in signals.forever() {
-                if events_tx.send(Event::Resize).is_err() {
+                if signal_event_tx.send(Event::Resize).is_err() {
                     return;
                 }
             }
         });
+
+        let result: anyhow::Result<Interrupted<P>> = tokio::select! {
+            Ok(interrupted) = interrupt_rx.recv() => {
+                token.cancel();
+                Ok(interrupted)
+            }
+        };
+
+        key_listener.await?;
+        signal_handle.close();
+
+        result
     }
-    rx
 }
