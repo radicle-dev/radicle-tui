@@ -1,5 +1,6 @@
 use std::str::FromStr;
 use std::sync::{Arc, Mutex};
+use std::vec;
 
 use anyhow::Result;
 
@@ -10,7 +11,6 @@ use ratatui::text::Span;
 use ratatui::{Frame, Viewport};
 
 use radicle::identity::Project;
-use radicle::node::notifications::NotificationId;
 use radicle::prelude::RepoId;
 use radicle::storage::ReadStorage;
 use radicle::Profile;
@@ -32,7 +32,7 @@ use crate::ui::items::filter::Filter;
 use crate::ui::items::notification::filter::{NotificationFilter, SortBy};
 use crate::ui::items::notification::Notification;
 
-type Selection = tui::Selection<NotificationId>;
+type Selection = tui::Selection<InboxOperation>;
 
 const HELP: &str = r#"# Generic keybindings
 
@@ -194,10 +194,9 @@ impl store::Update<Message> for App {
                 None
             }
             Message::Quit => Some(Exit { value: None }),
-            Message::Exit { operation } => self.selected_notification().map(|issue| Exit {
+            Message::Exit { operation } => Some(Exit {
                 value: Some(Selection {
-                    operation: operation.map(|op| op.to_string()),
-                    ids: vec![issue.id],
+                    operation,
                     args: vec![],
                 }),
             }),
@@ -397,18 +396,25 @@ impl App {
             },
         );
 
-        if ui.has_input(|key| key == Key::Enter) {
-            ui.send_message(Message::Exit {
-                operation: Some(InboxOperation::Show),
-            });
-        }
-        if ui.has_input(|key| key == Key::Char('c')) {
-            ui.send_message(Message::Exit {
-                operation: Some(InboxOperation::Clear),
-            });
-        }
         if ui.has_input(|key| key == Key::Char('r')) {
             ui.send_message(Message::Reload);
+        }
+
+        if let Some(notification) = selected.and_then(|s| notifs.get(s)) {
+            if ui.has_input(|key| key == Key::Enter) {
+                ui.send_message(Message::Exit {
+                    operation: Some(InboxOperation::Show {
+                        id: notification.id,
+                    }),
+                });
+            }
+            if ui.has_input(|key| key == Key::Char('c')) {
+                ui.send_message(Message::Exit {
+                    operation: Some(InboxOperation::Clear {
+                        id: notification.id,
+                    }),
+                });
+            }
         }
     }
 
@@ -638,20 +644,6 @@ impl App {
             Spacing::from(0),
             Some(Borders::None),
         );
-    }
-
-    pub fn selected_notification(&self) -> Option<Notification> {
-        let patches = self.notifications.lock().unwrap();
-        match self.state.patches.selected() {
-            Some(selected) => patches
-                .iter()
-                .filter(|patch| self.state.filter.matches(patch))
-                .collect::<Vec<_>>()
-                .get(selected)
-                .cloned()
-                .cloned(),
-            _ => None,
-        }
     }
 }
 

@@ -34,26 +34,20 @@ pub struct Exit<T> {
 
 /// The output that is returned by all selection interfaces.
 #[derive(Clone, Default, Debug, Eq, PartialEq)]
-pub struct Selection<I>
+pub struct Selection<O>
 where
-    I: ToString,
+    O: Serialize,
 {
-    pub operation: Option<String>,
-    pub ids: Vec<I>,
+    pub operation: Option<O>,
     pub args: Vec<String>,
 }
 
-impl<I> Selection<I>
+impl<O> Selection<O>
 where
-    I: ToString,
+    O: Serialize,
 {
-    pub fn with_operation(mut self, operation: String) -> Self {
+    pub fn with_operation(mut self, operation: O) -> Self {
         self.operation = Some(operation);
-        self
-    }
-
-    pub fn with_id(mut self, id: I) -> Self {
-        self.ids.push(id);
         self
     }
 
@@ -63,9 +57,9 @@ where
     }
 }
 
-impl<I> Serialize for Selection<I>
+impl<O> Serialize for Selection<O>
 where
-    I: ToString,
+    O: Serialize,
 {
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
     where
@@ -73,10 +67,6 @@ where
     {
         let mut state = serializer.serialize_struct("", 3)?;
         state.serialize_field("operation", &self.operation)?;
-        state.serialize_field(
-            "ids",
-            &self.ids.iter().map(|id| id.to_string()).collect::<Vec<_>>(),
-        )?;
         state.serialize_field("args", &self.args)?;
         state.end()
     }

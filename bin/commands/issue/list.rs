@@ -47,7 +47,7 @@ use self::ui::{Browser, BrowserProps};
 
 use super::common::{IssueOperation, Mode};
 
-type Selection = tui::Selection<IssueId>;
+type Selection = tui::Selection<IssueOperation>;
 
 pub struct Context {
     pub profile: Profile,
@@ -230,22 +230,41 @@ impl TryFrom<(&Context, &TerminalInfo)> for State {
 }
 
 #[derive(Clone, Debug)]
+pub enum RequestedIssueOperation {
+    Edit,
+    Show,
+}
+
+#[derive(Clone, Debug)]
 pub enum Message {
     Quit,
-    Exit { operation: Option<IssueOperation> },
-    ExitFromMode,
-    SelectIssue { selected: Option<usize> },
+    Exit {
+        operation: Option<RequestedIssueOperation>,
+    },
+    SelectIssue {
+        selected: Option<usize>,
+    },
     OpenSearch,
-    UpdateSearch { value: String },
+    UpdateSearch {
+        value: String,
+    },
     ApplySearch,
     CloseSearch,
     TogglePreview,
-    FocusSection { section: Option<Section> },
-    SelectComment { selected: Option<Vec<CommentId>> },
-    ScrollComment { state: TextViewState },
+    FocusSection {
+        section: Option<Section>,
+    },
+    SelectComment {
+        selected: Option<Vec<CommentId>>,
+    },
+    ScrollComment {
+        state: TextViewState,
+    },
     OpenHelp,
     LeavePage,
-    ScrollHelp { state: TextViewState },
+    ScrollHelp {
+        state: TextViewState,
+    },
 }
 
 impl store::Update<Message> for State {
@@ -254,23 +273,20 @@ impl store::Update<Message> for State {
     fn update(&mut self, message: Message) -> Option<Exit<Selection>> {
         match message {
             Message::Quit => Some(Exit { value: None }),
-            Message::Exit { operation } => self.browser.selected_item().map(|issue| Exit {
-                value: Some(Selection {
-                    operation: operation.map(|op| op.to_string()),
-                    ids: vec![issue.id],
-                    args: vec![],
-                }),
-            }),
-            Message::ExitFromMode => {
-                let operation = match self.mode {
-                    Mode::Operation => Some(IssueOperation::Show.to_string()),
-                    Mode::Id => None,
+            Message::Exit { operation } => {
+                let selected = self.browser.selected_item();
+                let operation = match operation {
+                    Some(RequestedIssueOperation::Show) => {
+                        selected.map(|issue| IssueOperation::Show { id: issue.id })
+                    }
+                    Some(RequestedIssueOperation::Edit) => {
+                        selected.map(|issue| IssueOperation::Edit { id: issue.id })
+                    }
+                    _ => None,
                 };
-
-                self.browser.selected_item().map(|issue| Exit {
+                Some(Exit {
                     value: Some(Selection {
                         operation,
-                        ids: vec![issue.id],
                         args: vec![],
                     }),
                 })
@@ -437,16 +453,17 @@ fn browser_page(channel: &Channel<Message>) -> Widget<State, Message> {
             let props = props
                 .and_then(|props| props.inner_ref::<PageProps>())
                 .unwrap_or(&default);
-
             if props.handle_keys {
                 if let Event::Key(key) = event {
                     match key {
                         Key::Char('q') | Key::Ctrl('c') => Some(Message::Quit),
                         Key::Char('p') => Some(Message::TogglePreview),
                         Key::Char('?') => Some(Message::OpenHelp),
-                        Key::Enter => Some(Message::ExitFromMode),
+                        Key::Enter => Some(Message::Exit {
+                            operation: Some(RequestedIssueOperation::Show),
+                        }),
                         Key::Char('e') => Some(Message::Exit {
-                            operation: Some(IssueOperation::Edit),
+                            operation: Some(RequestedIssueOperation::Edit),
                         }),
                         _ => None,
                     }

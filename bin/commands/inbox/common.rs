@@ -1,8 +1,6 @@
-use std::fmt::Display;
-
 use serde::Serialize;
 
-use radicle::identity::RepoId;
+use radicle::{identity::RepoId, node::notifications::NotificationId};
 
 /// The application's subject. It tells the application
 /// which widgets to render and which output to produce.
@@ -49,19 +47,6 @@ impl Mode {
 /// selection widget.
 #[derive(Clone, Debug, Eq, PartialEq, Serialize)]
 pub enum InboxOperation {
-    Show,
-    Clear,
-}
-
-impl Display for InboxOperation {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            InboxOperation::Show => {
-                write!(f, "show")
-            }
-            InboxOperation::Clear => {
-                write!(f, "clear")
-            }
-        }
-    }
+    Show { id: NotificationId },
+    Clear { id: NotificationId },
 }

@@ -3,7 +3,6 @@ use std::sync::{Arc, Mutex};
 
 use anyhow::Result;
 
-use radicle::patch::PatchId;
 use radicle::storage::git::Repository;
 use radicle::Profile;
 
@@ -23,8 +22,6 @@ use tui::ui::im::Borders;
 use tui::ui::im::Show;
 use tui::ui::{BufferedValue, Column, Spacing};
 use tui::{Channel, Exit};
-
-type Selection = tui::Selection<PatchId>;
 
 use super::common::{Mode, PatchOperation};
 
@@ -56,6 +53,8 @@ const HELP: &str = r#"# Generic keybindings
 
 Pattern:    is:<state> | is:authored | authors:[<did>, <did>] | <search>
 Example:    is:open is:authored improve"#;
+
+type Selection = tui::Selection<PatchOperation>;
 
 pub struct Context {
     pub profile: Profile,
@@ -107,7 +106,6 @@ pub enum Message {
     ShowSearch,
     HideSearch { apply: bool },
     Exit { operation: Option<PatchOperation> },
-    ExitFromMode,
     Quit,
 }
 
@@ -180,27 +178,12 @@ impl store::Update<Message> for App {
     fn update(&mut self, message: Message) -> Option<tui::Exit<Selection>> {
         match message {
             Message::Quit => Some(Exit { value: None }),
-            Message::Exit { operation } => self.selected_patch().map(|issue| Exit {
+            Message::Exit { operation } => Some(Exit {
                 value: Some(Selection {
-                    operation: operation.map(|op| op.to_string()),
-                    ids: vec![issue.id],
+                    operation,
                     args: vec![],
                 }),
             }),
-            Message::ExitFromMode => {
-                let operation = match self.state.mode {
-                    Mode::Operation => Some(PatchOperation::Show.to_string()),
-                    Mode::Id => None,
-                };
-
-                self.selected_patch().map(|issue| Exit {
-                    value: Some(Selection {
-                        operation,
-                        ids: vec![issue.id],
-                        args: vec![],
-                    }),
-                })
-            }
             Message::ShowSearch => {
                 self.state.main_group = ContainerState::new(3, None);
                 self.state.show_search = true;
@@ -375,18 +358,23 @@ impl App {
         if ui.has_input(|key| key == Key::Char('/')) {
             ui.send_message(Message::ShowSearch);
         }
-        if ui.has_input(|key| key == Key::Enter) {
-            ui.send_message(Message::ExitFromMode);
-        }
-        if ui.has_input(|key| key == Key::Char('d')) {
-            ui.send_message(Message::Exit {
-                operation: Some(PatchOperation::Diff),
-            });
-        }
-        if ui.has_input(|key| key == Key::Char('c')) {
-            ui.send_message(Message::Exit {
-                operation: Some(PatchOperation::Checkout),
-            });
+
+        if let Some(patch) = selected.and_then(|s| patches.get(s)) {
+            if ui.has_input(|key| key == Key::Enter) {
+                ui.send_message(Message::Exit {
+                    operation: Some(PatchOperation::Show { id: patch.id }),
+                });
+            }
+            if ui.has_input(|key| key == Key::Char('d')) {
+                ui.send_message(Message::Exit {
+                    operation: Some(PatchOperation::Diff { id: patch.id }),
+                });
+            }
+            if ui.has_input(|key| key == Key::Char('c')) {
+                ui.send_message(Message::Exit {
+                    operation: Some(PatchOperation::Checkout { id: patch.id }),
+                });
+            }
         }
     }
 
@@ -631,19 +619,5 @@ impl App {
             Spacing::from(0),
             Some(Borders::None),
         );
-    }
-
-    pub fn selected_patch(&self) -> Option<PatchItem> {
-        let patches = self.patches.lock().unwrap();
-        match self.state.patches.selected() {
-            Some(selected) => patches
-                .iter()
-                .filter(|patch| self.state.filter.matches(patch))
-                .collect::<Vec<_>>()
-                .get(selected)
-                .cloned()
-                .cloned(),
-            _ => None,
-        }
     }
 }

@@ -14,6 +14,7 @@ use radicle_cli::terminal::{Args, Error, Help};
 
 use self::common::{Mode, RepositoryMode, SelectionMode};
 
+use crate::commands::tui_inbox::common::InboxOperation;
 use crate::ui::items::notification::filter::{NotificationFilter, SortBy};
 
 pub const HELP: Help = Help {
@@ -226,17 +227,22 @@ pub async fn run(options: Options, ctx: impl terminal::Context) -> anyhow::Resul
 
                 eprint!("{selection}");
             } else if let Some(selection) = selection {
-                let mut args = vec![];
-
-                if let Some(operation) = selection.operation {
-                    args.push(operation.to_string());
+                if let Some(operation) = selection.operation.clone() {
+                    match operation {
+                        InboxOperation::Show { id } => {
+                            let _ = crate::terminal::run_rad(
+                                Some("inbox"),
+                                &[OsString::from("show"), OsString::from(id.to_string())],
+                            );
+                        }
+                        InboxOperation::Clear { id } => {
+                            let _ = crate::terminal::run_rad(
+                                Some("inbox"),
+                                &[OsString::from("clear"), OsString::from(id.to_string())],
+                            );
+                        }
+                    }
                 }
-                if let Some(id) = selection.ids.first() {
-                    args.push(format!("{id}"));
-                }
-
-                let args = args.into_iter().map(OsString::from).collect::<Vec<_>>();
-                let _ = crate::terminal::run_rad(Some("inbox"), &args);
             }
         }
         Operation::Other { args } => {

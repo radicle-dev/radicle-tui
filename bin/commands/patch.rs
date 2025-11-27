@@ -20,6 +20,7 @@ use radicle_cli::terminal::args::{string, Args, Error, Help};
 
 use crate::cob::patch;
 use crate::cob::patch::Filter;
+use crate::commands::tui_patch::common::PatchOperation;
 
 pub const HELP: Help = Help {
     name: "patch",
@@ -284,20 +285,28 @@ pub async fn run(options: Options, ctx: impl terminal::Context) -> anyhow::Resul
                 eprint!("{selection}");
             } else if let Some(selection) = selection {
                 if let Some(operation) = selection.operation.clone() {
-                    let mut args = vec![operation.to_string()];
-
-                    if let Some(id) = selection.ids.first() {
-                        args.push(id.to_string());
-
-                        match operation.as_str() {
-                            "review" => {
-                                let opts = ReviewOptions::default();
-                                interface::review(opts, profile, rid, *id).await?;
-                            }
-                            _ => {
-                                let args = args.into_iter().map(OsString::from).collect::<Vec<_>>();
-                                let _ = crate::terminal::run_rad(Some("patch"), &args);
-                            }
+                    match operation {
+                        PatchOperation::Show { id } => {
+                            let _ = crate::terminal::run_rad(
+                                Some("patch"),
+                                &[OsString::from("show"), OsString::from(id.to_string())],
+                            );
+                        }
+                        PatchOperation::Diff { id } => {
+                            let _ = crate::terminal::run_rad(
+                                Some("patch"),
+                                &[OsString::from("diff"), OsString::from(id.to_string())],
+                            );
+                        }
+                        PatchOperation::Checkout { id } => {
+                            let _ = crate::terminal::run_rad(
+                                Some("patch"),
+                                &[OsString::from("checkout"), OsString::from(id.to_string())],
+                            );
+                        }
+                        PatchOperation::_Review { id } => {
+                            let opts = ReviewOptions::default();
+                            interface::review(opts, profile, rid, id).await?;
                         }
                     }
                 }
@@ -334,7 +343,6 @@ mod interface {
     use anyhow::anyhow;
 
     use radicle::cob;
-    use radicle::cob::ObjectId;
     use radicle::identity::RepoId;
     use radicle::patch::PatchId;
     use radicle::patch::Verdict;
@@ -347,6 +355,7 @@ mod interface {
     use radicle_tui::Selection;
 
     use crate::cob::patch;
+    use crate::commands::tui_patch::common::PatchOperation;
     use crate::tui_patch::list;
     use crate::tui_patch::review::builder::CommentBuilder;
     use crate::tui_patch::review::ReviewAction;
@@ -360,7 +369,7 @@ mod interface {
         opts: ListOptions,
         profile: Profile,
         rid: RepoId,
-    ) -> anyhow::Result<Option<Selection<ObjectId>>> {
+    ) -> anyhow::Result<Option<Selection<PatchOperation>>> {
         let repository = profile.storage.repository(rid).unwrap();
 
         log::info!("Starting patch selection interface in project {rid}..");

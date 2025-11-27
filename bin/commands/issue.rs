@@ -16,6 +16,7 @@ use radicle_cli::terminal;
 use radicle_cli::terminal::{Args, Error, Help};
 
 use crate::cob;
+use crate::commands::tui_issue::common::IssueOperation;
 use crate::ui::TerminalInfo;
 
 lazy_static! {
@@ -226,16 +227,22 @@ pub async fn run(options: Options, ctx: impl terminal::Context) -> anyhow::Resul
 
                 eprint!("{selection}");
             } else if let Some(selection) = selection {
-                let args = [
-                    selection.operation.as_ref().cloned(),
-                    selection.ids.first().map(ToString::to_string),
-                ]
-                .into_iter()
-                .flatten()
-                .map(OsString::from)
-                .collect::<Vec<_>>();
-
-                let _ = crate::terminal::run_rad(Some("issue"), &args);
+                if let Some(operation) = selection.operation.clone() {
+                    match operation {
+                        IssueOperation::Show { id } => {
+                            let _ = crate::terminal::run_rad(
+                                Some("issue"),
+                                &[OsString::from("show"), OsString::from(id.to_string())],
+                            );
+                        }
+                        IssueOperation::Edit { id } => {
+                            let _ = crate::terminal::run_rad(
+                                Some("issue"),
+                                &[OsString::from("edit"), OsString::from(id.to_string())],
+                            );
+                        }
+                    }
+                }
             }
         }
         Operation::Other { args } => {
