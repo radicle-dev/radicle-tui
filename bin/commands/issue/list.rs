@@ -53,6 +53,9 @@ pub struct Context {
     pub profile: Profile,
     pub repository: Repository,
     pub filter: issue::Filter,
+    pub search: Option<String>,
+    pub issue: Option<IssueId>,
+    pub comment: Option<CommentId>,
 }
 
 pub struct App {
@@ -168,7 +171,8 @@ impl TryFrom<(&Context, &TerminalInfo)> for State {
         let settings = settings::Settings::default();
 
         let issues = issue::all(&context.profile, &context.repository)?;
-        let search = BufferedValue::new(context.filter.to_string());
+        let search =
+            BufferedValue::new(context.search.clone().unwrap_or(context.filter.to_string()));
         let filter = IssueItemFilter::from_str(&search.read()).unwrap_or_default();
 
         let default_bundle = ThemeBundle::default();
@@ -186,31 +190,50 @@ impl TryFrom<(&Context, &TerminalInfo)> for State {
         };
 
         // Convert into UI items
-        let mut items: Vec<_> = issues
+        let mut issues: Vec<_> = issues
             .into_iter()
             .flat_map(|issue| IssueItem::new(&context.profile, issue).ok())
             .collect();
 
-        items.sort_by(|a, b| b.timestamp.cmp(&a.timestamp));
+        issues.sort_by(|a, b| b.timestamp.cmp(&a.timestamp));
 
-        // Pre-select first comment
-        let selected_comments: HashMap<_, _> = items
+        // Pre-select comments per issue. If a comment to pre-select is given,
+        // find identifier path needed for selection. Select root comment
+        // otherwise.
+        let selected_comments: HashMap<_, _> = issues
             .iter()
-            .map(|item| {
-                let id = item.id;
-                let comm = item
-                    .root_comments()
-                    .first()
-                    .map(|c| vec![c.id])
-                    .unwrap_or_default();
-
-                (id, comm)
+            .map(|issue| {
+                let comment_ids = match context.comment {
+                    Some(comment_id) if issue.has_comment(&comment_id) => {
+                        issue.path_to_comment(&comment_id).unwrap_or_default()
+                    }
+                    _ => issue
+                        .root_comments()
+                        .first()
+                        .map(|c| vec![c.id])
+                        .unwrap_or_default(),
+                };
+                (issue.id, comment_ids)
             })
             .collect();
 
+        let browser = BrowserState::build(issues, context.issue, filter, search);
+        let preview = PreviewState {
+            show: true,
+            issue: browser.selected_item().cloned(),
+            selected_comments,
+            comment: TextViewState::default(),
+        };
+
+        let section = if context.comment.is_some() {
+            Some(Section::Details)
+        } else {
+            Some(Section::Browser)
+        };
+
         Ok(Self {
             pages: PageStack::new(vec![AppPage::Browser]),
-            browser: BrowserState::build(items.clone(), filter, search),
+            browser: BrowserState::build(items.clone(), context.issue, filter, search),
             preview: PreviewState {
                 show: true,
                 issue: items.first().cloned(),
@@ -230,6 +253,7 @@ impl TryFrom<(&Context, &TerminalInfo)> for State {
 pub enum RequestedIssueOperation {
     Edit,
     Show,
+    Reply,
 }
 
 #[derive(Clone, Debug)]
@@ -271,13 +295,21 @@ impl store::Update<Message> for State {
         match message {
             Message::Quit => Some(Exit { value: None }),
             Message::Exit { operation } => {
-                let selected = self.browser.selected_item();
+                let issue = self.browser.selected_item();
+                let comment = self.preview.selected_comment();
                 let operation = match operation {
                     Some(RequestedIssueOperation::Show) => {
-                        selected.map(|issue| IssueOperation::Show { id: issue.id })
+                        issue.map(|issue| IssueOperation::Show { id: issue.id })
                     }
                     Some(RequestedIssueOperation::Edit) => {
-                        selected.map(|issue| IssueOperation::Edit { id: issue.id })
+                        issue.map(|issue| IssueOperation::Edit { id: issue.id })
+                    }
+                    Some(RequestedIssueOperation::Reply) => {
+                        issue.map(|issue| IssueOperation::Comment {
+                            id: issue.id,
+                            reply_to: comment.map(|c| c.id),
+                            search: self.browser.read_search(),
+                        })
                     }
                     _ => None,
                 };
@@ -387,6 +419,10 @@ impl App {
         )
         .await
     }
+
+    pub fn context(&self) -> &Context {
+        &self.context
+    }
 }
 
 fn browser_page(channel: &Channel<Message>) -> Widget<State, Message> {
@@ -398,9 +434,16 @@ fn browser_page(channel: &Channel<Message>) -> Widget<State, Message> {
             let shortcuts = if state.browser.is_search_shown() {
                 vec![("esc", "cancel"), ("enter", "apply")]
             } else {
-                let mut shortcuts = vec![("enter", "show"), ("e", "edit")];
+                let mut shortcuts = vec![];
                 if state.section == Some(Section::Browser) {
-                    shortcuts = [shortcuts, [("/", "search")].to_vec()].concat()
+                    shortcuts = [
+                        shortcuts,
+                        [("enter", "show"), ("e", "edit"), ("/", "search")].to_vec(),
+                    ]
+                    .concat()
+                }
+                if state.section != Some(Section::Browser) {
+                    shortcuts = [shortcuts, [("c", "reply")].to_vec()].concat()
                 }
                 [shortcuts, [("p", "toggle preview"), ("?", "help")].to_vec()].concat()
             };
@@ -521,14 +564,6 @@ fn comment_tree(channel: &Channel<Message>) -> Widget<State, Message> {
 
     Tree::<State, Message, CommentItem, String>::default()
         .to_widget(tx.clone())
-        .on_event(|_, s, _| {
-            Some(Message::SelectComment {
-                selected: s.and_then(|s| {
-                    s.unwrap_tree()
-                        .map(|tree| tree.iter().map(|id| Oid::from_str(id).unwrap()).collect())
-                }),
-            })
-        })
         .on_update(|state| {
             let root = &state.preview.root_comments();
             let opened = &state.preview.opened_comments();
@@ -541,6 +576,17 @@ fn comment_tree(channel: &Channel<Message>) -> Widget<State, Message> {
                 .dim(state.theme.dim_no_focus)
                 .to_boxed_any()
                 .into()
+        })
+        .on_event(|event, s, _| match event {
+            Event::Key(Key::Char('c')) => Some(Message::Exit {
+                operation: Some(RequestedIssueOperation::Reply),
+            }),
+            _ => Some(Message::SelectComment {
+                selected: s.and_then(|s| {
+                    s.unwrap_tree()
+                        .map(|tree| tree.iter().map(|id| Oid::from_str(id).unwrap()).collect())
+                }),
+            }),
         })
 }
 
@@ -592,6 +638,17 @@ fn comment(channel: &Channel<Message>) -> Widget<State, Message> {
                 .focus_border_style(state.theme.focus_border_style)
                 .to_boxed_any()
                 .into()
+        })
+        .on_event(|event, s, _| match event {
+            Event::Key(Key::Char('c')) => Some(Message::Exit {
+                operation: Some(RequestedIssueOperation::Reply),
+            }),
+            _ => Some(Message::SelectComment {
+                selected: s.and_then(|s| {
+                    s.unwrap_tree()
+                        .map(|tree| tree.iter().map(|id| Oid::from_str(id).unwrap()).collect())
+                }),
+            }),
         })
 }
 
@@ -686,6 +743,7 @@ fn help_text() -> String {
 
 `Enter`:    Show issue
 `e`:        Edit issue
+`c`:        Reply to comment
 `p`:        Toggle issue preview
 `/`:        Search
 `?`:        Show help

@@ -9,14 +9,20 @@ use anyhow::anyhow;
 
 use lazy_static::lazy_static;
 
+use radicle::cob::thread::CommentId;
 use radicle::identity::RepoId;
-use radicle::issue;
+use radicle::issue::IssueId;
+use radicle::{issue, storage, Profile};
 
-use radicle_cli::terminal;
-use radicle_cli::terminal::{Args, Error, Help};
+use radicle_cli as cli;
+
+use cli::terminal::patch::Message;
+use cli::terminal::Context;
+use cli::terminal::{Args, Error, Help};
 
 use crate::cob;
 use crate::commands::tui_issue::common::IssueOperation;
+use crate::terminal;
 use crate::ui::TerminalInfo;
 
 lazy_static! {
@@ -116,8 +122,9 @@ impl Args for Options {
                 }
                 Long("assigned") if op == OperationName::List => {
                     if let Ok(val) = parser.value() {
-                        list_opts.filter =
-                            list_opts.filter.with_assginee(terminal::args::did(&val)?);
+                        list_opts.filter = list_opts
+                            .filter
+                            .with_assginee(cli::terminal::args::did(&val)?);
                     } else {
                         list_opts.filter = list_opts.filter.with_assgined(true);
                     }
@@ -125,7 +132,7 @@ impl Args for Options {
 
                 Long("repo") => {
                     let val = parser.value()?;
-                    let rid = terminal::args::rid(&val)?;
+                    let rid = cli::terminal::args::rid(&val)?;
 
                     repo = Some(rid);
                 }
@@ -172,7 +179,7 @@ impl Args for Options {
 }
 
 #[tokio::main]
-pub async fn run(options: Options, ctx: impl terminal::Context) -> anyhow::Result<()> {
+pub async fn run(options: Options, ctx: impl Context) -> anyhow::Result<()> {
     use radicle::storage::ReadStorage;
 
     let (_, rid) = radicle::rad::cwd()
@@ -182,48 +189,85 @@ pub async fn run(options: Options, ctx: impl terminal::Context) -> anyhow::Resul
 
     match options.op {
         Operation::List { opts } => {
-            let profile = ctx.profile()?;
-            let rid = options.repo.unwrap_or(rid);
-            let repository = profile.storage.repository(rid)?;
-
             if let Err(err) = crate::log::enable() {
                 println!("{err}");
             }
             log::info!("Starting issue listing interface in project {rid}..");
 
-            let context = list::Context {
-                profile,
-                repository,
-                filter: opts.filter.clone(),
-            };
+            #[derive(Default)]
+            struct PreviousState {
+                issue_id: Option<IssueId>,
+                comment_id: Option<CommentId>,
+                search: Option<String>,
+            }
 
-            let selection = list::App::new(context, terminal_info).run().await?;
+            // Store issue and comment selection across app runs in order to
+            // preselect them when re-running the app.
+            let mut state = PreviousState::default();
 
-            if opts.json {
-                let selection = selection
-                    .map(|o| serde_json::to_string(&o).unwrap_or_default())
-                    .unwrap_or_default();
+            loop {
+                let profile = ctx.profile()?;
+                let rid = options.repo.unwrap_or(rid);
+                let repository = profile.storage.repository(rid)?;
 
-                log::info!("About to print to `stderr`: {selection}");
-                log::info!("Exiting issue listing interface..");
+                let context = list::Context {
+                    profile,
+                    repository,
+                    filter: opts.filter.clone(),
+                    search: state.search.clone(),
+                    issue: state.issue_id,
+                    comment: state.comment_id,
+                };
 
-                eprint!("{selection}");
-            } else if let Some(selection) = selection {
-                if let Some(operation) = selection.operation.clone() {
-                    match operation {
-                        IssueOperation::Show { id } => {
-                            let _ = crate::terminal::run_rad(
-                                Some("issue"),
-                                &[OsString::from("show"), OsString::from(id.to_string())],
-                            );
-                        }
-                        IssueOperation::Edit { id } => {
-                            let _ = crate::terminal::run_rad(
-                                Some("issue"),
-                                &[OsString::from("edit"), OsString::from(id.to_string())],
-                            );
+                let app = list::App::new(context, terminal_info.clone());
+                let selection = app.run().await?;
+
+                if opts.json {
+                    let selection = selection
+                        .map(|o| serde_json::to_string(&o).unwrap_or_default())
+                        .unwrap_or_default();
+
+                    log::info!("Exiting issue listing interface..");
+
+                    eprint!("{selection}");
+                } else if let Some(selection) = selection {
+                    if let Some(operation) = selection.operation.clone() {
+                        match operation {
+                            IssueOperation::Show { id } => {
+                                let _ = terminal::run_rad(
+                                    Some("issue"),
+                                    &["show".into(), id.to_string().into()],
+                                );
+                                break;
+                            }
+                            IssueOperation::Edit { id } => {
+                                let _ = terminal::run_rad(
+                                    Some("issue"),
+                                    &["edit".into(), id.to_string().into(), "--quiet".into()],
+                                );
+                            }
+                            IssueOperation::Comment {
+                                id,
+                                reply_to,
+                                search,
+                            } => {
+                                let comment_id = comment(
+                                    &app.context().profile,
+                                    &app.context().repository,
+                                    id,
+                                    Message::Edit,
+                                    reply_to,
+                                )?;
+                                state = PreviousState {
+                                    issue_id: Some(id),
+                                    comment_id: Some(comment_id),
+                                    search: Some(search),
+                                };
+                            }
                         }
                     }
+                } else {
+                    break;
                 }
             }
         }
@@ -238,8 +282,25 @@ pub async fn run(options: Options, ctx: impl terminal::Context) -> anyhow::Resul
     Ok(())
 }
 
+fn comment(
+    profile: &Profile,
+    repo: &storage::git::Repository,
+    issue_id: IssueId,
+    message: Message,
+    reply_to: Option<CommentId>,
+) -> Result<CommentId, anyhow::Error> {
+    let mut issues = profile.issues_mut(repo)?;
+    let signer = cli::terminal::signer(profile)?;
+    let mut issue = issues.get_mut(&issue_id)?;
+    let (root_comment_id, _) = issue.root();
+    let body = terminal::prompt_comment(message, issue.thread(), reply_to, None)?;
+    let comment_id = issue.comment(body, reply_to.unwrap_or(*root_comment_id), vec![], &signer)?;
+
+    Ok(comment_id)
+}
+
 #[cfg(test)]
-mod cli {
+mod test {
     use radicle_cli::terminal::args::Error;
     use radicle_cli::terminal::Args;
 

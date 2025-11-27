@@ -14,7 +14,7 @@ use nom::{IResult, Parser};
 use ansi_to_tui::IntoText;
 
 use radicle::cob::thread::{Comment, CommentId};
-use radicle::cob::{CodeLocation, CodeRange, EntryId, Label, Timestamp};
+use radicle::cob::{CodeLocation, CodeRange, EntryId, Label, ObjectId, Timestamp};
 use radicle::git::Oid;
 use radicle::identity::Did;
 use radicle::issue;
@@ -131,6 +131,10 @@ pub mod filter {
     }
 }
 
+pub trait HasId {
+    fn id(&self) -> ObjectId;
+}
+
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct AuthorItem {
     pub nid: Option<NodeId>,
@@ -208,6 +212,22 @@ impl IssueItem {
             .cloned()
             .collect::<Vec<_>>()
     }
+
+    pub fn has_comment(&self, comment_id: &CommentId) -> bool {
+        self.comments
+            .iter()
+            .any(|comment| comment.id == *comment_id)
+    }
+
+    pub fn path_to_comment(&self, comment_id: &CommentId) -> Option<Vec<CommentId>> {
+        for comment in &self.comments {
+            let mut path = Vec::new();
+            if comment.path_to(comment_id, &mut path) {
+                return Some(path);
+            }
+        }
+        None
+    }
 }
 
 impl ToRow<8> for IssueItem {
@@ -254,6 +274,12 @@ impl ToRow<8> for IssueItem {
             assignees.into(),
             opened.into(),
         ]
+    }
+}
+
+impl HasId for IssueItem {
+    fn id(&self) -> ObjectId {
+        self.id
     }
 }
 
@@ -679,6 +705,23 @@ impl CommentItem {
         sorted.sort();
 
         sorted
+    }
+
+    pub fn path_to(&self, target_id: &CommentId, path: &mut Vec<CommentId>) -> bool {
+        path.push(self.id);
+
+        if self.id == *target_id {
+            return true;
+        }
+
+        for reply in &self.replies {
+            if reply.path_to(target_id, path) {
+                return true;
+            }
+        }
+        path.pop();
+
+        false
     }
 }
 

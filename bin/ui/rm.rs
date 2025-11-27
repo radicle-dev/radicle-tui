@@ -1,6 +1,7 @@
 use std::marker::PhantomData;
 use std::str::FromStr;
 
+use radicle::cob::ObjectId;
 use radicle::issue::{self, CloseReason};
 use ratatui::layout::{Constraint, Layout};
 use ratatui::style::Stylize;
@@ -18,6 +19,7 @@ use super::format;
 use super::items::IssueItem;
 
 use crate::ui::items::filter::Filter;
+use crate::ui::items::HasId;
 
 /// A `BrowserState` represents the internal state of a browser widget.
 /// A browser widget would consist of 2 child widgets: a list of items and a
@@ -50,11 +52,22 @@ where
 
 impl<I, F> BrowserState<I, F>
 where
-    I: Clone,
+    I: Clone + HasId,
     F: Filter<I> + Default + FromStr,
 {
-    pub fn build(items: Vec<I>, filter: F, search: BufferedValue<String>) -> Self {
-        let selected = items.first().map(|_| 0);
+    pub fn build(
+        items: Vec<I>,
+        selected: Option<ObjectId>,
+        filter: F,
+        search: BufferedValue<String>,
+    ) -> Self {
+        let selected = match selected {
+            Some(id) => items
+                .iter()
+                .filter(|item| filter.matches(item))
+                .position(|item| item.id() == id),
+            None => items.first().map(|_| 0),
+        };
 
         Self {
             items,
@@ -72,7 +85,7 @@ where
     pub fn items_ref(&self) -> Vec<&I> {
         self.items
             .iter()
-            .filter(|patch| self.filter.matches(patch))
+            .filter(|item| self.filter.matches(item))
             .collect()
     }
 
