@@ -1,13 +1,13 @@
 use anyhow::Result;
 
 use ratatui::Viewport;
-use termion::event::Key;
 
 use ratatui::style::Color;
 use ratatui::text::Text;
 
 use radicle_tui as tui;
 
+use tui::event::{Event, Key};
 use tui::store;
 use tui::task::EmptyProcessors;
 use tui::ui::rm::widget::text::{TextArea, TextAreaProps};
@@ -59,8 +59,8 @@ pub async fn main() -> Result<()> {
 
     let scene = TextArea::default()
         .to_widget(sender.clone())
-        .on_event(|key, _, _| match key {
-            Key::Char('q') => Some(Message::Quit),
+        .on_event(|event, _, _| match event {
+            Event::Key(Key::Char('q')) => Some(Message::Quit),
             _ => None,
         })
         .on_update(|app: &App| {

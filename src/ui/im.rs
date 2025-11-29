@@ -12,12 +12,10 @@ use ratatui::text::{Span, Text};
 use tokio::sync::broadcast;
 use tokio::sync::mpsc::UnboundedReceiver;
 
-use termion::event::Key;
-
 use ratatui::layout::{Constraint, Flex, Position, Rect};
 use ratatui::{Frame, Viewport};
 
-use crate::event::Event;
+use crate::event::{Event, Key};
 use crate::store::Update;
 use crate::terminal::Terminal;
 use crate::ui::theme::Theme;
@@ -67,8 +65,17 @@ impl Frontend {
                 // Handle input events
                 Some(event) = event_rx.recv() => {
                     match event {
-                        Event::Key(key) => ctx.store_input(key),
-                        Event::Resize => (),
+                        Event::Key(key) => {
+                            log::debug!(target: "frontend", "Received key event: {key:?}");
+                            ctx.store_input(event)
+                        }
+                        Event::Resize(x, y) => {
+                            log::debug!(target: "frontend", "Received resize event: {x},{y}");
+                            terminal.clear()?;
+                        },
+                        Event::Unknown => {
+                            log::debug!(target: "frontend", "Received unknown event")
+                        }
                     }
                 },
                 // Handle state updates
@@ -77,9 +84,6 @@ impl Frontend {
                 },
                 // Catch and handle interrupt signal to gracefully shutdown
                 Ok(interrupted) = interrupt_rx.recv() => {
-                    log::info!("Received interrupt: {interrupted:?}");
-                    terminal.restore()?;
-
                     break Ok(interrupted);
                 }
             }
@@ -124,7 +128,7 @@ impl<R> InnerResponse<R> {
 pub struct Context<M> {
     /// Currently captured user inputs. Inputs that where stored via `store_input`
     /// need to be cleared manually via `clear_inputs` (usually for each frame drawn).
-    inputs: VecDeque<Key>,
+    inputs: VecDeque<Event>,
     /// Current frame of the application.
     pub(crate) frame_size: Rect,
     /// The message sender used by the `Ui` to send application messages.
@@ -149,7 +153,7 @@ impl<M> Context<M> {
         }
     }
 
-    pub fn with_inputs(mut self, inputs: VecDeque<Key>) -> Self {
+    pub fn with_inputs(mut self, inputs: VecDeque<Event>) -> Self {
         self.inputs = inputs;
         self
     }
@@ -168,8 +172,8 @@ impl<M> Context<M> {
         self.frame_size
     }
 
-    pub fn store_input(&mut self, key: Key) {
-        self.inputs.push_back(key);
+    pub fn store_input(&mut self, event: Event) {
+        self.inputs.push_back(event);
     }
 
     pub fn clear_inputs(&mut self) {
@@ -308,12 +312,31 @@ pub struct Ui<M> {
 
 impl<M> Ui<M> {
     pub fn has_input(&mut self, f: impl Fn(Key) -> bool) -> bool {
-        self.has_focus && self.is_area_focused() && self.ctx.inputs.iter().any(|key| f(*key))
+        self.has_focus
+            && self.is_area_focused()
+            && self.ctx.inputs.iter().any(|event| {
+                if let Event::Key(key) = event {
+                    return f(*key);
+                }
+                false
+            })
     }
 
     pub fn get_input(&mut self, f: impl Fn(Key) -> bool) -> Option<Key> {
         if self.has_focus && self.is_area_focused() {
-            self.ctx.inputs.iter().find(|key| f(**key)).copied()
+            let matches = |&event| {
+                if let Event::Key(key) = event {
+                    return f(key);
+                }
+                false
+            };
+
+            if let Some(Event::Key(key)) =
+                self.ctx.inputs.iter().find(|event| matches(event)).copied()
+            {
+                return Some(key);
+            }
+            None
         } else {
             None
         }

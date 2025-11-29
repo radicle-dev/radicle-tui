@@ -1,14 +1,13 @@
 use std::hash::Hash;
 use std::{collections::HashMap, marker::PhantomData};
 
-use ratatui::Frame;
-use termion::event::Key;
-
 use ratatui::layout::{Constraint, Layout};
 use ratatui::style::{Style, Stylize};
 use ratatui::text::Text;
 use ratatui::widgets::Row;
+use ratatui::Frame;
 
+use crate::event::Event;
 use crate::ui::theme::{style, Theme};
 
 use super::{RenderProps, View, ViewProps, Widget};
@@ -63,7 +62,7 @@ where
     type Message = M;
     type State = S;
 
-    fn handle_event(&mut self, props: Option<&ViewProps>, key: Key) -> Option<Self::Message> {
+    fn handle_event(&mut self, props: Option<&ViewProps>, event: Event) -> Option<Self::Message> {
         let default = WindowProps::default();
         let props = props
             .and_then(|props| props.inner_ref::<WindowProps<Id>>())
@@ -75,7 +74,7 @@ where
             .and_then(|id| self.pages.get_mut(id));
 
         if let Some(page) = page {
-            page.handle_event(key);
+            page.handle_event(event);
         }
 
         None
@@ -165,9 +164,9 @@ where
     type State = S;
     type Message = M;
 
-    fn handle_event(&mut self, _props: Option<&ViewProps>, key: Key) -> Option<Self::Message> {
+    fn handle_event(&mut self, _props: Option<&ViewProps>, event: Event) -> Option<Self::Message> {
         if let Some(content) = self.content.as_mut() {
-            content.handle_event(key);
+            content.handle_event(event);
         }
 
         None

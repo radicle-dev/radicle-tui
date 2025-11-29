@@ -2,9 +2,6 @@ use std::time::{SystemTime, UNIX_EPOCH};
 
 use anyhow::Result;
 
-use radicle_tui::ui::Spacing;
-use termion::event::Key;
-
 use ratatui::layout::{Constraint, Layout};
 use ratatui::style::Stylize;
 use ratatui::text::Span;
@@ -13,9 +10,11 @@ use ratatui::{Frame, Viewport};
 
 use radicle_tui as tui;
 
+use tui::event::Key;
 use tui::task::EmptyProcessors;
 use tui::ui::im::widget::Window;
 use tui::ui::im::{Borders, Context};
+use tui::ui::Spacing;
 use tui::ui::{Column, ToRow};
 use tui::Channel;
 use tui::{
@@ -120,7 +119,7 @@ impl Show<Message> for App {
 
                     ui.shortcuts(frame, &[("q", "quit")], '|');
 
-                    if ui.has_input(|key| key == Key::Char('\n')) {
+                    if ui.has_input(|key| key == Key::Enter) {
                         ui.send_message(Message::Return);
                     }
                 },

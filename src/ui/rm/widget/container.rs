@@ -1,11 +1,10 @@
 use std::fmt::Debug;
 use std::marker::PhantomData;
 
-use termion::event::Key;
-
 use ratatui::prelude::*;
 use ratatui::widgets::{Block, BorderType, Borders, Row};
 
+use crate::event::{Event, Key};
 use crate::ui::ext::{FooterBlock, FooterBlockType, HeaderBlock};
 use crate::ui::theme::{style, Theme};
 use crate::ui::Column;
@@ -354,9 +353,9 @@ where
     type Message = M;
     type State = S;
 
-    fn handle_event(&mut self, _props: Option<&ViewProps>, key: Key) -> Option<Self::Message> {
+    fn handle_event(&mut self, _props: Option<&ViewProps>, event: Event) -> Option<Self::Message> {
         if let Some(content) = &mut self.content {
-            content.handle_event(key);
+            content.handle_event(event);
         }
 
         None
@@ -521,7 +520,7 @@ where
     type Message = M;
     type State = S;
 
-    fn handle_event(&mut self, props: Option<&ViewProps>, key: Key) -> Option<Self::Message> {
+    fn handle_event(&mut self, props: Option<&ViewProps>, event: Event) -> Option<Self::Message> {
         let default = SplitContainerProps::default();
         let props = props
             .and_then(|props| props.inner_ref::<SplitContainerProps>())
@@ -530,12 +529,12 @@ where
         match props.split_focus {
             SplitContainerFocus::Top => {
                 if let Some(top) = self.top.as_mut() {
-                    top.handle_event(key);
+                    top.handle_event(event);
                 }
             }
             SplitContainerFocus::Bottom => {
                 if let Some(bottom) = self.bottom.as_mut() {
-                    bottom.handle_event(key);
+                    bottom.handle_event(event);
                 }
             }
         }
@@ -697,7 +696,7 @@ where
     type State = S;
     type Message = M;
 
-    fn handle_event(&mut self, props: Option<&ViewProps>, key: Key) -> Option<Self::Message> {
+    fn handle_event(&mut self, props: Option<&ViewProps>, event: Event) -> Option<Self::Message> {
         let default = SectionGroupProps::default();
         let props = props
             .and_then(|props| props.inner_ref::<SectionGroupProps>())
@@ -708,18 +707,20 @@ where
             .focus
             .and_then(|focus| self.sections.get_mut(focus))
         {
-            section.handle_event(key);
+            section.handle_event(event);
         }
 
         if props.handle_keys {
-            match key {
-                Key::BackTab => {
-                    self.prev();
+            if let Event::Key(key) = event {
+                match key {
+                    Key::BackTab => {
+                        self.prev();
+                    }
+                    Key::Tab => {
+                        self.next(self.sections.len());
+                    }
+                    _ => {}
                 }
-                Key::Char('\t') => {
-                    self.next(self.sections.len());
-                }
-                _ => {}
             }
         }
 

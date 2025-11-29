@@ -30,11 +30,6 @@ impl Frontend {
     /// on either the terminal event, the state or the interrupt message channel.
     /// After all, it will draw the (potentially) updated root widget.
     ///
-    /// Terminal event messages are being sent by a thread polling `stdin` for new user input
-    /// and another thread polling UNIX signals, e.g. `SIGWINCH` when the terminal
-    /// window size is being changed. Terminal events are then passed to the root widget
-    /// of the application.
-    ///
     /// State messages are being sent by the applications' `Store`. Received state updates
     /// will be passed to the root widget as well.
     ///
@@ -69,10 +64,17 @@ impl Frontend {
                 _ = ticker.tick() => (),
                 // Handle input events
                 Some(event) = events_rx.recv() => match event {
-                    Event::Key(key) => root.handle_event(key),
-                    Event::Resize => {
-                        log::info!("Resizing frontend...");
+                    Event::Key(key) => {
+                        log::debug!(target: "frontend", "Received key event: {key:?}");
+                        root.handle_event(event);
+                    }
+                    Event::Resize(x, y) => {
+                        log::debug!(target: "frontend", "Received resize event: {x},{y}");
+                        terminal.clear()?;
                     },
+                    Event::Unknown => {
+                        log::debug!(target: "frontend", "Received unknown event")
+                    }
                 },
                 // Handle state updates
                 Some(state) = state_rx.recv() => {
@@ -80,9 +82,7 @@ impl Frontend {
                 },
                 // Catch and handle interrupt signal to gracefully shutdown
                 Ok(interrupted) = interrupt_rx.recv() => {
-                    terminal.restore()?;
-
-                    break Ok(interrupted);
+                   break Ok(interrupted);
                 }
             }
             terminal.draw(|frame| root.render(RenderProps::from(frame.area()), frame))?;

@@ -1,13 +1,12 @@
 use std::marker::PhantomData;
 
-use termion::event::Key;
-
 use ratatui::layout::{Alignment, Constraint, Layout, Position, Rect};
 use ratatui::style::{Style, Stylize};
 use ratatui::text::{Line, Span, Text};
 use ratatui::widgets::Paragraph;
 use ratatui::Frame;
 
+use crate::event::{Event, Key};
 use crate::ui::theme::{self, Theme};
 
 use super::{utils, RenderProps, View, ViewProps, ViewState};
@@ -261,28 +260,30 @@ where
         };
     }
 
-    fn handle_event(&mut self, _props: Option<&ViewProps>, key: Key) -> Option<Self::Message> {
-        match key {
-            Key::Char(to_insert)
-                if (key != Key::Alt('\n'))
-                    && (key != Key::Char('\n'))
-                    && (key != Key::Ctrl('\n')) =>
-            {
-                self.enter_char(to_insert);
+    fn handle_event(&mut self, _props: Option<&ViewProps>, event: Event) -> Option<Self::Message> {
+        if let Event::Key(key) = event {
+            match key {
+                Key::Char(to_insert)
+                    if (key != Key::Alt('\n'))
+                        && (key != Key::Char('\n'))
+                        && (key != Key::Ctrl('\n')) =>
+                {
+                    self.enter_char(to_insert);
+                }
+                Key::Backspace => {
+                    self.delete_char_left();
+                }
+                Key::Delete => {
+                    self.delete_char_right();
+                }
+                Key::Left => {
+                    self.move_cursor_left();
+                }
+                Key::Right => {
+                    self.move_cursor_right();
+                }
+                _ => {}
             }
-            Key::Backspace => {
-                self.delete_char_left();
-            }
-            Key::Delete => {
-                self.delete_char_right();
-            }
-            Key::Left => {
-                self.move_cursor_left();
-            }
-            Key::Right => {
-                self.move_cursor_right();
-            }
-            _ => {}
         }
 
         None
@@ -463,7 +464,7 @@ impl<S, M> View for TextArea<'_, S, M> {
     type State = S;
     type Message = M;
 
-    fn handle_event(&mut self, props: Option<&ViewProps>, key: Key) -> Option<Self::Message> {
+    fn handle_event(&mut self, props: Option<&ViewProps>, event: Event) -> Option<Self::Message> {
         use tui_textarea::Input;
 
         let default = TextAreaProps::default();
@@ -473,32 +474,34 @@ impl<S, M> View for TextArea<'_, S, M> {
 
         if props.handle_keys {
             if !props.insert_mode {
-                match key {
-                    Key::Left | Key::Char('h') => {
-                        self.textarea.input(Input {
-                            key: tui_textarea::Key::Left,
-                            ..Default::default()
-                        });
+                if let Event::Key(key) = event {
+                    match key {
+                        Key::Left | Key::Char('h') => {
+                            self.textarea.input(Input {
+                                key: tui_textarea::Key::Left,
+                                ..Default::default()
+                            });
+                        }
+                        Key::Right | Key::Char('l') => {
+                            self.textarea.input(Input {
+                                key: tui_textarea::Key::Right,
+                                ..Default::default()
+                            });
+                        }
+                        Key::Up | Key::Char('k') => {
+                            self.textarea.input(Input {
+                                key: tui_textarea::Key::Up,
+                                ..Default::default()
+                            });
+                        }
+                        Key::Down | Key::Char('j') => {
+                            self.textarea.input(Input {
+                                key: tui_textarea::Key::Down,
+                                ..Default::default()
+                            });
+                        }
+                        _ => {}
                     }
-                    Key::Right | Key::Char('l') => {
-                        self.textarea.input(Input {
-                            key: tui_textarea::Key::Right,
-                            ..Default::default()
-                        });
-                    }
-                    Key::Up | Key::Char('k') => {
-                        self.textarea.input(Input {
-                            key: tui_textarea::Key::Up,
-                            ..Default::default()
-                        });
-                    }
-                    Key::Down | Key::Char('j') => {
-                        self.textarea.input(Input {
-                            key: tui_textarea::Key::Down,
-                            ..Default::default()
-                        });
-                    }
-                    _ => {}
                 }
             } else {
                 // TODO: Implement insert mode.
@@ -867,7 +870,7 @@ where
     type Message = M;
     type State = S;
 
-    fn handle_event(&mut self, props: Option<&ViewProps>, key: Key) -> Option<Self::Message> {
+    fn handle_event(&mut self, props: Option<&ViewProps>, event: Event) -> Option<Self::Message> {
         let default = TextViewProps::default();
         let props = props
             .and_then(|props| props.inner_ref::<TextViewProps>())
@@ -879,32 +882,34 @@ where
         let page_size = self.area.0 as usize;
 
         if props.handle_keys {
-            match key {
-                Key::Up | Key::Char('k') => {
-                    self.scroll_up();
+            if let Event::Key(key) = event {
+                match key {
+                    Key::Up | Key::Char('k') => {
+                        self.scroll_up();
+                    }
+                    Key::Down | Key::Char('j') => {
+                        self.scroll_down(len, page_size);
+                    }
+                    Key::Left | Key::Char('h') => {
+                        self.scroll_left();
+                    }
+                    Key::Right | Key::Char('l') => {
+                        self.scroll_right(max_line_len.saturating_sub(self.area.1.into()));
+                    }
+                    Key::PageUp => {
+                        self.prev_page(page_size);
+                    }
+                    Key::PageDown => {
+                        self.next_page(len, page_size);
+                    }
+                    Key::Home => {
+                        self.begin();
+                    }
+                    Key::End => {
+                        self.end(len, page_size);
+                    }
+                    _ => {}
                 }
-                Key::Down | Key::Char('j') => {
-                    self.scroll_down(len, page_size);
-                }
-                Key::Left | Key::Char('h') => {
-                    self.scroll_left();
-                }
-                Key::Right | Key::Char('l') => {
-                    self.scroll_right(max_line_len.saturating_sub(self.area.1.into()));
-                }
-                Key::PageUp => {
-                    self.prev_page(page_size);
-                }
-                Key::PageDown => {
-                    self.next_page(len, page_size);
-                }
-                Key::Home => {
-                    self.begin();
-                }
-                Key::End => {
-                    self.end(len, page_size);
-                }
-                _ => {}
             }
         }
 

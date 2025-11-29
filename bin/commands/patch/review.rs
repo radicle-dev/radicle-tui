@@ -8,8 +8,6 @@ use anyhow::Result;
 
 use serde::{Deserialize, Serialize};
 
-use termion::event::Key;
-
 use ratatui::layout::{Constraint, Layout, Position};
 use ratatui::style::{Style, Stylize};
 use ratatui::text::Text;
@@ -22,6 +20,7 @@ use radicle::Storage;
 
 use radicle_tui as tui;
 
+use tui::event::Key;
 use tui::store;
 use tui::task::EmptyProcessors;
 use tui::ui::im::widget::{ContainerState, TableState, TextViewState, Window};

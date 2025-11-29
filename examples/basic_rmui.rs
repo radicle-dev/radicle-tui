@@ -1,12 +1,11 @@
 use anyhow::Result;
 
-use termion::event::Key;
-
 use ratatui::layout::Constraint;
 use ratatui::Viewport;
 
 use radicle_tui as tui;
 
+use tui::event::{Event, Key};
 use tui::store;
 use tui::task::EmptyProcessors;
 use tui::ui::rm::widget::container::{Container, Header, HeaderProps};
@@ -102,9 +101,9 @@ pub async fn main() -> Result<()> {
     let window = Window::default()
         .page(0, page)
         .to_widget(sender.clone())
-        .on_event(|key, _, _| match key {
-            Key::Char('r') => Some(Message::ReverseContent),
-            Key::Char('q') => Some(Message::Quit),
+        .on_event(|event, _, _| match event {
+            Event::Key(Key::Char('r')) => Some(Message::ReverseContent),
+            Event::Key(Key::Char('q')) => Some(Message::Quit),
             _ => None,
         })
         .on_update(|_| WindowProps::default().current_page(0).to_boxed_any().into());

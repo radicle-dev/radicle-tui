@@ -6,8 +6,6 @@ use std::str::FromStr;
 
 use anyhow::{bail, Result};
 
-use termion::event::Key;
-
 use ratatui::layout::Constraint;
 use ratatui::style::Stylize;
 use ratatui::text::Text;
@@ -21,6 +19,7 @@ use radicle::Profile;
 
 use radicle_tui as tui;
 
+use tui::event::{Event, Key};
 use tui::store;
 use tui::task::EmptyProcessors;
 use tui::ui::rm::widget::container::{
@@ -433,22 +432,26 @@ fn browser_page(channel: &Channel<Message>) -> Widget<State, Message> {
         )
         .shortcuts(shortcuts)
         .to_widget(tx.clone())
-        .on_event(|key, _, props| {
+        .on_event(|event, _, props| {
             let default = PageProps::default();
             let props = props
                 .and_then(|props| props.inner_ref::<PageProps>())
                 .unwrap_or(&default);
 
             if props.handle_keys {
-                match key {
-                    Key::Char('q') | Key::Ctrl('c') => Some(Message::Quit),
-                    Key::Char('p') => Some(Message::TogglePreview),
-                    Key::Char('?') => Some(Message::OpenHelp),
-                    Key::Char('\n') => Some(Message::ExitFromMode),
-                    Key::Char('e') => Some(Message::Exit {
-                        operation: Some(IssueOperation::Edit),
-                    }),
-                    _ => None,
+                if let Event::Key(key) = event {
+                    match key {
+                        Key::Char('q') | Key::Ctrl('c') => Some(Message::Quit),
+                        Key::Char('p') => Some(Message::TogglePreview),
+                        Key::Char('?') => Some(Message::OpenHelp),
+                        Key::Enter => Some(Message::ExitFromMode),
+                        Key::Char('e') => Some(Message::Exit {
+                            operation: Some(IssueOperation::Edit),
+                        }),
+                        _ => None,
+                    }
+                } else {
+                    None
                 }
             } else {
                 None
@@ -646,9 +649,9 @@ fn help_page(channel: &Channel<Message>) -> Widget<State, Message> {
         .content(content)
         .shortcuts(shortcuts)
         .to_widget(tx.clone())
-        .on_event(|key, _, _| match key {
-            Key::Char('q') | Key::Ctrl('c') => Some(Message::Quit),
-            Key::Char('?') => Some(Message::LeavePage),
+        .on_event(|event, _, _| match event {
+            Event::Key(Key::Char('q')) | Event::Key(Key::Ctrl('c')) => Some(Message::Quit),
+            Event::Key(Key::Char('?')) => Some(Message::LeavePage),
             _ => None,
         })
         .on_update(|_| PageProps::default().handle_keys(true).to_boxed_any().into())

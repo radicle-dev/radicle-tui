@@ -9,18 +9,17 @@ use std::rc::Rc;
 
 use tokio::sync::broadcast;
 
-use termion::event::Key;
-
 use ratatui::prelude::*;
 
 use self::{
     container::SectionGroupState,
     text::{TextAreaState, TextViewState},
 };
+use crate::event::Event;
 
 pub type BoxedView<S, M> = Box<dyn View<State = S, Message = M>>;
 pub type UpdateCallback<S> = fn(&S) -> ViewProps;
-pub type EventCallback<M> = fn(Key, Option<&ViewState>, Option<&ViewProps>) -> Option<M>;
+pub type EventCallback<M> = fn(Event, Option<&ViewState>, Option<&ViewProps>) -> Option<M>;
 pub type RenderCallback<M> = fn(Option<&ViewProps>, &RenderProps) -> Option<M>;
 pub type InitCallback<M> = fn() -> Option<M>;
 
@@ -225,7 +224,7 @@ pub trait View {
     fn reset(&mut self) {}
 
     /// Should handle key events and call `handle_event` on all children.
-    fn handle_event(&mut self, _props: Option<&ViewProps>, _key: Key) -> Option<Self::Message> {
+    fn handle_event(&mut self, _props: Option<&ViewProps>, _event: Event) -> Option<Self::Message> {
         None
     }
 
@@ -288,14 +287,14 @@ impl<S: 'static, M: 'static> Widget<S, M> {
 
     /// Calls `handle_event` on the wrapped view as well as the `on_event` callback.
     /// Sends any message returned by either the view or the callback.
-    pub fn handle_event(&mut self, key: Key) {
-        if let Some(message) = self.view.handle_event(self.props.as_ref(), key) {
+    pub fn handle_event(&mut self, event: Event) {
+        if let Some(message) = self.view.handle_event(self.props.as_ref(), event) {
             let _ = self.sender.send(message);
         }
 
         if let Some(on_event) = self.on_event {
             if let Some(message) =
-                (on_event)(key, self.view.view_state().as_ref(), self.props.as_ref())
+                (on_event)(event, self.view.view_state().as_ref(), self.props.as_ref())
             {
                 let _ = self.sender.send(message);
             }

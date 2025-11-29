@@ -1,12 +1,12 @@
 use anyhow::Result;
 
 use ratatui::layout::Position;
-use termion::event::Key;
 
 use ratatui::{Frame, Viewport};
 
 use radicle_tui as tui;
 
+use tui::event::Key;
 use tui::store;
 use tui::task::EmptyProcessors;
 use tui::ui::im::widget::Window;

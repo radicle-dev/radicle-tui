@@ -1,11 +1,11 @@
 use radicle_tui::ui::Spacing;
-use termion::event::Key;
 
 use ratatui::layout::{Constraint, Layout};
 use ratatui::Frame;
 
 use radicle_tui as tui;
 
+use tui::event::Key;
 use tui::ui::im::widget::{TableState, TextEditState, Widget};
 use tui::ui::im::{Borders, Response, Ui};
 use tui::ui::{BufferedValue, Column, ToRow};
@@ -176,7 +176,7 @@ where
                 *self.show_search = false;
                 self.search.reset();
             }
-            if ui.has_input(|key| key == Key::Char('\n')) {
+            if ui.has_input(|key| key == Key::Enter) {
                 *self.show_search = false;
                 self.search.apply();
             }

@@ -1,14 +1,15 @@
 use std::cmp;
 
+use serde::{Deserialize, Serialize};
+
 use ratatui::layout::{Direction, Layout, Position, Rect};
 use ratatui::style::{Style, Stylize};
 use ratatui::text::{Line, Span, Text};
 use ratatui::widgets::{Block, BorderType, Row, Scrollbar, ScrollbarState};
 use ratatui::Frame;
 use ratatui::{layout::Constraint, widgets::Paragraph};
-use serde::{Deserialize, Serialize};
-use termion::event::Key;
 
+use crate::event::Key;
 use crate::ui::ext::{FooterBlock, FooterBlockType, HeaderBlock};
 use crate::ui::theme::style;
 use crate::ui::{layout, span, Spacing};
@@ -131,7 +132,7 @@ impl<'a> Container<'a> {
             len: self.len,
         };
 
-        if ui.has_input(|key| key == Key::Char('\t')) {
+        if ui.has_input(|key| key == Key::Tab) {
             state.focus_next();
             response.changed = true;
         }

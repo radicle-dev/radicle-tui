@@ -3,8 +3,6 @@ use std::sync::{Arc, Mutex};
 
 use anyhow::Result;
 
-use termion::event::Key;
-
 use radicle::patch::PatchId;
 use radicle::storage::git::Repository;
 use radicle::Profile;
@@ -16,6 +14,7 @@ use ratatui::{Frame, Viewport};
 
 use radicle_tui as tui;
 
+use tui::event::Key;
 use tui::store;
 use tui::task::EmptyProcessors;
 use tui::ui::im;
@@ -285,27 +284,6 @@ impl Show<Message> for App {
                             }
                         },
                     );
-                    if ui.has_input(|key| key == Key::Char('?')) {
-                        ui.send_message(Message::Changed(Change::Page { page: Page::Help }));
-                    }
-                    if ui.has_input(|key| key == Key::Char('\n')) {
-                        ui.send_message(Message::ExitFromMode);
-                    }
-                    if ui.has_input(|key| key == Key::Char('d')) {
-                        ui.send_message(Message::Exit {
-                            operation: Some(PatchOperation::Diff),
-                        });
-                    }
-                    if ui.has_input(|key| key == Key::Char('r')) {
-                        ui.send_message(Message::Exit {
-                            operation: Some(PatchOperation::Review),
-                        });
-                    }
-                    if ui.has_input(|key| key == Key::Char('c')) {
-                        ui.send_message(Message::Exit {
-                            operation: Some(PatchOperation::Checkout),
-                        });
-                    }
                 }
 
                 Page::Help => {
@@ -400,6 +378,28 @@ impl App {
             self.show_browser_context(frame, ui);
             self.show_browser_shortcuts(frame, ui);
         });
+
+        if ui.has_input(|key| key == Key::Char('?')) {
+            ui.send_message(Message::Changed(Change::Page { page: Page::Help }));
+        }
+        if ui.has_input(|key| key == Key::Enter) {
+            ui.send_message(Message::ExitFromMode);
+        }
+        if ui.has_input(|key| key == Key::Char('d')) {
+            ui.send_message(Message::Exit {
+                operation: Some(PatchOperation::Diff),
+            });
+        }
+        if ui.has_input(|key| key == Key::Char('r')) {
+            ui.send_message(Message::Exit {
+                operation: Some(PatchOperation::Review),
+            });
+        }
+        if ui.has_input(|key| key == Key::Char('c')) {
+            ui.send_message(Message::Exit {
+                operation: Some(PatchOperation::Checkout),
+            });
+        }
     }
 
     pub fn show_browser_search(&self, frame: &mut Frame, ui: &mut im::Ui<Message>) {
@@ -428,7 +428,7 @@ impl App {
         if ui.has_input(|key| key == Key::Esc) {
             ui.send_message(Message::HideSearch { apply: false });
         }
-        if ui.has_input(|key| key == Key::Char('\n')) {
+        if ui.has_input(|key| key == Key::Enter) {
             ui.send_message(Message::HideSearch { apply: true });
         }
     }

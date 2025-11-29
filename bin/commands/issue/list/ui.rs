@@ -3,10 +3,9 @@ use std::str::FromStr;
 use std::vec;
 
 use radicle::issue::{self, CloseReason};
+
 use ratatui::Frame;
 use tokio::sync::broadcast;
-
-use termion::event::Key;
 
 use ratatui::layout::{Constraint, Layout};
 use ratatui::style::Stylize;
@@ -14,6 +13,7 @@ use ratatui::text::{Line, Text};
 
 use radicle_tui as tui;
 
+use tui::event::{Event, Key};
 use tui::ui::rm::widget;
 use tui::ui::rm::widget::container::{
     Container, ContainerProps, Footer, FooterProps, Header, HeaderProps,
@@ -197,29 +197,29 @@ impl View for Browser {
     type Message = Message;
     type State = State;
 
-    fn handle_event(&mut self, props: Option<&ViewProps>, key: Key) -> Option<Self::Message> {
+    fn handle_event(&mut self, props: Option<&ViewProps>, event: Event) -> Option<Self::Message> {
         let default = BrowserProps::default();
         let props = props
             .and_then(|props| props.inner_ref::<BrowserProps>())
             .unwrap_or(&default);
 
         if props.show_search {
-            match key {
-                Key::Esc => {
+            match event {
+                Event::Key(Key::Esc) => {
                     self.search.reset();
                     Some(Message::CloseSearch)
                 }
-                Key::Char('\n') => Some(Message::ApplySearch),
+                Event::Key(Key::Enter) => Some(Message::ApplySearch),
                 _ => {
-                    self.search.handle_event(key);
+                    self.search.handle_event(event);
                     None
                 }
             }
         } else {
-            match key {
-                Key::Char('/') => Some(Message::OpenSearch),
+            match event {
+                Event::Key(Key::Char('/')) => Some(Message::OpenSearch),
                 _ => {
-                    self.issues.handle_event(key);
+                    self.issues.handle_event(event);
                     None
                 }
             }

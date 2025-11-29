@@ -3,8 +3,6 @@ use std::hash::Hash;
 use std::marker::PhantomData;
 use std::{cmp, vec};
 
-use termion::event::Key;
-
 use ratatui::layout::{Constraint, Layout};
 use ratatui::style::{Style, Stylize};
 use ratatui::symbols::border;
@@ -15,6 +13,7 @@ use ratatui::Frame;
 
 use tui_tree_widget::TreeState;
 
+use crate::event::{Event, Key};
 use crate::ui::theme::style;
 use crate::ui::{layout, span};
 use crate::ui::{Column, ToRow, ToTree};
@@ -170,7 +169,7 @@ where
     type Message = M;
     type State = S;
 
-    fn handle_event(&mut self, props: Option<&ViewProps>, key: Key) -> Option<Self::Message> {
+    fn handle_event(&mut self, props: Option<&ViewProps>, event: Event) -> Option<Self::Message> {
         let default = TableProps::default();
         let props = props
             .and_then(|props| props.inner_ref::<TableProps<R, W>>())
@@ -178,26 +177,28 @@ where
 
         let page_size = self.height;
 
-        match key {
-            Key::Up | Key::Char('k') => {
-                self.prev();
+        if let Event::Key(key) = event {
+            match key {
+                Key::Up | Key::Char('k') => {
+                    self.prev();
+                }
+                Key::Down | Key::Char('j') => {
+                    self.next(props.items.len());
+                }
+                Key::PageUp => {
+                    self.prev_page(page_size as usize);
+                }
+                Key::PageDown => {
+                    self.next_page(props.items.len(), page_size as usize);
+                }
+                Key::Home => {
+                    self.begin();
+                }
+                Key::End => {
+                    self.end(props.items.len());
+                }
+                _ => {}
             }
-            Key::Down | Key::Char('j') => {
-                self.next(props.items.len());
-            }
-            Key::PageUp => {
-                self.prev_page(page_size as usize);
-            }
-            Key::PageDown => {
-                self.next_page(props.items.len(), page_size as usize);
-            }
-            Key::Home => {
-                self.begin();
-            }
-            Key::End => {
-                self.end(props.items.len());
-            }
-            _ => {}
         }
 
         None
@@ -452,23 +453,25 @@ where
         }
     }
 
-    fn handle_event(&mut self, _props: Option<&ViewProps>, key: Key) -> Option<Self::Message> {
-        match key {
-            Key::Up | Key::Char('k') => {
-                self.state.key_up();
+    fn handle_event(&mut self, _props: Option<&ViewProps>, event: Event) -> Option<Self::Message> {
+        if let Event::Key(key) = event {
+            match key {
+                Key::Up | Key::Char('k') => {
+                    self.state.key_up();
+                }
+                Key::Down | Key::Char('j') => {
+                    self.state.key_down();
+                }
+                Key::Left | Key::Char('h')
+                    if !self.state.selected().is_empty() && !self.state.opened().is_empty() =>
+                {
+                    self.state.key_left();
+                }
+                Key::Right | Key::Char('l') => {
+                    self.state.key_right();
+                }
+                _ => {}
             }
-            Key::Down | Key::Char('j') => {
-                self.state.key_down();
-            }
-            Key::Left | Key::Char('h')
-                if !self.state.selected().is_empty() && !self.state.opened().is_empty() =>
-            {
-                self.state.key_left();
-            }
-            Key::Right | Key::Char('l') => {
-                self.state.key_right();
-            }
-            _ => {}
         }
 
         None
