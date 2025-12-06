@@ -1,3 +1,5 @@
+pub mod notification;
+
 use std::collections::HashMap;
 use std::fmt;
 use std::fmt::Debug;
@@ -12,17 +14,16 @@ use nom::{IResult, Parser};
 use ansi_to_tui::IntoText;
 
 use radicle::cob::thread::{Comment, CommentId};
-use radicle::cob::{CodeLocation, CodeRange, EntryId, Label, ObjectId, Timestamp, Title, TypedId};
+use radicle::cob::{CodeLocation, CodeRange, EntryId, Label, Timestamp};
 use radicle::git::Oid;
-use radicle::identity::{Did, Identity};
+use radicle::identity::Did;
 use radicle::issue;
-use radicle::issue::{CloseReason, Issue, IssueId, Issues};
-use radicle::node::notifications::{Notification, NotificationId, NotificationKind};
+use radicle::issue::{CloseReason, Issue, IssueId};
 use radicle::node::{Alias, AliasStore, NodeId};
 use radicle::patch;
-use radicle::patch::{Patch, PatchId, Patches, Review};
+use radicle::patch::{Patch, PatchId, Review};
 use radicle::storage::git::Repository;
-use radicle::storage::{ReadRepository, ReadStorage, RefUpdate, WriteRepository};
+use radicle::storage::WriteRepository;
 use radicle::Profile;
 
 use radicle_surf::diff;
@@ -40,7 +41,6 @@ use tui_tree_widget::TreeItem;
 
 use radicle_tui as tui;
 
-use tui::ui::theme::style;
 use tui::ui::utils::{LineMerger, MergeLocation};
 use tui::ui::{span, Column};
 use tui::ui::{ToRow, ToTree};
@@ -51,8 +51,84 @@ use crate::ui;
 use super::super::git;
 use super::format;
 
-pub trait Filter<T> {
-    fn matches(&self, item: &T) -> bool;
+pub mod filter {
+    use std::fmt::{self, Write};
+    use std::str::FromStr;
+
+    use nom::bytes::complete::{tag_no_case, take};
+    use nom::character::complete::{char, multispace0};
+    use nom::combinator::map;
+    use nom::multi::separated_list1;
+    use nom::sequence::{delimited, tuple};
+    use nom::IResult;
+
+    use radicle::prelude::Did;
+
+    /// A generic filter that needs be implemented for item filters in order to
+    /// apply it.
+    pub trait Filter<T> {
+        fn matches(&self, item: &T) -> bool;
+    }
+
+    #[derive(Debug, Clone, PartialEq, Eq)]
+    pub enum DidFilter {
+        Single(Did),
+        Or(Vec<Did>),
+    }
+
+    impl fmt::Display for DidFilter {
+        fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+            match self {
+                DidFilter::Single(did) => write!(f, "{did}")?,
+                DidFilter::Or(dids) => {
+                    let mut it = dids.iter().peekable();
+                    f.write_char('(')?;
+                    while let Some(did) = it.next() {
+                        write!(f, "{did}")?;
+                        if it.peek().is_none() {
+                            write!(f, " or ")?;
+                        }
+                    }
+                    f.write_char(')')?;
+                }
+            }
+            Ok(())
+        }
+    }
+
+    fn parse_did(input: &str) -> IResult<&str, Did> {
+        match Did::from_str(input) {
+            Ok(did) => IResult::Ok(("", did)),
+            Err(_) => IResult::Err(nom::Err::Error(nom::error::Error::new(
+                input,
+                nom::error::ErrorKind::Verify,
+            ))),
+        }
+    }
+
+    pub fn parse_did_single(input: &str) -> IResult<&str, DidFilter> {
+        map(parse_did, DidFilter::Single)(input)
+    }
+
+    pub fn parse_did_or(input: &str) -> IResult<&str, DidFilter> {
+        map(
+            delimited(
+                tuple((multispace0, char('('), multispace0)),
+                separated_list1(
+                    delimited(multispace0, tag_no_case("or"), multispace0),
+                    take(56_usize),
+                ),
+                tuple((multispace0, char(')'), multispace0)),
+            ),
+            |dids: Vec<&str>| {
+                DidFilter::Or(
+                    dids.iter()
+                        .filter_map(|did| Did::from_str(did).ok())
+                        .collect::<Vec<_>>(),
+                )
+            },
+        )(input)
+    }
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -78,407 +154,6 @@ impl AuthorItem {
             alias,
             you,
         }
-    }
-}
-
-#[derive(Clone, Debug)]
-#[allow(dead_code)]
-pub enum NotificationKindItem {
-    Branch {
-        name: String,
-        summary: String,
-        status: String,
-        id: Option<ObjectId>,
-    },
-    Cob {
-        type_name: String,
-        summary: String,
-        status: String,
-        id: Option<ObjectId>,
-    },
-    Unknown {
-        refname: String,
-    },
-}
-
-impl NotificationKindItem {
-    pub fn new(
-        repo: &Repository,
-        notification: &Notification,
-    ) -> Result<Option<Self>, anyhow::Error> {
-        // TODO: move out of here
-        let issues = Issues::open(repo)?;
-        let patches = Patches::open(repo)?;
-
-        match &notification.kind {
-            NotificationKind::Branch { name } => {
-                let (head, message) = if let Some(head) = notification.update.new() {
-                    let message = repo.commit(head)?.summary().unwrap_or_default().to_owned();
-                    (Some(head), message)
-                } else {
-                    (None, String::new())
-                };
-                let status = match notification
-                    .update
-                    .new()
-                    .map(|oid| repo.is_ancestor_of(oid, head.unwrap()))
-                    .transpose()
-                {
-                    Ok(Some(true)) => "merged",
-                    Ok(Some(false)) | Ok(None) => match notification.update {
-                        RefUpdate::Updated { .. } => "updated",
-                        RefUpdate::Created { .. } => "created",
-                        RefUpdate::Deleted { .. } => "deleted",
-                        RefUpdate::Skipped { .. } => "skipped",
-                    },
-                    Err(e) => return Err(e.into()),
-                }
-                .to_owned();
-
-                Ok(Some(NotificationKindItem::Branch {
-                    name: name.to_string(),
-                    summary: message,
-                    status: status.to_string(),
-                    id: head.map(ObjectId::from),
-                }))
-            }
-            NotificationKind::Cob { typed_id } => {
-                let TypedId { id, .. } = typed_id;
-                let (category, summary, state) = if typed_id.is_issue() {
-                    let Some(issue) = issues.get(id)? else {
-                        // Issue could have been deleted after notification was created.
-                        return Ok(None);
-                    };
-                    (
-                        "issue".to_string(),
-                        Title::new(issue.title())?,
-                        issue.state().to_string(),
-                    )
-                } else if typed_id.is_patch() {
-                    let Some(patch) = patches.get(id)? else {
-                        // Patch could have been deleted after notification was created.
-                        return Ok(None);
-                    };
-                    (
-                        "patch".to_string(),
-                        Title::new(patch.title())?,
-                        patch.state().to_string(),
-                    )
-                } else if typed_id.is_identity() {
-                    let Ok(identity) = Identity::get(id, repo) else {
-                        log::error!(
-                            target: "cli",
-                            "Error retrieving identity {id} for notification {}", notification.id
-                        );
-                        return Ok(None);
-                    };
-                    let Some(rev) = notification
-                        .update
-                        .new()
-                        .and_then(|id| identity.revision(&id))
-                    else {
-                        log::error!(
-                            target: "cli",
-                            "Error retrieving identity revision for notification {}", notification.id
-                        );
-                        return Ok(None);
-                    };
-                    (String::from("id"), rev.title.clone(), rev.state.to_string())
-                } else {
-                    (
-                        typed_id.type_name.to_string(),
-                        Title::new("")?,
-                        "".to_string(),
-                    )
-                };
-
-                Ok(Some(NotificationKindItem::Cob {
-                    type_name: category.to_string(),
-                    summary: summary.to_string(),
-                    status: state.to_string(),
-                    id: Some(*id),
-                }))
-            }
-            NotificationKind::Unknown { refname } => Ok(Some(NotificationKindItem::Unknown {
-                refname: refname.to_string(),
-            })),
-        }
-    }
-}
-
-#[derive(Clone, Debug)]
-pub struct NotificationItem {
-    /// Unique notification ID.
-    pub id: NotificationId,
-    /// The project this belongs to.
-    pub project: String,
-    /// Mark this notification as seen.
-    pub seen: bool,
-    /// Wrapped notification kind.
-    pub kind: NotificationKindItem,
-    /// The author
-    pub author: AuthorItem,
-    /// Time the update has happened.
-    pub timestamp: Timestamp,
-}
-
-impl NotificationItem {
-    pub fn new(
-        profile: &Profile,
-        repo: &Repository,
-        notification: &Notification,
-    ) -> Result<Option<Self>, anyhow::Error> {
-        let project = profile
-            .storage
-            .repository(repo.id)?
-            .identity_doc()?
-            .project()?;
-        let name = project.name().to_string();
-        let kind = NotificationKindItem::new(repo, notification)?;
-
-        if kind.is_none() {
-            return Ok(None);
-        }
-
-        Ok(Some(NotificationItem {
-            id: notification.id,
-            project: name,
-            seen: notification.status.is_read(),
-            kind: kind.unwrap(),
-            author: AuthorItem::new(notification.remote, profile),
-            timestamp: notification.timestamp.into(),
-        }))
-    }
-}
-
-impl ToRow<9> for NotificationItem {
-    fn to_row(&self) -> [Cell; 9] {
-        let (type_name, summary, status, kind_id) = match &self.kind {
-            NotificationKindItem::Branch {
-                name,
-                summary,
-                status,
-                id: _,
-            } => (
-                "branch".to_string(),
-                summary.clone(),
-                status.clone(),
-                name.to_string(),
-            ),
-            NotificationKindItem::Cob {
-                type_name,
-                summary,
-                status,
-                id,
-            } => {
-                let id = id.map(|id| format::cob(&id)).unwrap_or_default();
-                (
-                    type_name.to_string(),
-                    summary.clone(),
-                    status.clone(),
-                    id.to_string(),
-                )
-            }
-            NotificationKindItem::Unknown { refname } => (
-                refname.to_string(),
-                String::new(),
-                String::new(),
-                String::new(),
-            ),
-        };
-
-        let id = span::notification_id(&format!(" {:-03}", &self.id));
-        let seen = if self.seen {
-            span::blank()
-        } else {
-            span::primary(" ● ")
-        };
-        let kind_id = span::primary(&kind_id);
-        let summary = span::default(&summary);
-        let type_name = span::notification_type(&type_name);
-        let name = span::default(&self.project.clone()).style(style::gray().dim());
-
-        let status = match status.as_str() {
-            "archived" => span::default(&status).yellow(),
-            "draft" => span::default(&status).gray().dim(),
-            "updated" => span::primary(&status),
-            "open" | "created" => span::positive(&status),
-            "closed" | "merged" => span::ternary(&status),
-            _ => span::default(&status),
-        };
-        let author = match &self.author.alias {
-            Some(alias) => {
-                if self.author.you {
-                    span::alias(&format!("{alias} (you)"))
-                } else {
-                    span::alias(alias)
-                }
-            }
-            None => match &self.author.human_nid {
-                Some(nid) => span::alias(nid).dim(),
-                None => span::blank(),
-            },
-        };
-        let timestamp = span::timestamp(&format::timestamp(&self.timestamp));
-
-        [
-            id.into(),
-            seen.into(),
-            summary.into(),
-            name.into(),
-            kind_id.into(),
-            type_name.into(),
-            status.into(),
-            author.into(),
-            timestamp.into(),
-        ]
-    }
-}
-
-#[derive(Clone, Debug, Eq, PartialEq)]
-pub enum NotificationType {
-    Patch,
-    Issue,
-    Branch,
-}
-
-#[derive(Clone, Debug, Eq, PartialEq)]
-pub enum NotificationState {
-    Seen,
-    Unseen,
-}
-
-#[derive(Clone, Default, Debug, Eq, PartialEq)]
-pub struct NotificationItemFilter {
-    state: Option<NotificationState>,
-    type_name: Option<NotificationType>,
-    authors: Vec<Did>,
-    search: Option<String>,
-}
-
-impl NotificationItemFilter {
-    pub fn state(&self) -> Option<NotificationState> {
-        self.state.clone()
-    }
-}
-
-impl Filter<NotificationItem> for NotificationItemFilter {
-    fn matches(&self, notif: &NotificationItem) -> bool {
-        use fuzzy_matcher::skim::SkimMatcherV2;
-        use fuzzy_matcher::FuzzyMatcher;
-
-        let matcher = SkimMatcherV2::default();
-
-        let matches_state = match self.state {
-            Some(NotificationState::Seen) => notif.seen,
-            Some(NotificationState::Unseen) => !notif.seen,
-            None => true,
-        };
-
-        let matches_type = match self.type_name {
-            Some(NotificationType::Patch) => matches!(&notif.kind, NotificationKindItem::Cob {
-                type_name,
-                summary: _,
-                status: _,
-                id: _,
-            } if type_name == "patch"),
-            Some(NotificationType::Issue) => matches!(&notif.kind, NotificationKindItem::Cob {
-                    type_name,
-                    summary: _,
-                    status: _,
-                    id: _,
-                } if type_name == "issue"),
-            Some(NotificationType::Branch) => {
-                matches!(notif.kind, NotificationKindItem::Branch { .. })
-            }
-            None => true,
-        };
-
-        let matches_authors = if !self.authors.is_empty() {
-            {
-                self.authors
-                    .iter()
-                    .any(|other| notif.author.nid == Some(**other))
-            }
-        } else {
-            true
-        };
-
-        let matches_search = match &self.search {
-            Some(search) => {
-                let summary = match &notif.kind {
-                    NotificationKindItem::Cob {
-                        type_name: _,
-                        summary,
-                        status: _,
-                        id: _,
-                    } => summary,
-                    NotificationKindItem::Branch {
-                        name: _,
-                        summary,
-                        status: _,
-                        id: _,
-                    } => summary,
-                    NotificationKindItem::Unknown { refname: _ } => "",
-                };
-                match matcher.fuzzy_match(summary, search) {
-                    Some(score) => score == 0 || score > 60,
-                    _ => false,
-                }
-            }
-            None => true,
-        };
-
-        matches_state && matches_type && matches_authors && matches_search
-    }
-}
-
-impl FromStr for NotificationItemFilter {
-    type Err = anyhow::Error;
-
-    fn from_str(value: &str) -> Result<Self, Self::Err> {
-        let mut state = None;
-        let mut type_name = None;
-        let mut search = String::new();
-        let mut authors = vec![];
-
-        let mut authors_parser = |input| -> IResult<&str, Vec<&str>> {
-            preceded(
-                tag("authors:"),
-                delimited(
-                    tag("["),
-                    separated_list0(tag(","), take(56_usize)),
-                    tag("]"),
-                ),
-            )(input)
-        };
-
-        let parts = value.split(' ');
-        for part in parts {
-            match part {
-                "is:seen" => state = Some(NotificationState::Seen),
-                "is:unseen" => state = Some(NotificationState::Unseen),
-                "is:patch" => type_name = Some(NotificationType::Patch),
-                "is:issue" => type_name = Some(NotificationType::Issue),
-                "is:branch" => type_name = Some(NotificationType::Branch),
-                other => {
-                    if let Ok((_, dids)) = authors_parser.parse(other) {
-                        for did in dids {
-                            authors.push(Did::from_str(did)?);
-                        }
-                    } else {
-                        search.push_str(other);
-                    }
-                }
-            }
-        }
-
-        Ok(Self {
-            state,
-            type_name,
-            authors,
-            search: Some(search),
-        })
     }
 }
 
@@ -598,7 +273,7 @@ impl IssueItemFilter {
     }
 }
 
-impl Filter<IssueItem> for IssueItemFilter {
+impl filter::Filter<IssueItem> for IssueItemFilter {
     fn matches(&self, issue: &IssueItem) -> bool {
         use fuzzy_matcher::skim::SkimMatcherV2;
         use fuzzy_matcher::FuzzyMatcher;
@@ -850,7 +525,7 @@ impl PatchItemFilter {
     }
 }
 
-impl Filter<PatchItem> for PatchItemFilter {
+impl filter::Filter<PatchItem> for PatchItemFilter {
     fn matches(&self, patch: &PatchItem) -> bool {
         use fuzzy_matcher::skim::SkimMatcherV2;
         use fuzzy_matcher::FuzzyMatcher;
@@ -1758,7 +1433,7 @@ impl Debug for HunkItem<'_> {
     }
 }
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct StatefulHunkItem<'a>(HunkItem<'a>, HunkState);
 
 impl<'a> StatefulHunkItem<'a> {
@@ -2016,26 +1691,6 @@ mod tests {
             authored: true,
             assigned: true,
             assignees: vec![
-                Did::from_str("did:key:z6MkkpTPzcq1ybmjQyQpyre15JUeMvZY6toxoZVpLZ8YarsB")?,
-                Did::from_str("did:key:z6Mku8hpprWTmCv3BqkssCYDfr2feUdyLSUnycVajFo9XVAx")?,
-            ],
-            search: Some("cli".to_string()),
-        };
-
-        assert_eq!(expected, actual);
-
-        Ok(())
-    }
-
-    #[test]
-    fn notification_item_filter_from_str_should_succeed() -> Result<()> {
-        let search = r#"is:seen is:patch authors:[did:key:z6MkkpTPzcq1ybmjQyQpyre15JUeMvZY6toxoZVpLZ8YarsB,did:key:z6Mku8hpprWTmCv3BqkssCYDfr2feUdyLSUnycVajFo9XVAx] cli"#;
-        let actual = NotificationItemFilter::from_str(search)?;
-
-        let expected = NotificationItemFilter {
-            state: Some(NotificationState::Seen),
-            type_name: Some(NotificationType::Patch),
-            authors: vec![
                 Did::from_str("did:key:z6MkkpTPzcq1ybmjQyQpyre15JUeMvZY6toxoZVpLZ8YarsB")?,
                 Did::from_str("did:key:z6Mku8hpprWTmCv3BqkssCYDfr2feUdyLSUnycVajFo9XVAx")?,
             ],

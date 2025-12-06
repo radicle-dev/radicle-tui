@@ -1,35 +1,40 @@
 use std::collections::HashMap;
 use std::str::FromStr;
 
-use ratatui::Frame;
-use tokio::sync::mpsc::UnboundedSender;
+use tokio::sync::broadcast;
 
 use termion::event::Key;
 
 use ratatui::layout::{Constraint, Layout};
 use ratatui::style::Stylize;
 use ratatui::text::{Line, Text};
+use ratatui::widgets::Clear;
+use ratatui::Frame;
 
 use radicle_tui as tui;
 
+use tui::ui::rm::widget;
 use tui::ui::rm::widget::container::{
     Container, ContainerProps, Footer, FooterProps, Header, HeaderProps,
 };
-use tui::ui::rm::widget::input::{TextField, TextFieldProps};
 use tui::ui::rm::widget::list::{Table, TableProps};
-use tui::ui::rm::widget::{self, ViewProps};
-use tui::ui::rm::widget::{RenderProps, ToWidget, View};
+use tui::ui::rm::widget::text::{
+    Label, LabelProps, TextField, TextFieldProps, TextView, TextViewProps,
+};
+use tui::ui::rm::widget::window::{Page, PageProps, Shortcuts, ShortcutsProps};
+use tui::ui::rm::widget::{RenderProps, ToWidget, View, ViewProps};
 use tui::ui::span;
+use tui::ui::theme;
 use tui::ui::Column;
-
-use tui::{BoxedAny, Selection};
+use tui::{BoxedAny, Channel, Selection};
 
 use crate::tui_inbox::common::{InboxOperation, Mode, RepositoryMode, SelectionMode};
-use crate::ui::items::{NotificationItem, NotificationItemFilter, NotificationState};
+use crate::ui::items::notification::filter::NotificationFilter;
+use crate::ui::items::notification::{Notification, NotificationState};
 
 use super::{Message, State};
 
-type Widget = widget::Widget<State, Message>;
+type AppWidget = widget::Widget<State, Message>;
 
 #[derive(Clone, Default)]
 pub struct BrowserProps<'a> {
@@ -38,7 +43,7 @@ pub struct BrowserProps<'a> {
     /// Table title
     header: String,
     /// Filtered notifications.
-    notifications: Vec<NotificationItem>,
+    notifications: Vec<Notification>,
     /// Current (selected) table index
     selected: Option<usize>,
     /// Notification statistics.
@@ -49,17 +54,21 @@ pub struct BrowserProps<'a> {
     show_search: bool,
     /// Current search string.
     search: String,
+    /// If loading widget should be shown
+    show_loading: bool,
 }
 
 impl From<&State> for BrowserProps<'_> {
     fn from(state: &State) -> Self {
-        let header = match state.mode.repository() {
-            RepositoryMode::Contextual => state.project.name().to_string(),
+        let context = state.context.lock().unwrap();
+
+        let header = match context.mode.repository() {
+            RepositoryMode::Contextual => context.project.name().to_string(),
             RepositoryMode::All => "All repositories".to_string(),
             RepositoryMode::ByRepo((_, name)) => name.clone().unwrap_or_default(),
         };
 
-        let notifications = state.browser.notifications();
+        let notifications = state.browser.items.lock().unwrap().to_vec();
 
         // Compute statistics
         let mut seen = 0;
@@ -74,9 +83,9 @@ impl From<&State> for BrowserProps<'_> {
         let stats = HashMap::from([("Seen".to_string(), seen), ("Unseen".to_string(), unseen)]);
 
         Self {
-            mode: state.mode.clone(),
+            mode: context.mode.clone(),
             header,
-            notifications,
+            notifications: notifications,
             selected: state.browser.selected,
             stats,
             columns: [
@@ -84,11 +93,11 @@ impl From<&State> for BrowserProps<'_> {
                 Column::new("", Constraint::Length(3)),
                 Column::new("", Constraint::Fill(5)),
                 Column::new("", Constraint::Fill(1))
-                    .skip(*state.mode.repository() != RepositoryMode::All),
+                    .skip(*context.mode.repository() != RepositoryMode::All),
                 Column::new("", Constraint::Fill(1))
                     .hide_small()
                     .hide_medium(),
-                Column::new("", Constraint::Length(8)),
+                Column::new("", Constraint::Length(20)),
                 Column::new("", Constraint::Length(10)),
                 Column::new("", Constraint::Min(12)).hide_small(),
                 Column::new("", Constraint::Min(14)).hide_small(),
@@ -96,19 +105,22 @@ impl From<&State> for BrowserProps<'_> {
             .to_vec(),
             search: state.browser.search.read(),
             show_search: state.browser.show_search,
+            show_loading: state.browser.is_loading,
         }
     }
 }
 
 pub struct Browser {
     /// Notification widget
-    notifications: Widget,
+    notifications: AppWidget,
+    /// Loader widget
+    loader: AppWidget,
     /// Search widget
-    search: Widget,
+    search: AppWidget,
 }
 
 impl Browser {
-    pub fn new(tx: UnboundedSender<Message>) -> Self {
+    pub fn new(tx: broadcast::Sender<Message>) -> Self {
         Self {
             notifications: Container::default()
                 .header(Header::default().to_widget(tx.clone()).on_update(|state| {
@@ -126,7 +138,7 @@ impl Browser {
                         .into()
                 }))
                 .content(
-                    Table::<State, Message, NotificationItem, 9>::default()
+                    Table::<State, Message, Notification, 9>::default()
                         .to_widget(tx.clone())
                         .on_event(|_, s, _| {
                             let (selected, _) =
@@ -137,10 +149,11 @@ impl Browser {
                         })
                         .on_update(|state| {
                             let props = BrowserProps::from(state);
+                            let items = state.browser.items();
 
                             TableProps::default()
                                 .columns(props.columns)
-                                .items(state.browser.notifications())
+                                .items(items)
                                 .selected(state.browser.selected)
                                 .to_boxed_any()
                                 .into()
@@ -161,6 +174,15 @@ impl Browser {
                         .to_boxed_any()
                         .into()
                 }),
+            loader: Container::default()
+                .content(Label::default().to_widget(tx.clone()).on_update(|_| {
+                    LabelProps::default()
+                        .text(" Loading ")
+                        .style(theme::style::yellow().slow_blink())
+                        .to_boxed_any()
+                        .into()
+                }))
+                .to_widget(tx.clone()),
             search: TextField::default()
                 .to_widget(tx.clone())
                 .on_event(|_, s, _| {
@@ -240,6 +262,7 @@ impl View for Browser {
 
     fn update(&mut self, _props: Option<&ViewProps>, state: &Self::State) {
         self.notifications.update(state);
+        self.loader.update(state);
         self.search.update(state);
     }
 
@@ -248,6 +271,17 @@ impl View for Browser {
         let props = props
             .and_then(|props| props.inner_ref::<BrowserProps>())
             .unwrap_or(&default);
+
+        let loader_area = |table_area| {
+            let [table_area, _] =
+                Layout::vertical([Constraint::Min(1), Constraint::Length(3)]).areas(table_area);
+            let [_, loader_area] =
+                Layout::vertical([Constraint::Min(1), Constraint::Length(3)]).areas(table_area);
+            let [_, loader_area] =
+                Layout::horizontal([Constraint::Length(1), Constraint::Length(11)])
+                    .areas(loader_area);
+            loader_area
+        };
 
         if props.show_search {
             let [table_area, search_area] =
@@ -258,15 +292,181 @@ impl View for Browser {
                 Constraint::Length(1),
             ])
             .areas(search_area);
+            let loader_area = loader_area(table_area);
 
             self.notifications
                 .render(RenderProps::from(table_area), frame);
+            if props.show_loading {
+                frame.render_widget(Clear, loader_area);
+                self.loader.render(RenderProps::from(loader_area), frame);
+            }
+
             self.search
                 .render(RenderProps::from(search_area).focus(render.focus), frame);
         } else {
-            self.notifications.render(render, frame);
+            let loader_area = loader_area(render.area);
+
+            self.notifications.render(render.clone(), frame);
+            if props.show_loading {
+                frame.render_widget(Clear, loader_area);
+                self.loader.render(RenderProps::from(loader_area), frame);
+            }
         }
     }
+}
+
+pub fn browser_page(_state: &State, channel: &Channel<Message>) -> AppWidget {
+    let tx = channel.tx.clone();
+
+    let content = Browser::new(tx.clone())
+        .to_widget(tx.clone())
+        .on_update(|state| BrowserProps::from(state).to_boxed_any().into());
+
+    let shortcuts = Shortcuts::default()
+        .to_widget(tx.clone())
+        .on_update(|state: &State| {
+            let context = state.context.lock().unwrap();
+            let shortcuts = if state.browser.show_search {
+                vec![("esc", "cancel"), ("enter", "apply")]
+            } else {
+                match context.mode.selection() {
+                    SelectionMode::Id => vec![("enter", "select"), ("/", "search")],
+                    SelectionMode::Operation => vec![
+                        ("enter", "show"),
+                        ("c", "clear"),
+                        ("r", "reload"),
+                        ("/", "search"),
+                        ("?", "help"),
+                    ],
+                }
+            };
+
+            ShortcutsProps::default()
+                .shortcuts(&shortcuts)
+                .to_boxed_any()
+                .into()
+        });
+
+    Page::default()
+        .content(content)
+        .shortcuts(shortcuts)
+        .to_widget(tx.clone())
+        .on_event(|key, _, props| {
+            let default = PageProps::default();
+            let props = props
+                .and_then(|props| props.inner_ref::<PageProps>())
+                .unwrap_or(&default);
+
+            if props.handle_keys {
+                match key {
+                    Key::Char('r') => Some(Message::Reload),
+                    Key::Char('q') | Key::Ctrl('c') => Some(Message::Exit { selection: None }),
+                    Key::Char('?') => Some(Message::OpenHelp),
+                    _ => None,
+                }
+            } else {
+                None
+            }
+        })
+        .on_update(|state: &State| {
+            PageProps::default()
+                .handle_keys(!state.browser.show_search)
+                .to_boxed_any()
+                .into()
+        })
+}
+
+pub fn help_page(_state: &State, channel: &Channel<Message>) -> AppWidget {
+    let tx = channel.tx.clone();
+
+    let content = Container::default()
+        .header(Header::default().to_widget(tx.clone()).on_update(|_| {
+            HeaderProps::default()
+                .columns([Column::new(" Help ", Constraint::Fill(1))].to_vec())
+                .to_boxed_any()
+                .into()
+        }))
+        .content(
+            TextView::default()
+                .to_widget(tx.clone())
+                .on_event(|_, vs, _| {
+                    vs.and_then(|vs| vs.unwrap_textview())
+                        .map(|tvs| Message::ScrollHelp { state: tvs })
+                })
+                .on_update(|state: &State| {
+                    TextViewProps::default()
+                        .state(Some(state.help.text.clone()))
+                        .to_boxed_any()
+                        .into()
+                }),
+        )
+        .footer(
+            Footer::default()
+                .to_widget(tx.clone())
+                .on_update(|state: &State| {
+                    FooterProps::default()
+                        .columns(
+                            [
+                                Column::new(Text::raw(""), Constraint::Fill(1)),
+                                Column::new(
+                                    span::default(&format!("{}%", state.help.text.scroll)).dim(),
+                                    Constraint::Min(4),
+                                ),
+                            ]
+                            .to_vec(),
+                        )
+                        .to_boxed_any()
+                        .into()
+                }),
+        )
+        .to_widget(tx.clone());
+
+    let shortcuts = Shortcuts::default().to_widget(tx.clone()).on_update(|_| {
+        ShortcutsProps::default()
+            .shortcuts(&[("?", "close")])
+            .to_boxed_any()
+            .into()
+    });
+
+    Page::default()
+        .content(content)
+        .shortcuts(shortcuts)
+        .to_widget(tx.clone())
+        .on_event(|key, _, _| match key {
+            Key::Char('q') | Key::Ctrl('c') => Some(Message::Exit { selection: None }),
+            Key::Char('?') => Some(Message::LeavePage),
+            _ => None,
+        })
+        .on_update(|_| PageProps::default().handle_keys(true).to_boxed_any().into())
+}
+
+pub fn help_text() -> String {
+    r#"# Generic keybindings
+
+`↑,k`:      move cursor one line up
+`↓,j:       move cursor one line down
+`PageUp`:   move cursor one page up
+`PageDown`: move cursor one page down
+`Home`:     move cursor to the first line
+`End`:      move cursor to the last line
+`Esc`:      Cancel
+`q`:        Quit
+
+# Specific keybindings
+
+`enter`:    Select notification (if --mode id)
+`enter`:    Show notification
+`r`:        Reload notifications
+`c`:        Clear notification
+`/`:        Search
+`?`:        Show help
+
+# Searching
+
+Examples:   state=unseen type=patch bugfix
+            type=(issue or patch)
+            state=unseen author=(did:key:... or did:key:...)"#
+        .into()
 }
 
 fn browse_footer<'a>(props: &BrowserProps<'a>) -> Vec<Column<'a>> {
@@ -291,10 +491,21 @@ fn browse_footer<'a>(props: &BrowserProps<'a>) -> Vec<Column<'a>> {
         span::default(&props.notifications.len().to_string()).dim(),
     ]);
 
-    match NotificationItemFilter::from_str(&props.search)
-        .unwrap_or_default()
-        .state()
-    {
+    let state = match NotificationFilter::from_str(&props.search).unwrap_or_default() {
+        NotificationFilter::State(state) => Some(state),
+        NotificationFilter::And(filters) => filters
+            .into_iter()
+            .filter_map(|f| match f {
+                NotificationFilter::State(state) => Some(state),
+                _ => None,
+            })
+            .collect::<Vec<_>>()
+            .first()
+            .cloned(),
+        _ => None,
+    };
+
+    match state {
         Some(state) => {
             let block = match state {
                 NotificationState::Seen => seen,

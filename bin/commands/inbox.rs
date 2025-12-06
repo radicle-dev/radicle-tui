@@ -7,12 +7,14 @@ use std::ffi::OsString;
 
 use anyhow::anyhow;
 
+use radicle::storage::{HasRepoId, ReadRepository};
+
 use radicle_cli::terminal;
 use radicle_cli::terminal::{Args, Error, Help};
 
 use self::common::{Mode, RepositoryMode, SelectionMode};
 
-use crate::cob::inbox;
+use crate::ui::items::notification::filter::{NotificationFilter, SortBy};
 
 pub const HELP: Help = Help {
     name: "inbox",
@@ -59,11 +61,11 @@ pub enum OperationName {
     Unknown,
 }
 
-#[derive(Debug, Default, Clone, PartialEq, Eq)]
+#[derive(Debug, Default, Clone, PartialEq)]
 pub struct ListOptions {
     mode: Mode,
-    filter: inbox::Filter,
-    sort_by: inbox::SortBy,
+    filter: NotificationFilter,
+    sort_by: SortBy,
     json: bool,
 }
 
@@ -166,12 +168,12 @@ impl Args for Options {
             .mode
             .with_repository(repository_mode.unwrap_or_default());
         list_opts.sort_by = if let Some(field) = field {
-            inbox::SortBy {
+            SortBy {
                 field,
                 reverse: reverse.unwrap_or(false),
             }
         } else {
-            inbox::SortBy::default()
+            SortBy::default()
         };
 
         // Map local commands. Forward help and ignore `no-forward`.
@@ -206,12 +208,13 @@ pub async fn run(options: Options, ctx: impl terminal::Context) -> anyhow::Resul
 
             let context = list::Context {
                 profile,
-                repository,
+                project: repository.identity_doc()?.project()?,
+                rid: repository.rid(),
                 mode: opts.mode,
                 filter: opts.filter.clone(),
                 sort_by: opts.sort_by,
             };
-            let selection = list::App::new(context).run().await?;
+            let selection = list::App::default().run(context).await?;
 
             if opts.json {
                 let selection = selection

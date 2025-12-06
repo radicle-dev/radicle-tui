@@ -2,205 +2,75 @@
 mod ui;
 
 use std::str::FromStr;
-
-use anyhow::Result;
+use std::sync::Arc;
+use std::sync::Mutex;
 
 use ratatui::Viewport;
-use termion::event::Key;
-
-use ratatui::layout::Constraint;
-use ratatui::style::Stylize;
-use ratatui::text::Text;
 
 use radicle::identity::Project;
 use radicle::node::notifications::NotificationId;
-use radicle::storage::git::Repository;
-use radicle::storage::ReadRepository;
+use radicle::prelude::RepoId;
 use radicle::storage::ReadStorage;
 use radicle::Profile;
 
 use radicle_tui as tui;
 
 use tui::store;
-use tui::ui::rm::widget::container::{Container, Footer, FooterProps, Header, HeaderProps};
-use tui::ui::rm::widget::input::{TextView, TextViewProps, TextViewState};
-use tui::ui::rm::widget::window::{
-    Page, PageProps, Shortcuts, ShortcutsProps, Window, WindowProps,
-};
-use tui::ui::rm::widget::{ToWidget, Widget};
-use tui::ui::span;
+use tui::task::{Process, Task};
+use tui::ui::rm::widget::text::TextViewState;
+use tui::ui::rm::widget::window::{Window, WindowProps};
+use tui::ui::rm::widget::ToWidget;
 use tui::ui::BufferedValue;
-use tui::ui::Column;
 use tui::{BoxedAny, Channel, Exit, PageStack};
 
-use crate::cob::inbox;
-use crate::ui::items::{Filter, NotificationItem, NotificationItemFilter};
+use crate::ui::items::filter::Filter;
+use crate::ui::items::notification::filter::NotificationFilter;
+use crate::ui::items::notification::filter::SortBy;
+use crate::ui::items::notification::Notification;
 
-use self::ui::Browser;
-use self::ui::BrowserProps;
-
-use super::common::SelectionMode;
 use super::common::{Mode, RepositoryMode};
 
 type Selection = tui::Selection<NotificationId>;
 
-#[allow(dead_code)]
+#[derive(Clone, Debug)]
 pub struct Context {
     pub profile: Profile,
-    pub repository: Repository,
+    pub project: Project,
+    pub rid: RepoId,
     pub mode: Mode,
-    pub filter: inbox::Filter,
-    pub sort_by: inbox::SortBy,
+    pub filter: NotificationFilter,
+    pub sort_by: SortBy,
 }
 
-pub struct App {
-    context: Context,
-}
+#[derive(Default)]
+pub struct App {}
 
-#[derive(Clone, Debug, Eq, PartialEq, Hash)]
-pub enum AppPage {
-    Browse,
-    Help,
-}
+impl App {
+    pub async fn run(&self, context: Context) -> anyhow::Result<Option<Selection>> {
+        let channel = Channel::default();
+        let state = State::new(context.clone())?;
+        let tx = channel.tx.clone();
 
-#[derive(Clone, Debug)]
-pub struct BrowserState {
-    items: Vec<NotificationItem>,
-    selected: Option<usize>,
-    filter: NotificationItemFilter,
-    search: BufferedValue<String>,
-    show_search: bool,
-}
+        let window = Window::default()
+            .page(PageState::Browse, ui::browser_page(&state, &channel))
+            .page(PageState::Help, ui::help_page(&state, &channel))
+            .to_widget(tx.clone())
+            .on_init(|| Some(Message::Reload))
+            .on_update(|state: &State| {
+                WindowProps::default()
+                    .current_page(state.pages.peek().unwrap_or(&PageState::Browse).clone())
+                    .to_boxed_any()
+                    .into()
+            });
 
-impl BrowserState {
-    pub fn notifications(&self) -> Vec<NotificationItem> {
-        self.items
-            .iter()
-            .filter(|patch| self.filter.matches(patch))
-            .cloned()
-            .collect()
-    }
-}
-
-#[derive(Clone, Debug)]
-pub struct HelpState {
-    text: TextViewState,
-}
-
-#[derive(Clone, Debug)]
-pub struct State {
-    mode: Mode,
-    project: Project,
-    pages: PageStack<AppPage>,
-    browser: BrowserState,
-    help: HelpState,
-}
-
-impl TryFrom<&Context> for State {
-    type Error = anyhow::Error;
-
-    fn try_from(context: &Context) -> Result<Self, Self::Error> {
-        let doc = context.repository.identity_doc()?;
-        let project = doc.project()?;
-
-        let search = BufferedValue::new(String::new());
-        let filter = NotificationItemFilter::from_str(&search.read()).unwrap_or_default();
-
-        let mut notifications = match &context.mode.repository() {
-            RepositoryMode::All => {
-                let mut repos = context.profile.storage.repositories()?;
-                repos.sort_by_key(|r| r.rid);
-
-                let mut notifs = vec![];
-                for repo in repos {
-                    let repo = context.profile.storage.repository(repo.rid)?;
-
-                    let items = inbox::all(&repo, &context.profile)?
-                        .iter()
-                        .map(|notif| NotificationItem::new(&context.profile, &repo, notif))
-                        .filter_map(|item| item.ok())
-                        .flatten()
-                        .collect::<Vec<_>>();
-
-                    notifs.extend(items);
-                }
-
-                notifs
-            }
-            RepositoryMode::Contextual => {
-                let notifs = inbox::all(&context.repository, &context.profile)?;
-
-                notifs
-                    .iter()
-                    .map(|notif| {
-                        NotificationItem::new(&context.profile, &context.repository, notif)
-                    })
-                    .filter_map(|item| item.ok())
-                    .flatten()
-                    .collect::<Vec<_>>()
-            }
-            RepositoryMode::ByRepo((rid, _)) => {
-                let repo = context.profile.storage.repository(*rid)?;
-                let notifs = inbox::all(&repo, &context.profile)?;
-
-                notifs
-                    .iter()
-                    .map(|notif| NotificationItem::new(&context.profile, &repo, notif))
-                    .filter_map(|item| item.ok())
-                    .flatten()
-                    .collect::<Vec<_>>()
-            }
-        };
-
-        // Set project name
-        let mode = match &context.mode.repository() {
-            RepositoryMode::ByRepo((rid, _)) => {
-                let project = context
-                    .profile
-                    .storage
-                    .repository(*rid)?
-                    .identity_doc()?
-                    .project()?;
-                let name = project.name().to_string();
-
-                context
-                    .mode
-                    .clone()
-                    .with_repository(RepositoryMode::ByRepo((*rid, Some(name))))
-            }
-            _ => context.mode.clone(),
-        };
-
-        // Apply sorting
-        match context.sort_by.field {
-            "timestamp" => notifications.sort_by(|a, b| a.timestamp.cmp(&b.timestamp)),
-            "id" => notifications.sort_by(|a, b| a.id.cmp(&b.id)),
-            _ => {}
-        }
-        if context.sort_by.reverse {
-            notifications.reverse();
-        }
-
-        // Sort by project if all notifications are shown
-        if let RepositoryMode::All = mode.repository() {
-            notifications.sort_by(|a, b| a.project.cmp(&b.project));
-        }
-
-        Ok(Self {
-            mode: context.mode.clone(),
-            project,
-            pages: PageStack::new(vec![AppPage::Browse]),
-            browser: BrowserState {
-                items: notifications,
-                selected: Some(0),
-                filter,
-                search,
-                show_search: false,
-            },
-            help: HelpState {
-                text: TextViewState::default().content(help_text()),
-            },
-        })
+        tui::rm(
+            state,
+            window,
+            Viewport::Inline(20),
+            channel,
+            vec![Loader::new(context)],
+        )
+        .await
     }
 }
 
@@ -215,6 +85,109 @@ pub enum Message {
     OpenHelp,
     LeavePage,
     ScrollHelp { state: TextViewState },
+    Reload,
+    NotificationsLoaded(Vec<Notification>),
+}
+
+#[derive(Clone, Debug)]
+pub struct BrowserState {
+    items: Arc<Mutex<Vec<Notification>>>,
+    selected: Option<usize>,
+    filter: NotificationFilter,
+    search: BufferedValue<String>,
+    show_search: bool,
+    is_loading: bool,
+}
+
+impl BrowserState {
+    fn items(&self) -> Vec<Notification> {
+        let items = self.items.lock().unwrap();
+        items
+            .iter()
+            .filter(|n| self.filter.matches(n))
+            .cloned()
+            .collect()
+    }
+
+    fn apply_filter(&mut self, filter: NotificationFilter) {
+        self.filter = filter;
+    }
+
+    fn apply_notifications(&mut self, notifications: Vec<Notification>) {
+        let mut items = self.items.lock().unwrap();
+        *items = notifications;
+    }
+
+    fn apply_sorting(&mut self, context: &Context) {
+        let mut items = self.items.lock().unwrap();
+        // Apply sorting
+        match context.sort_by.field {
+            "timestamp" => items.sort_by(|a, b| a.timestamp.cmp(&b.timestamp)),
+            "id" => items.sort_by(|a, b| a.id.cmp(&b.id)),
+            _ => {}
+        }
+        if context.sort_by.reverse {
+            items.reverse();
+        }
+
+        // Set project name
+        let mode = match context.mode.repository() {
+            RepositoryMode::ByRepo((rid, _)) => {
+                let name = context.project.name().to_string();
+                context
+                    .mode
+                    .clone()
+                    .with_repository(RepositoryMode::ByRepo((*rid, Some(name))))
+            }
+            _ => context.mode.clone(),
+        };
+
+        // Sort by project if all notifications are shown
+        if let RepositoryMode::All = mode.repository() {
+            items.sort_by(|a, b| a.project.cmp(&b.project));
+        }
+    }
+}
+
+#[derive(Clone, Debug)]
+pub struct HelpState {
+    text: TextViewState,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq, Hash)]
+pub enum PageState {
+    Browse,
+    Help,
+}
+
+#[derive(Clone, Debug)]
+pub struct State {
+    pages: PageStack<PageState>,
+    browser: BrowserState,
+    help: HelpState,
+    context: Arc<Mutex<Context>>,
+}
+
+impl State {
+    fn new(context: Context) -> Result<Self, anyhow::Error> {
+        let search = BufferedValue::new(context.filter.to_string());
+
+        Ok(Self {
+            pages: PageStack::new(vec![PageState::Browse]),
+            browser: BrowserState {
+                items: Arc::new(Mutex::new(vec![])),
+                selected: Some(0),
+                filter: context.filter.clone(),
+                search,
+                show_search: false,
+                is_loading: false,
+            },
+            help: HelpState {
+                text: TextViewState::default().content(ui::help_text()),
+            },
+            context: Arc::new(Mutex::new(context)),
+        })
+    }
 }
 
 impl store::Update<Message> for State {
@@ -233,11 +206,14 @@ impl store::Update<Message> for State {
             }
             Message::UpdateSearch { value } => {
                 self.browser.search.write(value);
-                self.browser.filter = NotificationItemFilter::from_str(&self.browser.search.read())
-                    .unwrap_or_default();
+                self.browser.apply_filter(
+                    NotificationFilter::from_str(&self.browser.search.read())
+                        .unwrap_or(NotificationFilter::Invalid),
+                );
 
+                let items = self.browser.items.lock().unwrap();
                 if let Some(selected) = self.browser.selected {
-                    if selected > self.browser.notifications().len() {
+                    if selected > items.len() {
                         self.browser.selected = Some(0);
                     }
                 }
@@ -252,13 +228,15 @@ impl store::Update<Message> for State {
             Message::CloseSearch => {
                 self.browser.search.reset();
                 self.browser.show_search = false;
-                self.browser.filter = NotificationItemFilter::from_str(&self.browser.search.read())
-                    .unwrap_or_default();
+                self.browser.apply_filter(
+                    NotificationFilter::from_str(&self.browser.search.read())
+                        .unwrap_or(NotificationFilter::Invalid),
+                );
 
                 None
             }
             Message::OpenHelp => {
-                self.pages.push(AppPage::Help);
+                self.pages.push(PageState::Help);
                 None
             }
             Message::LeavePage => {
@@ -269,180 +247,122 @@ impl store::Update<Message> for State {
                 self.help.text = state;
                 None
             }
+            Message::Reload => {
+                self.browser.is_loading = true;
+                None
+            }
+            Message::NotificationsLoaded(notifications) => {
+                let context = self.context.lock().unwrap();
+                self.browser.apply_notifications(notifications);
+                self.browser.apply_filter(self.browser.filter.clone());
+                self.browser.apply_sorting(&context);
+                self.browser.is_loading = false;
+                None
+            }
         }
     }
 }
 
-impl App {
-    pub fn new(context: Context) -> Self {
+#[derive(Clone, Debug)]
+pub struct Loader {
+    context: Context,
+}
+
+impl Loader {
+    fn new(context: Context) -> Self {
         Self { context }
     }
+}
 
-    pub async fn run(&self) -> Result<Option<Selection>> {
-        let channel = Channel::default();
-        let state = State::try_from(&self.context)?;
-        let tx = channel.tx.clone();
+#[derive(Debug)]
+pub struct NotificationLoader {
+    context: Context,
+}
 
-        let window = Window::default()
-            .page(AppPage::Browse, browser_page(&state, &channel))
-            .page(AppPage::Help, help_page(&state, &channel))
-            .to_widget(tx.clone())
-            .on_update(|state: &State| {
-                WindowProps::default()
-                    .current_page(state.pages.peek().unwrap_or(&AppPage::Browse).clone())
-                    .to_boxed_any()
-                    .into()
-            });
-
-        tui::rm(state, window, Viewport::Inline(20), channel).await
+impl NotificationLoader {
+    fn new(context: Context) -> Self {
+        NotificationLoader { context }
     }
 }
 
-fn browser_page(_state: &State, channel: &Channel<Message>) -> Widget<State, Message> {
-    let tx = channel.tx.clone();
+impl Task for NotificationLoader {
+    type Return = Message;
 
-    let content = Browser::new(tx.clone())
-        .to_widget(tx.clone())
-        .on_update(|state| BrowserProps::from(state).to_boxed_any().into());
+    fn run(&self) -> anyhow::Result<Vec<Self::Return>> {
+        let notifications = match self.context.mode.repository() {
+            RepositoryMode::All => {
+                let notifs = self.context.profile.notifications_mut()?;
+                let all = notifs.all()?;
 
-    let shortcuts = Shortcuts::default()
-        .to_widget(tx.clone())
-        .on_update(|state: &State| {
-            let shortcuts = if state.browser.show_search {
-                vec![("esc", "cancel"), ("enter", "apply")]
-            } else {
-                match state.mode.selection() {
-                    SelectionMode::Id => vec![("enter", "select"), ("/", "search")],
-                    SelectionMode::Operation => vec![
-                        ("enter", "show"),
-                        ("c", "clear"),
-                        ("/", "search"),
-                        ("?", "help"),
-                    ],
-                }
-            };
-
-            ShortcutsProps::default()
-                .shortcuts(&shortcuts)
-                .to_boxed_any()
-                .into()
-        });
-
-    Page::default()
-        .content(content)
-        .shortcuts(shortcuts)
-        .to_widget(tx.clone())
-        .on_event(|key, _, props| {
-            let default = PageProps::default();
-            let props = props
-                .and_then(|props| props.inner_ref::<PageProps>())
-                .unwrap_or(&default);
-
-            if props.handle_keys {
-                match key {
-                    Key::Char('q') | Key::Ctrl('c') => Some(Message::Exit { selection: None }),
-                    Key::Char('?') => Some(Message::OpenHelp),
-                    _ => None,
-                }
-            } else {
-                None
-            }
-        })
-        .on_update(|state: &State| {
-            PageProps::default()
-                .handle_keys(!state.browser.show_search)
-                .to_boxed_any()
-                .into()
-        })
-}
-
-fn help_page(_state: &State, channel: &Channel<Message>) -> Widget<State, Message> {
-    let tx = channel.tx.clone();
-
-    let content = Container::default()
-        .header(Header::default().to_widget(tx.clone()).on_update(|_| {
-            HeaderProps::default()
-                .columns([Column::new(" Help ", Constraint::Fill(1))].to_vec())
-                .to_boxed_any()
-                .into()
-        }))
-        .content(
-            TextView::default()
-                .to_widget(tx.clone())
-                .on_event(|_, vs, _| {
-                    vs.and_then(|vs| vs.unwrap_textview())
-                        .map(|tvs| Message::ScrollHelp { state: tvs })
-                })
-                .on_update(|state: &State| {
-                    TextViewProps::default()
-                        .state(Some(state.help.text.clone()))
-                        .to_boxed_any()
-                        .into()
-                }),
-        )
-        .footer(
-            Footer::default()
-                .to_widget(tx.clone())
-                .on_update(|state: &State| {
-                    FooterProps::default()
-                        .columns(
-                            [
-                                Column::new(Text::raw(""), Constraint::Fill(1)),
-                                Column::new(
-                                    span::default(&format!("{}%", state.help.text.scroll)).dim(),
-                                    Constraint::Min(4),
-                                ),
-                            ]
-                            .to_vec(),
+                all.filter_map(|notif| notif.ok())
+                    .map(|notif| {
+                        let repo = self.context.profile.storage.repository(notif.repo)?;
+                        Notification::new(
+                            &self.context.profile,
+                            &self.context.project,
+                            &repo,
+                            &notif,
                         )
-                        .to_boxed_any()
-                        .into()
-                }),
-        )
-        .to_widget(tx.clone());
+                    })
+                    .filter_map(|notif| notif.ok())
+                    .flatten()
+                    .collect::<Vec<_>>()
+            }
+            RepositoryMode::Contextual => {
+                let repo = self.context.profile.storage.repository(self.context.rid)?;
+                let notifs = self.context.profile.notifications_mut()?;
+                let by_repo = notifs.by_repo(&repo.id, "timestamp")?;
 
-    let shortcuts = Shortcuts::default().to_widget(tx.clone()).on_update(|_| {
-        ShortcutsProps::default()
-            .shortcuts(&[("?", "close")])
-            .to_boxed_any()
-            .into()
-    });
+                by_repo
+                    .filter_map(|notif| notif.ok())
+                    .map(|notif| {
+                        let repo = self.context.profile.storage.repository(notif.repo)?;
+                        Notification::new(
+                            &self.context.profile,
+                            &self.context.project,
+                            &repo,
+                            &notif,
+                        )
+                    })
+                    .filter_map(|notif| notif.ok())
+                    .flatten()
+                    .collect::<Vec<_>>()
+            }
+            RepositoryMode::ByRepo((rid, _)) => {
+                let repo = self.context.profile.storage.repository(*rid)?;
+                let notifs = self.context.profile.notifications_mut()?;
+                let by_repo = notifs.by_repo(&repo.id, "timestamp")?;
 
-    Page::default()
-        .content(content)
-        .shortcuts(shortcuts)
-        .to_widget(tx.clone())
-        .on_event(|key, _, _| match key {
-            Key::Char('q') | Key::Ctrl('c') => Some(Message::Exit { selection: None }),
-            Key::Char('?') => Some(Message::LeavePage),
-            _ => None,
-        })
-        .on_update(|_| PageProps::default().handle_keys(true).to_boxed_any().into())
+                by_repo
+                    .filter_map(|notif| notif.ok())
+                    .map(|notif| {
+                        let repo = self.context.profile.storage.repository(notif.repo)?;
+                        Notification::new(
+                            &self.context.profile,
+                            &self.context.project,
+                            &repo,
+                            &notif,
+                        )
+                    })
+                    .filter_map(|notif| notif.ok())
+                    .flatten()
+                    .collect::<Vec<_>>()
+            }
+        };
+
+        Ok(vec![Message::NotificationsLoaded(notifications)])
+    }
 }
 
-fn help_text() -> String {
-    r#"# Generic keybindings
-
-`↑,k`:      move cursor one line up
-`↓,j:       move cursor one line down
-`PageUp`:   move cursor one page up
-`PageDown`: move cursor one page down
-`Home`:     move cursor to the first line
-`End`:      move cursor to the last line
-`Esc`:      Cancel
-`q`:        Quit
-
-# Specific keybindings
-
-`enter`:    Select notification (if --mode id)
-`enter`:    Show notification
-`c`:        Clear notifications
-`/`:        Search
-`?`:        Show help
-
-# Searching
-
-Pattern:    is:<state> | is:patch | is:issue | <search>
-Example:    is:unseen is:patch Print"#
-        .into()
+impl Process<Message> for Loader {
+    async fn process(&mut self, message: Message) -> anyhow::Result<Vec<Message>> {
+        match message {
+            Message::Reload => {
+                let loader = NotificationLoader::new(self.context.clone());
+                let messages = tokio::spawn(async move { loader.run() }).await.unwrap()?;
+                Ok(messages)
+            }
+            _ => Ok(vec![]),
+        }
+    }
 }
