@@ -7,30 +7,30 @@ use std::str::FromStr;
 
 use anyhow::Result;
 
-use ratatui::Viewport;
 use termion::event::Key;
-
-use radicle_tui as tui;
 
 use ratatui::layout::Constraint;
 use ratatui::style::Stylize;
 use ratatui::text::Text;
+use ratatui::Viewport;
+
+use radicle::patch::PatchId;
+use radicle::storage::git::Repository;
+use radicle::Profile;
+
+use radicle_tui as tui;
 
 use tui::store;
+use tui::task::EmptyProcessors;
 use tui::ui::rm::widget::container::{Container, Footer, FooterProps, Header, HeaderProps};
-use tui::ui::rm::widget::input::{TextView, TextViewProps, TextViewState};
+use tui::ui::rm::widget::text::{TextView, TextViewProps, TextViewState};
 use tui::ui::rm::widget::window::{
     Page, PageProps, Shortcuts, ShortcutsProps, Window, WindowProps,
 };
 use tui::ui::rm::widget::{ToWidget, Widget};
 use tui::ui::Column;
 use tui::ui::{span, BufferedValue};
-
 use tui::{BoxedAny, Channel, Exit, PageStack};
-
-use radicle::patch::PatchId;
-use radicle::storage::git::Repository;
-use radicle::Profile;
 
 use self::rmui::{Browser, BrowserProps};
 use super::common::{Mode, PatchOperation};
@@ -65,7 +65,7 @@ impl App {
             let channel = Channel::default();
             let state = imui::App::try_from(&self.context)?;
 
-            tui::im(state, viewport, channel).await
+            tui::im(state, viewport, channel, EmptyProcessors::new()).await
         } else {
             let channel = Channel::default();
             let tx = channel.tx.clone();
@@ -81,7 +81,7 @@ impl App {
                         .into()
                 });
 
-            tui::rm(state, window, viewport, channel).await
+            tui::rm(state, window, viewport, channel, EmptyProcessors::new()).await
         }
     }
 }

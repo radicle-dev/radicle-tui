@@ -4,7 +4,7 @@ use std::vec;
 
 use radicle::issue::{self, CloseReason};
 use ratatui::Frame;
-use tokio::sync::mpsc::UnboundedSender;
+use tokio::sync::broadcast;
 
 use termion::event::Key;
 
@@ -18,8 +18,8 @@ use tui::ui::rm::widget;
 use tui::ui::rm::widget::container::{
     Container, ContainerProps, Footer, FooterProps, Header, HeaderProps,
 };
-use tui::ui::rm::widget::input::{TextField, TextFieldProps};
 use tui::ui::rm::widget::list::{Table, TableProps};
+use tui::ui::rm::widget::text::{TextField, TextFieldProps};
 use tui::ui::rm::widget::ViewProps;
 use tui::ui::rm::widget::{RenderProps, ToWidget, View};
 use tui::ui::span;
@@ -119,7 +119,7 @@ pub struct Browser {
 }
 
 impl Browser {
-    pub fn new(tx: UnboundedSender<Message>) -> Self {
+    pub fn new(tx: broadcast::Sender<Message>) -> Self {
         Self {
             issues: Container::default()
                 .header(Header::default().to_widget(tx.clone()).on_update(|state| {

@@ -1,72 +1,79 @@
-use std::fmt::Debug;
+use std::marker::PhantomData;
+use std::{fmt::Debug, future::Future};
 
-#[cfg(unix)]
-use tokio::signal::unix::signal;
-use tokio::sync::broadcast;
+use tokio::sync::{broadcast, mpsc::UnboundedSender};
 
-/// An `Interrupt` message that is produced by either an OS signal (e.g. kill)
-/// or the user by requesting the application to close.
-#[derive(Debug, Clone)]
-pub enum Interrupted<P>
-where
-    P: Clone + Send + Sync + Debug,
-{
-    OsSignal,
-    User { payload: Option<P> },
+use super::{Interrupted, Share};
+
+pub type EmptyProcessors = Vec<EmptyProcessor>;
+
+/// A task that can be run.
+pub trait Task: Debug + Send + Sync + 'static {
+    type Return;
+
+    fn run(&self) -> anyhow::Result<Vec<Self::Return>>;
 }
 
-/// The `Terminator` wraps a broadcast channel and can send an interrupt messages.
-#[derive(Debug, Clone)]
-pub struct Terminator<P>
-where
-    P: Clone + Send + Sync + Debug,
-{
-    interrupt_tx: broadcast::Sender<Interrupted<P>>,
+/// A processor that can be added to the application environment.
+/// Processors will receive application messages and can produce new ones.
+pub trait Process<M: Share> {
+    fn process(&mut self, _message: M) -> impl Future<Output = anyhow::Result<Vec<M>>> + Send;
 }
 
-impl<P> Terminator<P>
-where
-    P: Clone + Send + Sync + Debug + 'static,
-{
-    /// Create a `Terminator` that stores the sending end of a broadcast channel.
-    pub fn new(interrupt_tx: broadcast::Sender<Interrupted<P>>) -> Self {
-        Self { interrupt_tx }
-    }
+/// An empty processor that does nothing.
+#[derive(Debug, Clone)]
+pub struct EmptyProcessor;
 
-    /// Send interrupt message to the broadcast channel.
-    pub fn terminate(&mut self, interrupted: Interrupted<P>) -> anyhow::Result<()> {
-        self.interrupt_tx.send(interrupted)?;
-
-        Ok(())
+impl<M: Share> Process<M> for EmptyProcessor {
+    async fn process(&mut self, _message: M) -> anyhow::Result<Vec<M>> {
+        Ok(vec![])
     }
 }
 
-/// Receive `SIGINT` and call terminator which sends the interrupt message to its broadcast channel.
-#[cfg(unix)]
-async fn terminate_by_unix_signal<P>(mut terminator: Terminator<P>)
-where
-    P: Clone + Send + Sync + Debug + 'static,
-{
-    let mut interrupt_signal = signal(tokio::signal::unix::SignalKind::interrupt())
-        .expect("failed to create interrupt signal stream");
-
-    interrupt_signal.recv().await;
-
-    terminator
-        .terminate(Interrupted::OsSignal)
-        .expect("failed to send interrupt signal");
+/// A worker that is spawned by the application. Invokes
+/// all processors and sends received application messages.
+pub struct Worker<P, M, R> {
+    work_tx: UnboundedSender<M>,
+    _phantom: PhantomData<(P, M, R)>,
 }
 
-/// Create a broadcast channel and spawn a task for retrieving the applications' kill signal.
-pub fn create_termination<P>() -> (Terminator<P>, broadcast::Receiver<Interrupted<P>>)
+impl<P, M, R> Worker<P, M, R>
 where
-    P: Clone + Send + Sync + Debug + 'static,
+    P: Process<M> + Share,
+    M: Share,
+    R: Share,
 {
-    let (tx, rx) = broadcast::channel(1);
-    let terminator = Terminator::new(tx);
+    pub fn new(tx: UnboundedSender<M>) -> Self {
+        Self {
+            work_tx: tx,
+            _phantom: PhantomData,
+        }
+    }
 
-    #[cfg(unix)]
-    tokio::spawn(terminate_by_unix_signal(terminator.clone()));
+    pub async fn run(
+        &self,
+        processors: Vec<P>,
+        mut message_rx: broadcast::Receiver<M>,
+        mut interrupt_rx: broadcast::Receiver<Interrupted<R>>,
+    ) -> anyhow::Result<Interrupted<R>> {
+        let result = loop {
+            tokio::select! {
+                Ok(message) = message_rx.recv() => {
+                    for mut p in processors.clone() {
+                        for m in p.process(message.clone()).await? {
+                            if let Err(err) = self.work_tx.send(m) {
+                                log::error!(target: "worker", "Unable to send message: {err}")
+                            }
+                        }
+                    }
+                },
+                // Catch and handle interrupt signal to gracefully shutdown
+                Ok(interrupted) = interrupt_rx.recv() => {
+                    break interrupted;
+                }
+            }
+        };
 
-    (terminator, rx)
+        Ok(result)
+    }
 }

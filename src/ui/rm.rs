@@ -9,11 +9,11 @@ use tokio::sync::mpsc::UnboundedReceiver;
 
 use crate::event::Event;
 use crate::store::Update;
-use crate::task::Interrupted;
 use crate::terminal;
 use crate::terminal::Terminal;
 use crate::ui::rm::widget::RenderProps;
 use crate::ui::rm::widget::Widget;
+use crate::Interrupted;
 
 const RENDERING_TICK_RATE: Duration = Duration::from_millis(250);
 
@@ -60,6 +60,7 @@ impl Frontend {
         let mut root = {
             let state = state_rx.recv().await.unwrap();
 
+            root.init();
             root.update(&state);
             root
         };

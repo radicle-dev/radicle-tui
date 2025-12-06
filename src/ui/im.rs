@@ -10,7 +10,7 @@ use anyhow::Result;
 use ratatui::style::Stylize;
 use ratatui::text::{Span, Text};
 use tokio::sync::broadcast;
-use tokio::sync::mpsc::{UnboundedReceiver, UnboundedSender};
+use tokio::sync::mpsc::UnboundedReceiver;
 
 use termion::event::Key;
 
@@ -19,11 +19,11 @@ use ratatui::{Frame, Viewport};
 
 use crate::event::Event;
 use crate::store::Update;
-use crate::task::Interrupted;
 use crate::terminal;
 use crate::terminal::Terminal;
 use crate::ui::theme::Theme;
 use crate::ui::{Column, ToRow};
+use crate::Interrupted;
 
 use crate::ui::im::widget::{HeaderedTable, Widget};
 
@@ -42,17 +42,17 @@ pub trait Show<M> {
 pub struct Frontend {}
 
 impl Frontend {
-    pub async fn run<S, M, P>(
+    pub async fn run<S, M, R>(
         self,
-        state_tx: UnboundedSender<M>,
+        message_tx: broadcast::Sender<M>,
         mut state_rx: UnboundedReceiver<S>,
-        mut interrupt_rx: broadcast::Receiver<Interrupted<P>>,
+        mut interrupt_rx: broadcast::Receiver<Interrupted<R>>,
         viewport: Viewport,
-    ) -> anyhow::Result<Interrupted<P>>
+    ) -> anyhow::Result<Interrupted<R>>
     where
-        S: Update<M, Return = P> + Show<M>,
+        S: Update<M, Return = R> + Show<M>,
         M: Clone,
-        P: Clone + Send + Sync + Debug,
+        R: Clone + Send + Sync + Debug,
     {
         let mut ticker = tokio::time::interval(RENDERING_TICK_RATE);
 
@@ -60,9 +60,9 @@ impl Frontend {
         let mut events_rx = terminal::events();
 
         let mut state = state_rx.recv().await.unwrap();
-        let mut ctx = Context::default().with_sender(state_tx);
+        let mut ctx = Context::default().with_sender(message_tx);
 
-        let result: anyhow::Result<Interrupted<P>> = loop {
+        let result: anyhow::Result<Interrupted<R>> = loop {
             tokio::select! {
                 // Tick to terminate the select every N milliseconds
                 _ = ticker.tick() => (),
@@ -131,7 +131,7 @@ pub struct Context<M> {
     /// Current frame of the application.
     pub(crate) frame_size: Rect,
     /// The message sender used by the `Ui` to send application messages.
-    pub(crate) sender: Option<UnboundedSender<M>>,
+    pub(crate) sender: Option<broadcast::Sender<M>>,
 }
 
 impl<M> Default for Context<M> {
@@ -162,7 +162,7 @@ impl<M> Context<M> {
         self
     }
 
-    pub fn with_sender(mut self, sender: UnboundedSender<M>) -> Self {
+    pub fn with_sender(mut self, sender: broadcast::Sender<M>) -> Self {
         self.sender = Some(sender);
         self
     }

@@ -17,7 +17,7 @@ use tui::ui::{layout, span, BufferedValue};
 use super::format;
 use super::items::IssueItem;
 
-use crate::ui::items::Filter;
+use crate::ui::items::filter::Filter;
 
 /// A `BrowserState` represents the internal state of a browser widget.
 /// A browser widget would consist of 2 child widgets: a list of items and a

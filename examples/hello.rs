@@ -8,6 +8,7 @@ use ratatui::{Frame, Viewport};
 use radicle_tui as tui;
 
 use tui::store;
+use tui::task::EmptyProcessors;
 use tui::ui::im::widget::Window;
 use tui::ui::im::Show;
 use tui::ui::im::{Borders, Context};
@@ -73,7 +74,13 @@ pub async fn main() -> Result<()> {
         alien: ALIEN.to_string(),
     };
 
-    tui::im(app, Viewport::default(), Channel::default()).await?;
+    tui::im(
+        app,
+        Viewport::default(),
+        Channel::default(),
+        EmptyProcessors::new(),
+    )
+    .await?;
 
     Ok(())
 }

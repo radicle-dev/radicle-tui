@@ -1,15 +1,16 @@
 use anyhow::Result;
 
-use ratatui::Viewport;
 use termion::event::Key;
 
 use ratatui::layout::Constraint;
+use ratatui::Viewport;
 
 use radicle_tui as tui;
 
 use tui::store;
+use tui::task::EmptyProcessors;
 use tui::ui::rm::widget::container::{Container, Header, HeaderProps};
-use tui::ui::rm::widget::input::{TextView, TextViewProps, TextViewState};
+use tui::ui::rm::widget::text::{TextView, TextViewProps, TextViewState};
 use tui::ui::rm::widget::window::{Page, Shortcuts, ShortcutsProps, Window, WindowProps};
 use tui::ui::rm::widget::ToWidget;
 use tui::ui::Column;
@@ -17,11 +18,11 @@ use tui::{BoxedAny, Channel, Exit};
 
 const CONTENT: &str = r#"
 Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor
-incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam, quis nostrud 
-exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat. Duis aute irure 
+incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam, quis nostrud
+exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat. Duis aute irure
 dolor in reprehenderit in voluptate velit esse cillum dolore eu fugiat nulla pariatur.
 
-Excepteur sint occaecat cupidatat non proident, sunt in culpa qui officia deserunt 
+Excepteur sint occaecat cupidatat non proident, sunt in culpa qui officia deserunt
 mollit anim id est laborum.
 "#;
 
@@ -108,7 +109,14 @@ pub async fn main() -> Result<()> {
         })
         .on_update(|_| WindowProps::default().current_page(0).to_boxed_any().into());
 
-    tui::rm(app, window, Viewport::default(), channel).await?;
+    tui::rm(
+        app,
+        window,
+        Viewport::default(),
+        channel,
+        EmptyProcessors::new(),
+    )
+    .await?;
 
     Ok(())
 }

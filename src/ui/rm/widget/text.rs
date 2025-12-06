@@ -8,9 +8,66 @@ use ratatui::text::{Line, Span, Text};
 use ratatui::widgets::Paragraph;
 use ratatui::Frame;
 
-use crate::ui::theme::Theme;
+use crate::ui::theme::{self, Theme};
 
 use super::{utils, RenderProps, View, ViewProps, ViewState};
+
+#[derive(Clone, Debug)]
+pub struct LabelProps {
+    pub text: String,
+    pub style: Style,
+}
+
+impl LabelProps {
+    pub fn text(mut self, text: &str) -> Self {
+        self.text = text.to_string();
+        self
+    }
+
+    pub fn style(mut self, style: Style) -> Self {
+        self.style = style;
+        self
+    }
+}
+
+impl Default for LabelProps {
+    fn default() -> Self {
+        Self {
+            text: "".to_string(),
+            style: theme::style::reset(),
+        }
+    }
+}
+
+pub struct Label<S, M> {
+    /// Phantom
+    phantom: PhantomData<(S, M)>,
+}
+
+impl<S, M> Default for Label<S, M> {
+    fn default() -> Self {
+        Self {
+            phantom: PhantomData,
+        }
+    }
+}
+
+impl<S, M> View for Label<S, M> {
+    type Message = M;
+    type State = S;
+
+    fn render(&mut self, props: Option<&ViewProps>, render: RenderProps, frame: &mut Frame) {
+        let default = LabelProps::default();
+        let props = props
+            .and_then(|props| props.inner_ref::<LabelProps>())
+            .unwrap_or(&default);
+
+        frame.render_widget(
+            Paragraph::new(props.text.clone()).style(props.style),
+            render.area,
+        );
+    }
+}
 
 #[derive(Clone)]
 pub struct TextFieldProps {

@@ -23,6 +23,7 @@ use radicle::Storage;
 use radicle_tui as tui;
 
 use tui::store;
+use tui::task::EmptyProcessors;
 use tui::ui::im::widget::{PanesState, TableState, TextViewState, Window};
 use tui::ui::im::{Borders, Context, Show, Ui};
 use tui::ui::span;
@@ -116,7 +117,7 @@ impl Tui {
             .unwrap_or(default);
 
         let app = App::new(self.storage, self.review, self.hunks, state, self.mode)?;
-        let response = tui::im(app, viewport, channel).await?;
+        let response = tui::im(app, viewport, channel, EmptyProcessors::new()).await?;
 
         if let Some(response) = response.as_ref() {
             store.write(&state::to_json(&response.state)?)?;
@@ -236,7 +237,7 @@ impl AppState {
     }
 }
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct App<'a> {
     /// All hunks.
     hunks: Arc<Mutex<Vec<StatefulHunkItem<'a>>>>,

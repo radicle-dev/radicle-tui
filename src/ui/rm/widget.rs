@@ -1,13 +1,13 @@
 pub mod container;
-pub mod input;
 pub mod list;
+pub mod text;
 pub mod utils;
 pub mod window;
 
 use std::any::Any;
 use std::rc::Rc;
 
-use tokio::sync::mpsc::UnboundedSender;
+use tokio::sync::broadcast;
 
 use termion::event::Key;
 
@@ -15,13 +15,14 @@ use ratatui::prelude::*;
 
 use self::{
     container::SectionGroupState,
-    input::{TextAreaState, TextViewState},
+    text::{TextAreaState, TextViewState},
 };
 
 pub type BoxedView<S, M> = Box<dyn View<State = S, Message = M>>;
 pub type UpdateCallback<S> = fn(&S) -> ViewProps;
 pub type EventCallback<M> = fn(Key, Option<&ViewState>, Option<&ViewProps>) -> Option<M>;
 pub type RenderCallback<M> = fn(Option<&ViewProps>, &RenderProps) -> Option<M>;
+pub type InitCallback<M> = fn() -> Option<M>;
 
 /// `ViewProps` are properties of a `View`. They define a `View`s data, configuration etc.
 /// Since the framework itself does not know the concrete type of `View`, it also does not
@@ -254,14 +255,17 @@ pub trait View {
 pub struct Widget<S, M> {
     view: BoxedView<S, M>,
     props: Option<ViewProps>,
-    sender: UnboundedSender<M>,
+    sender: broadcast::Sender<M>,
+    on_init: Option<InitCallback<M>>,
     on_update: Option<UpdateCallback<S>>,
     on_event: Option<EventCallback<M>>,
     on_render: Option<RenderCallback<M>>,
 }
 
+unsafe impl<S, M> Send for Widget<S, M> {}
+
 impl<S: 'static, M: 'static> Widget<S, M> {
-    pub fn new<V>(view: V, sender: UnboundedSender<M>) -> Self
+    pub fn new<V>(view: V, sender: broadcast::Sender<M>) -> Self
     where
         Self: Sized,
         V: View<State = S, Message = M> + 'static,
@@ -270,6 +274,7 @@ impl<S: 'static, M: 'static> Widget<S, M> {
             view: Box::new(view),
             props: None,
             sender: sender.clone(),
+            on_init: None,
             on_update: None,
             on_event: None,
             on_render: None,
@@ -297,6 +302,13 @@ impl<S: 'static, M: 'static> Widget<S, M> {
         }
     }
 
+    /// Initializes the widget
+    pub fn init(&mut self) {
+        if let Some(on_init) = self.on_init {
+            (on_init)().and_then(|message| self.sender.send(message).ok());
+        }
+    }
+
     /// Applications are usually defined by app-specific widgets that do know
     /// the type of `state`. These can use widgets from the library that do not know the
     /// type of `state`.
@@ -321,11 +333,11 @@ impl<S: 'static, M: 'static> Widget<S, M> {
     }
 
     /// Sets the optional custom event handler.
-    pub fn on_event(mut self, callback: EventCallback<M>) -> Self
+    pub fn on_init(mut self, callback: InitCallback<M>) -> Self
     where
         Self: Sized,
     {
-        self.on_event = Some(callback);
+        self.on_init = Some(callback);
         self
     }
 
@@ -335,6 +347,15 @@ impl<S: 'static, M: 'static> Widget<S, M> {
         Self: Sized,
     {
         self.on_update = Some(callback);
+        self
+    }
+
+    /// Sets the optional custom event handler.
+    pub fn on_event(mut self, callback: EventCallback<M>) -> Self
+    where
+        Self: Sized,
+    {
+        self.on_event = Some(callback);
         self
     }
 
@@ -351,7 +372,7 @@ impl<S: 'static, M: 'static> Widget<S, M> {
 /// A `View` needs to be wrapped into a `Widget` in order to be used with the framework.
 /// `ToWidget` provides a blanket implementation for all `View`s.
 pub trait ToWidget<S, M> {
-    fn to_widget(self, tx: UnboundedSender<M>) -> Widget<S, M>
+    fn to_widget(self, tx: broadcast::Sender<M>) -> Widget<S, M>
     where
         Self: Sized + 'static;
 }
@@ -362,7 +383,7 @@ where
     S: 'static,
     M: 'static,
 {
-    fn to_widget(self, tx: UnboundedSender<M>) -> Widget<S, M>
+    fn to_widget(self, tx: broadcast::Sender<M>) -> Widget<S, M>
     where
         Self: Sized + 'static,
     {

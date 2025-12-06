@@ -12,6 +12,7 @@ use ratatui::{Frame, Viewport};
 
 use radicle_tui as tui;
 
+use tui::task::EmptyProcessors;
 use tui::ui::im::widget::Window;
 use tui::ui::im::{Borders, Context};
 use tui::ui::{Column, ToRow};
@@ -144,7 +145,14 @@ pub async fn main() -> Result<()> {
         selector: TableState::new(Some(0)),
     };
 
-    if let Some(exit) = tui::im(app, Viewport::Inline(12), Channel::default()).await? {
+    if let Some(exit) = tui::im(
+        app,
+        Viewport::Inline(12),
+        Channel::default(),
+        EmptyProcessors::new(),
+    )
+    .await?
+    {
         println!("{exit}");
     } else {
         anyhow::bail!("No selection");

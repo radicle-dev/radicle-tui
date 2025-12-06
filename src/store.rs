@@ -1,13 +1,12 @@
-use std::fmt::Debug;
 use std::marker::PhantomData;
 use std::time::Duration;
 
-use tokio::sync::broadcast;
-use tokio::sync::mpsc::{self, UnboundedReceiver, UnboundedSender};
+use tokio::sync::{
+    broadcast,
+    mpsc::{UnboundedReceiver, UnboundedSender},
+};
 
-use crate::Exit;
-
-use super::task::{Interrupted, Terminator};
+use super::{Exit, Interrupted, Share, Terminator};
 
 const STORE_TICK_RATE: Duration = Duration::from_millis(1000);
 
@@ -26,37 +25,32 @@ pub trait Update<M> {
 
 /// The `Store` updates the applications' state concurrently. It handles
 /// messages coming from the frontend and updates the state accordingly.
-pub struct Store<S, M, P>
+pub struct Store<S, M, R>
 where
-    S: Update<M, Return = P> + Clone + Send + Sync,
-    P: Clone + Debug + Send + Sync,
+    S: Update<M, Return = R> + Share,
 {
     state_tx: UnboundedSender<S>,
-    _phantom: PhantomData<(M, P)>,
+    _phantom: PhantomData<(M, R)>,
 }
 
-impl<S, M, P> Store<S, M, P>
+impl<S, M, R> Store<S, M, R>
 where
-    S: Update<M, Return = P> + Clone + Send + Sync,
-    P: Clone + Debug + Send + Sync,
+    S: Update<M, Return = R> + Share,
+    R: Share,
 {
-    pub fn new() -> (Self, UnboundedReceiver<S>) {
-        let (state_tx, state_rx) = mpsc::unbounded_channel::<S>();
-
-        (
-            Store {
-                state_tx,
-                _phantom: PhantomData,
-            },
-            state_rx,
-        )
+    pub fn new(tx: UnboundedSender<S>) -> Self {
+        Self {
+            state_tx: tx,
+            _phantom: PhantomData,
+        }
     }
 }
 
-impl<S, M, P> Store<S, M, P>
+impl<S, M, R> Store<S, M, R>
 where
-    S: Update<M, Return = P> + Clone + Send + Sync + 'static,
-    P: Clone + Debug + Send + Sync + 'static,
+    S: Update<M, Return = R> + Share,
+    M: Share,
+    R: Share,
 {
     /// By calling `main_loop`, the store will wait for new messages coming
     /// from the frontend and update the applications' state accordingly. It will
@@ -65,10 +59,11 @@ where
     pub async fn run(
         self,
         mut state: S,
-        mut terminator: Terminator<P>,
-        mut message_rx: UnboundedReceiver<M>,
-        mut interrupt_rx: broadcast::Receiver<Interrupted<P>>,
-    ) -> anyhow::Result<Interrupted<P>> {
+        mut terminator: Terminator<R>,
+        mut message_rx: broadcast::Receiver<M>,
+        mut work_rx: UnboundedReceiver<M>,
+        mut interrupt_rx: broadcast::Receiver<Interrupted<R>>,
+    ) -> anyhow::Result<Interrupted<R>> {
         // Send the initial state once
         self.state_tx.send(state.clone())?;
 
@@ -78,13 +73,18 @@ where
             tokio::select! {
                 // Handle the messages coming from the frontend
                 // and process them to do async operations
-                Some(message) = message_rx.recv() => {
+                Ok(message) = message_rx.recv() => {
                     if let Some(exit) = state.update(message) {
                         let interrupted = Interrupted::User { payload: exit.value };
                         let _ = terminator.terminate(interrupted.clone());
 
                         break interrupted;
                     }
+                    self.state_tx.send(state.clone())?;
+                },
+                Some(message) = work_rx.recv() => {
+                    state.update(message);
+                    self.state_tx.send(state.clone())?;
                 },
                 // Tick to terminate the select every N milliseconds
                 _ = ticker.tick() => {
@@ -95,8 +95,6 @@ where
                     break interrupted;
                 }
             }
-
-            self.state_tx.send(state.clone())?;
         };
 
         Ok(result)

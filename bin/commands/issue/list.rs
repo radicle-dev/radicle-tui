@@ -6,12 +6,12 @@ use std::str::FromStr;
 
 use anyhow::{bail, Result};
 
-use ratatui::Viewport;
 use termion::event::Key;
 
 use ratatui::layout::Constraint;
 use ratatui::style::Stylize;
 use ratatui::text::Text;
+use ratatui::Viewport;
 
 use radicle::cob::thread::CommentId;
 use radicle::git::Oid;
@@ -22,12 +22,13 @@ use radicle::Profile;
 use radicle_tui as tui;
 
 use tui::store;
+use tui::task::EmptyProcessors;
 use tui::ui::rm::widget::container::{
     Container, ContainerProps, Footer, FooterProps, Header, HeaderProps, SectionGroup,
     SectionGroupProps, SplitContainer, SplitContainerFocus, SplitContainerProps,
 };
-use tui::ui::rm::widget::input::{TextView, TextViewProps, TextViewState};
 use tui::ui::rm::widget::list::{Tree, TreeProps};
+use tui::ui::rm::widget::text::{TextView, TextViewProps, TextViewState};
 use tui::ui::rm::widget::window::{
     Page, PageProps, Shortcuts, ShortcutsProps, Window, WindowProps,
 };
@@ -370,7 +371,14 @@ impl App {
                     .into()
             });
 
-        tui::rm(state, window, Viewport::Inline(20), channel).await
+        tui::rm(
+            state,
+            window,
+            Viewport::Inline(20),
+            channel,
+            EmptyProcessors::new(),
+        )
+        .await
     }
 }
 

@@ -9,22 +9,23 @@ use ratatui::text::Text;
 use radicle_tui as tui;
 
 use tui::store;
-use tui::ui::rm::widget::input::{TextArea, TextAreaProps};
+use tui::task::EmptyProcessors;
+use tui::ui::rm::widget::text::{TextArea, TextAreaProps};
 use tui::ui::rm::widget::ToWidget;
 use tui::{BoxedAny, Channel, Exit};
 
 const ALIEN: &str = r#"
-     ///             ///    ,---------------------------------. 
+     ///             ///    ,---------------------------------.
      ///             ///    | Hey there, press (q) to quit... |
-        //         //       '---------------------------------'  
-        //,,,///,,,//      .. 
-     ///////////////////  .  
-  //////@@@@@//////@@@@@///  
-  //////@@###//////@@###///  
+        //         //       '---------------------------------'
+        //,,,///,,,//      ..
+     ///////////////////  .
+  //////@@@@@//////@@@@@///
+  //////@@###//////@@###///
 ,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
-     ,,,  ///   ///  ,,,     
-     ,,,  ///   ///  ,,,     
-          ///   ///          
+     ,,,  ///   ///  ,,,
+     ,,,  ///   ///  ,,,
+          ///   ///
         /////   /////
 "#;
 
@@ -70,7 +71,14 @@ pub async fn main() -> Result<()> {
                 .into()
         });
 
-    tui::rm(app, scene, Viewport::default(), channel).await?;
+    tui::rm(
+        app,
+        scene,
+        Viewport::default(),
+        channel,
+        EmptyProcessors::new(),
+    )
+    .await?;
 
     Ok(())
 }

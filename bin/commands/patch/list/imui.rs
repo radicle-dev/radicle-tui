@@ -20,7 +20,8 @@ use tui::{store, Exit};
 
 use crate::cob::patch;
 use crate::tui_patch::common::{Mode, PatchOperation};
-use crate::ui::items::{Filter, PatchItem, PatchItemFilter};
+use crate::ui::items::filter::Filter;
+use crate::ui::items::{PatchItem, PatchItemFilter};
 
 use super::{Context, Selection};
 
