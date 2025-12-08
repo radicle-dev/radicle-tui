@@ -68,7 +68,7 @@ impl From<&State> for BrowserProps<'_> {
             RepositoryMode::ByRepo((_, name)) => name.clone().unwrap_or_default(),
         };
 
-        let notifications = state.browser.items.lock().unwrap().to_vec();
+        let notifications = state.browser.items();
 
         // Compute statistics
         let mut seen = 0;
