@@ -84,31 +84,32 @@ impl Tui {
 }
 
 #[derive(Clone, Debug)]
-pub enum Message {
-    Quit,
-    Exit {
-        operation: Option<PatchOperation>,
-    },
-    ExitFromMode,
-    PatchesChanged {
-        state: TableState,
-    },
-    MainGroupChanged {
-        state: PanesState,
-    },
-    PageChanged {
+pub enum Change {
+    Page {
         page: Page,
     },
-    HelpChanged {
-        state: TextViewState,
+    MainGroup {
+        state: PanesState,
     },
-    ShowSearch,
-    UpdateSearch {
+    Patches {
+        state: TableState,
+    },
+    Search {
         search: BufferedValue<TextEditState>,
     },
-    HideSearch {
-        apply: bool,
+    Help {
+        state: TextViewState,
     },
+}
+
+#[derive(Clone, Debug)]
+pub enum Message {
+    Changed(Change),
+    ShowSearch,
+    HideSearch { apply: bool },
+    Exit { operation: Option<PatchOperation> },
+    ExitFromMode,
+    Quit,
 }
 
 #[derive(Clone, Debug)]
@@ -203,18 +204,6 @@ impl store::Update<Message> for App {
                     }),
                 })
             }
-            Message::PatchesChanged { state } => {
-                self.patches = state;
-                None
-            }
-            Message::MainGroupChanged { state } => {
-                self.main_group = state;
-                None
-            }
-            Message::PageChanged { page } => {
-                self.page = page;
-                None
-            }
             Message::ShowSearch => {
                 self.main_group = PanesState::new(3, None);
                 self.show_search = true;
@@ -235,17 +224,31 @@ impl store::Update<Message> for App {
 
                 None
             }
-            Message::UpdateSearch { search } => {
-                self.search = search;
-                self.filter =
-                    PatchItemFilter::from_str(&self.search.read().text).unwrap_or_default();
-                self.patches.select_first();
-                None
-            }
-            Message::HelpChanged { state } => {
-                self.help = state;
-                None
-            }
+            Message::Changed(changed) => match changed {
+                Change::Page { page } => {
+                    self.page = page;
+                    None
+                }
+                Change::MainGroup { state } => {
+                    self.main_group = state;
+                    None
+                }
+                Change::Patches { state } => {
+                    self.patches = state;
+                    None
+                }
+                Change::Search { search } => {
+                    self.search = search;
+                    self.filter =
+                        PatchItemFilter::from_str(&self.search.read().text).unwrap_or_default();
+                    self.patches.select_first();
+                    None
+                }
+                Change::Help { state } => {
+                    self.help = state;
+                    None
+                }
+            },
         }
     }
 }
@@ -284,9 +287,9 @@ impl Show<Message> for App {
                                 },
                             );
                             if group.response.changed {
-                                ui.send_message(Message::MainGroupChanged {
+                                ui.send_message(Message::Changed(Change::MainGroup {
                                     state: PanesState::new(3, group_focus),
-                                });
+                                }));
                             }
 
                             if show_search {
@@ -326,7 +329,9 @@ impl Show<Message> for App {
                                     ui.send_message(Message::Quit);
                                 }
                                 if ui.input_global(|key| key == Key::Char('?')) {
-                                    ui.send_message(Message::PageChanged { page: Page::Help });
+                                    ui.send_message(Message::Changed(Change::Page {
+                                        page: Page::Help,
+                                    }));
                                 }
                                 if ui.input_global(|key| key == Key::Char('\n')) {
                                     ui.send_message(Message::ExitFromMode);
@@ -375,9 +380,9 @@ impl Show<Message> for App {
                             Some(Borders::BottomSides),
                         );
                         if text_view.changed {
-                            ui.send_message(Message::HelpChanged {
+                            ui.send_message(Message::Changed(Change::Help {
                                 state: TextViewState::new(cursor),
-                            })
+                            }))
                         }
 
                         ui.bar(
@@ -406,7 +411,7 @@ impl Show<Message> for App {
                     });
 
                     if ui.input_global(|key| key == Key::Char('?')) {
-                        ui.send_message(Message::PageChanged { page: Page::Main });
+                        ui.send_message(Message::Changed(Change::Page { page: Page::Main }));
                     }
                     if ui.input_global(|key| key == Key::Char('q')) {
                         ui.send_message(Message::Quit);
@@ -454,9 +459,9 @@ impl App {
             Some("No patches found".into()),
         );
         if table.changed {
-            ui.send_message(Message::PatchesChanged {
+            ui.send_message(Message::Changed(Change::Patches {
                 state: TableState::new(selected),
-            });
+            }));
         }
 
         // TODO(erikli): Should only work if table has focus
@@ -485,7 +490,7 @@ impl App {
                 text: search_text,
                 cursor: search_cursor,
             });
-            ui.send_message(Message::UpdateSearch { search });
+            ui.send_message(Message::Changed(Change::Search { search }));
         }
 
         if ui.input_global(|key| key == Key::Esc) {
