@@ -516,10 +516,6 @@ pub struct PatchItemFilter {
 }
 
 impl PatchItemFilter {
-    pub fn status(&self) -> Option<patch::Status> {
-        self.status
-    }
-
     pub fn is_default(&self) -> bool {
         *self == PatchItemFilter::default()
     }

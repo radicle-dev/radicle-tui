@@ -373,7 +373,7 @@ mod interface {
             filter: opts.filter.clone(),
         };
 
-        list::App::new(context, true).run().await
+        list::Tui::new(context).run().await
     }
 
     pub async fn review(
