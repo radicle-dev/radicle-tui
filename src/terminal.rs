@@ -26,6 +26,8 @@ pub type Backend<S> = TermionBackendExt<S>;
 pub type InlineTerminal = ratatui::Terminal<Backend<RawTerminal<io::Stdout>>>;
 pub type FullscreenTerminal = ratatui::Terminal<Backend<AlternateScreen<RawTerminal<io::Stdout>>>>;
 
+const STDIN_TICK_RATE: Duration = Duration::from_millis(20);
+
 pub enum Terminal {
     Inline(InlineTerminal),
     Fullscreen(FullscreenTerminal),
@@ -192,7 +194,7 @@ impl StdinReader {
                     _ = token_clone.cancelled() => {
                         break;
                     }
-                    _ = tokio::time::sleep(Duration::from_millis(50)) => {}
+                    _ = tokio::time::sleep(STDIN_TICK_RATE) => {}
                 }
             }
         });
