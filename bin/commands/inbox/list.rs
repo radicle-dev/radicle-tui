@@ -416,11 +416,11 @@ impl App {
         );
         let mut search = self.state.search.clone();
 
-        let text_edit = ui.text_edit_labeled_singleline(
+        let text_edit = ui.text_edit_singleline(
             frame,
             &mut search_text,
             &mut search_cursor,
-            "Search".to_string(),
+            Some("Search".to_string()),
             Some(Borders::Spacer { top: 0, left: 0 }),
         );
 

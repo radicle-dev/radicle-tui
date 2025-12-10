@@ -627,21 +627,14 @@ where
         frame: &mut Frame,
         text: &mut String,
         cursor: &mut usize,
+        label: Option<impl ToString>,
         borders: Option<Borders>,
     ) -> Response {
-        widget::TextEdit::new(text, cursor, borders).ui(self, frame)
-    }
-
-    pub fn text_edit_labeled_singleline(
-        &mut self,
-        frame: &mut Frame,
-        text: &mut String,
-        cursor: &mut usize,
-        label: impl ToString,
-        border: Option<Borders>,
-    ) -> Response {
-        widget::TextEdit::new(text, cursor, border)
-            .with_label(label)
-            .ui(self, frame)
+        match label {
+            Some(label) => widget::TextEdit::new(text, cursor, borders)
+                .with_label(label)
+                .ui(self, frame),
+            None => widget::TextEdit::new(text, cursor, borders).ui(self, frame),
+        }
     }
 }

@@ -141,11 +141,11 @@ where
                 response.changed |= table.changed;
 
                 if *self.show_search {
-                    let text_edit = ui.text_edit_labeled_singleline(
+                    let text_edit = ui.text_edit_singleline(
                         frame,
                         &mut text,
                         &mut cursor,
-                        "Search".to_string(),
+                        Some("Search".to_string()),
                         Some(Borders::Spacer { top: 0, left: 1 }),
                     );
                     self.search.write(TextEditState { text, cursor });
