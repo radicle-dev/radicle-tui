@@ -1,4 +1,5 @@
 use std::str::FromStr;
+use std::sync::{Arc, Mutex};
 
 use anyhow::Result;
 
@@ -119,13 +120,7 @@ pub enum Page {
 }
 
 #[derive(Clone, Debug)]
-pub struct Storage {
-    patches: Vec<PatchItem>,
-}
-
-#[derive(Clone, Debug)]
-pub struct App {
-    storage: Storage,
+pub struct AppState {
     mode: Mode,
     page: Page,
     main_group: PanesState,
@@ -134,6 +129,12 @@ pub struct App {
     show_search: bool,
     help: TextViewState,
     filter: PatchItemFilter,
+}
+
+#[derive(Clone, Debug)]
+pub struct App {
+    patches: Arc<Mutex<Vec<PatchItem>>>,
+    state: AppState,
 }
 
 impl TryFrom<&Context> for App {
@@ -157,20 +158,20 @@ impl TryFrom<&Context> for App {
         items.sort_by(|a, b| b.timestamp.cmp(&a.timestamp));
 
         Ok(App {
-            storage: Storage {
-                patches: items.clone(),
+            patches: Arc::new(Mutex::new(items.clone())),
+            state: AppState {
+                mode: context.mode.clone(),
+                page: Page::Main,
+                main_group: PanesState::new(3, Some(0)),
+                patches: TableState::new(Some(0)),
+                search: BufferedValue::new(TextEditState {
+                    text: search.clone(),
+                    cursor: search.len(),
+                }),
+                show_search: false,
+                help: TextViewState::new(Position::default()),
+                filter,
             },
-            mode: context.mode.clone(),
-            page: Page::Main,
-            main_group: PanesState::new(3, Some(0)),
-            patches: TableState::new(Some(0)),
-            search: BufferedValue::new(TextEditState {
-                text: search.clone(),
-                cursor: search.len(),
-            }),
-            show_search: false,
-            help: TextViewState::new(Position::default()),
-            filter,
         })
     }
 }
@@ -189,7 +190,7 @@ impl store::Update<Message> for App {
                 }),
             }),
             Message::ExitFromMode => {
-                let operation = match self.mode {
+                let operation = match self.state.mode {
                     Mode::Operation => Some(PatchOperation::Show.to_string()),
                     Mode::Id => None,
                 };
@@ -203,47 +204,47 @@ impl store::Update<Message> for App {
                 })
             }
             Message::ShowSearch => {
-                self.main_group = PanesState::new(3, None);
-                self.show_search = true;
+                self.state.main_group = PanesState::new(3, None);
+                self.state.show_search = true;
                 None
             }
             Message::HideSearch { apply } => {
-                self.main_group = PanesState::new(3, Some(0));
-                self.show_search = false;
+                self.state.main_group = PanesState::new(3, Some(0));
+                self.state.show_search = false;
 
                 if apply {
-                    self.search.apply();
+                    self.state.search.apply();
                 } else {
-                    self.search.reset();
+                    self.state.search.reset();
                 }
 
-                self.filter =
-                    PatchItemFilter::from_str(&self.search.read().text).unwrap_or_default();
+                self.state.filter =
+                    PatchItemFilter::from_str(&self.state.search.read().text).unwrap_or_default();
 
                 None
             }
             Message::Changed(changed) => match changed {
                 Change::Page { page } => {
-                    self.page = page;
+                    self.state.page = page;
                     None
                 }
                 Change::MainGroup { state } => {
-                    self.main_group = state;
+                    self.state.main_group = state;
                     None
                 }
                 Change::Patches { state } => {
-                    self.patches = state;
+                    self.state.patches = state;
                     None
                 }
                 Change::Search { search } => {
-                    self.search = search;
-                    self.filter =
-                        PatchItemFilter::from_str(&self.search.read().text).unwrap_or_default();
-                    self.patches.select_first();
+                    self.state.search = search;
+                    self.state.filter = PatchItemFilter::from_str(&self.state.search.read().text)
+                        .unwrap_or_default();
+                    self.state.patches.select_first();
                     None
                 }
                 Change::Help { state } => {
-                    self.help = state;
+                    self.state.help = state;
                     None
                 }
             },
@@ -254,16 +255,16 @@ impl store::Update<Message> for App {
 impl Show<Message> for App {
     fn show(&self, ctx: &im::Context<Message>, frame: &mut Frame) -> Result<()> {
         Window::default().show(ctx, |ui| {
-            match self.page {
+            match self.state.page {
                 Page::Main => {
-                    let show_search = self.show_search;
+                    let show_search = self.state.show_search;
                     let mut page_focus = if show_search { Some(1) } else { Some(0) };
 
                     ui.panes(
                         Layout::vertical([Constraint::Fill(1), Constraint::Length(2)]),
                         &mut page_focus,
                         |ui| {
-                            let mut group_focus = self.main_group.focus();
+                            let mut group_focus = self.state.main_group.focus();
 
                             let group = ui.panes(
                                 im::Layout::Expandable3 { left_only: true },
@@ -296,8 +297,8 @@ impl Show<Message> for App {
                     ]);
 
                     ui.composite(layout, 1, |ui| {
-                        self.show_help_text_view(frame, ui);
-                        self.show_help_context_bar(frame, ui);
+                        self.show_help_text(frame, ui);
+                        self.show_help_context(frame, ui);
 
                         ui.shortcuts(frame, &[("?", "close")], '∙');
                     });
@@ -321,14 +322,13 @@ impl Show<Message> for App {
 
 impl App {
     pub fn show_browser(&self, frame: &mut Frame, ui: &mut im::Ui<Message>) {
-        let patches = self
-            .storage
-            .patches
+        let patches = self.patches.lock().unwrap();
+        let patches = patches
             .iter()
-            .filter(|patch| self.filter.matches(patch))
+            .filter(|patch| self.state.filter.matches(patch))
             .cloned()
             .collect::<Vec<_>>();
-        let mut selected = self.patches.selected();
+        let mut selected = self.state.patches.selected();
 
         let header = [
             Column::new(Span::raw(" ● ").bold(), Constraint::Length(3)),
@@ -364,7 +364,7 @@ impl App {
 
     fn show_browser_footer(&self, frame: &mut Frame, ui: &mut im::Ui<Message>) {
         ui.layout(Layout::vertical([1, 1]), None, |ui| {
-            ui.bar(frame, browser_context(ui, self), Some(Borders::None));
+            self.show_browser_context(frame, ui);
             self.show_browser_shortcuts(frame, ui);
         });
         if ui.input_global(|key| key == Key::Char('q')) {
@@ -395,10 +395,10 @@ impl App {
 
     pub fn show_browser_search(&self, frame: &mut Frame, ui: &mut im::Ui<Message>) {
         let (mut search_text, mut search_cursor) = (
-            self.search.clone().read().text,
-            self.search.clone().read().cursor,
+            self.state.search.clone().read().text,
+            self.state.search.clone().read().cursor,
         );
-        let mut search = self.search.clone();
+        let mut search = self.state.search.clone();
 
         let text_edit = ui.text_edit_labeled_singleline(
             frame,
@@ -424,10 +424,150 @@ impl App {
         }
     }
 
+    fn show_browser_context(&self, frame: &mut Frame, ui: &mut im::Ui<Message>) {
+        let context = {
+            let patches = self.patches.lock().unwrap();
+            let search = self.state.search.read().text;
+            let total_count = patches.len();
+            let filtered_count = patches
+                .iter()
+                .filter(|patch| self.state.filter.matches(patch))
+                .collect::<Vec<_>>()
+                .len();
+
+            let filtered_counts = format!(" {filtered_count}/{total_count} ");
+            let state_counts =
+                patches
+                    .iter()
+                    .fold((0, 0, 0, 0), |counts, patch| match patch.state {
+                        radicle::patch::State::Draft => {
+                            (counts.0 + 1, counts.1, counts.2, counts.3)
+                        }
+                        radicle::patch::State::Open { conflicts: _ } => {
+                            (counts.0, counts.1 + 1, counts.2, counts.3)
+                        }
+                        radicle::patch::State::Archived => {
+                            (counts.0, counts.1, counts.2 + 1, counts.3)
+                        }
+                        radicle::patch::State::Merged {
+                            revision: _,
+                            commit: _,
+                        } => (counts.0, counts.1, counts.2, counts.3 + 1),
+                    });
+
+            if self.state.filter.is_default() {
+                let draft = format!(" {} ", state_counts.0);
+                let open = format!(" {} ", state_counts.1);
+                let archived = format!(" {} ", state_counts.2);
+                let merged = format!(" {} ", state_counts.3);
+                [
+                    Column::new(
+                        Span::raw(" Search ".to_string()).cyan().dim().reversed(),
+                        Constraint::Length(8),
+                    ),
+                    Column::new(
+                        Span::raw(format!(" {search} "))
+                            .into_left_aligned_line()
+                            .style(ui.theme().bar_on_black_style),
+                        Constraint::Fill(1),
+                    ),
+                    Column::new(
+                        Span::raw("●")
+                            .style(ui.theme().bar_on_black_style)
+                            .dim()
+                            .bold(),
+                        Constraint::Length(1),
+                    ),
+                    Column::new(
+                        Span::raw(draft.clone())
+                            .style(ui.theme().bar_on_black_style)
+                            .dim(),
+                        Constraint::Length(draft.chars().count() as u16),
+                    ),
+                    Column::new(
+                        Span::raw("●")
+                            .style(ui.theme().bar_on_black_style)
+                            .green()
+                            .dim()
+                            .bold(),
+                        Constraint::Length(1),
+                    ),
+                    Column::new(
+                        Span::raw(open.clone())
+                            .style(ui.theme().bar_on_black_style)
+                            .dim(),
+                        Constraint::Length(open.chars().count() as u16),
+                    ),
+                    Column::new(
+                        Span::raw("●")
+                            .style(ui.theme().bar_on_black_style)
+                            .yellow()
+                            .dim()
+                            .bold(),
+                        Constraint::Length(1),
+                    ),
+                    Column::new(
+                        Span::raw(archived.clone())
+                            .style(ui.theme().bar_on_black_style)
+                            .dim(),
+                        Constraint::Length(archived.chars().count() as u16),
+                    ),
+                    Column::new(
+                        Span::raw("✔")
+                            .style(ui.theme().bar_on_black_style)
+                            .magenta()
+                            .dim()
+                            .bold(),
+                        Constraint::Length(1),
+                    ),
+                    Column::new(
+                        Span::raw(merged.clone())
+                            .style(ui.theme().bar_on_black_style)
+                            .dim(),
+                        Constraint::Length(merged.chars().count() as u16),
+                    ),
+                    Column::new(
+                        Span::raw(filtered_counts.clone())
+                            .into_right_aligned_line()
+                            .cyan()
+                            .dim()
+                            .reversed(),
+                        Constraint::Length(filtered_counts.chars().count() as u16),
+                    ),
+                ]
+                .to_vec()
+            } else {
+                [
+                    Column::new(
+                        Span::raw(" Search ".to_string()).cyan().dim().reversed(),
+                        Constraint::Length(8),
+                    ),
+                    Column::new(
+                        Span::raw(format!(" {search} "))
+                            .into_left_aligned_line()
+                            .style(ui.theme().bar_on_black_style),
+                        Constraint::Fill(1),
+                    ),
+                    Column::new(
+                        Span::raw(filtered_counts.clone())
+                            .into_right_aligned_line()
+                            .cyan()
+                            .dim()
+                            .reversed(),
+                        Constraint::Length(filtered_counts.chars().count() as u16),
+                    ),
+                ]
+                .to_vec()
+            }
+        };
+
+        ui.bar(frame, context, Some(Borders::None));
+    }
+
     pub fn show_browser_shortcuts(&self, frame: &mut Frame, ui: &mut im::Ui<Message>) {
         ui.shortcuts(
             frame,
-            &match self.mode {
+            &match self.state.mode {
                 Mode::Id => [("enter", "select"), ("/", "search")].to_vec(),
                 Mode::Operation => [
                     ("enter", "show"),
@@ -443,14 +583,14 @@ impl App {
         );
     }
 
-    fn show_help_text_view(&self, frame: &mut Frame, ui: &mut im::Ui<Message>) {
+    fn show_help_text(&self, frame: &mut Frame, ui: &mut im::Ui<Message>) {
         ui.columns(
             frame,
             [Column::new(Span::raw(" Help ").bold(), Constraint::Fill(1))].to_vec(),
             Some(Borders::Top),
         );
 
-        let mut cursor = self.help.cursor();
+        let mut cursor = self.state.help.cursor();
         let text_view = ui.text_view(
             frame,
             HELP.to_string(),
@@ -464,7 +604,7 @@ impl App {
         }
     }
 
-    fn show_help_context_bar(&self, frame: &mut Frame, ui: &mut im::Ui<Message>) {
+    fn show_help_context(&self, frame: &mut Frame, ui: &mut im::Ui<Message>) {
         ui.bar(
             frame,
             [
@@ -488,180 +628,17 @@ impl App {
         );
     }
 
-    pub fn selected_patch(&self) -> Option<&PatchItem> {
-        let patches = self
-            .storage
-            .patches
-            .iter()
-            .filter(|patch| self.filter.matches(patch))
-            .collect::<Vec<_>>();
-
-        self.patches
-            .selected()
-            .and_then(|selected| patches.get(selected))
-            .copied()
-    }
-}
-
-fn browser_context<'a>(ui: &im::Ui<Message>, app: &'a App) -> Vec<Column<'a>> {
-    let search = app.search.read().text;
-    let total_count = app.storage.patches.len();
-    let filtered_count = app
-        .storage
-        .patches
-        .iter()
-        .filter(|patch| app.filter.matches(patch))
-        .collect::<Vec<_>>()
-        .len();
-    let experimental = false;
-
-    if experimental {
-        [
-            Column::new(
-                Span::raw(" Search ".to_string()).cyan().dim().reversed(),
-                Constraint::Length(8),
-            ),
-            Column::new(Span::raw("".to_string()), Constraint::Length(1)),
-            Column::new(
-                Span::raw(format!(" {search} "))
-                    .into_left_aligned_line()
-                    .cyan()
-                    .dim()
-                    .reversed(),
-                Constraint::Length((search.chars().count() + 2) as u16),
-            ),
-            Column::new(Span::raw("".to_string()), Constraint::Fill(1)),
-            Column::new(
-                Span::raw(" 0% ")
-                    .into_right_aligned_line()
-                    .red()
-                    .dim()
-                    .reversed(),
-                Constraint::Length(6),
-            ),
-        ]
-        .to_vec()
-    } else {
-        let filtered_counts = format!(" {filtered_count}/{total_count} ");
-        let state_counts =
-            app.storage
-                .patches
+    pub fn selected_patch(&self) -> Option<PatchItem> {
+        let patches = self.patches.lock().unwrap();
+        match self.state.patches.selected() {
+            Some(selected) => patches
                 .iter()
-                .fold((0, 0, 0, 0), |counts, patch| match patch.state {
-                    radicle::patch::State::Draft => (counts.0 + 1, counts.1, counts.2, counts.3),
-                    radicle::patch::State::Open { conflicts: _ } => {
-                        (counts.0, counts.1 + 1, counts.2, counts.3)
-                    }
-                    radicle::patch::State::Archived => (counts.0, counts.1, counts.2 + 1, counts.3),
-                    radicle::patch::State::Merged {
-                        revision: _,
-                        commit: _,
-                    } => (counts.0, counts.1, counts.2, counts.3 + 1),
-                });
-
-        if app.filter.is_default() {
-            let draft = format!(" {} ", state_counts.0);
-            let open = format!(" {} ", state_counts.1);
-            let archived = format!(" {} ", state_counts.2);
-            let merged = format!(" {} ", state_counts.3);
-            [
-                Column::new(
-                    Span::raw(" Search ".to_string()).cyan().dim().reversed(),
-                    Constraint::Length(8),
-                ),
-                Column::new(
-                    Span::raw(format!(" {search} "))
-                        .into_left_aligned_line()
-                        .style(ui.theme().bar_on_black_style),
-                    Constraint::Fill(1),
-                ),
-                Column::new(
-                    Span::raw("●")
-                        .style(ui.theme().bar_on_black_style)
-                        .dim()
-                        .bold(),
-                    Constraint::Length(1),
-                ),
-                Column::new(
-                    Span::raw(draft.clone())
-                        .style(ui.theme().bar_on_black_style)
-                        .dim(),
-                    Constraint::Length(draft.chars().count() as u16),
-                ),
-                Column::new(
-                    Span::raw("●")
-                        .style(ui.theme().bar_on_black_style)
-                        .green()
-                        .dim()
-                        .bold(),
-                    Constraint::Length(1),
-                ),
-                Column::new(
-                    Span::raw(open.clone())
-                        .style(ui.theme().bar_on_black_style)
-                        .dim(),
-                    Constraint::Length(open.chars().count() as u16),
-                ),
-                Column::new(
-                    Span::raw("●")
-                        .style(ui.theme().bar_on_black_style)
-                        .yellow()
-                        .dim()
-                        .bold(),
-                    Constraint::Length(1),
-                ),
-                Column::new(
-                    Span::raw(archived.clone())
-                        .style(ui.theme().bar_on_black_style)
-                        .dim(),
-                    Constraint::Length(archived.chars().count() as u16),
-                ),
-                Column::new(
-                    Span::raw("✔")
-                        .style(ui.theme().bar_on_black_style)
-                        .magenta()
-                        .dim()
-                        .bold(),
-                    Constraint::Length(1),
-                ),
-                Column::new(
-                    Span::raw(merged.clone())
-                        .style(ui.theme().bar_on_black_style)
-                        .dim(),
-                    Constraint::Length(merged.chars().count() as u16),
-                ),
-                Column::new(
-                    Span::raw(filtered_counts.clone())
-                        .into_right_aligned_line()
-                        .cyan()
-                        .dim()
-                        .reversed(),
-                    Constraint::Length(filtered_counts.chars().count() as u16),
-                ),
-            ]
-            .to_vec()
-        } else {
-            [
-                Column::new(
-                    Span::raw(" Search ".to_string()).cyan().dim().reversed(),
-                    Constraint::Length(8),
-                ),
-                Column::new(
-                    Span::raw(format!(" {search} "))
-                        .into_left_aligned_line()
-                        .style(ui.theme().bar_on_black_style),
-                    Constraint::Fill(1),
-                ),
-                Column::new(
-                    Span::raw(filtered_counts.clone())
-                        .into_right_aligned_line()
-                        .cyan()
-                        .dim()
-                        .reversed(),
-                    Constraint::Length(filtered_counts.chars().count() as u16),
-                ),
-            ]
-            .to_vec()
+                .filter(|patch| self.state.filter.matches(patch))
+                .collect::<Vec<_>>()
+                .get(selected)
+                .cloned()
+                .cloned(),
+            _ => None,
         }
     }
 }
