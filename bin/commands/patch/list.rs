@@ -179,8 +179,6 @@ impl store::Update<Message> for App {
     type Return = Selection;
 
     fn update(&mut self, message: Message) -> Option<tui::Exit<Selection>> {
-        log::debug!("[State] Received message: {message:?}");
-
         match message {
             Message::Quit => Some(Exit { value: None }),
             Message::Exit { operation } => self.selected_patch().map(|issue| Exit {
@@ -260,30 +258,18 @@ impl Show<Message> for App {
                 Page::Main => {
                     let show_search = self.show_search;
                     let mut page_focus = if show_search { Some(1) } else { Some(0) };
-                    let mut group_focus = self.main_group.focus();
 
                     ui.panes(
                         Layout::vertical([Constraint::Fill(1), Constraint::Length(2)]),
                         &mut page_focus,
                         |ui| {
+                            let mut group_focus = self.main_group.focus();
+
                             let group = ui.panes(
                                 im::Layout::Expandable3 { left_only: true },
                                 &mut group_focus,
                                 |ui| {
-                                    self.show_patches(frame, ui);
-
-                                    ui.text_view(
-                                        frame,
-                                        String::new(),
-                                        &mut Position::default(),
-                                        Some(Borders::All),
-                                    );
-                                    ui.text_view(
-                                        frame,
-                                        String::new(),
-                                        &mut Position::default(),
-                                        Some(Borders::All),
-                                    );
+                                    self.show_browser(frame, ui);
                                 },
                             );
                             if group.response.changed {
@@ -293,72 +279,15 @@ impl Show<Message> for App {
                             }
 
                             if show_search {
-                                self.show_search_text_edit(frame, ui);
-                            } else {
-                                ui.layout(Layout::vertical([1, 1]), None, |ui| {
-                                    ui.bar(
-                                        frame,
-                                        match group_focus {
-                                            Some(0) => browser_context(ui, self),
-                                            _ => default_context(ui),
-                                        },
-                                        Some(Borders::None),
-                                    );
-
-                                    ui.shortcuts(
-                                        frame,
-                                        &match self.mode {
-                                            Mode::Id => {
-                                                [("enter", "select"), ("/", "search")].to_vec()
-                                            }
-                                            Mode::Operation => [
-                                                ("enter", "show"),
-                                                ("c", "checkout"),
-                                                ("d", "diff"),
-                                                ("r", "review"),
-                                                ("/", "search"),
-                                                ("?", "help"),
-                                            ]
-                                            .to_vec(),
-                                        },
-                                        '∙',
-                                    );
-                                });
-
-                                if ui.input_global(|key| key == Key::Char('q')) {
-                                    ui.send_message(Message::Quit);
-                                }
-                                if ui.input_global(|key| key == Key::Char('?')) {
-                                    ui.send_message(Message::Changed(Change::Page {
-                                        page: Page::Help,
-                                    }));
-                                }
-                                if ui.input_global(|key| key == Key::Char('\n')) {
-                                    ui.send_message(Message::ExitFromMode);
-                                }
-                                if ui.input_global(|key| key == Key::Char('d')) {
-                                    ui.send_message(Message::Exit {
-                                        operation: Some(PatchOperation::Diff),
-                                    });
-                                }
-                                if ui.input_global(|key| key == Key::Char('r')) {
-                                    ui.send_message(Message::Exit {
-                                        operation: Some(PatchOperation::Review),
-                                    });
-                                }
-                                if ui.input_global(|key| key == Key::Char('c')) {
-                                    ui.send_message(Message::Exit {
-                                        operation: Some(PatchOperation::Checkout),
-                                    });
-                                }
+                                self.show_browser_search(frame, ui);
+                            } else if let Some(0) = group_focus {
+                                self.show_browser_footer(frame, ui);
                             }
                         },
                     );
                 }
 
                 Page::Help => {
-                    let mut cursor = self.help.cursor();
-
                     let layout = Layout::vertical([
                         Constraint::Length(3),
                         Constraint::Fill(1),
@@ -367,45 +296,8 @@ impl Show<Message> for App {
                     ]);
 
                     ui.composite(layout, 1, |ui| {
-                        ui.columns(
-                            frame,
-                            [Column::new(Span::raw(" Help ").bold(), Constraint::Fill(1))].to_vec(),
-                            Some(Borders::Top),
-                        );
-
-                        let text_view = ui.text_view(
-                            frame,
-                            HELP.to_string(),
-                            &mut cursor,
-                            Some(Borders::BottomSides),
-                        );
-                        if text_view.changed {
-                            ui.send_message(Message::Changed(Change::Help {
-                                state: TextViewState::new(cursor),
-                            }))
-                        }
-
-                        ui.bar(
-                            frame,
-                            [
-                                Column::new(
-                                    Span::raw(" ".to_string())
-                                        .into_left_aligned_line()
-                                        .style(ui.theme().bar_on_black_style),
-                                    Constraint::Fill(1),
-                                ),
-                                Column::new(
-                                    Span::raw(" ")
-                                        .into_right_aligned_line()
-                                        .cyan()
-                                        .dim()
-                                        .reversed(),
-                                    Constraint::Length(6),
-                                ),
-                            ]
-                            .to_vec(),
-                            Some(Borders::None),
-                        );
+                        self.show_help_text_view(frame, ui);
+                        self.show_help_context_bar(frame, ui);
 
                         ui.shortcuts(frame, &[("?", "close")], '∙');
                     });
@@ -428,7 +320,7 @@ impl Show<Message> for App {
 }
 
 impl App {
-    pub fn show_patches(&self, frame: &mut Frame, ui: &mut im::Ui<Message>) {
+    pub fn show_browser(&self, frame: &mut Frame, ui: &mut im::Ui<Message>) {
         let patches = self
             .storage
             .patches
@@ -470,7 +362,38 @@ impl App {
         }
     }
 
-    pub fn show_search_text_edit(&self, frame: &mut Frame, ui: &mut im::Ui<Message>) {
+    fn show_browser_footer(&self, frame: &mut Frame, ui: &mut im::Ui<Message>) {
+        ui.layout(Layout::vertical([1, 1]), None, |ui| {
+            ui.bar(frame, browser_context(ui, self), Some(Borders::None));
+            self.show_browser_shortcuts(frame, ui);
+        });
+        if ui.input_global(|key| key == Key::Char('q')) {
+            ui.send_message(Message::Quit);
+        }
+        if ui.input_global(|key| key == Key::Char('?')) {
+            ui.send_message(Message::Changed(Change::Page { page: Page::Help }));
+        }
+        if ui.input_global(|key| key == Key::Char('\n')) {
+            ui.send_message(Message::ExitFromMode);
+        }
+        if ui.input_global(|key| key == Key::Char('d')) {
+            ui.send_message(Message::Exit {
+                operation: Some(PatchOperation::Diff),
+            });
+        }
+        if ui.input_global(|key| key == Key::Char('r')) {
+            ui.send_message(Message::Exit {
+                operation: Some(PatchOperation::Review),
+            });
+        }
+        if ui.input_global(|key| key == Key::Char('c')) {
+            ui.send_message(Message::Exit {
+                operation: Some(PatchOperation::Checkout),
+            });
+        }
+    }
+
+    pub fn show_browser_search(&self, frame: &mut Frame, ui: &mut im::Ui<Message>) {
         let (mut search_text, mut search_cursor) = (
             self.search.clone().read().text,
             self.search.clone().read().cursor,
@@ -499,6 +422,70 @@ impl App {
         if ui.input_global(|key| key == Key::Char('\n')) {
             ui.send_message(Message::HideSearch { apply: true });
         }
+    }
+
+    pub fn show_browser_shortcuts(&self, frame: &mut Frame, ui: &mut im::Ui<Message>) {
+        ui.shortcuts(
+            frame,
+            &match self.mode {
+                Mode::Id => [("enter", "select"), ("/", "search")].to_vec(),
+                Mode::Operation => [
+                    ("enter", "show"),
+                    ("c", "checkout"),
+                    ("d", "diff"),
+                    ("r", "review"),
+                    ("/", "search"),
+                    ("?", "help"),
+                ]
+                .to_vec(),
+            },
+            '∙',
+        );
+    }
+
+    fn show_help_text_view(&self, frame: &mut Frame, ui: &mut im::Ui<Message>) {
+        ui.columns(
+            frame,
+            [Column::new(Span::raw(" Help ").bold(), Constraint::Fill(1))].to_vec(),
+            Some(Borders::Top),
+        );
+
+        let mut cursor = self.help.cursor();
+        let text_view = ui.text_view(
+            frame,
+            HELP.to_string(),
+            &mut cursor,
+            Some(Borders::BottomSides),
+        );
+        if text_view.changed {
+            ui.send_message(Message::Changed(Change::Help {
+                state: TextViewState::new(cursor),
+            }))
+        }
+    }
+
+    fn show_help_context_bar(&self, frame: &mut Frame, ui: &mut im::Ui<Message>) {
+        ui.bar(
+            frame,
+            [
+                Column::new(
+                    Span::raw(" ".to_string())
+                        .into_left_aligned_line()
+                        .style(ui.theme().bar_on_black_style),
+                    Constraint::Fill(1),
+                ),
+                Column::new(
+                    Span::raw(" ")
+                        .into_right_aligned_line()
+                        .cyan()
+                        .dim()
+                        .reversed(),
+                    Constraint::Length(6),
+                ),
+            ]
+            .to_vec(),
+            Some(Borders::None),
+        );
     }
 
     pub fn selected_patch(&self) -> Option<&PatchItem> {
@@ -677,24 +664,4 @@ fn browser_context<'a>(ui: &im::Ui<Message>, app: &'a App) -> Vec<Column<'a>> {
             .to_vec()
         }
     }
-}
-
-fn default_context<'a>(ui: &im::Ui<Message>) -> Vec<Column<'a>> {
-    [
-        Column::new(
-            Span::raw(" ".to_string())
-                .into_left_aligned_line()
-                .style(ui.theme().bar_on_black_style),
-            Constraint::Fill(1),
-        ),
-        Column::new(
-            Span::raw(" 0% ")
-                .into_right_aligned_line()
-                .cyan()
-                .dim()
-                .reversed(),
-            Constraint::Length(6),
-        ),
-    ]
-    .to_vec()
 }
