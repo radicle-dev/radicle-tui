@@ -577,7 +577,7 @@ where
             Layout::vertical([Constraint::Length(3), Constraint::Min(1)]),
             1,
             |ui| {
-                ui.columns(frame, self.header.clone().to_vec(), Some(Borders::Top));
+                ui.column_bar(frame, self.header.clone().to_vec(), Some(Borders::Top));
 
                 let table = ui.table(
                     frame,
@@ -595,18 +595,18 @@ where
     }
 }
 
-pub struct Columns<'a> {
+pub struct ColumnBar<'a> {
     columns: Vec<Column<'a>>,
     borders: Option<Borders>,
 }
 
-impl<'a> Columns<'a> {
+impl<'a> ColumnBar<'a> {
     pub fn new(columns: Vec<Column<'a>>, borders: Option<Borders>) -> Self {
         Self { columns, borders }
     }
 }
 
-impl Widget for Columns<'_> {
+impl Widget for ColumnBar<'_> {
     fn ui<M>(self, ui: &mut Ui<M>, frame: &mut Frame) -> Response
     where
         M: Clone,

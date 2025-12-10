@@ -536,7 +536,7 @@ impl App {
             }
         };
 
-        ui.bar(frame, context, Some(Borders::None));
+        ui.column_bar(frame, context, Some(Borders::None));
     }
 
     pub fn show_browser_shortcuts(&self, frame: &mut Frame, ui: &mut im::Ui<Message>) {
@@ -565,7 +565,7 @@ impl App {
                         None,
                         |ui| {
                             ui.label(frame, "");
-                            ui.columns(
+                            ui.column_bar(
                                 frame,
                                 [Column::new(
                                     Span::raw(" Loading ").magenta().slow_blink(),
@@ -583,7 +583,7 @@ impl App {
     }
 
     fn show_help_text(&self, frame: &mut Frame, ui: &mut im::Ui<Message>) {
-        ui.columns(
+        ui.column_bar(
             frame,
             [Column::new(Span::raw(" Help ").bold(), Constraint::Fill(1))].to_vec(),
             Some(Borders::Top),
@@ -604,7 +604,7 @@ impl App {
     }
 
     fn show_help_context(&self, frame: &mut Frame, ui: &mut im::Ui<Message>) {
-        ui.bar(
+        ui.column_bar(
             frame,
             [
                 Column::new(

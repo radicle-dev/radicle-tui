@@ -360,7 +360,7 @@ impl App<'_> {
                 .unwrap_or_default();
 
             ui.container(layout::container(), 1, |ui| {
-                ui.columns(frame, hunk.inner().header(), Some(Borders::Top));
+                ui.column_bar(frame, hunk.inner().header(), Some(Borders::Top));
 
                 if let Some(text) = hunk.inner().hunk_text() {
                     let diff = ui.text_view(frame, text, &mut cursor, Some(Borders::BottomSides));
@@ -409,7 +409,7 @@ impl App<'_> {
             ),
         };
 
-        ui.bar(
+        ui.column_bar(
             frame,
             [
                 Column::new(
@@ -526,7 +526,7 @@ impl Show<Message> for App<'_> {
                             };
                             let header = [Column::new(" Help ", Constraint::Fill(1))].to_vec();
 
-                            ui.columns(frame, header, Some(Borders::Top));
+                            ui.column_bar(frame, header, Some(Borders::Top));
                             let help = ui.text_view(
                                 frame,
                                 help_text().to_string(),

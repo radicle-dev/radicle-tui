@@ -585,22 +585,13 @@ where
         widget::Shortcuts::new(shortcuts, divider).ui(self, frame)
     }
 
-    pub fn columns(
+    pub fn column_bar(
         &mut self,
         frame: &mut Frame,
         columns: Vec<Column<'_>>,
         borders: Option<Borders>,
     ) -> Response {
-        widget::Columns::new(columns, borders).ui(self, frame)
-    }
-
-    pub fn bar(
-        &mut self,
-        frame: &mut Frame,
-        columns: Vec<Column<'_>>,
-        borders: Option<Borders>,
-    ) -> Response {
-        widget::Bar::new(columns, borders).ui(self, frame)
+        widget::ColumnBar::new(columns, borders).ui(self, frame)
     }
 
     pub fn text_view<'a>(
@@ -634,7 +625,7 @@ where
             Some(label) => widget::TextEdit::new(text, cursor, borders)
                 .with_label(label)
                 .ui(self, frame),
-            None => widget::TextEdit::new(text, cursor, borders).ui(self, frame),
+            _ => widget::TextEdit::new(text, cursor, borders).ui(self, frame),
         }
     }
 }

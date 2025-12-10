@@ -96,7 +96,7 @@ impl Show<Message> for App {
                     .to_vec();
                     let mut selected = self.selector.selected();
 
-                    ui.columns(frame, columns.clone(), Some(Borders::None));
+                    ui.column_bar(frame, columns.clone(), Some(Borders::None));
 
                     let table = ui.table(
                         frame,
