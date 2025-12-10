@@ -296,7 +296,7 @@ impl Show<Message> for App {
                         Constraint::Length(1),
                     ]);
 
-                    ui.composite(layout, 1, |ui| {
+                    ui.container(layout, 1, |ui| {
                         self.show_help_text(frame, ui);
                         self.show_help_context(frame, ui);
 

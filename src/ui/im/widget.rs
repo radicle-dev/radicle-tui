@@ -176,11 +176,11 @@ impl CompositeState {
     }
 }
 
-pub struct Composite {
+pub struct Container {
     focus: usize,
 }
 
-impl Composite {
+impl Container {
     pub fn new(focus: usize) -> Self {
         Self { focus }
     }
@@ -573,7 +573,7 @@ where
     {
         let mut response = Response::default();
 
-        ui.composite(
+        ui.container(
             Layout::vertical([Constraint::Length(3), Constraint::Min(1)]),
             1,
             |ui| {

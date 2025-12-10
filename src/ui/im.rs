@@ -500,7 +500,7 @@ where
         widget::Panes::new(len, focus).show(&mut child_ui, add_contents)
     }
 
-    pub fn composite<R>(
+    pub fn container<R>(
         &mut self,
         layout: impl Into<Layout>,
         focus: usize,
@@ -511,7 +511,7 @@ where
         let mut child_ui = self.child_ui(area, layout);
         child_ui.has_focus = area_focus;
 
-        widget::Composite::new(focus).show(&mut child_ui, add_contents)
+        widget::Container::new(focus).show(&mut child_ui, add_contents)
     }
 
     pub fn popup<R>(

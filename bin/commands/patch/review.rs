@@ -359,7 +359,7 @@ impl App<'_> {
                 .map(|state| state.cursor)
                 .unwrap_or_default();
 
-            ui.composite(layout::container(), 1, |ui| {
+            ui.container(layout::container(), 1, |ui| {
                 ui.columns(frame, hunk.inner().header(), Some(Borders::Top));
 
                 if let Some(text) = hunk.inner().hunk_text() {
@@ -519,7 +519,7 @@ impl Show<Message> for App<'_> {
                 }
                 AppPage::Help => {
                     ui.layout(layout::page(), Some(0), |ui| {
-                        ui.composite(layout::container(), 1, |ui| {
+                        ui.container(layout::container(), 1, |ui| {
                             let mut cursor = {
                                 let state = self.state.lock().unwrap();
                                 state.help.cursor()
