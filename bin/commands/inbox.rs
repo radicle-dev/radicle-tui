@@ -214,7 +214,7 @@ pub async fn run(options: Options, ctx: impl terminal::Context) -> anyhow::Resul
                 filter: opts.filter.clone(),
                 sort_by: opts.sort_by,
             };
-            let selection = list::App::default().run(context).await?;
+            let selection = list::Tui::new(context).run().await?;
 
             if opts.json {
                 let selection = selection

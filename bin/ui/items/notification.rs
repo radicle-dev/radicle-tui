@@ -232,11 +232,10 @@ pub struct Notification {
 impl Notification {
     pub fn new(
         profile: &Profile,
-        project: &Project,
         repo: &Repository,
+        project: &Project,
         notification: &node::notifications::Notification,
     ) -> Result<Option<Self>, anyhow::Error> {
-        let name = project.name().to_string();
         let kind = NotificationKind::new(repo, notification)?;
 
         if kind.is_none() {
@@ -245,7 +244,7 @@ impl Notification {
 
         Ok(Some(Notification {
             id: notification.id,
-            project: name,
+            project: project.name().to_string(),
             seen: notification.status.is_read(),
             kind: kind.unwrap(),
             author: AuthorItem::new(notification.remote, profile),
@@ -321,8 +320,8 @@ impl ToRow<9> for Notification {
         let timestamp = span::timestamp(&super::format::timestamp(&self.timestamp));
 
         [
-            id.into(),
             seen.into(),
+            id.into(),
             summary.into(),
             name.into(),
             kind_id.into(),
@@ -398,6 +397,12 @@ pub mod filter {
                 ])),
                 NotificationFilter::State(NotificationState::Unseen),
             ])
+        }
+    }
+
+    impl NotificationFilter {
+        pub fn is_default(&self) -> bool {
+            *self == NotificationFilter::default()
         }
     }
 

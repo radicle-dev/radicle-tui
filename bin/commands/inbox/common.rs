@@ -40,10 +40,6 @@ impl Mode {
         self
     }
 
-    pub fn selection(&self) -> &SelectionMode {
-        &self.selection
-    }
-
     pub fn repository(&self) -> &RepositoryMode {
         &self.repository
     }
