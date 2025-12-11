@@ -12,7 +12,7 @@ use radicle::storage::{HasRepoId, ReadRepository};
 use radicle_cli::terminal;
 use radicle_cli::terminal::{Args, Error, Help};
 
-use self::common::{Mode, RepositoryMode, SelectionMode};
+use self::common::RepositoryMode;
 
 use crate::commands::tui_inbox::common::InboxOperation;
 use crate::ui::items::notification::filter::{NotificationFilter, SortBy};
@@ -28,14 +28,10 @@ Usage
 
 List options
 
-    --mode <MODE>           Set selection mode; see MODE below (default: operation)
-    --json                  Return JSON on stderr instead of calling `rad`
-
     --sort-by <field>       Sort by `id` or `timestamp` (default: timestamp)
     --reverse, -r           Reverse the list
 
-    The MODE argument can be 'operation' or 'id'. 'operation' selects a notification id and
-    an operation, whereas 'id' selects a notification id only.
+    --json                  Return JSON on stderr instead of calling `rad`
 
 Other options
 
@@ -64,7 +60,7 @@ pub enum OperationName {
 
 #[derive(Debug, Default, Clone, PartialEq)]
 pub struct ListOptions {
-    mode: Mode,
+    mode: RepositoryMode,
     filter: NotificationFilter,
     sort_by: SortBy,
     json: bool,
@@ -99,19 +95,6 @@ impl Args for Options {
                         Some(false) => Some(false),
                         _ => Some(true),
                     };
-                }
-
-                // list options.
-                Long("mode") | Short('m') if op == OperationName::List => {
-                    let val = parser.value()?;
-                    let val = val.to_str().unwrap_or_default();
-
-                    let selection_mode = match val {
-                        "operation" => SelectionMode::Operation,
-                        "id" => SelectionMode::Id,
-                        unknown => anyhow::bail!("unknown mode '{}'", unknown),
-                    };
-                    list_opts.mode = list_opts.mode.with_selection(selection_mode)
                 }
 
                 Long("reverse") | Short('r') => {
@@ -165,9 +148,7 @@ impl Args for Options {
             return Err(Error::Help.into());
         }
 
-        list_opts.mode = list_opts
-            .mode
-            .with_repository(repository_mode.unwrap_or_default());
+        list_opts.mode = repository_mode.unwrap_or_default();
         list_opts.sort_by = if let Some(field) = field {
             SortBy {
                 field,

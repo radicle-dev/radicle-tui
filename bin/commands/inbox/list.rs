@@ -26,7 +26,7 @@ use tui::ui::im::{Borders, Show};
 use tui::ui::{BufferedValue, Column, Spacing};
 use tui::{Channel, Exit};
 
-use super::common::{Mode, RepositoryMode};
+use super::common::RepositoryMode;
 use crate::commands::tui_inbox::common::InboxOperation;
 use crate::ui::items::filter::Filter;
 use crate::ui::items::notification::filter::{NotificationFilter, SortBy};
@@ -47,7 +47,6 @@ const HELP: &str = r#"# Generic keybindings
 
 # Specific keybindings
 
-`enter`:    Select notification (if --mode id)
 `enter`:    Show notification
 `r`:        Reload notifications
 `c`:        Clear notification
@@ -65,7 +64,7 @@ pub struct Context {
     pub profile: Profile,
     pub project: Project,
     pub rid: RepoId,
-    pub mode: Mode,
+    pub mode: RepositoryMode,
     pub filter: NotificationFilter,
     pub sort_by: SortBy,
 }
@@ -352,7 +351,7 @@ impl App {
             Column::new(Span::raw("ID").bold(), Constraint::Length(8)).hide_medium(),
             Column::new(Span::raw("Summary").bold(), Constraint::Fill(1)),
             Column::new(Span::raw("Repository").bold(), Constraint::Length(16))
-                .skip(*context.mode.repository() != RepositoryMode::All),
+                .skip(context.mode != RepositoryMode::All),
             Column::new(Span::raw("OID").bold(), Constraint::Length(8)).hide_medium(),
             Column::new(Span::raw("Kind").bold(), Constraint::Length(20)).hide_small(),
             Column::new(Span::raw("Change").bold(), Constraint::Length(8)).hide_small(),
@@ -667,19 +666,16 @@ impl App {
         }
 
         // Set project name
-        let mode = match context.mode.repository() {
+        let mode = match context.mode {
             RepositoryMode::ByRepo((rid, _)) => {
                 let name = context.project.name().to_string();
-                context
-                    .mode
-                    .clone()
-                    .with_repository(RepositoryMode::ByRepo((*rid, Some(name))))
+                RepositoryMode::ByRepo((rid, Some(name)))
             }
             _ => context.mode.clone(),
         };
 
         // Sort by project if all notifications are shown
-        if let RepositoryMode::All = mode.repository() {
+        if let RepositoryMode::All = mode {
             items.sort_by(|a, b| a.project.cmp(&b.project));
         }
     }
@@ -711,7 +707,7 @@ impl Task for NotificationLoader {
     type Return = Message;
 
     fn run(&self) -> anyhow::Result<Vec<Self::Return>> {
-        let notifications = match self.context.mode.repository() {
+        let notifications = match self.context.mode {
             RepositoryMode::All => {
                 let notifs = self.context.profile.notifications_mut()?;
                 let all = notifs.all()?;
@@ -743,7 +739,7 @@ impl Task for NotificationLoader {
                     .collect::<Vec<_>>()
             }
             RepositoryMode::ByRepo((rid, _)) => {
-                let repo = self.context.profile.storage.repository(*rid)?;
+                let repo = self.context.profile.storage.repository(rid)?;
                 let project = repo.project()?;
                 let notifs = self.context.profile.notifications_mut()?;
                 let by_repo = notifs.by_repo(&repo.id, "timestamp")?;
