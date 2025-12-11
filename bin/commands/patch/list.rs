@@ -284,6 +284,10 @@ impl Show<Message> for App {
                             }
                         },
                     );
+
+                    if ui.has_input(|key| key == Key::Char('?')) {
+                        ui.send_message(Message::Changed(Change::Page { page: Page::Help }));
+                    }
                 }
 
                 Page::Help => {
@@ -364,23 +368,12 @@ impl App {
                         state: TableState::new(selected),
                     }));
                 }
-
-                // TODO(erikli): Should only work if table has focus
-                if ui.has_input(|key| key == Key::Char('/')) {
-                    ui.send_message(Message::ShowSearch);
-                }
             },
         );
-    }
 
-    fn show_browser_footer(&self, frame: &mut Frame, ui: &mut im::Ui<Message>) {
-        ui.layout(Layout::vertical([1, 1]), None, |ui| {
-            self.show_browser_context(frame, ui);
-            self.show_browser_shortcuts(frame, ui);
-        });
-
-        if ui.has_input(|key| key == Key::Char('?')) {
-            ui.send_message(Message::Changed(Change::Page { page: Page::Help }));
+        // TODO(erikli): Should only work if table has focus
+        if ui.has_input(|key| key == Key::Char('/')) {
+            ui.send_message(Message::ShowSearch);
         }
         if ui.has_input(|key| key == Key::Enter) {
             ui.send_message(Message::ExitFromMode);
@@ -395,6 +388,13 @@ impl App {
                 operation: Some(PatchOperation::Checkout),
             });
         }
+    }
+
+    fn show_browser_footer(&self, frame: &mut Frame, ui: &mut im::Ui<Message>) {
+        ui.layout(Layout::vertical([1, 1]), None, |ui| {
+            self.show_browser_context(frame, ui);
+            self.show_browser_shortcuts(frame, ui);
+        });
     }
 
     pub fn show_browser_search(&self, frame: &mut Frame, ui: &mut im::Ui<Message>) {
