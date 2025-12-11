@@ -23,7 +23,7 @@ use tui::ui::im::Show;
 use tui::ui::{BufferedValue, Column, Spacing};
 use tui::{Channel, Exit};
 
-use super::common::{Mode, PatchOperation};
+use super::common::PatchOperation;
 
 use crate::cob::patch;
 use crate::ui::items::filter::Filter;
@@ -42,7 +42,6 @@ const HELP: &str = r#"# Generic keybindings
 
 # Specific keybindings
 
-`enter`:    Select patch (if --mode id)
 `enter`:    Show patch
 `c`:        Checkout patch
 `d`:        Show patch diff
@@ -59,7 +58,6 @@ type Selection = tui::Selection<PatchOperation>;
 pub struct Context {
     pub profile: Profile,
     pub repository: Repository,
-    pub mode: Mode,
     pub filter: patch::Filter,
 }
 
@@ -117,7 +115,6 @@ pub enum Page {
 
 #[derive(Clone, Debug)]
 pub struct AppState {
-    mode: Mode,
     page: Page,
     main_group: ContainerState,
     patches: TableState,
@@ -156,7 +153,6 @@ impl TryFrom<&Context> for App {
         Ok(App {
             patches: Arc::new(Mutex::new(items.clone())),
             state: AppState {
-                mode: context.mode.clone(),
                 page: Page::Main,
                 main_group: ContainerState::new(3, Some(0)),
                 patches: TableState::new(Some(0)),
@@ -559,17 +555,13 @@ impl App {
     pub fn show_browser_shortcuts(&self, frame: &mut Frame, ui: &mut im::Ui<Message>) {
         ui.shortcuts(
             frame,
-            &match self.state.mode {
-                Mode::Id => [("enter", "select"), ("/", "search")].to_vec(),
-                Mode::Operation => [
-                    ("enter", "show"),
-                    ("c", "checkout"),
-                    ("d", "diff"),
-                    ("/", "search"),
-                    ("?", "help"),
-                ]
-                .to_vec(),
-            },
+            &[
+                ("enter", "show"),
+                ("c", "checkout"),
+                ("d", "diff"),
+                ("/", "search"),
+                ("?", "help"),
+            ],
             '∙',
         );
     }

@@ -19,7 +19,6 @@ use radicle_cli::terminal;
 use radicle_cli::terminal::args::{string, Args, Error, Help};
 
 use crate::cob::patch;
-use crate::cob::patch::Filter;
 use crate::commands::tui_patch::common::PatchOperation;
 
 pub const HELP: Help = Help {
@@ -33,9 +32,6 @@ Usage
 
 List options
 
-    --mode <MODE>           Set selection mode; see MODE below (default: operation)
-    --json                  Return JSON on stderr instead of calling `rad`
-
     --all                   Show all patches, including merged and archived patches
     --archived              Show only archived patches
     --merged                Show only merged patches
@@ -45,9 +41,7 @@ List options
     --author <did>          Show only patched where the given user is an author
                             (may be specified multiple times)
 
-    The MODE argument can be 'operation' or 'id'. 'operation' selects a patch id and
-    an operation, whereas 'id' selects a patch id only.
-
+    --json                  Return JSON on stderr instead of calling `rad`
 
 Other options
 
@@ -80,7 +74,6 @@ pub enum OperationName {
 
 #[derive(Debug, Default, Clone, PartialEq, Eq)]
 pub struct ListOptions {
-    mode: common::Mode,
     filter: patch::Filter,
     json: bool,
 }
@@ -149,17 +142,6 @@ impl Args for Options {
                     };
                 }
 
-                // select options.
-                Long("mode") | Short('m') if op == OperationName::List => {
-                    let val = parser.value()?;
-                    let val = val.to_str().unwrap_or_default();
-
-                    list_opts.mode = match val {
-                        "operation" => common::Mode::Operation,
-                        "id" => common::Mode::Id,
-                        unknown => anyhow::bail!("unknown mode '{}'", unknown),
-                    };
-                }
                 Long("all") if op == OperationName::List => {
                     list_opts.filter = list_opts.filter.with_status(None);
                 }
@@ -232,9 +214,6 @@ impl Args for Options {
         }
 
         // Configure list options
-        if list_opts.mode == common::Mode::Id {
-            list_opts.filter = Filter::default().with_status(None)
-        }
         list_opts.json = json;
 
         // Map local commands. Forward help and ignore `no-forward`.
@@ -377,7 +356,6 @@ mod interface {
         let context = list::Context {
             profile,
             repository,
-            mode: opts.mode,
             filter: opts.filter.clone(),
         };
 
