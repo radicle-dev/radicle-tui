@@ -36,11 +36,7 @@ Usage
 
 List options
 
-    --mode <MODE>       Set selection mode; see MODE below (default: operation)
     --json              Return JSON on stderr instead of calling `rad`
-
-    The MODE argument can be 'operation' or 'id'. 'operation' selects an issue id and
-    an operation, whereas 'id' selects an issue id only.
 
 Other options
 
@@ -70,7 +66,6 @@ pub enum OperationName {
 
 #[derive(Debug, Default, Clone, PartialEq, Eq)]
 pub struct ListOptions {
-    mode: common::Mode,
     filter: cob::issue::Filter,
     json: bool,
 }
@@ -101,18 +96,6 @@ impl Args for Options {
                     forward = match forward {
                         Some(false) => Some(false),
                         _ => Some(true),
-                    };
-                }
-
-                // select options.
-                Long("mode") | Short('m') if op == OperationName::List => {
-                    let val = parser.value()?;
-                    let val = val.to_str().unwrap_or_default();
-
-                    list_opts.mode = match val {
-                        "operation" => common::Mode::Operation,
-                        "id" => common::Mode::Id,
-                        unknown => anyhow::bail!("unknown mode '{unknown}'"),
                     };
                 }
                 Long("all") if op == OperationName::List => {
@@ -211,7 +194,6 @@ pub async fn run(options: Options, ctx: impl terminal::Context) -> anyhow::Resul
             let context = list::Context {
                 profile,
                 repository,
-                mode: opts.mode,
                 filter: opts.filter.clone(),
             };
 

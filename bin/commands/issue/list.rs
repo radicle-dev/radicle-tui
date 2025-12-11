@@ -45,14 +45,13 @@ use crate::ui::TerminalInfo;
 
 use self::ui::{Browser, BrowserProps};
 
-use super::common::{IssueOperation, Mode};
+use super::common::IssueOperation;
 
 type Selection = tui::Selection<IssueOperation>;
 
 pub struct Context {
     pub profile: Profile,
     pub repository: Repository,
-    pub mode: Mode,
     pub filter: issue::Filter,
 }
 
@@ -153,7 +152,6 @@ pub struct HelpState {
 
 #[derive(Clone, Debug)]
 pub struct State {
-    mode: Mode,
     pages: PageStack<AppPage>,
     browser: BrowserState<IssueItem, IssueItemFilter>,
     preview: PreviewState,
@@ -211,7 +209,6 @@ impl TryFrom<(&Context, &TerminalInfo)> for State {
             .collect();
 
         Ok(Self {
-            mode: context.mode.clone(),
             pages: PageStack::new(vec![AppPage::Browser]),
             browser: BrowserState::build(items.clone(), filter, search),
             preview: PreviewState {
@@ -401,10 +398,7 @@ fn browser_page(channel: &Channel<Message>) -> Widget<State, Message> {
             let shortcuts = if state.browser.is_search_shown() {
                 vec![("esc", "cancel"), ("enter", "apply")]
             } else {
-                let mut shortcuts = match state.mode {
-                    Mode::Id => vec![("enter", "select")],
-                    Mode::Operation => vec![("enter", "show"), ("e", "edit")],
-                };
+                let mut shortcuts = vec![("enter", "show"), ("e", "edit")];
                 if state.section == Some(Section::Browser) {
                     shortcuts = [shortcuts, [("/", "search")].to_vec()].concat()
                 }
@@ -690,7 +684,6 @@ fn help_text() -> String {
 
 # Specific keybindings
 
-`Enter`:    Select issue (if --mode id)
 `Enter`:    Show issue
 `e`:        Edit issue
 `p`:        Toggle issue preview
