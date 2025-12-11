@@ -1,11 +1,11 @@
 pub mod widget;
 
-use std::fmt::Debug;
 use std::time::Duration;
 
-use ratatui::Viewport;
 use tokio::sync::broadcast;
 use tokio::sync::mpsc::UnboundedReceiver;
+
+use ratatui::Viewport;
 
 use crate::event::Event;
 use crate::store::Update;
@@ -13,6 +13,7 @@ use crate::terminal::Terminal;
 use crate::ui::rm::widget::RenderProps;
 use crate::ui::rm::widget::Widget;
 use crate::Interrupted;
+use crate::Share;
 
 const RENDERING_TICK_RATE: Duration = Duration::from_millis(250);
 
@@ -49,8 +50,8 @@ impl Frontend {
     ) -> anyhow::Result<Interrupted<R>>
     where
         S: Update<M, Return = R> + 'static,
-        M: 'static,
-        R: Clone + Send + Sync + Debug,
+        M: Share,
+        R: Share,
     {
         let mut ticker = tokio::time::interval(RENDERING_TICK_RATE);
         let mut terminal = Terminal::try_from(viewport)?;

@@ -1,4 +1,3 @@
-use std::fmt::Debug;
 use std::io;
 use std::io::Write;
 use std::thread;
@@ -15,9 +14,11 @@ use termion::async_stdin;
 use termion::input::TermRead;
 use termion::raw::{IntoRawMode, RawTerminal};
 
+use ratatui::prelude::*;
 use ratatui::termion::screen::{AlternateScreen, IntoAlternateScreen};
-use ratatui::{prelude::*, CompletedFrame};
-use ratatui::{TerminalOptions, Viewport};
+use ratatui::{CompletedFrame, TerminalOptions, Viewport};
+
+use crate::Share;
 
 use super::event::Event;
 use super::Interrupted;
@@ -173,7 +174,7 @@ impl<W: Write> ratatui::backend::Backend for TermionBackendExt<W> {
 pub struct StdinReader {}
 
 impl StdinReader {
-    pub async fn run<P: Clone + Send + Sync + Debug>(
+    pub async fn run<P: Share>(
         self,
         event_tx: UnboundedSender<Event>,
         mut interrupt_rx: broadcast::Receiver<Interrupted<P>>,

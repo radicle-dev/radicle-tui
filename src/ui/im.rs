@@ -22,7 +22,7 @@ use crate::store::Update;
 use crate::terminal::Terminal;
 use crate::ui::theme::Theme;
 use crate::ui::{Column, Spacing, ToRow};
-use crate::Interrupted;
+use crate::{Interrupted, Share};
 
 use crate::ui::im::widget::Widget;
 
@@ -51,8 +51,8 @@ impl Frontend {
     ) -> anyhow::Result<Interrupted<R>>
     where
         S: Update<M, Return = R> + Show<M>,
-        M: Clone,
-        R: Clone + Send + Sync + Debug,
+        M: Share,
+        R: Share,
     {
         let mut ticker = tokio::time::interval(RENDERING_TICK_RATE);
         let mut terminal = Terminal::try_from(viewport)?;

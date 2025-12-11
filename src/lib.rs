@@ -291,7 +291,7 @@ where
 #[derive(Debug, Clone)]
 pub enum Interrupted<P>
 where
-    P: Clone + Send + Sync + Debug,
+    P: Share,
 {
     OsSignal,
     User { payload: Option<P> },
@@ -301,14 +301,14 @@ where
 #[derive(Debug, Clone)]
 pub struct Terminator<P>
 where
-    P: Clone + Send + Sync + Debug,
+    P: Share,
 {
     interrupt_tx: broadcast::Sender<Interrupted<P>>,
 }
 
 impl<P> Terminator<P>
 where
-    P: Clone + Send + Sync + Debug + 'static,
+    P: Share,
 {
     /// Create a `Terminator` that stores the sending end of a broadcast channel.
     pub fn new(interrupt_tx: broadcast::Sender<Interrupted<P>>) -> Self {
@@ -327,7 +327,7 @@ where
 #[cfg(unix)]
 async fn terminate_by_unix_signal<P>(mut terminator: Terminator<P>)
 where
-    P: Clone + Send + Sync + Debug + 'static,
+    P: Share,
 {
     let mut interrupt_signal = signal(tokio::signal::unix::SignalKind::interrupt())
         .expect("failed to create interrupt signal stream");
@@ -342,7 +342,7 @@ where
 /// Create a broadcast channel and spawn a task for retrieving the applications' kill signal.
 pub fn create_termination<P>() -> (Terminator<P>, broadcast::Receiver<Interrupted<P>>)
 where
-    P: Clone + Send + Sync + Debug + 'static,
+    P: Share,
 {
     let (tx, rx) = broadcast::channel(1);
     let terminator = Terminator::new(tx);
