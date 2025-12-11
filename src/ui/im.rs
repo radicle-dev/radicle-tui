@@ -21,7 +21,7 @@ use crate::event::Event;
 use crate::store::Update;
 use crate::terminal::Terminal;
 use crate::ui::theme::Theme;
-use crate::ui::{Column, ToRow};
+use crate::ui::{Column, Spacing, ToRow};
 use crate::Interrupted;
 
 use crate::ui::im::widget::Widget;
@@ -574,9 +574,10 @@ where
         &mut self,
         frame: &mut Frame,
         columns: Vec<Column<'_>>,
+        spacing: Spacing,
         borders: Option<Borders>,
     ) -> Response {
-        widget::ColumnBar::new(columns, borders).ui(self, frame)
+        widget::ColumnBar::new(columns, spacing, borders).ui(self, frame)
     }
 
     pub fn text_view<'a>(

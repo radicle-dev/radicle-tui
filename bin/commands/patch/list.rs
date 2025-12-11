@@ -22,8 +22,7 @@ use tui::ui::im;
 use tui::ui::im::widget::{PanesState, TableState, TextEditState, TextViewState, Window};
 use tui::ui::im::Borders;
 use tui::ui::im::Show;
-use tui::ui::BufferedValue;
-use tui::ui::Column;
+use tui::ui::{BufferedValue, Column, Spacing};
 use tui::{Channel, Exit};
 
 type Selection = tui::Selection<PatchId>;
@@ -346,7 +345,12 @@ impl App {
             Layout::vertical([Constraint::Length(3), Constraint::Min(1)]),
             Some(1),
             |ui| {
-                ui.column_bar(frame, header.to_vec(), Some(Borders::Top));
+                ui.column_bar(
+                    frame,
+                    header.to_vec(),
+                    Spacing::default(),
+                    Some(Borders::Top),
+                );
 
                 let table = ui.table(
                     frame,
@@ -569,7 +573,7 @@ impl App {
             }
         };
 
-        ui.column_bar(frame, context, Some(Borders::None));
+        ui.column_bar(frame, context, Spacing::from(0), Some(Borders::None));
     }
 
     pub fn show_browser_shortcuts(&self, frame: &mut Frame, ui: &mut im::Ui<Message>) {
@@ -595,6 +599,7 @@ impl App {
         ui.column_bar(
             frame,
             [Column::new(Span::raw(" Help ").bold(), Constraint::Fill(1))].to_vec(),
+            Spacing::from(0),
             Some(Borders::Top),
         );
 
@@ -632,6 +637,7 @@ impl App {
                 ),
             ]
             .to_vec(),
+            Spacing::from(0),
             Some(Borders::None),
         );
     }

@@ -2,6 +2,7 @@ use std::time::{SystemTime, UNIX_EPOCH};
 
 use anyhow::Result;
 
+use radicle_tui::ui::Spacing;
 use termion::event::Key;
 
 use ratatui::layout::{Constraint, Layout};
@@ -96,7 +97,12 @@ impl Show<Message> for App {
                     .to_vec();
                     let mut selected = self.selector.selected();
 
-                    ui.column_bar(frame, columns.clone(), Some(Borders::None));
+                    ui.column_bar(
+                        frame,
+                        columns.clone(),
+                        Spacing::default(),
+                        Some(Borders::None),
+                    );
 
                     let table = ui.table(
                         frame,

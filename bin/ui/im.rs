@@ -1,3 +1,4 @@
+use radicle_tui::ui::Spacing;
 use termion::event::Key;
 
 use ratatui::layout::{Constraint, Layout};
@@ -124,7 +125,12 @@ where
             ]),
             Some(1),
             |ui| {
-                ui.column_bar(frame, self.header.clone().to_vec(), Some(Borders::Top));
+                ui.column_bar(
+                    frame,
+                    self.header.clone().to_vec(),
+                    Spacing::default(),
+                    Some(Borders::Top),
+                );
 
                 let table = ui.table(
                     frame,
@@ -151,7 +157,12 @@ where
                     self.search.write(TextEditState { text, cursor });
                     response.changed |= text_edit.changed;
                 } else {
-                    ui.column_bar(frame, self.footer.clone().to_vec(), Some(Borders::Bottom));
+                    ui.column_bar(
+                        frame,
+                        self.footer.clone().to_vec(),
+                        Spacing::from(0),
+                        Some(Borders::Bottom),
+                    );
                 }
             },
         );

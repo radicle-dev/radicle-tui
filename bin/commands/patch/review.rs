@@ -27,7 +27,7 @@ use tui::task::EmptyProcessors;
 use tui::ui::im::widget::{PanesState, TableState, TextViewState, Window};
 use tui::ui::im::{Borders, Context, Show, Ui};
 use tui::ui::span;
-use tui::ui::Column;
+use tui::ui::{Column, Spacing};
 use tui::{Channel, Exit};
 
 use crate::git::HunkState;
@@ -342,7 +342,12 @@ impl App<'_> {
             Layout::vertical([Constraint::Length(3), Constraint::Min(1)]),
             Some(1),
             |ui| {
-                ui.column_bar(frame, header.to_vec(), Some(Borders::Top));
+                ui.column_bar(
+                    frame,
+                    header.to_vec(),
+                    Spacing::default(),
+                    Some(Borders::Top),
+                );
 
                 let table = ui.table(
                     frame,
@@ -375,7 +380,12 @@ impl App<'_> {
                 .unwrap_or_default();
 
             ui.container(layout::container(), 1, |ui| {
-                ui.column_bar(frame, hunk.inner().header(), Some(Borders::Top));
+                ui.column_bar(
+                    frame,
+                    hunk.inner().header(),
+                    Spacing::from(0),
+                    Some(Borders::Top),
+                );
 
                 if let Some(text) = hunk.inner().hunk_text() {
                     let diff = ui.text_view(frame, text, &mut cursor, Some(Borders::BottomSides));
@@ -458,6 +468,7 @@ impl App<'_> {
                 ),
             ]
             .to_vec(),
+            Spacing::from(0),
             Some(Borders::None),
         );
     }
@@ -541,7 +552,7 @@ impl Show<Message> for App<'_> {
                             };
                             let header = [Column::new(" Help ", Constraint::Fill(1))].to_vec();
 
-                            ui.column_bar(frame, header, Some(Borders::Top));
+                            ui.column_bar(frame, header, Spacing::from(0), Some(Borders::Top));
                             let help = ui.text_view(
                                 frame,
                                 help_text().to_string(),

@@ -95,6 +95,26 @@ impl<'a> Column<'a> {
     }
 }
 
+pub struct Spacing(u16);
+
+impl From<u16> for Spacing {
+    fn from(value: u16) -> Self {
+        Self(value)
+    }
+}
+
+impl Default for Spacing {
+    fn default() -> Self {
+        Self(0)
+    }
+}
+
+impl From<Spacing> for u16 {
+    fn from(spacing: Spacing) -> Self {
+        spacing.0
+    }
+}
+
 /// Needs to be implemented for items that are supposed to be rendered in tables.
 pub trait ToRow<const W: usize> {
     fn to_row(&self) -> [Cell; W];

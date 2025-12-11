@@ -3,6 +3,7 @@ use std::sync::{Arc, Mutex};
 
 use anyhow::Result;
 
+use radicle_tui::ui::Spacing;
 use termion::event::Key;
 
 use ratatui::layout::Constraint;
@@ -363,7 +364,12 @@ impl App {
             Layout::vertical([Constraint::Length(3), Constraint::Min(1)]),
             Some(1),
             |ui| {
-                ui.column_bar(frame, header.to_vec(), Some(Borders::Top));
+                ui.column_bar(
+                    frame,
+                    header.to_vec(),
+                    Spacing::default(),
+                    Some(Borders::Top),
+                );
 
                 let table = ui.table(
                     frame,
@@ -544,7 +550,7 @@ impl App {
             }
         };
 
-        ui.column_bar(frame, context, Some(Borders::None));
+        ui.column_bar(frame, context, Spacing::from(0), Some(Borders::None));
     }
 
     pub fn show_browser_shortcuts(&self, frame: &mut Frame, ui: &mut im::Ui<Message>) {
@@ -580,6 +586,7 @@ impl App {
                                     Constraint::Fill(1),
                                 )]
                                 .to_vec(),
+                                Spacing::from(0),
                                 Some(Borders::All),
                             );
                         },
@@ -594,6 +601,7 @@ impl App {
         ui.column_bar(
             frame,
             [Column::new(Span::raw(" Help ").bold(), Constraint::Fill(1))].to_vec(),
+            Spacing::from(0),
             Some(Borders::Top),
         );
 
@@ -631,6 +639,7 @@ impl App {
                 ),
             ]
             .to_vec(),
+            Spacing::from(0),
             Some(Borders::None),
         );
     }

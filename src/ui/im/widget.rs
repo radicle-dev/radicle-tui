@@ -11,7 +11,7 @@ use termion::event::Key;
 
 use crate::ui::ext::{FooterBlock, FooterBlockType, HeaderBlock};
 use crate::ui::theme::style;
-use crate::ui::{layout, span};
+use crate::ui::{layout, span, Spacing};
 use crate::ui::{Column, ToRow};
 
 use super::{Borders, Context, InnerResponse, Response, Ui};
@@ -533,12 +533,17 @@ where
 
 pub struct ColumnBar<'a> {
     columns: Vec<Column<'a>>,
+    spacing: Spacing,
     borders: Option<Borders>,
 }
 
 impl<'a> ColumnBar<'a> {
-    pub fn new(columns: Vec<Column<'a>>, borders: Option<Borders>) -> Self {
-        Self { columns, borders }
+    pub fn new(columns: Vec<Column<'a>>, spacing: Spacing, borders: Option<Borders>) -> Self {
+        Self {
+            columns,
+            spacing,
+            borders,
+        }
     }
 }
 
@@ -581,7 +586,7 @@ impl Widget for ColumnBar<'_> {
             .collect::<Vec<_>>();
 
         let table = ratatui::widgets::Table::default()
-            .column_spacing(1)
+            .column_spacing(self.spacing.into())
             .rows([Row::new(cells)])
             .widths(widths);
         frame.render_widget(table, area);
