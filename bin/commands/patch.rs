@@ -199,7 +199,6 @@ impl Args for Options {
                 }
                 Value(val) if op == OperationName::List => match val.to_string_lossy().as_ref() {
                     "list" => op = OperationName::List,
-                    "review" => op = OperationName::Review,
                     _ => {
                         op = OperationName::Unknown;
                         // Only enable forwarding if it was not already disabled explicitly
