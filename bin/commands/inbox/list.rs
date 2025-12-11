@@ -300,6 +300,9 @@ impl Show<Message> for App {
                             }
                         },
                     );
+                    if ui.has_input(|key| key == Key::Char('?')) {
+                        ui.send_message(Message::Changed(Change::Page { page: Page::Help }));
+                    }
                 }
 
                 Page::Help => {
@@ -393,17 +396,7 @@ impl App {
                 }
             },
         );
-    }
 
-    fn show_browser_footer(&self, frame: &mut Frame, ui: &mut im::Ui<Message>) {
-        ui.layout(Layout::vertical([1, 1]), None, |ui| {
-            self.show_browser_context(frame, ui);
-            self.show_browser_shortcuts(frame, ui);
-        });
-
-        if ui.has_input(|key| key == Key::Char('?')) {
-            ui.send_message(Message::Changed(Change::Page { page: Page::Help }));
-        }
         if ui.has_input(|key| key == Key::Enter) {
             ui.send_message(Message::Exit {
                 operation: Some(InboxOperation::Show),
@@ -417,6 +410,13 @@ impl App {
         if ui.has_input(|key| key == Key::Char('r')) {
             ui.send_message(Message::Reload);
         }
+    }
+
+    fn show_browser_footer(&self, frame: &mut Frame, ui: &mut im::Ui<Message>) {
+        ui.layout(Layout::vertical([1, 1]), None, |ui| {
+            self.show_browser_context(frame, ui);
+            self.show_browser_shortcuts(frame, ui);
+        });
     }
 
     pub fn show_browser_search(&self, frame: &mut Frame, ui: &mut im::Ui<Message>) {
