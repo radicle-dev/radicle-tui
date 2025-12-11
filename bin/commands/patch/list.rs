@@ -390,11 +390,6 @@ impl App {
                 operation: Some(PatchOperation::Diff),
             });
         }
-        if ui.has_input(|key| key == Key::Char('r')) {
-            ui.send_message(Message::Exit {
-                operation: Some(PatchOperation::Review),
-            });
-        }
         if ui.has_input(|key| key == Key::Char('c')) {
             ui.send_message(Message::Exit {
                 operation: Some(PatchOperation::Checkout),
@@ -582,7 +577,6 @@ impl App {
                     ("enter", "show"),
                     ("c", "checkout"),
                     ("d", "diff"),
-                    ("r", "review"),
                     ("/", "search"),
                     ("?", "help"),
                 ]
