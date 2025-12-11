@@ -24,7 +24,7 @@ use crate::ui::theme::Theme;
 use crate::ui::{Column, ToRow};
 use crate::Interrupted;
 
-use crate::ui::im::widget::{HeaderedTable, Widget};
+use crate::ui::im::widget::Widget;
 
 use self::widget::AddContentFn;
 
@@ -559,21 +559,6 @@ where
         R: ToRow<W> + Clone,
     {
         widget::Table::new(selected, items, columns, empty_message, borders).ui(self, frame)
-    }
-
-    pub fn headered_table<'a, R, const W: usize>(
-        &mut self,
-        frame: &mut Frame,
-        selected: &'a mut Option<usize>,
-        items: &'a Vec<R>,
-        header: impl IntoIterator<Item = Column<'a>>,
-        columns: impl IntoIterator<Item = Column<'a>>,
-        empty_message: Option<String>,
-    ) -> Response
-    where
-        R: ToRow<W> + Clone,
-    {
-        HeaderedTable::<R, W>::new(selected, items, header, columns, empty_message).ui(self, frame)
     }
 
     pub fn shortcuts(

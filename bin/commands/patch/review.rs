@@ -10,7 +10,7 @@ use serde::{Deserialize, Serialize};
 
 use termion::event::Key;
 
-use ratatui::layout::{Constraint, Position};
+use ratatui::layout::{Constraint, Layout, Position};
 use ratatui::style::{Style, Stylize};
 use ratatui::text::Text;
 use ratatui::{Frame, Viewport};
@@ -338,12 +338,27 @@ impl App<'_> {
 
         let mut selected = state.selected_hunk();
 
-        let table = ui.headered_table(frame, &mut selected, &hunks, header, columns, None);
-        if table.changed {
-            ui.send_message(Message::HunkChanged {
-                state: TableState::new(selected),
-            })
-        }
+        ui.layout(
+            Layout::vertical([Constraint::Length(3), Constraint::Min(1)]),
+            Some(1),
+            |ui| {
+                ui.column_bar(frame, header.to_vec(), Some(Borders::Top));
+
+                let table = ui.table(
+                    frame,
+                    &mut selected,
+                    &hunks,
+                    columns,
+                    None,
+                    Some(Borders::BottomSides),
+                );
+                if table.changed {
+                    ui.send_message(Message::HunkChanged {
+                        state: TableState::new(selected),
+                    })
+                }
+            },
+        );
     }
 
     fn show_hunk(&self, ui: &mut Ui<Message>, frame: &mut Frame) {

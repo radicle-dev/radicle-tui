@@ -359,28 +359,36 @@ impl App {
             Column::new(Span::raw("Updated").bold(), Constraint::Length(16)),
         ];
 
-        let table = ui.headered_table(
-            frame,
-            &mut selected,
-            &notifs,
-            header.clone(),
-            header,
-            Some("No notifications found".into()),
+        ui.layout(
+            Layout::vertical([Constraint::Length(3), Constraint::Min(1)]),
+            Some(1),
+            |ui| {
+                ui.column_bar(frame, header.to_vec(), Some(Borders::Top));
+
+                let table = ui.table(
+                    frame,
+                    &mut selected,
+                    &notifs,
+                    header.to_vec(),
+                    Some("No notifications found".into()),
+                    Some(Borders::BottomSides),
+                );
+                if table.changed {
+                    ui.send_message(Message::Changed(Change::Patches {
+                        state: TableState::new(selected),
+                    }));
+                }
+
+                if self.state.loading {
+                    self.show_loading_popup(frame, ui);
+                }
+
+                // TODO(erikli): Should only work if table has focus
+                if ui.input_global(|key| key == Key::Char('/')) {
+                    ui.send_message(Message::ShowSearch);
+                }
+            },
         );
-        if table.changed {
-            ui.send_message(Message::Changed(Change::Patches {
-                state: TableState::new(selected),
-            }));
-        }
-
-        if self.state.loading {
-            self.show_loading_popup(frame, ui);
-        }
-
-        // TODO(erikli): Should only work if table has focus
-        if ui.input_global(|key| key == Key::Char('/')) {
-            ui.send_message(Message::ShowSearch);
-        }
     }
 
     fn show_browser_footer(&self, frame: &mut Frame, ui: &mut im::Ui<Message>) {

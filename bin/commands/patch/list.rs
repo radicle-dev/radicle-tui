@@ -342,24 +342,32 @@ impl App {
             Column::new(Span::raw("Updated").bold(), Constraint::Length(16)).hide_small(),
         ];
 
-        let table = ui.headered_table(
-            frame,
-            &mut selected,
-            &patches,
-            header.clone(),
-            header,
-            Some("No patches found".into()),
-        );
-        if table.changed {
-            ui.send_message(Message::Changed(Change::Patches {
-                state: TableState::new(selected),
-            }));
-        }
+        ui.layout(
+            Layout::vertical([Constraint::Length(3), Constraint::Min(1)]),
+            Some(1),
+            |ui| {
+                ui.column_bar(frame, header.to_vec(), Some(Borders::Top));
 
-        // TODO(erikli): Should only work if table has focus
-        if ui.input_global(|key| key == Key::Char('/')) {
-            ui.send_message(Message::ShowSearch);
-        }
+                let table = ui.table(
+                    frame,
+                    &mut selected,
+                    &patches,
+                    header.to_vec(),
+                    Some("No patches found".into()),
+                    Some(Borders::BottomSides),
+                );
+                if table.changed {
+                    ui.send_message(Message::Changed(Change::Patches {
+                        state: TableState::new(selected),
+                    }));
+                }
+
+                // TODO(erikli): Should only work if table has focus
+                if ui.input_global(|key| key == Key::Char('/')) {
+                    ui.send_message(Message::ShowSearch);
+                }
+            },
+        );
     }
 
     fn show_browser_footer(&self, frame: &mut Frame, ui: &mut im::Ui<Message>) {
