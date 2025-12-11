@@ -62,12 +62,12 @@ impl Window {
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
-pub struct PanesState {
+pub struct ContainerState {
     len: usize,
     focus: Option<usize>,
 }
 
-impl PanesState {
+impl ContainerState {
     pub fn new(len: usize, focus: Option<usize>) -> Self {
         Self { len, focus }
     }
@@ -95,12 +95,12 @@ impl PanesState {
     }
 }
 
-pub struct Panes<'a> {
+pub struct Container<'a> {
     focus: &'a mut Option<usize>,
     len: usize,
 }
 
-impl<'a> Panes<'a> {
+impl<'a> Container<'a> {
     pub fn new(len: usize, focus: &'a mut Option<usize>) -> Self {
         Self { len, focus }
     }
@@ -126,7 +126,7 @@ impl<'a> Panes<'a> {
     {
         let mut response = Response::default();
 
-        let mut state = PanesState {
+        let mut state = ContainerState {
             focus: *self.focus,
             len: self.len,
         };
@@ -173,45 +173,6 @@ impl CompositeState {
 
     pub fn is_empty(&self) -> bool {
         self.len == 0
-    }
-}
-
-pub struct Container {
-    focus: usize,
-}
-
-impl Container {
-    pub fn new(focus: usize) -> Self {
-        Self { focus }
-    }
-
-    pub fn show<M, R>(
-        self,
-        ui: &mut Ui<M>,
-        add_contents: impl FnOnce(&mut Ui<M>) -> R,
-    ) -> InnerResponse<R>
-    where
-        M: Clone,
-    {
-        self.show_dyn(ui, Box::new(add_contents))
-    }
-
-    pub fn show_dyn<M, R>(
-        self,
-        ui: &mut Ui<M>,
-        add_contents: Box<AddContentFn<M, R>>,
-    ) -> InnerResponse<R>
-    where
-        M: Clone,
-    {
-        let mut ui = Ui {
-            focus_area: Some(self.focus),
-            ..ui.clone()
-        };
-
-        let inner = add_contents(&mut ui);
-
-        InnerResponse::new(inner, Response::default())
     }
 }
 

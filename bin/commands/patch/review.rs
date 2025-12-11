@@ -24,7 +24,7 @@ use radicle_tui as tui;
 
 use tui::store;
 use tui::task::EmptyProcessors;
-use tui::ui::im::widget::{PanesState, TableState, TextViewState, Window};
+use tui::ui::im::widget::{ContainerState, TableState, TextViewState, Window};
 use tui::ui::im::{Borders, Context, Show, Ui};
 use tui::ui::span;
 use tui::ui::{Column, Spacing};
@@ -130,7 +130,7 @@ impl Tui {
 #[derive(Clone, Debug)]
 pub enum Message {
     ShowMain,
-    PanesChanged { state: PanesState },
+    PanesChanged { state: ContainerState },
     HunkChanged { state: TableState },
     HunkViewChanged { state: DiffViewState },
     ShowHelp,
@@ -167,7 +167,7 @@ pub struct AppState {
     /// Current app page.
     page: AppPage,
     /// State of panes widget on the main page.
-    panes: PanesState,
+    panes: ContainerState,
     /// The hunks' table widget state.
     hunks: (TableState, Vec<HunkState>),
     /// Diff view states (cursor position is stored per hunk)
@@ -192,7 +192,7 @@ impl AppState {
             title,
             revision,
             page: AppPage::Main,
-            panes: PanesState::new(2, Some(0)),
+            panes: ContainerState::new(2, Some(0)),
             hunks: (
                 TableState::new(Some(0)),
                 vec![HunkState::Rejected; hunks.len()],
@@ -379,7 +379,7 @@ impl App<'_> {
                 .map(|state| state.cursor)
                 .unwrap_or_default();
 
-            ui.container(layout::container(), 1, |ui| {
+            ui.container(layout::container(), &mut Some(1), |ui| {
                 ui.column_bar(
                     frame,
                     hunk.inner().header(),
@@ -529,13 +529,13 @@ impl Show<Message> for App<'_> {
                     };
 
                     ui.layout(layout::page(), Some(0), |ui| {
-                        let group = ui.panes(layout::list_item(), &mut focus, |ui| {
+                        let group = ui.container(layout::list_item(), &mut focus, |ui| {
                             self.show_hunk_list(ui, frame);
                             self.show_hunk(ui, frame);
                         });
                         if group.response.changed {
                             ui.send_message(Message::PanesChanged {
-                                state: PanesState::new(count, focus),
+                                state: ContainerState::new(count, focus),
                             });
                         }
 
@@ -545,7 +545,7 @@ impl Show<Message> for App<'_> {
                 }
                 AppPage::Help => {
                     ui.layout(layout::page(), Some(0), |ui| {
-                        ui.container(layout::container(), 1, |ui| {
+                        ui.container(layout::container(), &mut Some(1), |ui| {
                             let mut cursor = {
                                 let state = self.state.lock().unwrap();
                                 state.help.cursor()

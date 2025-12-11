@@ -23,7 +23,7 @@ use radicle_tui as tui;
 use tui::store;
 use tui::task::{Process, Task};
 use tui::ui::im;
-use tui::ui::im::widget::{PanesState, TableState, TextEditState, TextViewState, Window};
+use tui::ui::im::widget::{ContainerState, TableState, TextEditState, TextViewState, Window};
 use tui::ui::im::{Borders, Show};
 use tui::ui::{BufferedValue, Column};
 use tui::{Channel, Exit};
@@ -102,7 +102,7 @@ pub enum Change {
         page: Page,
     },
     MainGroup {
-        state: PanesState,
+        state: ContainerState,
     },
     Patches {
         state: TableState,
@@ -136,7 +136,7 @@ pub enum Page {
 #[derive(Clone, Debug)]
 pub struct AppState {
     page: Page,
-    main_group: PanesState,
+    main_group: ContainerState,
     patches: TableState,
     search: BufferedValue<TextEditState>,
     show_search: bool,
@@ -169,7 +169,7 @@ impl TryFrom<&Context> for App {
             notifications: Arc::new(Mutex::new(vec![])),
             state: AppState {
                 page: Page::Main,
-                main_group: PanesState::new(3, Some(0)),
+                main_group: ContainerState::new(3, Some(0)),
                 patches: TableState::new(Some(0)),
                 search: BufferedValue::new(TextEditState {
                     text: search.clone(),
@@ -204,12 +204,12 @@ impl store::Update<Message> for App {
                 }),
             }),
             Message::ShowSearch => {
-                self.state.main_group = PanesState::new(3, None);
+                self.state.main_group = ContainerState::new(3, None);
                 self.state.show_search = true;
                 None
             }
             Message::HideSearch { apply } => {
-                self.state.main_group = PanesState::new(3, Some(0));
+                self.state.main_group = ContainerState::new(3, Some(0));
                 self.state.show_search = false;
 
                 if apply {
@@ -276,13 +276,13 @@ impl Show<Message> for App {
                     let show_search = self.state.show_search;
                     let mut page_focus = if show_search { Some(1) } else { Some(0) };
 
-                    ui.panes(
+                    ui.container(
                         Layout::vertical([Constraint::Fill(1), Constraint::Length(2)]),
                         &mut page_focus,
                         |ui| {
                             let mut group_focus = self.state.main_group.focus();
 
-                            let group = ui.panes(
+                            let group = ui.container(
                                 im::Layout::Expandable3 { left_only: true },
                                 &mut group_focus,
                                 |ui| {
@@ -291,7 +291,7 @@ impl Show<Message> for App {
                             );
                             if group.response.changed {
                                 ui.send_message(Message::Changed(Change::MainGroup {
-                                    state: PanesState::new(3, group_focus),
+                                    state: ContainerState::new(3, group_focus),
                                 }));
                             }
 
@@ -312,7 +312,7 @@ impl Show<Message> for App {
                         Constraint::Length(1),
                     ]);
 
-                    ui.container(layout, 1, |ui| {
+                    ui.container(layout, &mut Some(1), |ui| {
                         self.show_help_text(frame, ui);
                         self.show_help_context(frame, ui);
 

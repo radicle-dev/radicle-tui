@@ -479,7 +479,7 @@ impl<M> Ui<M>
 where
     M: Clone,
 {
-    pub fn panes<R>(
+    pub fn container<R>(
         &mut self,
         layout: impl Into<Layout>,
         focus: &mut Option<usize>,
@@ -497,21 +497,7 @@ where
             ..self.child_ui(area, layout)
         };
 
-        widget::Panes::new(len, focus).show(&mut child_ui, add_contents)
-    }
-
-    pub fn container<R>(
-        &mut self,
-        layout: impl Into<Layout>,
-        focus: usize,
-        add_contents: impl FnOnce(&mut Ui<M>) -> R,
-    ) -> InnerResponse<R> {
-        let (area, area_focus) = self.next_area().unwrap_or_default();
-
-        let mut child_ui = self.child_ui(area, layout);
-        child_ui.has_focus = area_focus;
-
-        widget::Container::new(focus).show(&mut child_ui, add_contents)
+        widget::Container::new(len, focus).show(&mut child_ui, add_contents)
     }
 
     pub fn popup<R>(
