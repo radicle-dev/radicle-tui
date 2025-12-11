@@ -131,11 +131,11 @@ impl<'a> Container<'a> {
             len: self.len,
         };
 
-        if ui.input_global(|key| key == Key::Char('\t')) {
+        if ui.has_input(|key| key == Key::Char('\t')) {
             state.focus_next();
             response.changed = true;
         }
-        if ui.input_global(|key| key == Key::BackTab) {
+        if ui.has_input(|key| key == Key::BackTab) {
             state.focus_prev();
             response.changed = true;
         }
@@ -372,7 +372,7 @@ where
 
         let area = render_block(frame, area, self.borders, border_style);
 
-        if let Some(key) = ui.input_with_key(|_| true) {
+        if let Some(key) = ui.get_input(|_| true) {
             let len = self.items.len();
             let page_size = area.height as usize;
 
@@ -734,7 +734,7 @@ impl Widget for TextView<'_> {
 
         let mut state = TextViewState::new(*self.cursor);
 
-        if let Some(key) = ui.input_with_key(|_| true) {
+        if let Some(key) = ui.get_input(|_| true) {
             let lines = self.text.lines.clone();
             let len = lines.clone().len();
             let max_line_len = lines
@@ -997,7 +997,7 @@ impl TextEdit<'_> {
             }
         }
 
-        if let Some(key) = ui.input_with_key(|_| true) {
+        if let Some(key) = ui.get_input(|_| true) {
             match key {
                 Key::Char(to_insert)
                     if (key != Key::Alt('\n'))

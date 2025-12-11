@@ -285,6 +285,27 @@ impl Show<Message> for App {
                             }
                         },
                     );
+                    if ui.has_input(|key| key == Key::Char('?')) {
+                        ui.send_message(Message::Changed(Change::Page { page: Page::Help }));
+                    }
+                    if ui.has_input(|key| key == Key::Char('\n')) {
+                        ui.send_message(Message::ExitFromMode);
+                    }
+                    if ui.has_input(|key| key == Key::Char('d')) {
+                        ui.send_message(Message::Exit {
+                            operation: Some(PatchOperation::Diff),
+                        });
+                    }
+                    if ui.has_input(|key| key == Key::Char('r')) {
+                        ui.send_message(Message::Exit {
+                            operation: Some(PatchOperation::Review),
+                        });
+                    }
+                    if ui.has_input(|key| key == Key::Char('c')) {
+                        ui.send_message(Message::Exit {
+                            operation: Some(PatchOperation::Checkout),
+                        });
+                    }
                 }
 
                 Page::Help => {
@@ -302,15 +323,15 @@ impl Show<Message> for App {
                         ui.shortcuts(frame, &[("?", "close")], '∙');
                     });
 
-                    if ui.input_global(|key| key == Key::Char('?')) {
+                    if ui.has_input(|key| key == Key::Char('?')) {
                         ui.send_message(Message::Changed(Change::Page { page: Page::Main }));
-                    }
-                    if ui.input_global(|key| key == Key::Char('q')) {
-                        ui.send_message(Message::Quit);
                     }
                 }
             }
-            if ui.input_global(|key| key == Key::Ctrl('c')) {
+            if ui.has_input(|key| key == Key::Char('q')) {
+                ui.send_message(Message::Quit);
+            }
+            if ui.has_input(|key| key == Key::Ctrl('c')) {
                 ui.send_message(Message::Quit);
             }
         });
@@ -367,7 +388,7 @@ impl App {
                 }
 
                 // TODO(erikli): Should only work if table has focus
-                if ui.input_global(|key| key == Key::Char('/')) {
+                if ui.has_input(|key| key == Key::Char('/')) {
                     ui.send_message(Message::ShowSearch);
                 }
             },
@@ -379,30 +400,6 @@ impl App {
             self.show_browser_context(frame, ui);
             self.show_browser_shortcuts(frame, ui);
         });
-        if ui.input_global(|key| key == Key::Char('q')) {
-            ui.send_message(Message::Quit);
-        }
-        if ui.input_global(|key| key == Key::Char('?')) {
-            ui.send_message(Message::Changed(Change::Page { page: Page::Help }));
-        }
-        if ui.input_global(|key| key == Key::Char('\n')) {
-            ui.send_message(Message::ExitFromMode);
-        }
-        if ui.input_global(|key| key == Key::Char('d')) {
-            ui.send_message(Message::Exit {
-                operation: Some(PatchOperation::Diff),
-            });
-        }
-        if ui.input_global(|key| key == Key::Char('r')) {
-            ui.send_message(Message::Exit {
-                operation: Some(PatchOperation::Review),
-            });
-        }
-        if ui.input_global(|key| key == Key::Char('c')) {
-            ui.send_message(Message::Exit {
-                operation: Some(PatchOperation::Checkout),
-            });
-        }
     }
 
     pub fn show_browser_search(&self, frame: &mut Frame, ui: &mut im::Ui<Message>) {
@@ -428,10 +425,10 @@ impl App {
             ui.send_message(Message::Changed(Change::Search { search }));
         }
 
-        if ui.input_global(|key| key == Key::Esc) {
+        if ui.has_input(|key| key == Key::Esc) {
             ui.send_message(Message::HideSearch { apply: false });
         }
-        if ui.input_global(|key| key == Key::Char('\n')) {
+        if ui.has_input(|key| key == Key::Char('\n')) {
             ui.send_message(Message::HideSearch { apply: true });
         }
     }

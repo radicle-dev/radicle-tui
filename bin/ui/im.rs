@@ -168,15 +168,15 @@ where
         );
 
         if !*self.show_search {
-            if ui.input_global(|key| key == Key::Char('/')) {
+            if ui.has_input(|key| key == Key::Char('/')) {
                 *self.show_search = true;
             }
         } else {
-            if ui.input_global(|key| key == Key::Esc) {
+            if ui.has_input(|key| key == Key::Esc) {
                 *self.show_search = false;
                 self.search.reset();
             }
-            if ui.input_global(|key| key == Key::Char('\n')) {
+            if ui.has_input(|key| key == Key::Char('\n')) {
                 *self.show_search = false;
                 self.search.apply();
             }

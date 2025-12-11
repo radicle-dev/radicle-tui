@@ -95,17 +95,12 @@ impl<'a> Column<'a> {
     }
 }
 
+#[derive(Default)]
 pub struct Spacing(u16);
 
 impl From<u16> for Spacing {
     fn from(value: u16) -> Self {
         Self(value)
-    }
-}
-
-impl Default for Spacing {
-    fn default() -> Self {
-        Self(0)
     }
 }
 

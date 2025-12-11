@@ -120,13 +120,13 @@ impl Show<Message> for App {
 
                     ui.shortcuts(frame, &[("q", "quit")], '|');
 
-                    if ui.input_global(|key| key == Key::Char('\n')) {
+                    if ui.has_input(|key| key == Key::Char('\n')) {
                         ui.send_message(Message::Return);
                     }
                 },
             );
 
-            if ui.input_global(|key| key == Key::Char('q')) {
+            if ui.has_input(|key| key == Key::Char('q')) {
                 ui.send_message(Message::Quit);
             }
         });

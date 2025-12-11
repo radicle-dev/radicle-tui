@@ -59,7 +59,7 @@ impl Show<Message> for App {
                 Some(Borders::None),
             );
 
-            if ui.input_global(|key| key == Key::Char('q')) {
+            if ui.has_input(|key| key == Key::Char('q')) {
                 ui.send_message(Message::Quit);
             }
         });

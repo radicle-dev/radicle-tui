@@ -489,23 +489,23 @@ impl App<'_> {
                     '∙',
                 );
 
-                if ui.input_global(|key| key == Key::Char('?')) {
+                if ui.has_input(|key| key == Key::Char('?')) {
                     ui.send_message(Message::ShowHelp);
                 }
-                if ui.input_global(|key| key == Key::Char('c')) {
+                if ui.has_input(|key| key == Key::Char('c')) {
                     ui.send_message(Message::Comment);
                 }
-                if ui.input_global(|key| key == Key::Char('a')) {
+                if ui.has_input(|key| key == Key::Char('a')) {
                     ui.send_message(Message::Accept);
                 }
-                if ui.input_global(|key| key == Key::Char('r')) {
+                if ui.has_input(|key| key == Key::Char('r')) {
                     ui.send_message(Message::Reject);
                 }
             }
             ReviewMode::Show => {
                 ui.shortcuts(frame, &[("?", "help"), ("q", "quit")], '∙');
 
-                if ui.input_global(|key| key == Key::Char('?')) {
+                if ui.has_input(|key| key == Key::Char('?')) {
                     ui.send_message(Message::ShowHelp);
                 }
             }
@@ -571,13 +571,13 @@ impl Show<Message> for App<'_> {
                         ui.shortcuts(frame, &[("?", "close"), ("q", "quit")], '∙');
                     });
 
-                    if ui.input_global(|key| key == Key::Char('?')) {
+                    if ui.has_input(|key| key == Key::Char('?')) {
                         ui.send_message(Message::ShowMain);
                     }
                 }
             }
 
-            if ui.input_global(|key| key == Key::Char('q')) {
+            if ui.has_input(|key| key == Key::Char('q')) {
                 ui.send_message(Message::Quit);
             }
         });

@@ -307,15 +307,11 @@ pub struct Ui<M> {
 }
 
 impl<M> Ui<M> {
-    pub fn input(&mut self, f: impl Fn(Key) -> bool) -> bool {
+    pub fn has_input(&mut self, f: impl Fn(Key) -> bool) -> bool {
         self.has_focus && self.is_area_focused() && self.ctx.inputs.iter().any(|key| f(*key))
     }
 
-    pub fn input_global(&mut self, f: impl Fn(Key) -> bool) -> bool {
-        self.has_focus && self.ctx.inputs.iter().any(|key| f(*key))
-    }
-
-    pub fn input_with_key(&mut self, f: impl Fn(Key) -> bool) -> Option<Key> {
+    pub fn get_input(&mut self, f: impl Fn(Key) -> bool) -> Option<Key> {
         if self.has_focus && self.is_area_focused() {
             self.ctx.inputs.iter().find(|key| f(**key)).copied()
         } else {
