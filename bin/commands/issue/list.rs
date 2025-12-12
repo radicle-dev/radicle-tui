@@ -233,14 +233,9 @@ impl TryFrom<(&Context, &TerminalInfo)> for State {
 
         Ok(Self {
             pages: PageStack::new(vec![AppPage::Browser]),
-            browser: BrowserState::build(items.clone(), context.issue, filter, search),
-            preview: PreviewState {
-                show: true,
-                issue: items.first().cloned(),
-                selected_comments,
-                comment: TextViewState::default(),
-            },
-            section: Some(Section::Browser),
+            browser,
+            preview,
+            section,
             help: HelpState {
                 text: TextViewState::default().content(help_text()),
             },
@@ -496,12 +491,6 @@ fn browser_page(channel: &Channel<Message>) -> Widget<State, Message> {
                         Key::Char('q') | Key::Ctrl('c') => Some(Message::Quit),
                         Key::Char('p') => Some(Message::TogglePreview),
                         Key::Char('?') => Some(Message::OpenHelp),
-                        Key::Enter => Some(Message::Exit {
-                            operation: Some(RequestedIssueOperation::Show),
-                        }),
-                        Key::Char('e') => Some(Message::Exit {
-                            operation: Some(RequestedIssueOperation::Edit),
-                        }),
                         _ => None,
                     }
                 } else {
@@ -525,6 +514,21 @@ fn browser(channel: &Channel<Message>) -> Widget<State, Message> {
     Browser::new(tx.clone())
         .to_widget(tx.clone())
         .on_update(|state| BrowserProps::from(state).to_boxed_any().into())
+        .on_event(|event, _, _| {
+            if let Event::Key(key) = event {
+                match key {
+                    Key::Enter => Some(Message::Exit {
+                        operation: Some(RequestedIssueOperation::Show),
+                    }),
+                    Key::Char('e') => Some(Message::Exit {
+                        operation: Some(RequestedIssueOperation::Edit),
+                    }),
+                    _ => None,
+                }
+            } else {
+                None
+            }
+        })
 }
 
 fn issue(channel: &Channel<Message>) -> Widget<State, Message> {
