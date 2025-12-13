@@ -295,7 +295,7 @@ impl HunkDiff {
         }
     }
 
-    pub fn paths(&self) -> FilePaths {
+    pub fn paths(&self) -> FilePaths<'_> {
         match self {
             Self::Added { path, new, .. } => (None, Some((path, new.oid))),
             Self::Deleted { path, old, .. } => (Some((path, old.oid)), None),

@@ -254,7 +254,7 @@ impl Notification {
 }
 
 impl ToRow<9> for Notification {
-    fn to_row(&self) -> [Cell; 9] {
+    fn to_row(&self) -> [Cell<'_>; 9] {
         let (type_name, summary, status, kind_id) = match &self.kind {
             NotificationKind::Branch {
                 name,

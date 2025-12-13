@@ -231,7 +231,7 @@ impl IssueItem {
 }
 
 impl ToRow<8> for IssueItem {
-    fn to_row(&self) -> [Cell; 8] {
+    fn to_row(&self) -> [Cell<'_>; 8] {
         let (state, state_color) = format::issue_state(&self.state);
 
         let state = span::default(&state).style(Style::default().fg(state_color));
@@ -489,7 +489,7 @@ impl PatchItem {
 }
 
 impl ToRow<9> for PatchItem {
-    fn to_row(&self) -> [Cell; 9] {
+    fn to_row(&self) -> [Cell<'_>; 9] {
         let (state, color) = format::patch_state(&self.state);
 
         let state = span::default(&state).style(Style::default().fg(color));
@@ -1024,7 +1024,7 @@ impl From<(&Repository, &Review, &HunkDiff)> for HunkItem<'_> {
 }
 
 impl ToRow<3> for StatefulHunkItem<'_> {
-    fn to_row(&self) -> [Cell; 3] {
+    fn to_row(&self) -> [Cell<'_>; 3] {
         let build_stats_spans = |stats: &DiffStats| -> Vec<Span<'_>> {
             let mut cell = vec![];
             let comments = &self.inner().comments;

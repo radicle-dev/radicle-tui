@@ -53,7 +53,7 @@ impl Terminal {
         Ok(())
     }
 
-    pub fn draw<F>(&mut self, f: F) -> io::Result<CompletedFrame>
+    pub fn draw<F>(&mut self, f: F) -> io::Result<CompletedFrame<'_>>
     where
         F: FnOnce(&mut Frame),
     {

@@ -44,6 +44,7 @@ pub enum ReviewAction {
     Comment,
 }
 
+#[allow(dead_code)]
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct Args(String);
 
@@ -704,7 +705,7 @@ mod test {
     use crate::test;
 
     impl App<'_> {
-        pub fn hunks(&self) -> Vec<StatefulHunkItem> {
+        pub fn hunks(&self) -> Vec<StatefulHunkItem<'_>> {
             self.hunks.lock().unwrap().clone()
         }
     }

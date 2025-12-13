@@ -31,7 +31,7 @@ struct Item {
 }
 
 impl ToRow<3> for Item {
-    fn to_row(&self) -> [Cell; 3] {
+    fn to_row(&self) -> [Cell<'_>; 3] {
         [
             Span::raw(self.id.to_string()).magenta().dim().into(),
             Span::raw(self.title.clone()).into(),

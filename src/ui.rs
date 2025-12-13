@@ -112,7 +112,7 @@ impl From<Spacing> for u16 {
 
 /// Needs to be implemented for items that are supposed to be rendered in tables.
 pub trait ToRow<const W: usize> {
-    fn to_row(&self) -> [Cell; W];
+    fn to_row(&self) -> [Cell<'_>; W];
 }
 
 /// Needs to be implemented for items that are supposed to be rendered in trees.
