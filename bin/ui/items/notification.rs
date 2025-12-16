@@ -2,9 +2,7 @@ use std::fmt;
 
 use radicle::cob::{ObjectId, Timestamp, TypeName, TypedId};
 use radicle::identity::Identity;
-use radicle::issue::Issues;
 use radicle::node;
-use radicle::patch::Patches;
 use radicle::prelude::Project;
 use radicle::storage::git::Repository;
 use radicle::storage::{ReadRepository, RefUpdate};
@@ -111,14 +109,16 @@ impl fmt::Display for NotificationKind {
 }
 
 impl NotificationKind {
-    pub fn new(
+    pub fn new<I, P>(
         repo: &Repository,
+        issues: &I,
+        patches: &P,
         notification: &node::notifications::Notification,
-    ) -> Result<Option<Self>, anyhow::Error> {
-        // TODO: move out of here
-        let issues = Issues::open(repo)?;
-        let patches = Patches::open(repo)?;
-
+    ) -> Result<Option<Self>, anyhow::Error>
+    where
+        I: radicle::cob::issue::cache::Issues,
+        P: radicle::cob::patch::cache::Patches,
+    {
         match &notification.kind {
             node::notifications::NotificationKind::Branch { name } => {
                 let (head, message) = if let Some(head) = notification.update.new() {
@@ -232,21 +232,15 @@ pub struct Notification {
 impl Notification {
     pub fn new(
         profile: &Profile,
-        repo: &Repository,
         project: &Project,
         notification: &node::notifications::Notification,
+        kind: NotificationKind,
     ) -> Result<Option<Self>, anyhow::Error> {
-        let kind = NotificationKind::new(repo, notification)?;
-
-        if kind.is_none() {
-            return Ok(None);
-        }
-
         Ok(Some(Notification {
             id: notification.id,
             project: project.name().to_string(),
             seen: notification.status.is_read(),
-            kind: kind.unwrap(),
+            kind,
             author: AuthorItem::new(notification.remote, profile),
             timestamp: notification.timestamp.into(),
         }))

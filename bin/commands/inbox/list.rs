@@ -1,3 +1,5 @@
+use std::collections::hash_map::Entry;
+use std::collections::HashMap;
 use std::str::FromStr;
 use std::sync::{Arc, Mutex};
 use std::vec;
@@ -30,7 +32,7 @@ use super::common::RepositoryMode;
 use crate::commands::tui_inbox::common::InboxOperation;
 use crate::ui::items::filter::Filter;
 use crate::ui::items::notification::filter::{NotificationFilter, SortBy};
-use crate::ui::items::notification::Notification;
+use crate::ui::items::notification::{Notification, NotificationKind};
 
 type Selection = tui::Selection<InboxOperation>;
 
@@ -363,19 +365,14 @@ impl App {
             Layout::vertical([Constraint::Length(3), Constraint::Min(1)]),
             Some(1),
             |ui| {
-                ui.column_bar(
-                    frame,
-                    header.to_vec(),
-                    Spacing::default(),
-                    Some(Borders::Top),
-                );
+                ui.column_bar(frame, header.to_vec(), Spacing::from(1), Some(Borders::Top));
 
                 let table = ui.table(
                     frame,
                     &mut selected,
                     &notifs,
                     header.to_vec(),
-                    Some("No notifications found".into()),
+                    Some("".into()),
                     Some(Borders::BottomSides),
                 );
                 if table.changed {
@@ -707,48 +704,95 @@ impl Task for NotificationLoader {
     type Return = Message;
 
     fn run(&self) -> anyhow::Result<Vec<Self::Return>> {
+        let profile = self.context.profile.clone();
+
         let notifications = match self.context.mode {
             RepositoryMode::All => {
-                let notifs = self.context.profile.notifications_mut()?;
-                let all = notifs.all()?;
+                let notifs = profile.notifications_mut()?;
 
+                // Store all repos the notifs arised from, such that
+                // they can be referenced when loading issues and patches
+                let all = notifs.all()?;
+                let repos = all
+                    .into_iter()
+                    .filter_map(|notif| notif.ok())
+                    .filter_map(|notif| {
+                        profile
+                            .storage
+                            .repository(notif.repo)
+                            .ok()
+                            .map(|repo| (notif.repo, repo))
+                    })
+                    .collect::<HashMap<_, _>>();
+
+                // Only retrieve issues and patches once per repository
+                let all = notifs.all()?;
+                let (mut issues, mut patches) = (HashMap::new(), HashMap::new());
                 all.filter_map(|notif| notif.ok())
-                    .map(|notif| {
-                        let repo = self.context.profile.storage.repository(notif.repo)?;
-                        let project = repo.project()?;
-                        Notification::new(&self.context.profile, &repo, &project, &notif)
+                    .map(|notif| match repos.get(&notif.repo) {
+                        Some(repo) => {
+                            let project = repo.project()?;
+                            let (issues, patches) = {
+                                (
+                                    match issues.entry(repo.id) {
+                                        Entry::Occupied(e) => e.into_mut(),
+                                        Entry::Vacant(e) => e.insert(profile.issues(repo)?),
+                                    },
+                                    match patches.entry(repo.id) {
+                                        Entry::Occupied(e) => e.into_mut(),
+                                        Entry::Vacant(e) => e.insert(profile.patches(repo)?),
+                                    },
+                                )
+                            };
+
+                            match NotificationKind::new(&repo, issues, patches, &notif)? {
+                                Some(kind) => Notification::new(&profile, &project, &notif, kind),
+                                _ => Ok(None),
+                            }
+                        }
+                        _ => Ok(None),
                     })
                     .filter_map(|notif| notif.ok())
                     .flatten()
                     .collect::<Vec<_>>()
             }
             RepositoryMode::Contextual => {
-                let repo = self.context.profile.storage.repository(self.context.rid)?;
+                let repo = profile.storage.repository(self.context.rid)?;
                 let project = repo.project()?;
-                let notifs = self.context.profile.notifications_mut()?;
+                let issues = profile.issues(&repo)?;
+                let patches = profile.patches(&repo)?;
+                let notifs = profile.notifications_mut()?;
                 let by_repo = notifs.by_repo(&repo.id, "timestamp")?;
 
                 by_repo
                     .filter_map(|notif| notif.ok())
                     .map(|notif| {
                         let repo = self.context.profile.storage.repository(notif.repo)?;
-                        Notification::new(&self.context.profile, &repo, &project, &notif)
+                        match NotificationKind::new(&repo, &issues, &patches, &notif)? {
+                            Some(kind) => Notification::new(&profile, &project, &notif, kind),
+                            _ => Ok(None),
+                        }
                     })
                     .filter_map(|notif| notif.ok())
                     .flatten()
                     .collect::<Vec<_>>()
             }
             RepositoryMode::ByRepo((rid, _)) => {
-                let repo = self.context.profile.storage.repository(rid)?;
+                let repo = profile.storage.repository(rid)?;
                 let project = repo.project()?;
-                let notifs = self.context.profile.notifications_mut()?;
+                let issues = profile.issues(&repo)?;
+                let patches = profile.patches(&repo)?;
+                let notifs = profile.notifications_mut()?;
                 let by_repo = notifs.by_repo(&repo.id, "timestamp")?;
 
                 by_repo
                     .filter_map(|notif| notif.ok())
                     .map(|notif| {
                         let repo = self.context.profile.storage.repository(notif.repo)?;
-                        Notification::new(&self.context.profile, &repo, &project, &notif)
+                        match NotificationKind::new(&repo, &issues, &patches, &notif)? {
+                            Some(kind) => Notification::new(&profile, &project, &notif, kind),
+                            _ => Ok(None),
+                        }
                     })
                     .filter_map(|notif| notif.ok())
                     .flatten()
