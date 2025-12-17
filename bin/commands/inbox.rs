@@ -9,13 +9,14 @@ use anyhow::anyhow;
 
 use radicle::storage::{HasRepoId, ReadRepository};
 
-use radicle_cli::terminal;
 use radicle_cli::terminal::{Args, Error, Help};
 
-use self::common::RepositoryMode;
-
 use crate::commands::tui_inbox::common::InboxOperation;
+use crate::terminal;
+use crate::terminal::Quiet;
 use crate::ui::items::notification::filter::{NotificationFilter, SortBy};
+
+use self::common::RepositoryMode;
 
 pub const HELP: Help = Help {
     name: "inbox",
@@ -101,8 +102,9 @@ impl Args for Options {
                     reverse = Some(true);
                 }
                 Long("sort-by") => {
-                    let val = parser.value()?;
+                    use radicle_cli::terminal;
 
+                    let val = parser.value()?;
                     match terminal::args::string(&val).as_str() {
                         "timestamp" => field = Some("timestamp"),
                         "id" => field = Some("id"),
@@ -111,9 +113,10 @@ impl Args for Options {
                 }
 
                 Long("repo") if repository_mode.is_none() => {
+                    use radicle_cli::terminal;
+
                     let val = parser.value()?;
                     let repo = terminal::args::rid(&val)?;
-
                     repository_mode = Some(RepositoryMode::ByRepo((repo, None)));
                 }
                 Long("all") | Short('a') if repository_mode.is_none() => {
@@ -172,7 +175,7 @@ impl Args for Options {
 }
 
 #[tokio::main]
-pub async fn run(options: Options, ctx: impl terminal::Context) -> anyhow::Result<()> {
+pub async fn run(options: Options, ctx: impl radicle_cli::terminal::Context) -> anyhow::Result<()> {
     use radicle::storage::ReadStorage;
 
     let (_, rid) = radicle::rad::cwd()
@@ -180,54 +183,63 @@ pub async fn run(options: Options, ctx: impl terminal::Context) -> anyhow::Resul
 
     match options.op {
         Operation::List { opts } => {
-            let profile = ctx.profile()?;
-            let repository = profile.storage.repository(rid)?;
-
             if let Err(err) = crate::log::enable() {
                 println!("{err}");
             }
             log::info!("Starting inbox listing interface in project {rid}..");
 
-            let context = list::Context {
-                profile,
-                project: repository.identity_doc()?.project()?,
-                rid: repository.rid(),
-                mode: opts.mode,
-                filter: opts.filter.clone(),
-                sort_by: opts.sort_by,
-            };
-            let selection = list::Tui::new(context).run().await?;
+            loop {
+                let profile = ctx.profile()?;
+                let repository = profile.storage.repository(rid)?;
 
-            if opts.json {
-                let selection = selection
-                    .map(|o| serde_json::to_string(&o).unwrap_or_default())
-                    .unwrap_or_default();
+                let context = list::Context {
+                    profile,
+                    project: repository.identity_doc()?.project()?,
+                    rid: repository.rid(),
+                    mode: opts.mode.clone(),
+                    filter: opts.filter.clone(),
+                    sort_by: opts.sort_by,
+                };
 
-                log::info!("About to print to `stderr`: {selection}");
-                log::info!("Exiting inbox listing interface..");
+                let app = list::Tui::new(context);
+                let selection = app.run().await?;
 
-                eprint!("{selection}");
-            } else if let Some(selection) = selection {
-                if let Some(operation) = selection.operation.clone() {
-                    match operation {
-                        InboxOperation::Show { id } => {
-                            let _ = crate::terminal::run_rad(
-                                Some("inbox"),
-                                &[OsString::from("show"), OsString::from(id.to_string())],
-                            );
-                        }
-                        InboxOperation::Clear { id } => {
-                            let _ = crate::terminal::run_rad(
-                                Some("inbox"),
-                                &[OsString::from("clear"), OsString::from(id.to_string())],
-                            );
+                if opts.json {
+                    let selection = selection
+                        .map(|o| serde_json::to_string(&o).unwrap_or_default())
+                        .unwrap_or_default();
+
+                    log::info!("About to print to `stderr`: {selection}");
+                    log::info!("Exiting inbox listing interface..");
+
+                    eprint!("{selection}");
+                } else if let Some(selection) = selection {
+                    if let Some(operation) = selection.operation.clone() {
+                        match operation {
+                            InboxOperation::Show { id } => {
+                                terminal::run_rad(
+                                    Some("inbox"),
+                                    &["show".into(), id.to_string().into()],
+                                    Quiet::No,
+                                )?;
+                                break;
+                            }
+                            InboxOperation::Clear { id } => {
+                                terminal::run_rad(
+                                    Some("inbox"),
+                                    &["clear".into(), id.to_string().into()],
+                                    Quiet::Yes,
+                                )?;
+                            }
                         }
                     }
+                } else {
+                    break;
                 }
             }
         }
         Operation::Other { args } => {
-            let _ = crate::terminal::run_rad(Some("inbox"), &args);
+            terminal::run_rad(Some("inbox"), &args, Quiet::No)?;
         }
         Operation::Unknown { .. } => {
             anyhow::bail!("unknown operation provided");
