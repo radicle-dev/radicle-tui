@@ -705,16 +705,14 @@ impl Task for NotificationLoader {
 
     fn run(&self) -> anyhow::Result<Vec<Self::Return>> {
         let profile = self.context.profile.clone();
+        let notifs = profile.notifications_mut()?;
 
         let notifications = match self.context.mode {
             RepositoryMode::All => {
-                let notifs = profile.notifications_mut()?;
-
                 // Store all repos the notifs arised from, such that
                 // they can be referenced when loading issues and patches
-                let all = notifs.all()?;
-                let repos = all
-                    .into_iter()
+                let repos = notifs
+                    .all()?
                     .filter_map(|notif| notif.ok())
                     .filter_map(|notif| {
                         profile
@@ -726,9 +724,10 @@ impl Task for NotificationLoader {
                     .collect::<HashMap<_, _>>();
 
                 // Only retrieve issues and patches once per repository
-                let all = notifs.all()?;
                 let (mut issues, mut patches) = (HashMap::new(), HashMap::new());
-                all.filter_map(|notif| notif.ok())
+                notifs
+                    .all()?
+                    .filter_map(|notif| notif.ok())
                     .map(|notif| match repos.get(&notif.repo) {
                         Some(repo) => {
                             let project = repo.project()?;
@@ -745,7 +744,7 @@ impl Task for NotificationLoader {
                                 )
                             };
 
-                            match NotificationKind::new(&repo, issues, patches, &notif)? {
+                            match NotificationKind::new(repo, issues, patches, &notif)? {
                                 Some(kind) => Notification::new(&profile, &project, &notif, kind),
                                 _ => Ok(None),
                             }
@@ -761,18 +760,16 @@ impl Task for NotificationLoader {
                 let project = repo.project()?;
                 let issues = profile.issues(&repo)?;
                 let patches = profile.patches(&repo)?;
-                let notifs = profile.notifications_mut()?;
                 let by_repo = notifs.by_repo(&repo.id, "timestamp")?;
 
                 by_repo
                     .filter_map(|notif| notif.ok())
-                    .map(|notif| {
-                        let repo = self.context.profile.storage.repository(notif.repo)?;
-                        match NotificationKind::new(&repo, &issues, &patches, &notif)? {
+                    .map(
+                        |notif| match NotificationKind::new(&repo, &issues, &patches, &notif)? {
                             Some(kind) => Notification::new(&profile, &project, &notif, kind),
                             _ => Ok(None),
-                        }
-                    })
+                        },
+                    )
                     .filter_map(|notif| notif.ok())
                     .flatten()
                     .collect::<Vec<_>>()
@@ -782,18 +779,16 @@ impl Task for NotificationLoader {
                 let project = repo.project()?;
                 let issues = profile.issues(&repo)?;
                 let patches = profile.patches(&repo)?;
-                let notifs = profile.notifications_mut()?;
                 let by_repo = notifs.by_repo(&repo.id, "timestamp")?;
 
                 by_repo
                     .filter_map(|notif| notif.ok())
-                    .map(|notif| {
-                        let repo = self.context.profile.storage.repository(notif.repo)?;
-                        match NotificationKind::new(&repo, &issues, &patches, &notif)? {
+                    .map(
+                        |notif| match NotificationKind::new(&repo, &issues, &patches, &notif)? {
                             Some(kind) => Notification::new(&profile, &project, &notif, kind),
                             _ => Ok(None),
-                        }
-                    })
+                        },
+                    )
                     .filter_map(|notif| notif.ok())
                     .flatten()
                     .collect::<Vec<_>>()
