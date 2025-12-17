@@ -20,6 +20,7 @@ use radicle_cli::terminal::args::{string, Args, Error, Help};
 
 use crate::cob::patch;
 use crate::commands::tui_patch::common::PatchOperation;
+use crate::terminal::Quiet;
 
 pub const HELP: Help = Help {
     name: "patch",
@@ -266,22 +267,25 @@ pub async fn run(options: Options, ctx: impl terminal::Context) -> anyhow::Resul
                 if let Some(operation) = selection.operation.clone() {
                     match operation {
                         PatchOperation::Show { id } => {
-                            let _ = crate::terminal::run_rad(
+                            crate::terminal::run_rad(
                                 Some("patch"),
-                                &[OsString::from("show"), OsString::from(id.to_string())],
-                            );
+                                &["show".into(), id.to_string().into()],
+                                Quiet::No,
+                            )?;
                         }
                         PatchOperation::Diff { id } => {
-                            let _ = crate::terminal::run_rad(
+                            crate::terminal::run_rad(
                                 Some("patch"),
-                                &[OsString::from("diff"), OsString::from(id.to_string())],
-                            );
+                                &["diff".into(), id.to_string().into()],
+                                Quiet::No,
+                            )?;
                         }
                         PatchOperation::Checkout { id } => {
-                            let _ = crate::terminal::run_rad(
+                            crate::terminal::run_rad(
                                 Some("patch"),
-                                &[OsString::from("checkout"), OsString::from(id.to_string())],
-                            );
+                                &["checkout".into(), id.to_string().into()],
+                                Quiet::No,
+                            )?;
                         }
                         PatchOperation::_Review { id } => {
                             let opts = ReviewOptions::default();
@@ -308,7 +312,7 @@ pub async fn run(options: Options, ctx: impl terminal::Context) -> anyhow::Resul
             interface::review(opts.clone(), profile, rid, patch_id).await?;
         }
         Operation::Other { args } => {
-            let _ = crate::terminal::run_rad(Some("patch"), &args);
+            crate::terminal::run_rad(Some("patch"), &args, Quiet::No)?;
         }
         Operation::Unknown { .. } => {
             anyhow::bail!("unknown operation provided");

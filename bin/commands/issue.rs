@@ -22,7 +22,7 @@ use cli::terminal::{Args, Error, Help};
 
 use crate::cob;
 use crate::commands::tui_issue::common::IssueOperation;
-use crate::terminal;
+use crate::terminal::{self, Quiet};
 use crate::ui::TerminalInfo;
 
 lazy_static! {
@@ -234,17 +234,19 @@ pub async fn run(options: Options, ctx: impl Context) -> anyhow::Result<()> {
                     if let Some(operation) = selection.operation.clone() {
                         match operation {
                             IssueOperation::Show { id } => {
-                                let _ = terminal::run_rad(
+                                terminal::run_rad(
                                     Some("issue"),
                                     &["show".into(), id.to_string().into()],
-                                );
+                                    Quiet::No,
+                                )?;
                                 break;
                             }
                             IssueOperation::Edit { id } => {
-                                let _ = terminal::run_rad(
+                                terminal::run_rad(
                                     Some("issue"),
-                                    &["edit".into(), id.to_string().into(), "--quiet".into()],
-                                );
+                                    &["edit".into(), id.to_string().into()],
+                                    Quiet::Yes,
+                                )?;
                             }
                             IssueOperation::Comment {
                                 id,
@@ -272,7 +274,7 @@ pub async fn run(options: Options, ctx: impl Context) -> anyhow::Result<()> {
             }
         }
         Operation::Other { args } => {
-            let _ = crate::terminal::run_rad(Some("issue"), &args);
+            terminal::run_rad(Some("issue"), &args, Quiet::No)?;
         }
         Operation::Unknown { .. } => {
             anyhow::bail!("unknown operation provided");

@@ -12,6 +12,11 @@ use radicle_cli::terminal::io;
 use radicle_cli::terminal::patch::Message;
 use radicle_cli::terminal::{Args, Command, DefaultContext, Error, Help};
 
+pub enum Quiet {
+    Yes,
+    No,
+}
+
 #[derive(Error, Debug)]
 pub enum ForwardError {
     #[error("an internal error occured while executing 'rad'")]
@@ -20,8 +25,15 @@ pub enum ForwardError {
     Io(#[from] std::io::Error),
 }
 
-fn _run_rad(args: &[OsString]) -> Result<(), ForwardError> {
-    let status = process::Command::new("rad").args(args).status();
+fn _run_rad(args: &[OsString], quiet: Quiet) -> Result<(), ForwardError> {
+    let status = match quiet {
+        Quiet::Yes => process::Command::new("rad")
+            .args(args)
+            .stdout(process::Stdio::null())
+            .stderr(process::Stdio::null())
+            .status(),
+        Quiet::No => process::Command::new("rad").args(args).status(),
+    };
 
     match status {
         Ok(status) => {
@@ -34,14 +46,14 @@ fn _run_rad(args: &[OsString]) -> Result<(), ForwardError> {
     }
 }
 
-pub fn run_rad(command: Option<&str>, args: &[OsString]) -> Result<(), ForwardError> {
+pub fn run_rad(command: Option<&str>, args: &[OsString], quiet: Quiet) -> Result<(), ForwardError> {
     let args = if let Some(command) = command {
         [vec![command.into()], args.to_vec()].concat()
     } else {
         args.to_vec()
     };
 
-    _run_rad(&args)
+    _run_rad(&args, quiet)
 }
 
 pub fn run_command_args<A, C>(help: Help, cmd: C, args: Vec<OsString>) -> !

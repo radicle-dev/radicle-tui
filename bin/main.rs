@@ -23,7 +23,7 @@ use radicle_cli::terminal as cli_term;
 use commands::*;
 use terminal as term;
 
-use crate::terminal::ForwardError;
+use crate::terminal::{ForwardError, Quiet};
 
 pub const NAME: &str = "rad-tui";
 pub const DESCRIPTION: &str = "Radicle terminal interfaces";
@@ -224,7 +224,7 @@ fn run_other(command: Option<&str>, args: &[OsString]) -> Result<(), Error> {
                 args.to_vec(),
             );
         }
-        command => term::run_rad(command, args).map_err(|err| err.into()),
+        command => term::run_rad(command, args, Quiet::No).map_err(|err| err.into()),
     }
 }
 
