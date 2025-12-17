@@ -415,7 +415,7 @@ impl App {
     }
 
     fn show_browser_footer(&self, frame: &mut Frame, ui: &mut im::Ui<Message>) {
-        ui.layout(Layout::vertical([1, 1]), None, |ui| {
+        ui.layout(Layout::vertical([3, 1]), None, |ui| {
             self.show_browser_context(frame, ui);
             self.show_browser_shortcuts(frame, ui);
         });
@@ -482,7 +482,9 @@ impl App {
                     Column::new(
                         Span::raw(format!(" {search} "))
                             .into_left_aligned_line()
-                            .style(ui.theme().bar_on_black_style),
+                            .style(ui.theme().bar_on_black_style)
+                            .cyan()
+                            .dim(),
                         Constraint::Fill(1),
                     ),
                     Column::new(
