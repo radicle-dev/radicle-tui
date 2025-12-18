@@ -1,5 +1,3 @@
-#[path = "patch/common.rs"]
-mod common;
 #[path = "patch/list.rs"]
 mod list;
 #[path = "patch/review.rs"]
@@ -11,6 +9,7 @@ use anyhow::anyhow;
 
 use radicle::cob::ObjectId;
 use radicle::identity::RepoId;
+use radicle::prelude::Did;
 use radicle::patch::{Patch, Revision, RevisionId, Status};
 use radicle::storage::git::Repository;
 
@@ -18,7 +17,6 @@ use radicle_cli::git::Rev;
 use radicle_cli::terminal::args;
 use radicle_cli::terminal::args::{string, Args, Error, Help};
 
-use crate::commands::tui_patch::common::PatchOperation;
 use crate::terminal;
 use crate::terminal::Quiet;
 use crate::ui::items::patch::filter::PatchFilter;
@@ -236,6 +234,7 @@ impl Args for Options {
 
 #[tokio::main]
 pub async fn run(options: Options, ctx: impl radicle_cli::terminal::Context) -> anyhow::Result<()> {
+    use crate::tui_patch::list::PatchOperation;
     use radicle::storage::ReadStorage;
 
     let (_, rid) = radicle::rad::cwd()
@@ -324,10 +323,10 @@ pub async fn run(options: Options, ctx: impl radicle_cli::terminal::Context) -> 
 mod interface {
     use anyhow::anyhow;
 
-    use radicle::cob;
+    use radicle::cob::patch::cache::Patches;
     use radicle::identity::RepoId;
-    use radicle::patch::PatchId;
-    use radicle::patch::Verdict;
+    use radicle::patch;
+    use radicle::patch::{PatchId, Verdict};
     use radicle::storage::git::cob::DraftStore;
     use radicle::storage::ReadStorage;
     use radicle::Profile;
@@ -336,8 +335,7 @@ mod interface {
 
     use radicle_tui::Selection;
 
-    use crate::cob::patch;
-    use crate::commands::tui_patch::common::PatchOperation;
+    use crate::cob;
     use crate::tui_patch::list;
     use crate::tui_patch::review::builder::CommentBuilder;
     use crate::tui_patch::review::ReviewAction;
@@ -351,7 +349,7 @@ mod interface {
         opts: ListOptions,
         profile: Profile,
         rid: RepoId,
-    ) -> anyhow::Result<Option<Selection<PatchOperation>>> {
+    ) -> anyhow::Result<Option<Selection<list::PatchOperation>>> {
         let repository = profile.storage.repository(rid).unwrap();
 
         log::info!("Starting patch selection interface in project {rid}..");
@@ -373,14 +371,16 @@ mod interface {
     ) -> anyhow::Result<()> {
         let repo = profile.storage.repository(rid)?;
         let signer = terminal::signer(&profile)?;
+        let cache = profile.patches(&repo)?;
 
-        let patch = patch::find(&profile, &repo, &patch_id)?
+        let patch = cache
+            .get(&patch_id)?
             .ok_or_else(|| anyhow!("Patch `{patch_id}` not found"))?;
         let (_, revision) = opts.revision_or_latest(&patch, &repo)?;
         let hunks = ReviewBuilder::new(&repo).hunks(revision)?;
 
         let drafts = DraftStore::new(&repo, *signer.public_key());
-        let mut patches = cob::patch::Cache::no_cache(&drafts)?;
+        let mut patches = patch::Cache::no_cache(&drafts)?;
         let mut patch = patches.get_mut(&patch_id)?;
 
         if let Some(review) = revision.review_by(signer.public_key()) {
@@ -394,7 +394,7 @@ mod interface {
         };
 
         let mode = if opts.edit {
-            if let Some((id, _)) = patch::find_review(&patch, revision, &signer) {
+            if let Some((id, _)) = cob::find_review(&patch, revision, &signer) {
                 // Review already started, resume.
                 log::info!("Resuming review {id}..");
 
@@ -422,7 +422,7 @@ mod interface {
         loop {
             // Reload review
             let signer = profile.signer()?;
-            let (review_id, review) = patch::find_review(&patch, revision, &signer)
+            let (review_id, review) = cob::find_review(&patch, revision, &signer)
                 .ok_or_else(|| anyhow!("Could not find review."))?;
 
             let response = review::Tui::new(

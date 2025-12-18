@@ -717,7 +717,7 @@ mod test {
         use radicle::storage::git::cob::DraftStore;
         use radicle::storage::git::Repository;
 
-        use crate::cob::patch;
+        use crate::cob;
         use crate::test::setup::NodeWithRepo;
 
         use super::builder::ReviewBuilder;
@@ -762,7 +762,7 @@ mod test {
                 &node.node.signer,
             )?;
 
-            let (_, review) = patch::find_review(draft, revision, &node.node.signer)
+            let (_, review) = cob::find_review(draft, revision, &node.node.signer)
                 .ok_or_else(|| anyhow!("Could not find review."))?;
 
             Ok((id, review))

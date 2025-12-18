@@ -3,6 +3,8 @@ use std::sync::{Arc, Mutex};
 
 use anyhow::Result;
 
+use radicle::patch::cache::Patches;
+use radicle::patch::PatchId;
 use radicle::storage::git::Repository;
 use radicle::Profile;
 
@@ -13,6 +15,7 @@ use ratatui::{Frame, Viewport};
 
 use radicle_tui as tui;
 
+use serde::Serialize;
 use tui::event::Key;
 use tui::store;
 use tui::task::EmptyProcessors;
@@ -23,9 +26,6 @@ use tui::ui::im::Show;
 use tui::ui::{BufferedValue, Column, Spacing};
 use tui::{Channel, Exit};
 
-use super::common::PatchOperation;
-
-use crate::cob::patch;
 use crate::ui::items::filter::Filter;
 use crate::ui::items::patch::filter::PatchFilter;
 use crate::ui::items::patch::Patch;
@@ -53,6 +53,16 @@ const HELP: &str = r#"# Generic keybindings
 
 Pattern:    is:<state> | is:authored | authors:[<did>, <did>] | <search>
 Example:    is:open is:authored improve"#;
+
+/// The selected patch operation returned by the operation
+/// selection widget.
+#[derive(Clone, Debug, Eq, PartialEq, Serialize)]
+pub enum PatchOperation {
+    Checkout { id: PatchId },
+    Diff { id: PatchId },
+    Show { id: PatchId },
+    _Review { id: PatchId },
+}
 
 type Selection = tui::Selection<PatchOperation>;
 
@@ -135,22 +145,21 @@ impl TryFrom<&Context> for App {
     type Error = anyhow::Error;
 
     fn try_from(context: &Context) -> Result<Self, Self::Error> {
-        let patches = patch::all(&context.profile, &context.repository)?;
+        let cache = &context.profile.patches(&context.repository)?;
+        let mut patches = cache
+            .list()?
+            .filter_map(|patch| patch.ok())
+            .flat_map(|patch| Patch::new(&context.profile, &context.repository, patch.clone()).ok())
+            .collect::<Vec<_>>();
+        patches.sort_by(|a, b| b.timestamp.cmp(&a.timestamp));
+
         let search = {
             let raw = context.filter.to_string();
             raw.trim().to_string()
         };
-        let filter = PatchFilter::from_str(&context.filter.to_string()).unwrap_or_default();
-
-        let mut items = patches
-            .into_iter()
-            .flat_map(|patch| Patch::new(&context.profile, &context.repository, patch.clone()).ok())
-            .collect::<Vec<_>>();
-
-        items.sort_by(|a, b| b.timestamp.cmp(&a.timestamp));
 
         Ok(App {
-            patches: Arc::new(Mutex::new(items.clone())),
+            patches: Arc::new(Mutex::new(patches.clone())),
             state: AppState {
                 page: Page::Main,
                 main_group: ContainerState::new(3, Some(0)),
@@ -161,7 +170,7 @@ impl TryFrom<&Context> for App {
                 }),
                 show_search: false,
                 help: TextViewState::new(Position::default()),
-                filter,
+                filter: PatchFilter::from_str(&context.filter.to_string()).unwrap_or_default(),
             },
         })
     }
