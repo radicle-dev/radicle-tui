@@ -47,8 +47,8 @@ List options
 
 Other options
 
-    --no-forward        Don't forward command to `rad` (default: true)
-    --help              Print help (enables forwarding)
+    --no-forward            Don't forward command to `rad` (default: true)
+    --help                  Print help (enables forwarding)
 "#,
 };
 
