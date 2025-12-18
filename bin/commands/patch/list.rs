@@ -27,7 +27,8 @@ use super::common::PatchOperation;
 
 use crate::cob::patch;
 use crate::ui::items::filter::Filter;
-use crate::ui::items::patch::{Patch, PatchFilter};
+use crate::ui::items::patch::filter::PatchFilter;
+use crate::ui::items::patch::Patch;
 
 const HELP: &str = r#"# Generic keybindings
 
@@ -58,7 +59,7 @@ type Selection = tui::Selection<PatchOperation>;
 pub struct Context {
     pub profile: Profile,
     pub repository: Repository,
-    pub filter: patch::Filter,
+    pub filter: PatchFilter,
 }
 
 pub struct Tui {

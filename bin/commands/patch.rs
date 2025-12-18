@@ -12,15 +12,16 @@ use anyhow::anyhow;
 use radicle::cob::ObjectId;
 use radicle::identity::RepoId;
 use radicle::patch::{Patch, Revision, RevisionId, Status};
-
 use radicle::storage::git::Repository;
+
 use radicle_cli::git::Rev;
-use radicle_cli::terminal;
+use radicle_cli::terminal::args;
 use radicle_cli::terminal::args::{string, Args, Error, Help};
 
-use crate::cob::patch;
 use crate::commands::tui_patch::common::PatchOperation;
+use crate::terminal;
 use crate::terminal::Quiet;
+use crate::ui::items::patch::filter::PatchFilter;
 
 pub const HELP: Help = Help {
     name: "patch",
@@ -75,7 +76,7 @@ pub enum OperationName {
 
 #[derive(Debug, Default, Clone, PartialEq, Eq)]
 pub struct ListOptions {
-    filter: patch::Filter,
+    filter: PatchFilter,
     json: bool,
 }
 
@@ -162,19 +163,17 @@ impl Args for Options {
                     list_opts.filter = list_opts.filter.with_authored(true);
                 }
                 Long("author") if op == OperationName::List => {
-                    list_opts.filter = list_opts
-                        .filter
-                        .with_author(terminal::args::did(&parser.value()?)?);
+                    list_opts.filter = list_opts.filter.with_author(args::did(&parser.value()?)?);
                 }
                 Long("repo") => {
                     let val = parser.value()?;
-                    let rid = terminal::args::rid(&val)?;
+                    let rid = args::rid(&val)?;
 
                     repo = Some(rid);
                 }
                 Long("revision") => {
                     let val = parser.value()?;
-                    let rev_id = terminal::args::rev(&val)?;
+                    let rev_id = args::rev(&val)?;
 
                     revision_id = Some(rev_id);
                 }
@@ -236,7 +235,7 @@ impl Args for Options {
 }
 
 #[tokio::main]
-pub async fn run(options: Options, ctx: impl terminal::Context) -> anyhow::Result<()> {
+pub async fn run(options: Options, ctx: impl radicle_cli::terminal::Context) -> anyhow::Result<()> {
     use radicle::storage::ReadStorage;
 
     let (_, rid) = radicle::rad::cwd()
@@ -267,21 +266,21 @@ pub async fn run(options: Options, ctx: impl terminal::Context) -> anyhow::Resul
                 if let Some(operation) = selection.operation.clone() {
                     match operation {
                         PatchOperation::Show { id } => {
-                            crate::terminal::run_rad(
+                            terminal::run_rad(
                                 Some("patch"),
                                 &["show".into(), id.to_string().into()],
                                 Quiet::No,
                             )?;
                         }
                         PatchOperation::Diff { id } => {
-                            crate::terminal::run_rad(
+                            terminal::run_rad(
                                 Some("patch"),
                                 &["diff".into(), id.to_string().into()],
                                 Quiet::No,
                             )?;
                         }
                         PatchOperation::Checkout { id } => {
-                            crate::terminal::run_rad(
+                            terminal::run_rad(
                                 Some("patch"),
                                 &["checkout".into(), id.to_string().into()],
                                 Quiet::No,
@@ -312,7 +311,7 @@ pub async fn run(options: Options, ctx: impl terminal::Context) -> anyhow::Resul
             interface::review(opts.clone(), profile, rid, patch_id).await?;
         }
         Operation::Other { args } => {
-            crate::terminal::run_rad(Some("patch"), &args, Quiet::No)?;
+            terminal::run_rad(Some("patch"), &args, Quiet::No)?;
         }
         Operation::Unknown { .. } => {
             anyhow::bail!("unknown operation provided");
