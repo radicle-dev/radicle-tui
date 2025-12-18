@@ -32,8 +32,7 @@ use tui::{Channel, Exit};
 use crate::git::HunkState;
 use crate::state::{self, FileIdentifier, FileStore, ReadState, WriteState};
 use crate::ui::format;
-use crate::ui::items::HunkItem;
-use crate::ui::items::StatefulHunkItem;
+use crate::ui::items::patch::{HunkItem, StatefulHunkItem};
 use crate::ui::layout;
 
 use self::builder::Hunks;

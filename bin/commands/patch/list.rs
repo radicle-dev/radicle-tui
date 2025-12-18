@@ -27,7 +27,7 @@ use super::common::PatchOperation;
 
 use crate::cob::patch;
 use crate::ui::items::filter::Filter;
-use crate::ui::items::{PatchItem, PatchItemFilter};
+use crate::ui::items::patch::{PatchItem, PatchItemFilter};
 
 const HELP: &str = r#"# Generic keybindings
 
