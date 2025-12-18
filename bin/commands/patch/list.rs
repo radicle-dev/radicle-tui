@@ -27,7 +27,7 @@ use super::common::PatchOperation;
 
 use crate::cob::patch;
 use crate::ui::items::filter::Filter;
-use crate::ui::items::patch::{PatchItem, PatchItemFilter};
+use crate::ui::items::patch::{Patch, PatchFilter};
 
 const HELP: &str = r#"# Generic keybindings
 
@@ -121,12 +121,12 @@ pub struct AppState {
     search: BufferedValue<TextEditState>,
     show_search: bool,
     help: TextViewState,
-    filter: PatchItemFilter,
+    filter: PatchFilter,
 }
 
 #[derive(Clone, Debug)]
 pub struct App {
-    patches: Arc<Mutex<Vec<PatchItem>>>,
+    patches: Arc<Mutex<Vec<Patch>>>,
     state: AppState,
 }
 
@@ -139,13 +139,11 @@ impl TryFrom<&Context> for App {
             let raw = context.filter.to_string();
             raw.trim().to_string()
         };
-        let filter = PatchItemFilter::from_str(&context.filter.to_string()).unwrap_or_default();
+        let filter = PatchFilter::from_str(&context.filter.to_string()).unwrap_or_default();
 
         let mut items = patches
             .into_iter()
-            .flat_map(|patch| {
-                PatchItem::new(&context.profile, &context.repository, patch.clone()).ok()
-            })
+            .flat_map(|patch| Patch::new(&context.profile, &context.repository, patch.clone()).ok())
             .collect::<Vec<_>>();
 
         items.sort_by(|a, b| b.timestamp.cmp(&a.timestamp));
@@ -196,7 +194,7 @@ impl store::Update<Message> for App {
                 }
 
                 self.state.filter =
-                    PatchItemFilter::from_str(&self.state.search.read().text).unwrap_or_default();
+                    PatchFilter::from_str(&self.state.search.read().text).unwrap_or_default();
 
                 None
             }
@@ -215,8 +213,8 @@ impl store::Update<Message> for App {
                 }
                 Change::Search { search } => {
                     self.state.search = search;
-                    self.state.filter = PatchItemFilter::from_str(&self.state.search.read().text)
-                        .unwrap_or_default();
+                    self.state.filter =
+                        PatchFilter::from_str(&self.state.search.read().text).unwrap_or_default();
                     self.state.patches.select_first();
                     None
                 }

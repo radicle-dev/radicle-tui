@@ -15,7 +15,7 @@ use radicle::cob::thread::Comment;
 use radicle::cob::{CodeLocation, CodeRange, EntryId, Timestamp};
 use radicle::git::Oid;
 use radicle::patch;
-use radicle::patch::{Patch, PatchId, Review};
+use radicle::patch::{PatchId, Review};
 use radicle::prelude::Did;
 use radicle::storage::git::Repository;
 use radicle::storage::WriteRepository;
@@ -47,11 +47,11 @@ use super::format;
 use super::AuthorItem;
 
 #[derive(Clone, Debug)]
-pub struct PatchItem {
+pub struct Patch {
     /// Patch OID.
     pub id: PatchId,
     /// Patch state.
-    pub state: patch::State,
+    pub state: radicle::patch::State,
     /// Patch title.
     pub title: String,
     /// Author of the latest revision.
@@ -66,11 +66,11 @@ pub struct PatchItem {
     pub timestamp: Timestamp,
 }
 
-impl PatchItem {
+impl Patch {
     pub fn new(
         profile: &Profile,
         repository: &Repository,
-        patch: (PatchId, Patch),
+        patch: (PatchId, radicle::patch::Patch),
     ) -> Result<Self, anyhow::Error> {
         let (id, patch) = patch;
         let (_, revision) = patch.latest();
@@ -90,7 +90,7 @@ impl PatchItem {
     }
 }
 
-impl ToRow<9> for PatchItem {
+impl ToRow<9> for Patch {
     fn to_row(&self) -> [Cell<'_>; 9] {
         let (state, color) = format::patch_state(&self.state);
 
@@ -136,21 +136,21 @@ impl ToRow<9> for PatchItem {
 }
 
 #[derive(Clone, Default, Debug, Eq, PartialEq)]
-pub struct PatchItemFilter {
+pub struct PatchFilter {
     status: Option<patch::Status>,
     authored: bool,
     authors: Vec<Did>,
     search: Option<String>,
 }
 
-impl PatchItemFilter {
+impl PatchFilter {
     pub fn is_default(&self) -> bool {
-        *self == PatchItemFilter::default()
+        *self == PatchFilter::default()
     }
 }
 
-impl Filter<PatchItem> for PatchItemFilter {
-    fn matches(&self, patch: &PatchItem) -> bool {
+impl Filter<Patch> for PatchFilter {
+    fn matches(&self, patch: &Patch) -> bool {
         use fuzzy_matcher::skim::SkimMatcherV2;
         use fuzzy_matcher::FuzzyMatcher;
 
@@ -192,7 +192,7 @@ impl Filter<PatchItem> for PatchItemFilter {
     }
 }
 
-impl FromStr for PatchItemFilter {
+impl FromStr for PatchFilter {
     type Err = anyhow::Error;
 
     fn from_str(value: &str) -> Result<Self, Self::Err> {
@@ -1177,9 +1177,9 @@ mod tests {
     #[test]
     fn patch_item_filter_from_str_should_succeed() -> Result<()> {
         let search = r#"is:open is:authored authors:[did:key:z6MkkpTPzcq1ybmjQyQpyre15JUeMvZY6toxoZVpLZ8YarsB,did:key:z6Mku8hpprWTmCv3BqkssCYDfr2feUdyLSUnycVajFo9XVAx] cli"#;
-        let actual = PatchItemFilter::from_str(search)?;
+        let actual = PatchFilter::from_str(search)?;
 
-        let expected = PatchItemFilter {
+        let expected = PatchFilter {
             status: Some(patch::Status::Open),
             authored: true,
             authors: vec![
