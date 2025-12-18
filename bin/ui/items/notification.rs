@@ -789,4 +789,36 @@ mod tests {
 
         Ok(())
     }
+
+    #[test]
+    fn notification_item_filter_with_all_shuffled_should_succeed() -> Result<()> {
+        let search = r#"kind=(cob:xyz.radicle.patch or cob:xyz.radicle.issue) author=did:key:z6Mku8hpprWTmCv3BqkssCYDfr2feUdyLSUnycVajFo9XVAx state=seen cli"#;
+        let actual = NotificationFilter::from_str(search)?;
+
+        let expected = NotificationFilter::And(vec![
+            NotificationFilter::Kind(NotificationKindFilter::Or(vec![
+                NotificationKind::Cob {
+                    type_name: TypeName::from_str("xyz.radicle.patch").ok(),
+                    summary: None,
+                    status: None,
+                    id: None,
+                },
+                NotificationKind::Cob {
+                    type_name: TypeName::from_str("xyz.radicle.issue").ok(),
+                    summary: None,
+                    status: None,
+                    id: None,
+                },
+            ])),
+            NotificationFilter::Author(DidFilter::Single(Did::from_str(
+                "did:key:z6Mku8hpprWTmCv3BqkssCYDfr2feUdyLSUnycVajFo9XVAx",
+            )?)),
+            NotificationFilter::State(NotificationState::Seen),
+            NotificationFilter::Search("cli".to_string()),
+        ]);
+
+        assert_eq!(expected, actual);
+
+        Ok(())
+    }
 }

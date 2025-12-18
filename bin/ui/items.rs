@@ -45,6 +45,8 @@ pub mod filter {
 
     use radicle::prelude::Did;
 
+    pub const FUZZY_MIN_SCORE: i64 = 50;
+
     /// A generic filter that needs be implemented for item filters in order to
     /// apply it.
     pub trait Filter<T> {
@@ -77,18 +79,16 @@ pub mod filter {
         }
     }
 
-    fn parse_did(input: &str) -> IResult<&str, Did> {
-        match Did::from_str(input) {
-            Ok(did) => IResult::Ok(("", did)),
+    pub fn parse_did_single(input: &str) -> IResult<&str, DidFilter> {
+        let (input, did) = take(56_usize)(input)?;
+
+        match Did::from_str(did) {
+            Ok(did) => IResult::Ok((input, DidFilter::Single(did))),
             Err(_) => IResult::Err(nom::Err::Error(nom::error::Error::new(
                 input,
                 nom::error::ErrorKind::Verify,
             ))),
         }
-    }
-
-    pub fn parse_did_single(input: &str) -> IResult<&str, DidFilter> {
-        map(parse_did, DidFilter::Single)(input)
     }
 
     pub fn parse_did_or(input: &str) -> IResult<&str, DidFilter> {

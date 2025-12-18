@@ -170,7 +170,7 @@ impl TryFrom<&Context> for App {
                 }),
                 show_search: false,
                 help: TextViewState::new(Position::default()),
-                filter: PatchFilter::from_str(&context.filter.to_string()).unwrap_or_default(),
+                filter: context.filter.clone(),
             },
         })
     }
@@ -203,8 +203,8 @@ impl store::Update<Message> for App {
                     self.state.search.reset();
                 }
 
-                self.state.filter =
-                    PatchFilter::from_str(&self.state.search.read().text).unwrap_or_default();
+                self.state.filter = PatchFilter::from_str(&self.state.search.read().text)
+                    .unwrap_or(PatchFilter::Invalid);
 
                 None
             }
@@ -223,8 +223,8 @@ impl store::Update<Message> for App {
                 }
                 Change::Search { search } => {
                     self.state.search = search;
-                    self.state.filter =
-                        PatchFilter::from_str(&self.state.search.read().text).unwrap_or_default();
+                    self.state.filter = PatchFilter::from_str(&self.state.search.read().text)
+                        .unwrap_or(PatchFilter::Invalid);
                     self.state.patches.select_first();
                     None
                 }
@@ -335,12 +335,7 @@ impl App {
             Layout::vertical([Constraint::Length(3), Constraint::Min(1)]),
             Some(1),
             |ui| {
-                ui.column_bar(
-                    frame,
-                    header.to_vec(),
-                    Spacing::default(),
-                    Some(Borders::Top),
-                );
+                ui.column_bar(frame, header.to_vec(), Spacing::from(1), Some(Borders::Top));
 
                 let table = ui.table(
                     frame,
@@ -464,7 +459,9 @@ impl App {
                     Column::new(
                         Span::raw(format!(" {search} "))
                             .into_left_aligned_line()
-                            .style(ui.theme().bar_on_black_style),
+                            .style(ui.theme().bar_on_black_style)
+                            .cyan()
+                            .dim(),
                         Constraint::Fill(1),
                     ),
                     Column::new(
@@ -541,7 +538,9 @@ impl App {
                     Column::new(
                         Span::raw(format!(" {search} "))
                             .into_left_aligned_line()
-                            .style(ui.theme().bar_on_black_style),
+                            .style(ui.theme().bar_on_black_style)
+                            .cyan()
+                            .dim(),
                         Constraint::Fill(1),
                     ),
                     Column::new(

@@ -9,8 +9,8 @@ use anyhow::anyhow;
 
 use radicle::cob::ObjectId;
 use radicle::identity::RepoId;
-use radicle::prelude::Did;
 use radicle::patch::{Patch, Revision, RevisionId, Status};
+use radicle::prelude::Did;
 use radicle::storage::git::Repository;
 
 use radicle_cli::git::Rev;
@@ -19,6 +19,7 @@ use radicle_cli::terminal::args::{string, Args, Error, Help};
 
 use crate::terminal;
 use crate::terminal::Quiet;
+use crate::ui::items::filter::DidFilter;
 use crate::ui::items::patch::filter::PatchFilter;
 
 pub const HELP: Help = Help {
@@ -74,7 +75,7 @@ pub enum OperationName {
 
 #[derive(Debug, Default, Clone, PartialEq, Eq)]
 pub struct ListOptions {
-    filter: PatchFilter,
+    filter: ListFilter,
     json: bool,
 }
 
@@ -107,6 +108,58 @@ impl ReviewOptions {
             )),
             None => Ok((patch.latest().0, patch.latest().1)),
         }
+    }
+}
+
+#[derive(Clone, Default, Debug, Eq, PartialEq)]
+pub struct ListFilter {
+    state: Option<Status>,
+    authored: bool,
+    authors: Vec<Did>,
+}
+
+impl ListFilter {
+    pub fn is_default(&self) -> bool {
+        *self == ListFilter::default()
+    }
+
+    pub fn with_state(mut self, status: Option<Status>) -> Self {
+        self.state = status;
+        self
+    }
+
+    pub fn with_authored(mut self, authored: bool) -> Self {
+        self.authored = authored;
+        self
+    }
+
+    pub fn with_author(mut self, author: Did) -> Self {
+        self.authors.push(author);
+        self
+    }
+}
+
+#[allow(clippy::from_over_into)]
+impl Into<PatchFilter> for (Did, ListFilter) {
+    fn into(self) -> PatchFilter {
+        let (me, mut filter) = self;
+        let mut and = filter
+            .state
+            .map(|s| vec![PatchFilter::State(s)])
+            .unwrap_or(vec![PatchFilter::State(Status::Open)]);
+
+        let mut dids = filter.authored.then_some(vec![me]).unwrap_or_default();
+        dids.append(&mut filter.authors);
+
+        if dids.len() == 1 {
+            and.push(PatchFilter::Author(DidFilter::Single(
+                *dids.first().unwrap(),
+            )));
+        } else if dids.len() > 1 {
+            and.push(PatchFilter::Author(DidFilter::Or(dids)));
+        }
+
+        PatchFilter::And(and)
     }
 }
 
@@ -143,19 +196,19 @@ impl Args for Options {
                 }
 
                 Long("all") if op == OperationName::List => {
-                    list_opts.filter = list_opts.filter.with_status(None);
+                    list_opts.filter = list_opts.filter.with_state(None);
                 }
                 Long("draft") if op == OperationName::List => {
-                    list_opts.filter = list_opts.filter.with_status(Some(Status::Draft));
+                    list_opts.filter = list_opts.filter.with_state(Some(Status::Draft));
                 }
                 Long("archived") if op == OperationName::List => {
-                    list_opts.filter = list_opts.filter.with_status(Some(Status::Archived));
+                    list_opts.filter = list_opts.filter.with_state(Some(Status::Archived));
                 }
                 Long("merged") if op == OperationName::List => {
-                    list_opts.filter = list_opts.filter.with_status(Some(Status::Merged));
+                    list_opts.filter = list_opts.filter.with_state(Some(Status::Merged));
                 }
                 Long("open") if op == OperationName::List => {
-                    list_opts.filter = list_opts.filter.with_status(Some(Status::Open));
+                    list_opts.filter = list_opts.filter.with_state(Some(Status::Open));
                 }
                 Long("authored") if op == OperationName::List => {
                     list_opts.filter = list_opts.filter.with_authored(true);
@@ -351,13 +404,14 @@ mod interface {
         rid: RepoId,
     ) -> anyhow::Result<Option<Selection<list::PatchOperation>>> {
         let repository = profile.storage.repository(rid).unwrap();
+        let me = profile.did();
 
         log::info!("Starting patch selection interface in project {rid}..");
 
         let context = list::Context {
             profile,
             repository,
-            filter: opts.filter.clone(),
+            filter: (me, opts.filter.clone()).into(),
         };
 
         list::Tui::new(context).run().await

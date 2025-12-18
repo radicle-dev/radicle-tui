@@ -133,35 +133,35 @@ pub mod filter {
     use std::fmt::Write as _;
     use std::str::FromStr;
 
-    use nom::bytes::complete::{tag, take};
-    use nom::multi::separated_list0;
-    use nom::sequence::{delimited, preceded};
-    use nom::{IResult, Parser};
+    use nom::branch::alt;
+    use nom::bytes::complete::{tag_no_case, take_while1};
+    use nom::character::complete::multispace0;
+    use nom::combinator::{map, value};
+    use nom::multi::many0;
+    use nom::sequence::{preceded, tuple};
+    use nom::IResult;
 
-    use radicle::patch;
     use radicle::patch::Status;
-    use radicle::prelude::Did;
 
+    use crate::ui::items::filter;
+    use crate::ui::items::filter::DidFilter;
     use crate::ui::items::filter::Filter;
 
     use super::Patch;
 
     #[derive(Clone, Debug, Eq, PartialEq)]
-    pub struct PatchFilter {
-        pub status: Option<patch::Status>,
-        pub authored: bool,
-        pub authors: Vec<Did>,
-        pub search: Option<String>,
+    pub enum PatchFilter {
+        State(Status),
+        Author(DidFilter),
+        Search(String),
+        And(Vec<PatchFilter>),
+        Empty,
+        Invalid,
     }
 
     impl Default for PatchFilter {
         fn default() -> Self {
-            Self {
-                status: Some(Status::Open),
-                authored: false,
-                authors: vec![],
-                search: None,
-            }
+            PatchFilter::State(Status::Open)
         }
     }
 
@@ -169,46 +169,33 @@ pub mod filter {
         pub fn is_default(&self) -> bool {
             *self == PatchFilter::default()
         }
-
-        pub fn with_status(mut self, status: Option<Status>) -> Self {
-            self.status = status;
-            self
-        }
-
-        pub fn with_authored(mut self, authored: bool) -> Self {
-            self.authored = authored;
-            self
-        }
-
-        pub fn with_author(mut self, author: Did) -> Self {
-            self.authors.push(author);
-            self
-        }
     }
 
     impl fmt::Display for PatchFilter {
         fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-            if let Some(state) = &self.status {
-                write!(f, "is:{state}")?;
-                f.write_char(' ')?;
-            }
-            if self.authored {
-                f.write_str("is:authored")?;
-                f.write_char(' ')?;
-            }
-            if !self.authors.is_empty() {
-                f.write_str("authors:")?;
-                f.write_char('[')?;
-
-                let mut authors = self.authors.iter().peekable();
-                while let Some(author) = authors.next() {
-                    f.write_str(&author.encode())?;
-
-                    if authors.peek().is_some() {
-                        f.write_char(',')?;
+            match self {
+                PatchFilter::State(state) => {
+                    write!(f, "state={state}")?;
+                    f.write_char(' ')?;
+                }
+                PatchFilter::Author(filter) => {
+                    write!(f, "author={filter}")?;
+                    f.write_char(' ')?;
+                }
+                PatchFilter::Search(search) => {
+                    write!(f, "{search}")?;
+                    f.write_char(' ')?;
+                }
+                PatchFilter::And(filters) => {
+                    let mut it = filters.iter().peekable();
+                    while let Some(filter) = it.next() {
+                        write!(f, "{filter}")?;
+                        if it.peek().is_none() {
+                            f.write_char(' ')?;
+                        }
                     }
                 }
-                f.write_char(']')?;
+                PatchFilter::Empty | PatchFilter::Invalid => {}
             }
 
             Ok(())
@@ -222,93 +209,121 @@ pub mod filter {
 
             let matcher = SkimMatcherV2::default();
 
-            let matches_state = match self.status {
-                Some(patch::Status::Draft) => matches!(patch.state, patch::State::Draft),
-                Some(patch::Status::Open) => matches!(patch.state, patch::State::Open { .. }),
-                Some(patch::Status::Merged) => matches!(patch.state, patch::State::Merged { .. }),
-                Some(patch::Status::Archived) => matches!(patch.state, patch::State::Archived),
-                None => true,
-            };
-
-            let matches_authored = if self.authored {
-                patch.author.you
-            } else {
-                true
-            };
-
-            let matches_authors = if !self.authors.is_empty() {
-                {
-                    self.authors
+            match self {
+                PatchFilter::State(state) => Status::from(&patch.state) == *state,
+                PatchFilter::Author(author_filter) => match author_filter {
+                    DidFilter::Single(author) => patch.author.nid == Some(**author),
+                    DidFilter::Or(authors) => authors
                         .iter()
-                        .any(|other| patch.author.nid == Some(**other))
-                }
-            } else {
-                true
-            };
-
-            let matches_search = match &self.search {
-                Some(search) => match matcher.fuzzy_match(&patch.title, search) {
-                    Some(score) => score == 0 || score > 60,
-                    _ => false,
+                        .any(|other| patch.author.nid == Some(**other)),
                 },
-                None => true,
-            };
-
-            matches_state && matches_authored && matches_authors && matches_search
+                PatchFilter::Search(search) => {
+                    match matcher.fuzzy_match(
+                        &format!(
+                            "{} {} {}",
+                            &patch.id.to_string(),
+                            &patch.title,
+                            &patch
+                                .author
+                                .alias
+                                .as_ref()
+                                .map(|a| a.to_string())
+                                .unwrap_or_default()
+                        ),
+                        search,
+                    ) {
+                        Some(score) => score == 0 || score > filter::FUZZY_MIN_SCORE,
+                        _ => false,
+                    }
+                }
+                PatchFilter::And(filters) => filters.iter().all(|f| f.matches(patch)),
+                PatchFilter::Empty => true,
+                PatchFilter::Invalid => false,
+            }
         }
     }
 
     impl FromStr for PatchFilter {
         type Err = anyhow::Error;
 
-        fn from_str(value: &str) -> Result<Self, Self::Err> {
-            let mut status = None;
-            let mut search = String::new();
-            let mut authored = false;
-            let mut authors = vec![];
-
-            let mut authors_parser = |input| -> IResult<&str, Vec<&str>> {
-                preceded(
-                    tag("authors:"),
-                    delimited(
-                        tag("["),
-                        separated_list0(tag(","), take(56_usize)),
-                        tag("]"),
-                    ),
-                )(input)
-            };
-
-            let parts = value.split(' ');
-            for part in parts {
-                match part {
-                    "is:open" => status = Some(patch::Status::Open),
-                    "is:merged" => status = Some(patch::Status::Merged),
-                    "is:archived" => status = Some(patch::Status::Archived),
-                    "is:draft" => status = Some(patch::Status::Draft),
-                    "is:authored" => authored = true,
-                    other => match authors_parser.parse(other) {
-                        Ok((_, dids)) => {
-                            for did in dids {
-                                authors.push(Did::from_str(did)?);
-                            }
-                        }
-                        _ => search.push_str(other),
-                    },
-                }
+        fn from_str(filter_exp: &str) -> Result<Self, Self::Err> {
+            fn parse_state(input: &str) -> IResult<&str, Status> {
+                alt((
+                    value(Status::Open, tag_no_case("open")),
+                    value(Status::Merged, tag_no_case("merged")),
+                    value(Status::Draft, tag_no_case("draft")),
+                    value(Status::Archived, tag_no_case("archived")),
+                ))(input)
             }
 
-            let search = if search.is_empty() {
-                None
-            } else {
-                Some(search)
+            fn parse_state_filter(input: &str) -> IResult<&str, PatchFilter> {
+                map(
+                    preceded(
+                        tuple((
+                            tag_no_case("state"),
+                            multispace0,
+                            tag_no_case("="),
+                            multispace0,
+                        )),
+                        parse_state,
+                    ),
+                    PatchFilter::State,
+                )(input)
+            }
+
+            fn parse_author_filter(input: &str) -> IResult<&str, PatchFilter> {
+                map(
+                    preceded(
+                        tuple((
+                            tag_no_case("author"),
+                            multispace0,
+                            tag_no_case("="),
+                            multispace0,
+                        )),
+                        alt((filter::parse_did_single, filter::parse_did_or)),
+                    ),
+                    PatchFilter::Author,
+                )(input)
+            }
+
+            fn parse_search_filter(input: &str) -> IResult<&str, PatchFilter> {
+                map(
+                    take_while1(|c: char| c.is_alphanumeric() || c == '_' || c == '-'),
+                    |s: &str| PatchFilter::Search(s.to_string()),
+                )(input)
+            }
+
+            fn parse_single_filter(input: &str) -> IResult<&str, PatchFilter> {
+                alt((parse_state_filter, parse_author_filter, parse_search_filter))(input)
+            }
+
+            fn parse_filters(input: &str) -> IResult<&str, Vec<PatchFilter>> {
+                many0(preceded(multispace0, parse_single_filter))(input)
+            }
+
+            let parse_filter_expression = |input: &str| -> Result<PatchFilter, String> {
+                match parse_filters(input) {
+                    Ok((remaining, filters)) => {
+                        let remaining = remaining.trim();
+                        if !remaining.is_empty() {
+                            return Err(format!("Unparsed input remaining: '{remaining}'"));
+                        }
+
+                        if filters.is_empty() {
+                            return Ok(PatchFilter::Empty);
+                        }
+
+                        if filters.len() == 1 {
+                            Ok(filters.into_iter().next().unwrap())
+                        } else {
+                            Ok(PatchFilter::And(filters))
+                        }
+                    }
+                    Err(e) => Err(format!("Parse error: {e}")),
+                }
             };
 
-            Ok(Self {
-                status,
-                authored,
-                authors,
-                search,
-            })
+            parse_filter_expression(filter_exp).map_err(|err| anyhow::format_err!(err))
         }
     }
 }
@@ -1241,24 +1256,23 @@ mod tests {
     use radicle::cob::patch;
 
     use crate::test;
+    use crate::ui::items::filter::DidFilter;
     use crate::ui::items::patch::filter::PatchFilter;
 
     use super::*;
 
     #[test]
-    fn patch_item_filter_from_str_should_succeed() -> Result<()> {
-        let search = r#"is:open is:authored authors:[did:key:z6MkkpTPzcq1ybmjQyQpyre15JUeMvZY6toxoZVpLZ8YarsB,did:key:z6Mku8hpprWTmCv3BqkssCYDfr2feUdyLSUnycVajFo9XVAx] cli"#;
-        let actual = PatchFilter::from_str(search)?;
-
-        let expected = PatchFilter {
-            status: Some(patch::Status::Open),
-            authored: true,
-            authors: vec![
+    fn patch_filter_with_all_should_succeed() -> Result<()> {
+        let search = r#"state=open author=(did:key:z6MkkpTPzcq1ybmjQyQpyre15JUeMvZY6toxoZVpLZ8YarsB or did:key:z6Mku8hpprWTmCv3BqkssCYDfr2feUdyLSUnycVajFo9XVAx) cli"#;
+        let expected = PatchFilter::And(vec![
+            PatchFilter::State(patch::Status::Open),
+            PatchFilter::Author(DidFilter::Or(vec![
                 Did::from_str("did:key:z6MkkpTPzcq1ybmjQyQpyre15JUeMvZY6toxoZVpLZ8YarsB")?,
                 Did::from_str("did:key:z6Mku8hpprWTmCv3BqkssCYDfr2feUdyLSUnycVajFo9XVAx")?,
-            ],
-            search: Some("cli".to_string()),
-        };
+            ])),
+            PatchFilter::Search("cli".to_string()),
+        ]);
+        let actual = PatchFilter::from_str(search)?;
 
         assert_eq!(expected, actual);
 
@@ -1266,39 +1280,19 @@ mod tests {
     }
 
     #[test]
-    fn patch_filter_display_with_status_should_succeed() -> Result<()> {
-        let actual = PatchFilter::default().with_status(Some(patch::Status::Open));
+    fn patch_filter_with_all_shuffled_should_succeed() -> Result<()> {
+        let search =
+            r#"author=did:key:z6MkkpTPzcq1ybmjQyQpyre15JUeMvZY6toxoZVpLZ8YarsB state=open cli"#;
+        let expected = PatchFilter::And(vec![
+            PatchFilter::Author(DidFilter::Single(Did::from_str(
+                "did:key:z6MkkpTPzcq1ybmjQyQpyre15JUeMvZY6toxoZVpLZ8YarsB",
+            )?)),
+            PatchFilter::State(patch::Status::Open),
+            PatchFilter::Search("cli".to_string()),
+        ]);
+        let actual = PatchFilter::from_str(search)?;
 
-        assert_eq!(String::from("is:open "), actual.to_string());
-
-        Ok(())
-    }
-
-    #[test]
-    fn patch_filter_display_with_status_and_authored_should_succeed() -> Result<()> {
-        let actual = PatchFilter::default()
-            .with_status(Some(patch::Status::Open))
-            .with_authored(true);
-
-        assert_eq!(String::from("is:open is:authored "), actual.to_string());
-
-        Ok(())
-    }
-
-    #[test]
-    fn patch_filter_display_with_status_and_author_should_succeed() -> Result<()> {
-        let actual = PatchFilter::default()
-            .with_status(Some(patch::Status::Open))
-            .with_author(Did::from_str(
-                "did:key:z6MkswQE8gwZw924amKatxnNCXA55BMupMmRg7LvJuim2C1V",
-            )?);
-
-        assert_eq!(
-            String::from(
-                "is:open authors:[did:key:z6MkswQE8gwZw924amKatxnNCXA55BMupMmRg7LvJuim2C1V]"
-            ),
-            actual.to_string()
-        );
+        assert_eq!(expected, actual);
 
         Ok(())
     }
