@@ -70,21 +70,17 @@ impl TryFrom<Viewport> for Terminal {
     fn try_from(viewport: Viewport) -> Result<Self, Self::Error> {
         match viewport {
             Viewport::Fullscreen => {
-                enable_raw_mode()?;
                 execute!(io::stdout(), EnterAlternateScreen)?;
                 let options = TerminalOptions { viewport };
-                let mut terminal =
-                    ratatui::Terminal::with_options(CrosstermBackend::new(io::stdout()), options)?;
+                let mut terminal = ratatui::init_with_options(options);
 
                 terminal.clear()?;
 
                 Ok(Terminal::Fullscreen(terminal))
             }
             _ => {
-                enable_raw_mode()?;
                 let options = TerminalOptions { viewport };
-                let terminal =
-                    ratatui::Terminal::with_options(CrosstermBackend::new(io::stdout()), options)?;
+                let terminal = ratatui::init_with_options(options);
 
                 Ok(Terminal::Inline(terminal))
             }
