@@ -9,6 +9,7 @@ use anyhow::anyhow;
 
 use radicle::cob::ObjectId;
 use radicle::identity::RepoId;
+use radicle::patch::cache::Patches;
 use radicle::patch::{Patch, Revision, RevisionId, Status};
 use radicle::prelude::Did;
 use radicle::storage::git::Repository;
@@ -335,11 +336,14 @@ pub async fn run(options: Options, ctx: impl radicle_cli::terminal::Context) -> 
                             )?;
                         }
                         PatchOperation::Diff { id } => {
-                            terminal::run_rad(
-                                Some("patch"),
-                                &["diff".into(), id.to_string().into()],
-                                Quiet::No,
-                            )?;
+                            let repo = profile.storage.repository(rid)?;
+                            let cache = profile.patches(&repo)?;
+                            let patch = cache
+                                .get(&id)?
+                                .ok_or_else(|| anyhow!("unknown patch '{id}'"))?;
+                            let range = format!("{}..{}", patch.base(), patch.head());
+
+                            terminal::run_git(Some("diff"), &[range.into()], Quiet::No)?;
                         }
                         PatchOperation::Checkout { id } => {
                             terminal::run_rad(

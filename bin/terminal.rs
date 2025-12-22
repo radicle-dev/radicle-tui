@@ -25,6 +25,14 @@ pub enum ForwardError {
     Io(#[from] std::io::Error),
 }
 
+#[derive(Error, Debug)]
+pub enum GitError {
+    #[error("an error occured while executing 'git'")]
+    Internal,
+    #[error("an I/O error occured while trying to forward command to 'git': {0}")]
+    Io(#[from] std::io::Error),
+}
+
 fn _run_rad(args: &[OsString], quiet: Quiet) -> Result<(), ForwardError> {
     let status = match quiet {
         Quiet::Yes => process::Command::new("rad")
@@ -54,6 +62,32 @@ pub fn run_rad(command: Option<&str>, args: &[OsString], quiet: Quiet) -> Result
     };
 
     _run_rad(&args, quiet)
+}
+
+pub fn run_git(command: Option<&str>, args: &[OsString], quiet: Quiet) -> Result<(), GitError> {
+    let args = if let Some(command) = command {
+        [vec![command.into()], args.to_vec()].concat()
+    } else {
+        args.to_vec()
+    };
+
+    let status = match quiet {
+        Quiet::Yes => process::Command::new("git")
+            .args(args)
+            .stdout(process::Stdio::null())
+            .stderr(process::Stdio::null())
+            .status(),
+        Quiet::No => process::Command::new("git").args(args).status(),
+    };
+    match status {
+        Ok(status) => {
+            if !status.success() {
+                return Err(GitError::Internal);
+            }
+            Ok(())
+        }
+        Err(err) => Err(err.into()),
+    }
 }
 
 pub fn run_command_args<A, C>(help: Help, cmd: C, args: Vec<OsString>) -> !
