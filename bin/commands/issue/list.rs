@@ -643,16 +643,11 @@ fn comment(channel: &Channel<Message>) -> Widget<State, Message> {
                 .to_boxed_any()
                 .into()
         })
-        .on_event(|event, s, _| match event {
+        .on_event(|event, _, _| match event {
             Event::Key(Key::Char('c')) => Some(Message::Exit {
                 operation: Some(RequestedIssueOperation::Reply),
             }),
-            _ => Some(Message::SelectComment {
-                selected: s.and_then(|s| {
-                    s.unwrap_tree()
-                        .map(|tree| tree.iter().map(|id| Oid::from_str(id).unwrap()).collect())
-                }),
-            }),
+            _ => None,
         })
 }
 
