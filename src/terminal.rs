@@ -10,9 +10,7 @@ use ratatui::prelude::*;
 use ratatui::{CompletedFrame, TerminalOptions, Viewport};
 
 use ratatui::crossterm::execute;
-use ratatui::crossterm::terminal::{
-    disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen,
-};
+use ratatui::crossterm::terminal::{disable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen};
 
 use super::event::Event;
 use super::{Interrupted, Share};
