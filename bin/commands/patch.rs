@@ -111,11 +111,21 @@ impl ReviewOptions {
     }
 }
 
-#[derive(Clone, Default, Debug, Eq, PartialEq)]
+#[derive(Clone, Debug, Eq, PartialEq)]
 pub struct ListFilter {
     state: Option<Status>,
     authored: bool,
     authors: Vec<Did>,
+}
+
+impl Default for ListFilter {
+    fn default() -> Self {
+        Self {
+            state: Some(Status::Open),
+            authored: false,
+            authors: vec![],
+        }
+    }
 }
 
 impl ListFilter {
@@ -146,7 +156,7 @@ impl Into<PatchFilter> for (Did, ListFilter) {
         let mut and = filter
             .state
             .map(|s| vec![PatchFilter::State(s)])
-            .unwrap_or(vec![PatchFilter::State(Status::Open)]);
+            .unwrap_or(vec![]);
 
         let mut dids = filter.authored.then_some(vec![me]).unwrap_or_default();
         dids.append(&mut filter.authors);
