@@ -503,8 +503,21 @@ pub mod filter {
                             refname.clone().unwrap_or_default()
                         }
                     };
-                    match matcher.fuzzy_match(&summary, search) {
-                        Some(score) => score == 0 || score > 60,
+                    match matcher.fuzzy_match(
+                        &format!(
+                            "{} {} {}",
+                            summary,
+                            notif.kind,
+                            &notif
+                                .author
+                                .alias
+                                .as_ref()
+                                .map(|a| a.to_string())
+                                .unwrap_or_default()
+                        ),
+                        search,
+                    ) {
+                        Some(score) => score == 0 || score > filter::FUZZY_MIN_SCORE,
                         _ => false,
                     }
                 }
