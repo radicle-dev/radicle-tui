@@ -40,8 +40,8 @@ pub mod filter {
     use nom::character::complete::{char, multispace0};
     use nom::combinator::map;
     use nom::multi::separated_list1;
-    use nom::sequence::{delimited, tuple};
-    use nom::IResult;
+    use nom::sequence::delimited;
+    use nom::{IResult, Parser};
 
     use radicle::prelude::Did;
 
@@ -94,12 +94,12 @@ pub mod filter {
     pub fn parse_did_or(input: &str) -> IResult<&str, DidFilter> {
         map(
             delimited(
-                tuple((multispace0, char('('), multispace0)),
+                (multispace0, char('('), multispace0),
                 separated_list1(
                     delimited(multispace0, tag_no_case("or"), multispace0),
                     take(56_usize),
                 ),
-                tuple((multispace0, char(')'), multispace0)),
+                (multispace0, char(')'), multispace0),
             ),
             |dids: Vec<&str>| {
                 DidFilter::Or(
@@ -108,7 +108,8 @@ pub mod filter {
                         .collect::<Vec<_>>(),
                 )
             },
-        )(input)
+        )
+        .parse(input)
     }
 }
 
@@ -368,7 +369,8 @@ impl FromStr for IssueItemFilter {
                     separated_list0(tag(","), take(56_usize)),
                     tag("]"),
                 ),
-            )(input)
+            )
+            .parse(input)
         };
 
         let mut assignees_parser = |input| -> IResult<&str, Vec<&str>> {
@@ -379,7 +381,8 @@ impl FromStr for IssueItemFilter {
                     separated_list0(tag(","), take(56_usize)),
                     tag("]"),
                 ),
-            )(input)
+            )
+            .parse(input)
         };
 
         let parts = value.split(' ');

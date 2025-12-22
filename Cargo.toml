@@ -24,16 +24,16 @@ required-features = ["bin"]
 [dependencies]
 ansi-to-tui = { version = "7.0.0" }
 anyhow = { version = "1" }
-lexopt = { version = "0.3.0" }
+lexopt = { version = "0.3.1" }
 fuzzy-matcher = "0.3.7"
-homedir = { version = "0.3.3" }
+homedir = { version = "0.3.6" }
 lazy_static = { version = "1.5.0" }
-log = { version = "0.4.19" }
-nom = { version = "^7.0.0" }
+log = { version = "0.4.29" }
+nom = { version = "^8.0.0" }
 radicle = { version = "0.20.0" }
 radicle-term = { version = "0.16.0" }
 radicle-cli = { version = "0.17.0" }
-radicle-surf = { version = "0.22.0" }
+radicle-surf = { version = "0.22.1" }
 ratatui = { version = "0.29.0", default-features = false, features = [
     "all-widgets",
     "crossterm",
@@ -44,14 +44,14 @@ simple-logging = { version = "2.0.2" }
 serde = { version = "1.0", features = ["derive"] }
 serde_json = { version = "1.0" }
 timeago = { version = "0.5.0" }
-terminal-light = { version = "1.4.0" }
-thiserror = { version = "2.0.16" }
-tokio = { version = "1.32.0", features = ["full"] }
+terminal-light = { version = "1.8.0" }
+thiserror = { version = "2.0.17" }
+tokio = { version = "1.48.0", features = ["full"] }
 tokio-util = { version = "0.7.17" }
 tui-textarea = { version = "0.7.0", default-features = false, features = [
     "crossterm",
 ] }
-tui-tree-widget = { version = "0.23.0" }
+tui-tree-widget = { version = "0.23.1" }
 
 [dev-dependencies]
 pretty_assertions = "^1.4.1"
@@ -60,6 +60,6 @@ radicle-git-ext = { version = "0.8.1", features = ["serde"] }
 
 
 [dev-dependencies.git2]
-version = "0.19.0"
+version = "0.19"
 default-features = false
 features = ["vendored-libgit2"]

@@ -337,7 +337,7 @@ pub mod filter {
     use nom::character::complete::{char, multispace0};
     use nom::combinator::{map, opt, value};
     use nom::multi::{many0, separated_list1};
-    use nom::sequence::{delimited, preceded, tuple};
+    use nom::sequence::{delimited, preceded};
     use nom::IResult;
     use radicle::cob::TypeName;
 
@@ -519,11 +519,14 @@ pub mod filter {
         type Err = anyhow::Error;
 
         fn from_str(filter_exp: &str) -> Result<Self, Self::Err> {
+            use nom::Parser;
+
             fn parse_state(input: &str) -> IResult<&str, NotificationState> {
                 alt((
                     value(NotificationState::Seen, tag_no_case("seen")),
                     value(NotificationState::Unseen, tag_no_case("unseen")),
-                ))(input)
+                ))
+                .parse(input)
             }
 
             fn parse_name(input: &str) -> IResult<&str, &str> {
@@ -548,21 +551,22 @@ pub mod filter {
             fn parse_state_filter(input: &str) -> IResult<&str, NotificationFilter> {
                 map(
                     preceded(
-                        tuple((
+                        (
                             tag_no_case("state"),
                             multispace0,
                             tag_no_case("="),
                             multispace0,
-                        )),
+                        ),
                         parse_state,
                     ),
                     NotificationFilter::State,
-                )(input)
+                )
+                .parse(input)
             }
 
             fn parse_cob_kind(input: &str) -> IResult<&str, NotificationKind> {
                 let (input, _) = tag("cob")(input)?;
-                let (input, type_name) = opt(preceded(tag(":"), parse_type_name))(input)?;
+                let (input, type_name) = opt(preceded(tag(":"), parse_type_name)).parse(input)?;
 
                 Ok((
                     input,
@@ -577,7 +581,7 @@ pub mod filter {
 
             fn parse_branch_kind(input: &str) -> IResult<&str, NotificationKind> {
                 let (input, _) = tag("branch")(input)?;
-                let (input, name) = opt(preceded(tag(":"), parse_name))(input)?;
+                let (input, name) = opt(preceded(tag(":"), parse_name)).parse(input)?;
 
                 Ok((
                     input,
@@ -592,7 +596,7 @@ pub mod filter {
 
             fn parse_unknown_kind(input: &str) -> IResult<&str, NotificationKind> {
                 let (input, _) = tag("unknown")(input)?;
-                let (input, refname) = opt(preceded(tag(":"), parse_name))(input)?;
+                let (input, refname) = opt(preceded(tag(":"), parse_name)).parse(input)?;
 
                 Ok((
                     input,
@@ -603,62 +607,66 @@ pub mod filter {
             }
 
             fn parse_kind(input: &str) -> IResult<&str, NotificationKind> {
-                alt((parse_cob_kind, parse_branch_kind, parse_unknown_kind))(input)
+                alt((parse_cob_kind, parse_branch_kind, parse_unknown_kind)).parse(input)
             }
 
             fn parse_kind_single(input: &str) -> IResult<&str, NotificationKindFilter> {
-                map(parse_kind, NotificationKindFilter::Single)(input)
+                map(parse_kind, NotificationKindFilter::Single).parse(input)
             }
 
             fn parse_kind_or(input: &str) -> IResult<&str, NotificationKindFilter> {
                 map(
                     delimited(
-                        tuple((multispace0, char('('), multispace0)),
+                        (multispace0, char('('), multispace0),
                         separated_list1(
                             delimited(multispace0, tag_no_case("or"), multispace0),
                             parse_kind,
                         ),
-                        tuple((multispace0, char(')'), multispace0)),
+                        (multispace0, char(')'), multispace0),
                     ),
                     NotificationKindFilter::Or,
-                )(input)
+                )
+                .parse(input)
             }
 
             fn parse_kind_filter(input: &str) -> IResult<&str, NotificationFilter> {
                 map(
                     preceded(
-                        tuple((
+                        (
                             tag_no_case("kind"),
                             multispace0,
                             tag_no_case("="),
                             multispace0,
-                        )),
+                        ),
                         alt((parse_kind_or, parse_kind_single)),
                     ),
                     NotificationFilter::Kind,
-                )(input)
+                )
+                .parse(input)
             }
 
             fn parse_author_filter(input: &str) -> IResult<&str, NotificationFilter> {
                 map(
                     preceded(
-                        tuple((
+                        (
                             tag_no_case("author"),
                             multispace0,
                             tag_no_case("="),
                             multispace0,
-                        )),
+                        ),
                         alt((filter::parse_did_single, filter::parse_did_or)),
                     ),
                     NotificationFilter::Author,
-                )(input)
+                )
+                .parse(input)
             }
 
             fn parse_search_filter(input: &str) -> IResult<&str, NotificationFilter> {
                 map(
                     take_while1(|c: char| c.is_alphanumeric() || c == '_' || c == '-'),
                     |s: &str| NotificationFilter::Search(s.to_string()),
-                )(input)
+                )
+                .parse(input)
             }
 
             fn parse_single_filter(input: &str) -> IResult<&str, NotificationFilter> {
@@ -667,11 +675,12 @@ pub mod filter {
                     parse_kind_filter,
                     parse_author_filter,
                     parse_search_filter,
-                ))(input)
+                ))
+                .parse(input)
             }
 
             fn parse_filters(input: &str) -> IResult<&str, Vec<NotificationFilter>> {
-                many0(preceded(multispace0, parse_single_filter))(input)
+                many0(preceded(multispace0, parse_single_filter)).parse(input)
             }
 
             let parse_filter_expression = |input: &str| -> Result<NotificationFilter, String> {

@@ -138,7 +138,7 @@ pub mod filter {
     use nom::character::complete::multispace0;
     use nom::combinator::{map, value};
     use nom::multi::many0;
-    use nom::sequence::{preceded, tuple};
+    use nom::sequence::preceded;
     use nom::IResult;
 
     use radicle::patch::Status;
@@ -247,58 +247,64 @@ pub mod filter {
         type Err = anyhow::Error;
 
         fn from_str(filter_exp: &str) -> Result<Self, Self::Err> {
+            use nom::Parser;
+
             fn parse_state(input: &str) -> IResult<&str, Status> {
                 alt((
                     value(Status::Open, tag_no_case("open")),
                     value(Status::Merged, tag_no_case("merged")),
                     value(Status::Draft, tag_no_case("draft")),
                     value(Status::Archived, tag_no_case("archived")),
-                ))(input)
+                ))
+                .parse(input)
             }
 
             fn parse_state_filter(input: &str) -> IResult<&str, PatchFilter> {
                 map(
                     preceded(
-                        tuple((
+                        (
                             tag_no_case("state"),
                             multispace0,
                             tag_no_case("="),
                             multispace0,
-                        )),
+                        ),
                         parse_state,
                     ),
                     PatchFilter::State,
-                )(input)
+                )
+                .parse(input)
             }
 
             fn parse_author_filter(input: &str) -> IResult<&str, PatchFilter> {
                 map(
                     preceded(
-                        tuple((
+                        (
                             tag_no_case("author"),
                             multispace0,
                             tag_no_case("="),
                             multispace0,
-                        )),
+                        ),
                         alt((filter::parse_did_single, filter::parse_did_or)),
                     ),
                     PatchFilter::Author,
-                )(input)
+                )
+                .parse(input)
             }
 
             fn parse_search_filter(input: &str) -> IResult<&str, PatchFilter> {
                 map(
                     take_while1(|c: char| c.is_alphanumeric() || c == '_' || c == '-'),
                     |s: &str| PatchFilter::Search(s.to_string()),
-                )(input)
+                )
+                .parse(input)
             }
 
             fn parse_single_filter(input: &str) -> IResult<&str, PatchFilter> {
-                alt((parse_state_filter, parse_author_filter, parse_search_filter))(input)
+                alt((parse_state_filter, parse_author_filter, parse_search_filter)).parse(input)
             }
 
             fn parse_filters(input: &str) -> IResult<&str, Vec<PatchFilter>> {
-                many0(preceded(multispace0, parse_single_filter))(input)
+                many0(preceded(multispace0, parse_single_filter)).parse(input)
             }
 
             let parse_filter_expression = |input: &str| -> Result<PatchFilter, String> {
