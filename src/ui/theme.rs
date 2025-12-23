@@ -23,7 +23,7 @@ impl Theme {
     pub fn default_light() -> Self {
         Self {
             border_style: Style::default().fg(Color::Rgb(170, 170, 170)),
-            focus_border_style: Style::default().black(),
+            focus_border_style: Style::default(),
             shortcuts_keys_style: style::yellow(),
             shortcuts_action_style: style::reset(),
             textview_style: style::reset(),
