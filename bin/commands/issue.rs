@@ -244,7 +244,28 @@ pub async fn run(options: Options, ctx: impl Context) -> anyhow::Result<()> {
                             IssueOperation::Edit { id } => {
                                 terminal::run_rad(
                                     Some("issue"),
-                                    &["edit".into(), id.to_string().into(), "--quiet".into()],
+                                    &["edit".into(), id.to_string().into()],
+                                    Quiet::No,
+                                )?;
+                            }
+                            IssueOperation::Solve { id } => {
+                                terminal::run_rad(
+                                    Some("issue"),
+                                    &["state".into(), id.to_string().into(), "--solved".into()],
+                                    Quiet::No,
+                                )?;
+                            }
+                            IssueOperation::Close { id } => {
+                                terminal::run_rad(
+                                    Some("issue"),
+                                    &["state".into(), id.to_string().into(), "--closed".into()],
+                                    Quiet::No,
+                                )?;
+                            }
+                            IssueOperation::Reopen { id } => {
+                                terminal::run_rad(
+                                    Some("issue"),
+                                    &["state".into(), id.to_string().into(), "--open".into()],
                                     Quiet::No,
                                 )?;
                             }

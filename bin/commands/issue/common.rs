@@ -12,6 +12,15 @@ pub enum IssueOperation {
     Show {
         id: IssueId,
     },
+    Close {
+        id: IssueId,
+    },
+    Solve {
+        id: IssueId,
+    },
+    Reopen {
+        id: IssueId,
+    },
     Comment {
         id: IssueId,
         reply_to: Option<CommentId>,

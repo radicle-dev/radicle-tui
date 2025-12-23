@@ -249,6 +249,9 @@ pub enum RequestedIssueOperation {
     Edit,
     Show,
     Reply,
+    Solve,
+    Close,
+    Reopen,
 }
 
 #[derive(Clone, Debug)]
@@ -298,6 +301,15 @@ impl store::Update<Message> for State {
                     }
                     Some(RequestedIssueOperation::Edit) => {
                         issue.map(|issue| IssueOperation::Edit { id: issue.id })
+                    }
+                    Some(RequestedIssueOperation::Solve) => {
+                        issue.map(|issue| IssueOperation::Solve { id: issue.id })
+                    }
+                    Some(RequestedIssueOperation::Close) => {
+                        issue.map(|issue| IssueOperation::Close { id: issue.id })
+                    }
+                    Some(RequestedIssueOperation::Reopen) => {
+                        issue.map(|issue| IssueOperation::Reopen { id: issue.id })
                     }
                     Some(RequestedIssueOperation::Reply) => {
                         issue.map(|issue| IssueOperation::Comment {
@@ -429,22 +441,28 @@ fn browser_page(channel: &Channel<Message>) -> Widget<State, Message> {
             let shortcuts = if state.browser.is_search_shown() {
                 vec![("esc", "cancel"), ("enter", "apply")]
             } else {
-                let mut shortcuts = vec![];
-                if state.section == Some(Section::Browser) {
-                    shortcuts = [
-                        shortcuts,
-                        [("enter", "show"), ("e", "edit"), ("/", "search")].to_vec(),
-                    ]
-                    .concat()
+                match state.section {
+                    Some(Section::Browser) => {
+                        let mut shortcuts =
+                            [("/", "search"), ("enter", "show"), ("e", "edit")].to_vec();
+                        if let Some(issue) = state.browser.selected_item() {
+                            use radicle::issue::State;
+                            let actions = match issue.state {
+                                State::Open => [("s", "solve"), ("l", "close")].to_vec(),
+                                State::Closed { .. } => [("o", "re-open")].to_vec(),
+                            };
+                            shortcuts = [shortcuts, actions.to_vec()].concat();
+                        }
+                        shortcuts
+                    }
+                    _ => [("c", "reply")].to_vec(),
                 }
-                if state.section != Some(Section::Browser) {
-                    shortcuts = [shortcuts, [("c", "reply")].to_vec()].concat()
-                }
-                [shortcuts, [("p", "toggle preview"), ("?", "help")].to_vec()].concat()
             };
+            let global_shortcuts = vec![("p", "toggle preview"), ("?", "help")];
 
             ShortcutsProps::default()
                 .shortcuts(&shortcuts)
+                .global_shortcuts(&global_shortcuts)
                 .shortcuts_keys_style(state.theme.shortcuts_keys_style)
                 .shortcuts_action_style(state.theme.shortcuts_action_style)
                 .to_boxed_any()
@@ -527,6 +545,15 @@ fn browser(channel: &Channel<Message>) -> Widget<State, Message> {
                         }),
                         Key::Char('e') => Some(Message::Exit {
                             operation: Some(RequestedIssueOperation::Edit),
+                        }),
+                        Key::Char('s') => Some(Message::Exit {
+                            operation: Some(RequestedIssueOperation::Solve),
+                        }),
+                        Key::Char('l') => Some(Message::Exit {
+                            operation: Some(RequestedIssueOperation::Close),
+                        }),
+                        Key::Char('o') => Some(Message::Exit {
+                            operation: Some(RequestedIssueOperation::Reopen),
                         }),
                         _ => None,
                     }
