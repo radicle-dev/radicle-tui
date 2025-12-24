@@ -203,6 +203,7 @@ where
 #[derive(Clone)]
 pub struct ShortcutsProps {
     pub shortcuts: Vec<(String, String)>,
+    pub global_shortcuts: Vec<(String, String)>,
     pub divider: char,
     pub shortcuts_keys_style: Style,
     pub shortcuts_action_style: Style,
@@ -215,12 +216,18 @@ impl ShortcutsProps {
     }
 
     pub fn shortcuts(mut self, shortcuts: &[(&str, &str)]) -> Self {
-        self.shortcuts.clear();
-        self.shortcuts.extend(
-            shortcuts
-                .iter()
-                .map(|(s, l)| (s.to_string(), l.to_string())),
-        );
+        self.shortcuts = shortcuts
+            .iter()
+            .map(|(s, l)| (s.to_string(), l.to_string()))
+            .collect();
+        self
+    }
+
+    pub fn global_shortcuts(mut self, shortcuts: &[(&str, &str)]) -> Self {
+        self.global_shortcuts = shortcuts
+            .iter()
+            .map(|(s, l)| (s.to_string(), l.to_string()))
+            .collect();
         self
     }
 
@@ -241,6 +248,7 @@ impl Default for ShortcutsProps {
 
         Self {
             shortcuts: vec![],
+            global_shortcuts: vec![],
             divider: '∙',
             shortcuts_keys_style: theme.shortcuts_keys_style,
             shortcuts_action_style: theme.shortcuts_action_style,
@@ -273,21 +281,43 @@ impl<S, M> View for Shortcuts<S, M> {
             .and_then(|props| props.inner_ref::<ShortcutsProps>())
             .unwrap_or(&default);
 
+        let spacer = Text::from(String::new());
+        let divider = Text::from(format!(" {} ", props.divider)).style(style::gray().dim());
+
         let mut shortcuts = props.shortcuts.iter().peekable();
         let mut row = vec![];
 
-        while let Some(shortcut) = shortcuts.next() {
+        let action_texts = |shortcut: &(String, String)| {
             let short = Text::from(shortcut.0.clone()).style(props.shortcuts_keys_style);
             let long = Text::from(shortcut.1.clone()).style(props.shortcuts_action_style);
-            let spacer = Text::from(String::new());
-            let divider = Text::from(format!(" {} ", props.divider)).style(style::gray().dim());
 
-            row.push((shortcut.0.chars().count(), short));
-            row.push((1, spacer));
-            row.push((shortcut.1.chars().count(), long));
+            (long, short)
+        };
+
+        while let Some(shortcut) = shortcuts.next() {
+            let (long, short) = action_texts(shortcut);
+
+            row.push((Constraint::Length(shortcut.0.chars().count() as u16), short));
+            row.push((Constraint::Length(1), spacer.clone()));
+            row.push((Constraint::Length(shortcut.1.chars().count() as u16), long));
 
             if shortcuts.peek().is_some() {
-                row.push((3, divider));
+                row.push((Constraint::Length(3), divider.clone()));
+            }
+        }
+
+        row.push((Constraint::Fill(1), Text::from(String::new())));
+
+        let mut global_shortcuts = props.global_shortcuts.iter().peekable();
+        while let Some(shortcut) = global_shortcuts.next() {
+            let (long, short) = action_texts(shortcut);
+
+            row.push((Constraint::Length(shortcut.0.chars().count() as u16), short));
+            row.push((Constraint::Length(1), spacer.clone()));
+            row.push((Constraint::Length(shortcut.1.chars().count() as u16), long));
+
+            if global_shortcuts.peek().is_some() {
+                row.push((Constraint::Length(3), divider.clone()));
             }
         }
 
@@ -297,11 +327,7 @@ impl<S, M> View for Shortcuts<S, M> {
             .iter()
             .map(|(_, text)| text.clone())
             .collect();
-        let widths: Vec<Constraint> = row_copy
-            .clone()
-            .iter()
-            .map(|(width, _)| Constraint::Length(*width as u16))
-            .collect();
+        let widths: Vec<Constraint> = row_copy.clone().iter().map(|(width, _)| *width).collect();
 
         let table = Table::new([Row::new(row)], widths).column_spacing(0);
         frame.render_widget(table, render.area);
