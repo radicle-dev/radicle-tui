@@ -49,6 +49,12 @@ pub struct BrowserProps<'a> {
     search: String,
 }
 
+impl<'a> BrowserProps<'a> {
+    pub fn show_search(&self) -> bool {
+        self.show_search
+    }
+}
+
 impl From<&State> for BrowserProps<'_> {
     fn from(state: &State) -> Self {
         use radicle::issue::State;

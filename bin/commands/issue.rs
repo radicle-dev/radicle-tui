@@ -244,8 +244,8 @@ pub async fn run(options: Options, ctx: impl Context) -> anyhow::Result<()> {
                             IssueOperation::Edit { id } => {
                                 terminal::run_rad(
                                     Some("issue"),
-                                    &["edit".into(), id.to_string().into()],
-                                    Quiet::Yes,
+                                    &["edit".into(), id.to_string().into(), "--quiet".into()],
+                                    Quiet::No,
                                 )?;
                             }
                             IssueOperation::Comment {

@@ -514,16 +514,24 @@ fn browser(channel: &Channel<Message>) -> Widget<State, Message> {
     Browser::new(tx.clone())
         .to_widget(tx.clone())
         .on_update(|state| BrowserProps::from(state).to_boxed_any().into())
-        .on_event(|event, _, _| {
-            if let Event::Key(key) = event {
-                match key {
-                    Key::Enter => Some(Message::Exit {
-                        operation: Some(RequestedIssueOperation::Show),
-                    }),
-                    Key::Char('e') => Some(Message::Exit {
-                        operation: Some(RequestedIssueOperation::Edit),
-                    }),
-                    _ => None,
+        .on_event(|event, _, props| {
+            let default = BrowserProps::default();
+            let props = props
+                .and_then(|props| props.inner_ref::<BrowserProps>())
+                .unwrap_or(&default);
+            if !props.show_search() {
+                if let Event::Key(key) = event {
+                    match key {
+                        Key::Enter => Some(Message::Exit {
+                            operation: Some(RequestedIssueOperation::Show),
+                        }),
+                        Key::Char('e') => Some(Message::Exit {
+                            operation: Some(RequestedIssueOperation::Edit),
+                        }),
+                        _ => None,
+                    }
+                } else {
+                    None
                 }
             } else {
                 None
