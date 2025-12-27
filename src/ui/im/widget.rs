@@ -2,7 +2,7 @@ use std::cmp;
 
 use serde::{Deserialize, Serialize};
 
-use ratatui::layout::{Direction, Layout, Position, Rect};
+use ratatui::layout::{Alignment, Direction, Layout, Position, Rect};
 use ratatui::style::{Style, Stylize};
 use ratatui::text::{Line, Span, Text};
 use ratatui::widgets::{Block, BorderType, Row, Scrollbar, ScrollbarState};
@@ -1043,16 +1043,18 @@ impl Widget for TextEdit<'_> {
 pub struct Shortcuts {
     pub shortcuts: Vec<(String, String)>,
     pub divider: char,
+    pub alignment: Alignment,
 }
 
 impl Shortcuts {
-    pub fn new(shortcuts: &[(&str, &str)], divider: char) -> Self {
+    pub fn new(shortcuts: &[(&str, &str)], divider: char, alignment: Alignment) -> Self {
         Self {
             shortcuts: shortcuts
                 .iter()
                 .map(|(s, a)| (s.to_string(), a.to_string()))
                 .collect(),
             divider,
+            alignment,
         }
     }
 }
@@ -1095,6 +1097,24 @@ impl Widget for Shortcuts {
             .iter()
             .map(|(width, _)| Constraint::Length(*width as u16))
             .collect();
+
+        let (row, widths) = match self.alignment {
+            Alignment::Left => ([row.as_slice(), &[Text::from("")]].concat(), widths),
+            Alignment::Center => (
+                [&[Text::from("")], row.as_slice(), &[Text::from("")]].concat(),
+                [
+                    &[Constraint::Fill(1)],
+                    widths.as_slice(),
+                    &[Constraint::Fill(1)],
+                ]
+                .concat(),
+            ),
+            Alignment::Right => (
+                [&[Text::from("")], row.as_slice()].concat(),
+                [&[Constraint::Fill(1)], widths.as_slice()].concat(),
+            ),
+        };
+
         let table = Table::new([Row::new(row)], widths).column_spacing(0);
 
         frame.render_widget(table, area);

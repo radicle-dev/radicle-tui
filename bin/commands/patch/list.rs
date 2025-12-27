@@ -8,7 +8,7 @@ use radicle::patch::PatchId;
 use radicle::storage::git::Repository;
 use radicle::Profile;
 
-use ratatui::layout::{Constraint, Layout, Position};
+use ratatui::layout::{Alignment, Constraint, Layout, Position};
 use ratatui::style::Stylize;
 use ratatui::text::Span;
 use ratatui::{Frame, Viewport};
@@ -289,7 +289,7 @@ impl Show<Message> for App {
                         self.show_help_text(frame, ui);
                         self.show_help_context(frame, ui);
 
-                        ui.shortcuts(frame, &[("?", "close")], '∙');
+                        ui.shortcuts(frame, &[("?", "close")], '∙', Alignment::Left);
                     });
 
                     if ui.has_input(|key| key == Key::Char('?')) {
@@ -570,6 +570,7 @@ impl App {
                 ("?", "help"),
             ],
             '∙',
+            Alignment::Left,
         );
     }
 

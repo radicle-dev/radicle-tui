@@ -2,7 +2,7 @@ use std::time::{SystemTime, UNIX_EPOCH};
 
 use anyhow::Result;
 
-use ratatui::layout::{Constraint, Layout};
+use ratatui::layout::{Alignment, Constraint, Layout};
 use ratatui::style::Stylize;
 use ratatui::text::Span;
 use ratatui::widgets::Cell;
@@ -117,7 +117,7 @@ impl Show<Message> for App {
                         })
                     }
 
-                    ui.shortcuts(frame, &[("q", "quit")], '|');
+                    ui.shortcuts(frame, &[("q", "quit")], '|', Alignment::Left);
 
                     if ui.has_input(|key| key == Key::Enter) {
                         ui.send_message(Message::Return);

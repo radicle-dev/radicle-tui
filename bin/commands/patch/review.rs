@@ -8,7 +8,7 @@ use anyhow::Result;
 
 use serde::{Deserialize, Serialize};
 
-use ratatui::layout::{Constraint, Layout, Position};
+use ratatui::layout::{Alignment, Constraint, Layout, Position};
 use ratatui::style::{Style, Stylize};
 use ratatui::text::Text;
 use ratatui::{Frame, Viewport};
@@ -486,6 +486,7 @@ impl App<'_> {
                         ("q", "quit"),
                     ],
                     '∙',
+                    Alignment::Left,
                 );
 
                 if ui.has_input(|key| key == Key::Char('?')) {
@@ -502,7 +503,7 @@ impl App<'_> {
                 }
             }
             ReviewMode::Show => {
-                ui.shortcuts(frame, &[("?", "help"), ("q", "quit")], '∙');
+                ui.shortcuts(frame, &[("?", "help"), ("q", "quit")], '∙', Alignment::Left);
 
                 if ui.has_input(|key| key == Key::Char('?')) {
                     ui.send_message(Message::ShowHelp);
@@ -567,7 +568,12 @@ impl Show<Message> for App<'_> {
 
                         self.show_context_bar(ui, frame);
 
-                        ui.shortcuts(frame, &[("?", "close"), ("q", "quit")], '∙');
+                        ui.shortcuts(
+                            frame,
+                            &[("?", "close"), ("q", "quit")],
+                            '∙',
+                            Alignment::Left,
+                        );
                     });
 
                     if ui.has_input(|key| key == Key::Char('?')) {

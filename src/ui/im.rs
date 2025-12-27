@@ -12,7 +12,7 @@ use ratatui::text::{Span, Text};
 use tokio::sync::broadcast;
 use tokio::sync::mpsc::UnboundedReceiver;
 
-use ratatui::layout::{Constraint, Flex, Position, Rect};
+use ratatui::layout::{Alignment, Constraint, Flex, Position, Rect};
 use ratatui::{Frame, Viewport};
 
 use crate::event::{Event, Key};
@@ -571,8 +571,9 @@ where
         frame: &mut Frame,
         shortcuts: &[(&str, &str)],
         divider: char,
+        alignment: Alignment,
     ) -> Response {
-        widget::Shortcuts::new(shortcuts, divider).ui(self, frame)
+        widget::Shortcuts::new(shortcuts, divider, alignment).ui(self, frame)
     }
 
     pub fn column_bar(
