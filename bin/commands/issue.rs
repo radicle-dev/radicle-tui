@@ -241,12 +241,37 @@ pub async fn run(options: Options, ctx: impl Context) -> anyhow::Result<()> {
                                 )?;
                                 break;
                             }
-                            IssueOperation::Edit { id } => {
-                                terminal::run_rad(
-                                    Some("issue"),
-                                    &["edit".into(), id.to_string().into()],
-                                    Quiet::No,
-                                )?;
+                            IssueOperation::Edit {
+                                id,
+                                comment_id,
+                                search,
+                            } => {
+                                state = PreviousState {
+                                    issue_id: Some(id),
+                                    comment_id,
+                                    search: Some(search),
+                                };
+                                match comment_id {
+                                    Some(comment_id) => {
+                                        terminal::run_rad(
+                                            Some("issue"),
+                                            &[
+                                                "comment".into(),
+                                                id.to_string().into(),
+                                                "--edit".into(),
+                                                comment_id.to_string().into(),
+                                            ],
+                                            Quiet::No,
+                                        )?;
+                                    }
+                                    _ => {
+                                        terminal::run_rad(
+                                            Some("issue"),
+                                            &["edit".into(), id.to_string().into()],
+                                            Quiet::No,
+                                        )?;
+                                    }
+                                }
                             }
                             IssueOperation::Solve { id } => {
                                 terminal::run_rad(

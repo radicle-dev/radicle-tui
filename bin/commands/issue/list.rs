@@ -247,6 +247,7 @@ impl TryFrom<(&Context, &TerminalInfo)> for State {
 #[derive(Clone, Debug)]
 pub enum RequestedIssueOperation {
     Edit,
+    EditComment,
     Show,
     Reply,
     Solve,
@@ -300,7 +301,18 @@ impl store::Update<Message> for State {
                         issue.map(|issue| IssueOperation::Show { id: issue.id })
                     }
                     Some(RequestedIssueOperation::Edit) => {
-                        issue.map(|issue| IssueOperation::Edit { id: issue.id })
+                        issue.map(|issue| IssueOperation::Edit {
+                            id: issue.id,
+                            comment_id: None,
+                            search: self.browser.read_search(),
+                        })
+                    }
+                    Some(RequestedIssueOperation::EditComment) => {
+                        issue.map(|issue| IssueOperation::Edit {
+                            id: issue.id,
+                            comment_id: comment.map(|c| c.id),
+                            search: self.browser.read_search(),
+                        })
                     }
                     Some(RequestedIssueOperation::Solve) => {
                         issue.map(|issue| IssueOperation::Solve { id: issue.id })
@@ -455,7 +467,7 @@ fn browser_page(channel: &Channel<Message>) -> Widget<State, Message> {
                         }
                         shortcuts
                     }
-                    _ => [("c", "reply")].to_vec(),
+                    _ => [("e", "edit"), ("c", "reply")].to_vec(),
                 }
             };
             let global_shortcuts = vec![("p", "toggle preview"), ("?", "help")];
@@ -619,6 +631,9 @@ fn comment_tree(channel: &Channel<Message>) -> Widget<State, Message> {
         .on_event(|event, s, _| match event {
             Event::Key(Key::Char('c')) => Some(Message::Exit {
                 operation: Some(RequestedIssueOperation::Reply),
+            }),
+            Event::Key(Key::Char('e')) => Some(Message::Exit {
+                operation: Some(RequestedIssueOperation::EditComment),
             }),
             _ => Some(Message::SelectComment {
                 selected: s.and_then(|s| {

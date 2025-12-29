@@ -8,6 +8,8 @@ use radicle::{cob::thread::CommentId, issue::IssueId};
 pub enum IssueOperation {
     Edit {
         id: IssueId,
+        comment_id: Option<CommentId>,
+        search: String,
     },
     Show {
         id: IssueId,
