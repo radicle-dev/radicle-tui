@@ -13,7 +13,6 @@ use radicle_cli::terminal::{Args, Error, Help};
 
 use crate::commands::tui_inbox::common::InboxOperation;
 use crate::terminal;
-use crate::terminal::Quiet;
 use crate::ui::items::notification::filter::{NotificationFilter, SortBy};
 
 use self::common::RepositoryMode;
@@ -220,7 +219,6 @@ pub async fn run(options: Options, ctx: impl radicle_cli::terminal::Context) -> 
                                 terminal::run_rad(
                                     Some("inbox"),
                                     &["show".into(), id.to_string().into()],
-                                    Quiet::No,
                                 )?;
                                 break;
                             }
@@ -228,7 +226,6 @@ pub async fn run(options: Options, ctx: impl radicle_cli::terminal::Context) -> 
                                 terminal::run_rad(
                                     Some("inbox"),
                                     &["clear".into(), id.to_string().into()],
-                                    Quiet::Yes,
                                 )?;
                             }
                         }
@@ -239,7 +236,7 @@ pub async fn run(options: Options, ctx: impl radicle_cli::terminal::Context) -> 
             }
         }
         Operation::Other { args } => {
-            terminal::run_rad(Some("inbox"), &args, Quiet::No)?;
+            terminal::run_rad(Some("inbox"), &args)?;
         }
         Operation::Unknown { .. } => {
             anyhow::bail!("unknown operation provided");

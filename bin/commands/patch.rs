@@ -19,7 +19,6 @@ use radicle_cli::terminal::args;
 use radicle_cli::terminal::args::{string, Args, Error, Help};
 
 use crate::terminal;
-use crate::terminal::Quiet;
 use crate::ui::items::filter::DidFilter;
 use crate::ui::items::patch::filter::PatchFilter;
 
@@ -332,7 +331,6 @@ pub async fn run(options: Options, ctx: impl radicle_cli::terminal::Context) -> 
                             terminal::run_rad(
                                 Some("patch"),
                                 &["show".into(), id.to_string().into()],
-                                Quiet::No,
                             )?;
                         }
                         PatchOperation::Diff { id } => {
@@ -343,13 +341,12 @@ pub async fn run(options: Options, ctx: impl radicle_cli::terminal::Context) -> 
                                 .ok_or_else(|| anyhow!("unknown patch '{id}'"))?;
                             let range = format!("{}..{}", patch.base(), patch.head());
 
-                            terminal::run_git(Some("diff"), &[range.into()], Quiet::No)?;
+                            terminal::run_git(Some("diff"), &[range.into()])?;
                         }
                         PatchOperation::Checkout { id } => {
                             terminal::run_rad(
                                 Some("patch"),
                                 &["checkout".into(), id.to_string().into()],
-                                Quiet::No,
                             )?;
                         }
                         PatchOperation::_Review { id } => {
@@ -377,7 +374,7 @@ pub async fn run(options: Options, ctx: impl radicle_cli::terminal::Context) -> 
             interface::review(opts.clone(), profile, rid, patch_id).await?;
         }
         Operation::Other { args } => {
-            terminal::run_rad(Some("patch"), &args, Quiet::No)?;
+            terminal::run_rad(Some("patch"), &args)?;
         }
         Operation::Unknown { .. } => {
             anyhow::bail!("unknown operation provided");

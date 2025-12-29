@@ -22,7 +22,7 @@ use cli::terminal::{Args, Error, Help};
 
 use crate::cob;
 use crate::commands::tui_issue::common::IssueOperation;
-use crate::terminal::{self, Quiet};
+use crate::terminal;
 use crate::ui::TerminalInfo;
 
 lazy_static! {
@@ -237,7 +237,6 @@ pub async fn run(options: Options, ctx: impl Context) -> anyhow::Result<()> {
                                 terminal::run_rad(
                                     Some("issue"),
                                     &["show".into(), id.to_string().into()],
-                                    Quiet::No,
                                 )?;
                                 break;
                             }
@@ -261,14 +260,12 @@ pub async fn run(options: Options, ctx: impl Context) -> anyhow::Result<()> {
                                                 "--edit".into(),
                                                 comment_id.to_string().into(),
                                             ],
-                                            Quiet::No,
                                         )?;
                                     }
                                     _ => {
                                         terminal::run_rad(
                                             Some("issue"),
                                             &["edit".into(), id.to_string().into()],
-                                            Quiet::No,
                                         )?;
                                     }
                                 }
@@ -277,21 +274,18 @@ pub async fn run(options: Options, ctx: impl Context) -> anyhow::Result<()> {
                                 terminal::run_rad(
                                     Some("issue"),
                                     &["state".into(), id.to_string().into(), "--solved".into()],
-                                    Quiet::No,
                                 )?;
                             }
                             IssueOperation::Close { id } => {
                                 terminal::run_rad(
                                     Some("issue"),
                                     &["state".into(), id.to_string().into(), "--closed".into()],
-                                    Quiet::No,
                                 )?;
                             }
                             IssueOperation::Reopen { id } => {
                                 terminal::run_rad(
                                     Some("issue"),
                                     &["state".into(), id.to_string().into(), "--open".into()],
-                                    Quiet::No,
                                 )?;
                             }
                             IssueOperation::Comment {
@@ -320,7 +314,7 @@ pub async fn run(options: Options, ctx: impl Context) -> anyhow::Result<()> {
             }
         }
         Operation::Other { args } => {
-            terminal::run_rad(Some("issue"), &args, Quiet::No)?;
+            terminal::run_rad(Some("issue"), &args)?;
         }
         Operation::Unknown { .. } => {
             anyhow::bail!("unknown operation provided");
