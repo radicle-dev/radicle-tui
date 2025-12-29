@@ -50,13 +50,13 @@ use super::common::IssueOperation;
 
 type Selection = tui::Selection<IssueOperation>;
 
-pub struct Context {
-    pub profile: Profile,
-    pub repository: Repository,
-    pub filter: issue::Filter,
-    pub search: Option<String>,
-    pub issue: Option<IssueId>,
-    pub comment: Option<CommentId>,
+pub(crate) struct Context {
+    pub(crate) profile: Profile,
+    pub(crate) repository: Repository,
+    pub(crate) filter: issue::Filter,
+    pub(crate) search: Option<String>,
+    pub(crate) issue: Option<IssueId>,
+    pub(crate) comment: Option<CommentId>,
 }
 
 pub struct App {
@@ -817,5 +817,749 @@ fn append_opened(all: &mut HashSet<Vec<String>>, path: Vec<String>, comment: Com
             [path.clone(), [comment.id.to_string()].to_vec()].concat(),
             reply,
         );
+    }
+}
+
+pub mod v2 {
+    use std::collections::{HashMap, HashSet};
+    use std::str::FromStr;
+    use std::sync::{Arc, Mutex};
+
+    use anyhow::{bail, Result};
+
+    use ratatui::layout::{Alignment, Constraint, Layout, Position};
+    use ratatui::style::Stylize;
+    use ratatui::text::{Span, Text};
+    use ratatui::{Frame, Viewport};
+
+    use radicle::cob::thread::CommentId;
+    use radicle::git::Oid;
+    use radicle::issue::IssueId;
+    use radicle::storage::git::Repository;
+    use radicle::Profile;
+
+    use radicle_tui as tui;
+
+    use tui::event::{Event, Key};
+    use tui::store;
+    use tui::task::EmptyProcessors;
+    use tui::ui::im;
+    use tui::ui::im::widget::{ContainerState, TableState, TextEditState, TextViewState, Window};
+    use tui::ui::im::{Borders, Show};
+    use tui::ui::theme::Theme;
+    use tui::ui::Column;
+    use tui::ui::{span, BufferedValue, Spacing};
+    use tui::{Channel, Exit};
+
+    use crate::cob::issue;
+    use crate::commands::tui_issue::list::v2::state::{Browser, Preview, Section};
+    use crate::settings::{self, ThemeBundle, ThemeMode};
+    use crate::ui::items::filter::Filter;
+    use crate::ui::items::issue::{Issue, IssueFilter};
+    use crate::ui::items::HasId;
+    use crate::ui::TerminalInfo;
+
+    use crate::tui_issue::common::IssueOperation;
+
+    type Selection = tui::Selection<IssueOperation>;
+
+    const HELP: &str = r#"# Generic keybindings
+
+`↑,k`:      move cursor one line up
+`↓,j:       move cursor one line down
+`PageUp`:   move cursor one page up
+`PageDown`: move cursor one page down
+`Home`:     move cursor to the first line
+`End`:      move cursor to the last line
+`Tab`:      focus next section
+`BackTab`:  focus previous section
+`Esc`:      Cancel
+`q`:        Quit
+
+# Specific keybindings
+
+`/`:        Search
+`Enter`:    Show issue
+`e`:        Edit issue
+`s`:        Solve issue
+`l`:        Close issue
+`o`:        Re-open issue
+`c`:        Reply to comment
+`p`:        Toggle issue preview
+`?`:        Show help"#;
+
+    pub struct Context {
+        pub profile: Profile,
+        pub repository: Repository,
+        pub filter: issue::Filter,
+        pub search: Option<String>,
+        pub issue: Option<IssueId>,
+        pub comment: Option<CommentId>,
+    }
+
+    pub(crate) struct Tui {
+        pub(crate) context: Context,
+        pub(crate) terminal_info: TerminalInfo,
+    }
+
+    impl Tui {
+        pub fn new(context: Context, terminal_info: TerminalInfo) -> Self {
+            Self {
+                context,
+                terminal_info,
+            }
+        }
+
+        pub async fn run(&self) -> Result<Option<Selection>> {
+            let viewport = Viewport::Inline(20);
+            let channel = Channel::default();
+            let state = App::try_from((&self.context, &self.terminal_info))?;
+
+            tui::im(state, viewport, channel, EmptyProcessors::new()).await
+        }
+
+        pub fn context(&self) -> &Context {
+            &self.context
+        }
+    }
+
+    mod state {
+        use crate::tui_issue::list::append_opened;
+        use crate::ui::items::CommentItem;
+
+        use super::*;
+
+        #[derive(Clone, Debug)]
+        pub(crate) enum Page {
+            Main,
+            Help,
+        }
+
+        #[derive(Clone, Default, Debug, Eq, PartialEq)]
+        pub(crate) enum Section {
+            #[default]
+            Browser,
+            Issue,
+            Comment,
+        }
+
+        impl TryFrom<usize> for Section {
+            type Error = anyhow::Error;
+
+            fn try_from(value: usize) -> Result<Self, Self::Error> {
+                match value {
+                    0 => Ok(Section::Browser),
+                    1 => Ok(Section::Issue),
+                    2 => Ok(Section::Comment),
+                    _ => bail!("Unknown section index: {}", value),
+                }
+            }
+        }
+
+        #[derive(Clone, Debug)]
+        pub(crate) struct Browser {
+            pub(crate) issues: TableState,
+            pub(crate) search: BufferedValue<TextEditState>,
+            pub(crate) show_search: bool,
+        }
+
+        impl Browser {
+            pub fn selected(&self) -> Option<usize> {
+                self.issues.selected()
+            }
+        }
+
+        #[derive(Clone, Debug)]
+        pub(crate) struct Preview {
+            /// If preview is visible.
+            pub(crate) show: bool,
+            /// Currently selected issue item.
+            pub(crate) issue: Option<Issue>,
+            /// Tree selection per issue.
+            pub(crate) selected_comments: HashMap<IssueId, Vec<CommentId>>,
+            /// State of currently selected comment
+            pub(crate) comment: TextViewState,
+        }
+
+        impl Preview {
+            pub fn root_comments(&self) -> Vec<CommentItem> {
+                self.issue
+                    .as_ref()
+                    .map(|item| item.root_comments())
+                    .unwrap_or_default()
+            }
+
+            pub fn selected_comment(&self) -> Option<&CommentItem> {
+                self.issue.as_ref().and_then(|item| {
+                    self.selected_comments
+                        .get(&item.id)
+                        .and_then(|selection| selection.last().copied())
+                        .and_then(|comment_id| {
+                            item.comments.iter().find(|item| item.id == comment_id)
+                        })
+                })
+            }
+
+            pub fn selected_comment_ids(&self) -> Vec<String> {
+                self.issue
+                    .as_ref()
+                    .and_then(|item| self.selected_comments.get(&item.id))
+                    .map(|selected| selected.iter().map(|oid| oid.to_string()).collect())
+                    .unwrap_or_default()
+            }
+
+            pub fn opened_comments(&self) -> HashSet<Vec<String>> {
+                let mut opened = HashSet::new();
+                if let Some(item) = &self.issue {
+                    for comment in item.root_comments() {
+                        append_opened(&mut opened, vec![], comment.clone());
+                    }
+                }
+                opened
+            }
+        }
+    }
+
+    #[derive(Clone, Debug)]
+    pub enum Change {
+        Page { page: state::Page },
+        Section { state: ContainerState },
+        Issues { state: TableState },
+        ShowSearch { state: bool, apply: bool },
+        ShowPreview { state: bool },
+        Search { state: BufferedValue<TextEditState> },
+        Help { state: TextViewState },
+    }
+
+    #[derive(Clone, Debug)]
+    pub enum Message {
+        Changed(Change),
+        Exit { operation: Option<IssueOperation> },
+        Quit,
+    }
+
+    #[derive(Clone, Debug)]
+    pub struct AppState {
+        page: state::Page,
+        sections: ContainerState,
+        browser: state::Browser,
+        preview: state::Preview,
+        help: TextViewState,
+        filter: IssueFilter,
+    }
+
+    #[derive(Clone, Debug)]
+    pub struct App {
+        issues: Arc<Mutex<Vec<Issue>>>,
+        state: AppState,
+    }
+
+    impl TryFrom<(&Context, &TerminalInfo)> for App {
+        type Error = anyhow::Error;
+
+        fn try_from(value: (&Context, &TerminalInfo)) -> Result<Self, Self::Error> {
+            let (context, terminal_info) = value;
+            let settings = settings::Settings::default();
+
+            let issues = issue::all(&context.profile, &context.repository)?;
+            let search =
+                BufferedValue::new(context.search.clone().unwrap_or(context.filter.to_string()));
+            let filter = IssueFilter::from_str(&search.read()).unwrap_or_default();
+
+            let default_bundle = ThemeBundle::default();
+            let theme_bundle = settings.theme.active_bundle().unwrap_or(&default_bundle);
+            let theme = match settings.theme.mode() {
+                ThemeMode::Auto => {
+                    if terminal_info.is_dark() {
+                        theme_bundle.dark.clone()
+                    } else {
+                        theme_bundle.light.clone()
+                    }
+                }
+                ThemeMode::Light => theme_bundle.light.clone(),
+                ThemeMode::Dark => theme_bundle.dark.clone(),
+            };
+
+            // Convert into UI items
+            let mut issues: Vec<_> = issues
+                .into_iter()
+                .flat_map(|issue| Issue::new(&context.profile, issue).ok())
+                .collect();
+
+            issues.sort_by(|a, b| b.timestamp.cmp(&a.timestamp));
+
+            // Pre-select comments per issue. If a comment to pre-select is given,
+            // find identifier path needed for selection. Select root comment
+            // otherwise.
+            let selected_comments: HashMap<_, _> = issues
+                .iter()
+                .map(|issue| {
+                    let comment_ids = match context.comment {
+                        Some(comment_id) if issue.has_comment(&comment_id) => {
+                            issue.path_to_comment(&comment_id).unwrap_or_default()
+                        }
+                        _ => issue
+                            .root_comments()
+                            .first()
+                            .map(|c| vec![c.id])
+                            .unwrap_or_default(),
+                    };
+                    (issue.id, comment_ids)
+                })
+                .collect();
+
+            let browser = Browser {
+                issues: TableState::new(
+                    context
+                        .issue
+                        .map(|id| {
+                            issues
+                                .iter()
+                                .filter(|item| filter.matches(item))
+                                .position(|item| item.id() == id)
+                        })
+                        .unwrap_or(issues.first().map(|_| 0)),
+                ),
+                search: BufferedValue::new(TextEditState {
+                    text: search.read().clone(),
+                    cursor: search.read().len(),
+                }),
+                show_search: false,
+            };
+
+            let preview = Preview {
+                show: true,
+                issue: browser.selected().and_then(|s| issues.get(s)).cloned(),
+                selected_comments,
+                comment: TextViewState::new(Position::default()),
+            };
+
+            let section = if context.comment.is_some() {
+                state::Section::Issue
+            } else {
+                state::Section::Browser
+            };
+
+            Ok(Self {
+                issues: Arc::new(Mutex::new(issues)),
+                state: AppState {
+                    page: state::Page::Main,
+                    sections: ContainerState::new(3, Some(section as usize)),
+                    browser,
+                    preview,
+                    filter,
+                    help: TextViewState::new(Position::default()),
+                },
+            })
+        }
+    }
+
+    impl store::Update<Message> for App {
+        type Return = Selection;
+
+        fn update(&mut self, message: Message) -> Option<tui::Exit<Selection>> {
+            match message {
+                Message::Quit => Some(Exit { value: None }),
+                Message::Exit { operation } => Some(Exit {
+                    value: Some(Selection {
+                        operation,
+                        args: vec![],
+                    }),
+                }),
+                Message::Changed(changed) => match changed {
+                    Change::Page { page } => {
+                        self.state.page = page;
+                        None
+                    }
+                    Change::Section { state } => {
+                        self.state.sections = state;
+                        None
+                    }
+                    Change::Issues { state } => {
+                        self.state.browser.issues = state;
+                        None
+                    }
+                    Change::ShowSearch { state, apply } => {
+                        if state {
+                            self.state.sections = ContainerState::new(3, None);
+                            self.state.browser.show_search = true;
+                        } else {
+                            self.state.sections = ContainerState::new(3, Some(0));
+                            self.state.browser.show_search = false;
+
+                            if apply {
+                                self.state.browser.search.apply();
+                            } else {
+                                self.state.browser.search.reset();
+                            }
+
+                            self.state.filter =
+                                IssueFilter::from_str(&self.state.browser.search.read().text)
+                                    .unwrap_or_default();
+                        }
+                        None
+                    }
+                    Change::ShowPreview { state } => {
+                        self.state.preview.show = state;
+                        None
+                    }
+                    Change::Search { state } => {
+                        self.state.browser.search = state.clone();
+                        self.state.filter =
+                            IssueFilter::from_str(&state.read().text).unwrap_or_default();
+                        self.state.browser.issues.select_first();
+                        None
+                    }
+                    Change::Help { state } => {
+                        self.state.help = state;
+                        None
+                    }
+                },
+            }
+        }
+    }
+
+    impl Show<Message> for App {
+        fn show(&self, ctx: &im::Context<Message>, frame: &mut Frame) -> Result<()> {
+            Window::default().show(ctx, |ui| {
+                match self.state.page.clone() {
+                    state::Page::Main => {
+                        let show_search = self.state.browser.show_search;
+                        let mut page_focus = if show_search { Some(1) } else { Some(0) };
+
+                        ui.container(
+                            Layout::vertical([Constraint::Fill(1), Constraint::Length(2)]),
+                            &mut page_focus,
+                            |ui| {
+                                let mut section_focus = self.state.sections.focus();
+
+                                let group = ui.container(
+                                    im::Layout::Expandable3 {
+                                        left_only: !self.state.preview.show,
+                                    },
+                                    &mut section_focus,
+                                    |ui| {
+                                        self.show_browser(frame, ui);
+                                        self.show_issue(frame, ui);
+                                        self.show_comment(frame, ui);
+                                    },
+                                );
+                                if group.response.changed {
+                                    ui.send_message(Message::Changed(Change::Section {
+                                        state: ContainerState::new(3, section_focus),
+                                    }));
+                                }
+
+                                ui.layout(
+                                    Layout::vertical(match show_search {
+                                        true => [2, 0],
+                                        false => [1, 1],
+                                    }),
+                                    Some(0),
+                                    |ui| {
+                                        if let Some(section) = section_focus {
+                                            match Section::try_from(section).unwrap_or_default() {
+                                                Section::Browser => {
+                                                    self.show_browser_context(frame, ui);
+                                                    self.show_browser_shortcuts(frame, ui);
+                                                }
+                                                Section::Issue => {
+                                                    self.show_issue_context(frame, ui);
+                                                    self.show_issue_shortcuts(frame, ui);
+                                                }
+                                                Section::Comment => {
+                                                    self.show_comment_context(frame, ui);
+                                                    self.show_comment_shortcuts(frame, ui);
+                                                }
+                                            }
+                                        } else {
+                                            if show_search {
+                                                self.show_browser_search(frame, ui);
+                                            }
+                                        }
+                                    },
+                                );
+                            },
+                        );
+
+                        if ui.has_input(|key| key == Key::Char('p')) {
+                            ui.send_message(Message::Changed(Change::ShowPreview {
+                                state: !self.state.preview.show,
+                            }));
+                        }
+                        if ui.has_input(|key| key == Key::Char('?')) {
+                            ui.send_message(Message::Changed(Change::Page {
+                                page: state::Page::Help,
+                            }));
+                        }
+                    }
+                    state::Page::Help => {
+                        let layout = Layout::vertical([
+                            Constraint::Length(3),
+                            Constraint::Fill(1),
+                            Constraint::Length(1),
+                            Constraint::Length(1),
+                        ]);
+
+                        ui.container(layout, &mut Some(1), |ui| {
+                            self.show_help_text(frame, ui);
+                            self.show_help_context(frame, ui);
+
+                            ui.shortcuts(frame, &[("?", "close")], '∙', Alignment::Left);
+                        });
+
+                        if ui.has_input(|key| key == Key::Char('?')) {
+                            ui.send_message(Message::Changed(Change::Page {
+                                page: state::Page::Main,
+                            }));
+                        }
+                    }
+                }
+
+                if ui.has_input(|key| key == Key::Char('q')) {
+                    ui.send_message(Message::Quit);
+                }
+                if ui.has_input(|key| key == Key::Ctrl('c')) {
+                    ui.send_message(Message::Quit);
+                }
+            });
+
+            Ok(())
+        }
+    }
+
+    impl App {
+        pub fn show_browser(&self, frame: &mut Frame, ui: &mut im::Ui<Message>) {
+            let issues = self.issues.lock().unwrap();
+            let issues = issues
+                .iter()
+                .filter(|patch| self.state.filter.matches(patch))
+                .cloned()
+                .collect::<Vec<_>>();
+            let mut selected = self.state.browser.issues.selected();
+
+            let header = [
+                Column::new(" ● ", Constraint::Length(3)),
+                Column::new("ID", Constraint::Length(8)),
+                Column::new("Title", Constraint::Fill(5)),
+                Column::new("Author", Constraint::Length(16)).hide_small(),
+                Column::new("", Constraint::Length(16)).hide_medium(),
+                Column::new("Labels", Constraint::Fill(1)).hide_medium(),
+                Column::new("Assignees", Constraint::Fill(1)).hide_medium(),
+                Column::new("Opened", Constraint::Length(16)).hide_small(),
+            ];
+
+            ui.layout(
+                Layout::vertical([Constraint::Length(3), Constraint::Min(1)]),
+                Some(1),
+                |ui| {
+                    ui.column_bar(frame, header.to_vec(), Spacing::from(1), Some(Borders::Top));
+
+                    let table = ui.table(
+                        frame,
+                        &mut selected,
+                        &issues,
+                        header.to_vec(),
+                        None,
+                        Some(Borders::BottomSides),
+                    );
+                    if table.changed {
+                        ui.send_message(Message::Changed(Change::Issues {
+                            state: TableState::new(selected),
+                        }));
+                    }
+                },
+            );
+
+            // TODO(erikli): Should only work if table has focus
+            if ui.has_input(|key| key == Key::Char('/')) {
+                ui.send_message(Message::Changed(Change::ShowSearch {
+                    state: true,
+                    apply: false,
+                }));
+            }
+
+            if let Some(issue) = selected.and_then(|s| issues.get(s)) {
+                if ui.has_input(|key| key == Key::Enter) {
+                    ui.send_message(Message::Exit {
+                        operation: Some(IssueOperation::Show { id: issue.id }),
+                    });
+                }
+                // if ui.has_input(|key| key == Key::Char('d')) {
+                //     ui.send_message(Message::Exit {
+                //         operation: Some(IssueOperation::Diff { id: issue.id }),
+                //     });
+                // }
+                // if ui.has_input(|key| key == Key::Char('c')) {
+                //     ui.send_message(Message::Exit {
+                //         operation: Some(IssueOperation::Checkout { id: issue.id }),
+                //     });
+                // }
+            }
+        }
+
+        pub fn show_browser_search(&self, frame: &mut Frame, ui: &mut im::Ui<Message>) {
+            let mut search = self.state.browser.search.clone();
+            let (mut search_text, mut search_cursor) =
+                (search.clone().read().text, search.clone().read().cursor);
+
+            let text_edit = ui.text_edit_singleline(
+                frame,
+                &mut search_text,
+                &mut search_cursor,
+                Some("Search".to_string()),
+                Some(Borders::Spacer { top: 0, left: 0 }),
+            );
+
+            if text_edit.changed {
+                search.write(TextEditState {
+                    text: search_text,
+                    cursor: search_cursor,
+                });
+                ui.send_message(Message::Changed(Change::Search { state: search }));
+            }
+
+            if ui.has_input(|key| key == Key::Esc) {
+                ui.send_message(Message::Changed(Change::ShowSearch {
+                    state: false,
+                    apply: false,
+                }));
+            }
+            if ui.has_input(|key| key == Key::Enter) {
+                ui.send_message(Message::Changed(Change::ShowSearch {
+                    state: false,
+                    apply: true,
+                }));
+            }
+        }
+
+        fn show_browser_context(&self, frame: &mut Frame, ui: &mut im::Ui<Message>) {
+            let context = {
+                let issues = self.issues.lock().unwrap();
+                let search = self.state.browser.search.read().text;
+                let total_count = issues.len();
+                let filtered_count = issues
+                    .iter()
+                    .filter(|issue| self.state.filter.matches(issue))
+                    .collect::<Vec<_>>()
+                    .len();
+
+                let filtered_counts = format!(" {filtered_count}/{total_count} ");
+
+                vec![
+                    Column::new(
+                        Span::raw(" Search ".to_string()).cyan().dim().reversed(),
+                        Constraint::Length(8),
+                    ),
+                    Column::new(
+                        Span::raw(format!(" {search} "))
+                            .into_left_aligned_line()
+                            .style(ui.theme().bar_on_black_style)
+                            .cyan()
+                            .dim(),
+                        Constraint::Fill(1),
+                    ),
+                    Column::new(
+                        Span::raw(filtered_counts.clone())
+                            .into_right_aligned_line()
+                            .cyan()
+                            .dim()
+                            .reversed(),
+                        Constraint::Length(filtered_counts.chars().count() as u16),
+                    ),
+                ]
+            };
+
+            ui.column_bar(frame, context, Spacing::from(0), Some(Borders::None));
+        }
+
+        pub fn show_browser_shortcuts(&self, frame: &mut Frame, ui: &mut im::Ui<Message>) {
+            use radicle::issue::State;
+
+            let issues = self.issues.lock().unwrap();
+            let issues = issues
+                .iter()
+                .filter(|issue| self.state.filter.matches(issue))
+                .collect::<Vec<_>>();
+
+            let mut shortcuts = vec![("/", "search"), ("enter", "show"), ("e", "edit")];
+            if let Some(issue) = self.state.browser.selected().and_then(|i| issues.get(i)) {
+                let actions = match issue.state {
+                    State::Open => vec![("s", "solve"), ("l", "close")],
+                    State::Closed { .. } => vec![("o", "re-open")],
+                };
+                shortcuts.extend_from_slice(&actions);
+            }
+
+            let global_shortcuts = vec![("p", "toggle preview"), ("?", "help")];
+
+            ui.layout(
+                Layout::horizontal([Constraint::Fill(1), Constraint::Length(30)]),
+                None,
+                |ui| {
+                    ui.shortcuts(frame, &shortcuts, '∙', Alignment::Left);
+                    ui.shortcuts(frame, &global_shortcuts, '∙', Alignment::Right);
+                },
+            );
+        }
+
+        pub fn show_issue(&self, frame: &mut Frame, ui: &mut im::Ui<Message>) {}
+
+        pub fn show_issue_context(&self, frame: &mut Frame, ui: &mut im::Ui<Message>) {}
+
+        pub fn show_issue_shortcuts(&self, frame: &mut Frame, ui: &mut im::Ui<Message>) {}
+
+        pub fn show_comment(&self, frame: &mut Frame, ui: &mut im::Ui<Message>) {}
+
+        pub fn show_comment_context(&self, frame: &mut Frame, ui: &mut im::Ui<Message>) {}
+
+        pub fn show_comment_shortcuts(&self, frame: &mut Frame, ui: &mut im::Ui<Message>) {}
+
+        fn show_help_text(&self, frame: &mut Frame, ui: &mut im::Ui<Message>) {
+            ui.column_bar(
+                frame,
+                [Column::new(Span::raw(" Help ").bold(), Constraint::Fill(1))].to_vec(),
+                Spacing::from(0),
+                Some(Borders::Top),
+            );
+
+            let mut cursor = self.state.help.cursor();
+            let text_view = ui.text_view(
+                frame,
+                HELP.to_string(),
+                &mut cursor,
+                Some(Borders::BottomSides),
+            );
+            if text_view.changed {
+                ui.send_message(Message::Changed(Change::Help {
+                    state: TextViewState::new(cursor),
+                }))
+            }
+        }
+
+        fn show_help_context(&self, frame: &mut Frame, ui: &mut im::Ui<Message>) {
+            ui.column_bar(
+                frame,
+                [
+                    Column::new(
+                        Span::raw(" ".to_string())
+                            .into_left_aligned_line()
+                            .style(ui.theme().bar_on_black_style),
+                        Constraint::Fill(1),
+                    ),
+                    Column::new(
+                        Span::raw(" ")
+                            .into_right_aligned_line()
+                            .cyan()
+                            .dim()
+                            .reversed(),
+                        Constraint::Length(6),
+                    ),
+                ]
+                .to_vec(),
+                Spacing::from(0),
+                Some(Borders::None),
+            );
+        }
     }
 }
