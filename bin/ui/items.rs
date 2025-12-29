@@ -1,34 +1,27 @@
+pub mod issue;
 pub mod notification;
 pub mod patch;
 
 use std::collections::HashMap;
 use std::fmt::Debug;
-use std::str::FromStr;
-
-use nom::bytes::complete::{tag, take};
-use nom::multi::separated_list0;
-use nom::sequence::{delimited, preceded};
-use nom::{IResult, Parser};
 
 use radicle::cob::thread::{Comment, CommentId};
-use radicle::cob::{Label, ObjectId, Timestamp};
+use radicle::cob::{ObjectId, Timestamp};
 
 use radicle::identity::Did;
-use radicle::issue;
-use radicle::issue::{CloseReason, Issue, IssueId};
+use radicle::issue::{Issue, IssueId};
 use radicle::node::{Alias, AliasStore, NodeId};
 use radicle::Profile;
 
 use ratatui::prelude::*;
-use ratatui::style::{Style, Stylize};
-use ratatui::widgets::Cell;
+use ratatui::style::Stylize;
 
 use tui_tree_widget::TreeItem;
 
 use radicle_tui as tui;
 
 use tui::ui::span;
-use tui::ui::{ToRow, ToTree};
+use tui::ui::ToTree;
 
 use super::format;
 
@@ -140,291 +133,6 @@ impl AuthorItem {
             alias,
             you,
         }
-    }
-}
-
-#[derive(Clone, Debug)]
-pub struct IssueItem {
-    /// Issue OID.
-    pub id: IssueId,
-    /// Issue state.
-    pub state: issue::State,
-    /// Issue title.
-    pub title: String,
-    /// Issue author.
-    pub author: AuthorItem,
-    /// Issue labels.
-    pub labels: Vec<Label>,
-    /// Issue assignees.
-    pub assignees: Vec<AuthorItem>,
-    /// Time when issue was opened.
-    pub timestamp: Timestamp,
-    /// Comment timeline
-    pub comments: Vec<CommentItem>,
-}
-
-impl IssueItem {
-    pub fn new(profile: &Profile, issue: (IssueId, Issue)) -> Result<Self, anyhow::Error> {
-        let (id, issue) = issue;
-
-        Ok(Self {
-            id,
-            state: *issue.state(),
-            title: issue.title().into(),
-            author: AuthorItem::new(Some(*issue.author().id), profile),
-            labels: issue.labels().cloned().collect(),
-            assignees: issue
-                .assignees()
-                .map(|did| AuthorItem::new(Some(**did), profile))
-                .collect::<Vec<_>>(),
-            timestamp: issue.timestamp(),
-            comments: issue
-                .comments()
-                .map(|(comment_id, comment)| {
-                    CommentItem::new(profile, (id, issue.clone()), (*comment_id, comment.clone()))
-                })
-                .collect(),
-        })
-    }
-
-    pub fn root_comments(&self) -> Vec<CommentItem> {
-        self.comments
-            .iter()
-            .filter(|comment| comment.reply_to.is_none())
-            .cloned()
-            .collect::<Vec<_>>()
-    }
-
-    pub fn has_comment(&self, comment_id: &CommentId) -> bool {
-        self.comments
-            .iter()
-            .any(|comment| comment.id == *comment_id)
-    }
-
-    pub fn path_to_comment(&self, comment_id: &CommentId) -> Option<Vec<CommentId>> {
-        for comment in &self.comments {
-            let mut path = Vec::new();
-            if comment.path_to(comment_id, &mut path) {
-                return Some(path);
-            }
-        }
-        None
-    }
-}
-
-impl ToRow<8> for IssueItem {
-    fn to_row(&self) -> [Cell<'_>; 8] {
-        let (state, state_color) = format::issue_state(&self.state);
-
-        let state = span::default(&state).style(Style::default().fg(state_color));
-        let id = span::primary(&format::cob(&self.id));
-        let title = span::default(&self.title.clone());
-
-        let author = match &self.author.alias {
-            Some(alias) => {
-                if self.author.you {
-                    span::alias(&format!("{alias} (you)"))
-                } else {
-                    span::alias(alias)
-                }
-            }
-            None => match &self.author.human_nid {
-                Some(nid) => span::alias(nid).dim(),
-                None => span::blank(),
-            },
-        };
-        let did = match &self.author.human_nid {
-            Some(nid) => span::alias(nid).dim(),
-            None => span::blank(),
-        };
-        let labels = span::labels(&format::labels(&self.labels));
-        let assignees = self
-            .assignees
-            .iter()
-            .map(|author| (author.nid, author.alias.clone(), author.you))
-            .collect::<Vec<_>>();
-        let assignees = span::alias(&format::assignees(&assignees));
-        let opened = span::timestamp(&format::timestamp(&self.timestamp));
-
-        [
-            state.into(),
-            id.into(),
-            title.into(),
-            author.into(),
-            did.into(),
-            labels.into(),
-            assignees.into(),
-            opened.into(),
-        ]
-    }
-}
-
-impl HasId for IssueItem {
-    fn id(&self) -> ObjectId {
-        self.id
-    }
-}
-
-#[derive(Clone, Default, Debug, Eq, PartialEq)]
-pub struct IssueItemFilter {
-    state: Option<issue::State>,
-    authored: bool,
-    authors: Vec<Did>,
-    assigned: bool,
-    assignees: Vec<Did>,
-    search: Option<String>,
-}
-
-impl IssueItemFilter {
-    pub fn state(&self) -> Option<issue::State> {
-        self.state
-    }
-}
-
-impl filter::Filter<IssueItem> for IssueItemFilter {
-    fn matches(&self, issue: &IssueItem) -> bool {
-        use fuzzy_matcher::skim::SkimMatcherV2;
-        use fuzzy_matcher::FuzzyMatcher;
-
-        let matcher = SkimMatcherV2::default();
-
-        let matches_state = match self.state {
-            Some(issue::State::Closed {
-                reason: CloseReason::Other,
-            }) => matches!(issue.state, issue::State::Closed { .. }),
-            Some(state) => issue.state == state,
-            None => true,
-        };
-
-        let matches_authored = if self.authored {
-            issue.author.you
-        } else {
-            true
-        };
-
-        let matches_authors = if !self.authors.is_empty() {
-            {
-                self.authors
-                    .iter()
-                    .any(|other| issue.author.nid == Some(**other))
-            }
-        } else {
-            true
-        };
-
-        let matches_assigned = if self.assigned {
-            issue.assignees.iter().any(|assignee| assignee.you)
-        } else {
-            true
-        };
-
-        let matches_assignees = if !self.assignees.is_empty() {
-            {
-                self.assignees.iter().any(|other| {
-                    issue
-                        .assignees
-                        .iter()
-                        .filter_map(|author| author.nid)
-                        .collect::<Vec<_>>()
-                        .contains(other)
-                })
-            }
-        } else {
-            true
-        };
-
-        let matches_search = match &self.search {
-            Some(search) => match matcher.fuzzy_match(&issue.title, search) {
-                Some(score) => score == 0 || score > 60,
-                _ => false,
-            },
-            None => true,
-        };
-
-        matches_state
-            && matches_authored
-            && matches_authors
-            && matches_assigned
-            && matches_assignees
-            && matches_search
-    }
-}
-
-impl FromStr for IssueItemFilter {
-    type Err = anyhow::Error;
-
-    fn from_str(value: &str) -> Result<Self, Self::Err> {
-        let mut state = None;
-        let mut search = String::new();
-        let mut authored = false;
-        let mut authors = vec![];
-        let mut assigned = false;
-        let mut assignees = vec![];
-
-        let mut authors_parser = |input| -> IResult<&str, Vec<&str>> {
-            preceded(
-                tag("authors:"),
-                delimited(
-                    tag("["),
-                    separated_list0(tag(","), take(56_usize)),
-                    tag("]"),
-                ),
-            )
-            .parse(input)
-        };
-
-        let mut assignees_parser = |input| -> IResult<&str, Vec<&str>> {
-            preceded(
-                tag("assignees:"),
-                delimited(
-                    tag("["),
-                    separated_list0(tag(","), take(56_usize)),
-                    tag("]"),
-                ),
-            )
-            .parse(input)
-        };
-
-        let parts = value.split(' ');
-        for part in parts {
-            match part {
-                "is:open" => state = Some(issue::State::Open),
-                "is:closed" => {
-                    state = Some(issue::State::Closed {
-                        reason: issue::CloseReason::Other,
-                    })
-                }
-                "is:solved" => {
-                    state = Some(issue::State::Closed {
-                        reason: issue::CloseReason::Solved,
-                    })
-                }
-                "is:authored" => authored = true,
-                "is:assigned" => assigned = true,
-                other => {
-                    if let Ok((_, dids)) = assignees_parser.parse(other) {
-                        for did in dids {
-                            assignees.push(Did::from_str(did)?);
-                        }
-                    } else if let Ok((_, dids)) = authors_parser.parse(other) {
-                        for did in dids {
-                            authors.push(Did::from_str(did)?);
-                        }
-                    } else {
-                        search.push_str(other);
-                    }
-                }
-            }
-        }
-
-        Ok(Self {
-            state,
-            authored,
-            authors,
-            assigned,
-            assignees,
-            search: Some(search),
-        })
     }
 }
 
@@ -546,16 +254,21 @@ impl ToTree<String> for CommentItem {
 #[cfg(test)]
 mod tests {
     use anyhow::Result;
+    use std::str::FromStr;
+
+    use radicle::issue::State;
+
+    use crate::ui::items::issue::IssueFilter;
 
     use super::*;
 
     #[test]
     fn issue_item_filter_from_str_should_succeed() -> Result<()> {
         let search = r#"is:open is:assigned assignees:[did:key:z6MkkpTPzcq1ybmjQyQpyre15JUeMvZY6toxoZVpLZ8YarsB,did:key:z6Mku8hpprWTmCv3BqkssCYDfr2feUdyLSUnycVajFo9XVAx] is:authored authors:[did:key:z6Mku8hpprWTmCv3BqkssCYDfr2feUdyLSUnycVajFo9XVAx] cli"#;
-        let actual = IssueItemFilter::from_str(search)?;
+        let actual = IssueFilter::from_str(search)?;
 
-        let expected = IssueItemFilter {
-            state: Some(issue::State::Open),
+        let expected = IssueFilter {
+            state: Some(State::Open),
             authors: vec![Did::from_str(
                 "did:key:z6Mku8hpprWTmCv3BqkssCYDfr2feUdyLSUnycVajFo9XVAx",
             )?],

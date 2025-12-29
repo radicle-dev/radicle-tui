@@ -27,7 +27,7 @@ use tui::ui::Column;
 
 use tui::BoxedAny;
 
-use crate::ui::items::{IssueItem, IssueItemFilter};
+use crate::ui::items::issue::{Issue, IssueFilter};
 
 use super::{Message, State};
 
@@ -36,7 +36,7 @@ type Widget = widget::Widget<State, Message>;
 #[derive(Clone, Default)]
 pub struct BrowserProps<'a> {
     /// Filtered issues.
-    issues: Vec<IssueItem>,
+    issues: Vec<Issue>,
     /// Issue statistics.
     stats: HashMap<String, usize>,
     /// Header columns
@@ -140,7 +140,7 @@ impl Browser {
                         .into()
                 }))
                 .content(
-                    Table::<State, Message, IssueItem, 8>::default()
+                    Table::<State, Message, Issue, 8>::default()
                         .to_widget(tx.clone())
                         .on_event(|_, s, _| {
                             let (selected, _) =
@@ -290,7 +290,7 @@ fn browse_footer<'a>(props: &BrowserProps<'a>) -> Vec<Column<'a>> {
         span::default(&props.issues.len().to_string()).dim(),
     ]);
 
-    match IssueItemFilter::from_str(&props.search)
+    match IssueFilter::from_str(&props.search)
         .unwrap_or_default()
         .state()
     {

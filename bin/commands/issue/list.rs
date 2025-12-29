@@ -39,7 +39,8 @@ use tui::{BoxedAny, Channel, Exit, PageStack};
 
 use crate::cob::issue;
 use crate::settings::{self, ThemeBundle, ThemeMode};
-use crate::ui::items::{CommentItem, IssueItem, IssueItemFilter};
+use crate::ui::items::issue::{Issue, IssueFilter};
+use crate::ui::items::CommentItem;
 use crate::ui::rm::{BrowserState, IssueDetails, IssueDetailsProps};
 use crate::ui::TerminalInfo;
 
@@ -105,7 +106,7 @@ pub struct PreviewState {
     /// If preview is visible.
     show: bool,
     /// Currently selected issue item.
-    issue: Option<IssueItem>,
+    issue: Option<Issue>,
     /// Tree selection per issue.
     selected_comments: HashMap<IssueId, Vec<CommentId>>,
     /// State of currently selected comment
@@ -156,7 +157,7 @@ pub struct HelpState {
 #[derive(Clone, Debug)]
 pub struct State {
     pages: PageStack<AppPage>,
-    browser: BrowserState<IssueItem, IssueItemFilter>,
+    browser: BrowserState<Issue, IssueFilter>,
     preview: PreviewState,
     section: Option<Section>,
     help: HelpState,
@@ -173,7 +174,7 @@ impl TryFrom<(&Context, &TerminalInfo)> for State {
         let issues = issue::all(&context.profile, &context.repository)?;
         let search =
             BufferedValue::new(context.search.clone().unwrap_or(context.filter.to_string()));
-        let filter = IssueItemFilter::from_str(&search.read()).unwrap_or_default();
+        let filter = IssueFilter::from_str(&search.read()).unwrap_or_default();
 
         let default_bundle = ThemeBundle::default();
         let theme_bundle = settings.theme.active_bundle().unwrap_or(&default_bundle);
@@ -192,7 +193,7 @@ impl TryFrom<(&Context, &TerminalInfo)> for State {
         // Convert into UI items
         let mut issues: Vec<_> = issues
             .into_iter()
-            .flat_map(|issue| IssueItem::new(&context.profile, issue).ok())
+            .flat_map(|issue| Issue::new(&context.profile, issue).ok())
             .collect();
 
         issues.sort_by(|a, b| b.timestamp.cmp(&a.timestamp));

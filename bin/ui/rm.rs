@@ -16,9 +16,9 @@ use tui::ui::theme::style;
 use tui::ui::{layout, span, BufferedValue};
 
 use super::format;
-use super::items::IssueItem;
 
 use crate::ui::items::filter::Filter;
+use crate::ui::items::issue::Issue;
 use crate::ui::items::HasId;
 
 /// A `BrowserState` represents the internal state of a browser widget.
@@ -151,12 +151,12 @@ where
 
 #[derive(Clone, Default)]
 pub struct IssueDetailsProps {
-    issue: Option<IssueItem>,
+    issue: Option<Issue>,
     dim: bool,
 }
 
 impl IssueDetailsProps {
-    pub fn issue(mut self, issue: Option<IssueItem>) -> Self {
+    pub fn issue(mut self, issue: Option<Issue>) -> Self {
         self.issue = issue;
         self
     }
