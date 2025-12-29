@@ -697,6 +697,9 @@ fn comment(channel: &Channel<Message>) -> Widget<State, Message> {
             Event::Key(Key::Char('c')) => Some(Message::Exit {
                 operation: Some(RequestedIssueOperation::Reply),
             }),
+            Event::Key(Key::Char('e')) => Some(Message::Exit {
+                operation: Some(RequestedIssueOperation::EditComment),
+            }),
             _ => None,
         })
 }
