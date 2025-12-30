@@ -373,6 +373,7 @@ impl App {
                     &notifs,
                     header.to_vec(),
                     Some("".into()),
+                    Spacing::from(1),
                     Some(Borders::BottomSides),
                 );
                 if table.changed {

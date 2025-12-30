@@ -354,6 +354,7 @@ impl App<'_> {
                     &hunks,
                     columns,
                     None,
+                    Spacing::from(1),
                     Some(Borders::BottomSides),
                 );
                 if table.changed {

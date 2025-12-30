@@ -138,6 +138,7 @@ where
                     self.items,
                     self.header.to_vec(),
                     None,
+                    Spacing::from(1),
                     if *self.show_search {
                         Some(Borders::BottomSides)
                     } else {

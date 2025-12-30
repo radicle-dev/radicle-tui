@@ -109,6 +109,7 @@ impl Show<Message> for App {
                         &self.items,
                         columns,
                         None,
+                        Spacing::from(1),
                         Some(Borders::None),
                     );
                     if table.changed {

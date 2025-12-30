@@ -308,6 +308,7 @@ pub struct Table<'a, R, const W: usize> {
     items: &'a Vec<R>,
     selected: &'a mut Option<usize>,
     columns: Vec<Column<'a>>,
+    spacing: Spacing,
     borders: Option<Borders>,
     show_scrollbar: bool,
     empty_message: Option<String>,
@@ -329,6 +330,7 @@ where
             items,
             selected,
             columns,
+            spacing: Spacing::from(1),
             empty_message,
             borders,
             show_scrollbar: true,
@@ -338,6 +340,11 @@ where
 
     pub fn dim(mut self, dim: bool) -> Self {
         self.dim = dim;
+        self
+    }
+
+    pub fn spacing(mut self, spacing: Spacing) -> Self {
+        self.spacing = spacing;
         self
     }
 }
@@ -446,7 +453,7 @@ where
             let table = ratatui::widgets::Table::default()
                 .rows(rows)
                 .widths(widths)
-                .column_spacing(1)
+                .column_spacing(self.spacing.into())
                 .row_highlight_style(style::highlight(area_focus));
 
             let table = if !area_focus && self.dim {

@@ -343,6 +343,7 @@ impl App {
                     &patches,
                     header.to_vec(),
                     Some("No patches found".into()),
+                    Spacing::from(1),
                     Some(Borders::BottomSides),
                 );
                 if table.changed {

@@ -1361,6 +1361,7 @@ pub mod v2 {
                         &issues,
                         header.to_vec(),
                         None,
+                        Spacing::from(1),
                         Some(Borders::BottomSides),
                     );
                     if table.changed {

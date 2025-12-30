@@ -558,12 +558,15 @@ where
         items: &'a Vec<R>,
         columns: Vec<Column<'a>>,
         empty_message: Option<String>,
+        spacing: Spacing,
         borders: Option<Borders>,
     ) -> Response
     where
         R: ToRow<W> + Clone,
     {
-        widget::Table::new(selected, items, columns, empty_message, borders).ui(self, frame)
+        widget::Table::new(selected, items, columns, empty_message, borders)
+            .spacing(spacing)
+            .ui(self, frame)
     }
 
     pub fn shortcuts(
