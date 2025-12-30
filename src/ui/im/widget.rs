@@ -1079,7 +1079,9 @@ impl Widget for Shortcuts {
         let mut row = vec![];
 
         while let Some(shortcut) = shortcuts.next() {
-            let short = Text::from(shortcut.0.clone()).style(ui.theme.shortcuts_keys_style);
+            let short = Text::from(shortcut.0.clone())
+                .style(ui.theme.shortcuts_keys_style)
+                .bold();
             let long = Text::from(shortcut.1.clone()).style(ui.theme.shortcuts_action_style);
             let spacer = Text::from(String::new());
             let divider = Text::from(format!(" {} ", self.divider)).style(style::gray().dim());
