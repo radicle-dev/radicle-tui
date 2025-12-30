@@ -854,6 +854,7 @@ impl TextViewState {
 
 pub struct TextView<'a> {
     text: Text<'a>,
+    footer: Option<Text<'a>>,
     borders: Option<Borders>,
     cursor: &'a mut Position,
 }
@@ -861,11 +862,13 @@ pub struct TextView<'a> {
 impl<'a> TextView<'a> {
     pub fn new(
         text: impl Into<Text<'a>>,
+        footer: Option<impl Into<Text<'a>>>,
         cursor: &'a mut Position,
         borders: Option<Borders>,
     ) -> Self {
         Self {
             text: text.into(),
+            footer: footer.map(|f| f.into()),
             borders,
             cursor,
         }
@@ -908,6 +911,15 @@ impl Widget for TextView<'_> {
             },
         ])
         .areas(area);
+        let [text_area, footer_area] = Layout::vertical([
+            Constraint::Min(1),
+            if self.footer.is_some() {
+                Constraint::Length(1)
+            } else {
+                Constraint::Length(0)
+            },
+        ])
+        .areas(text_area);
 
         let scroller = Scrollbar::default()
             .begin_symbol(None)
@@ -930,6 +942,9 @@ impl Widget for TextView<'_> {
             Paragraph::new(self.text.clone()).scroll((self.cursor.x, self.cursor.y)),
             text_area,
         );
+        if let Some(footer) = self.footer {
+            frame.render_widget(Paragraph::new(footer.clone()), footer_area);
+        }
 
         let mut state = TextViewState::new(*self.cursor);
 

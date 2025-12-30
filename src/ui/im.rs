@@ -612,7 +612,18 @@ where
         scroll: &'a mut Position,
         borders: Option<Borders>,
     ) -> Response {
-        widget::TextView::new(text, scroll, borders).ui(self, frame)
+        widget::TextView::new(text, None::<String>, scroll, borders).ui(self, frame)
+    }
+
+    pub fn text_view_with_footer<'a>(
+        &mut self,
+        frame: &mut Frame,
+        text: impl Into<Text<'a>>,
+        footer: impl Into<Text<'a>>,
+        scroll: &'a mut Position,
+        borders: Option<Borders>,
+    ) -> Response {
+        widget::TextView::new(text, Some(footer), scroll, borders).ui(self, frame)
     }
 
     pub fn centered_text_view<'a>(
