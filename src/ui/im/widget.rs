@@ -135,11 +135,11 @@ impl<'a> Container<'a> {
             len: self.len,
         };
 
-        if ui.has_input(|key| key == Key::Tab) {
+        if ui.has_global_input(|key| key == Key::Tab) {
             state.focus_next();
             response.changed = true;
         }
-        if ui.has_input(|key| key == Key::BackTab) {
+        if ui.has_global_input(|key| key == Key::BackTab) {
             state.focus_prev();
             response.changed = true;
         }

@@ -323,6 +323,16 @@ impl<M> Ui<M> {
             })
     }
 
+    pub fn has_global_input(&mut self, f: impl Fn(Key) -> bool) -> bool {
+        self.has_focus
+            && self.ctx.inputs.iter().any(|event| {
+                if let Event::Key(key) = event {
+                    return f(*key);
+                }
+                false
+            })
+    }
+
     pub fn get_input(&mut self, f: impl Fn(Key) -> bool) -> Option<Key> {
         if self.has_focus && self.is_area_focused() {
             let matches = |&event| {
