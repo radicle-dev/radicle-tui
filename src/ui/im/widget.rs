@@ -1,18 +1,21 @@
 use std::cmp;
+use std::collections::HashSet;
+use std::hash::Hash;
 
+use ratatui::symbols::border;
 use serde::{Deserialize, Serialize};
 
 use ratatui::layout::{Alignment, Direction, Layout, Position, Rect};
 use ratatui::style::{Style, Stylize};
 use ratatui::text::{Line, Span, Text};
-use ratatui::widgets::{Block, BorderType, Row, Scrollbar, ScrollbarState};
+use ratatui::widgets::{Block, BorderType, Row, Scrollbar, ScrollbarOrientation, ScrollbarState};
 use ratatui::Frame;
 use ratatui::{layout::Constraint, widgets::Paragraph};
 
 use crate::event::Key;
 use crate::ui::ext::{FooterBlock, FooterBlockType, HeaderBlock};
 use crate::ui::theme::style;
-use crate::ui::{layout, span, Spacing};
+use crate::ui::{layout, span, Spacing, ToTree};
 use crate::ui::{Column, ToRow};
 
 use super::{Borders, Context, InnerResponse, Response, Ui};
@@ -495,6 +498,194 @@ where
         }
 
         *self.selected = state.selected();
+
+        response
+    }
+}
+
+#[derive(Debug)]
+pub struct TreeState<Id>
+where
+    Id: ToString + Clone + Eq + Hash,
+{
+    pub internal: tui_tree_widget::TreeState<Id>,
+}
+
+impl<Id> Clone for TreeState<Id>
+where
+    Id: ToString + Clone + Eq + Hash,
+{
+    fn clone(&self) -> Self {
+        let mut state = tui_tree_widget::TreeState::default();
+        for path in self.internal.opened() {
+            state.open(path.to_vec());
+        }
+        state.select(self.internal.selected().to_vec());
+
+        Self { internal: state }
+    }
+}
+
+pub struct Tree<'a, R, Id>
+where
+    R: ToTree<Id> + Clone,
+    Id: ToString + Clone + Eq + Hash,
+{
+    /// Root items.
+    items: &'a Vec<R>,
+    /// Optional identifier set of opened items. If not `None`,
+    /// it will override the internal tree state.
+    opened: Option<HashSet<Vec<Id>>>,
+    /// Optional path to selected item, e.g. ["1.0", "1.0.1", "1.0.2"]. If not `None`,
+    /// it will override the internal tree state.
+    selected: &'a mut Option<Vec<Id>>,
+    /// If this widget should render its scrollbar. Default: `true`.
+    show_scrollbar: bool,
+    /// Set to `true` if the content style should be dimmed whenever the widget
+    /// has no focus.
+    dim: bool,
+    /// The borders to use.
+    borders: Option<Borders>,
+}
+
+impl<'a, R, Id> Tree<'a, R, Id>
+where
+    Id: ToString + Clone + Eq + Hash,
+    R: ToTree<Id> + Clone,
+{
+    pub fn new(
+        items: &'a Vec<R>,
+        opened: &'a Option<HashSet<Vec<Id>>>,
+        selected: &'a mut Option<Vec<Id>>,
+        borders: Option<Borders>,
+        dim: bool,
+    ) -> Self {
+        Self {
+            items,
+            selected,
+            opened: opened.clone(),
+            borders,
+            show_scrollbar: true,
+            dim,
+        }
+    }
+}
+
+impl<R, Id> Widget for Tree<'_, R, Id>
+where
+    R: ToTree<Id> + Clone,
+    Id: ToString + Clone + Eq + Hash,
+{
+    fn ui<M>(self, ui: &mut Ui<M>, frame: &mut Frame) -> Response
+    where
+        M: Clone,
+    {
+        let mut response = Response::default();
+
+        let (area, area_focus) = ui.next_area().unwrap_or_default();
+
+        // let show_scrollbar = self.show_scrollbar && self.items.len() >= area.height.into();
+        let show_scrollbar = true;
+        let has_items = !self.items.is_empty();
+
+        let mut state = TreeState {
+            internal: {
+                let mut state = tui_tree_widget::TreeState::default();
+
+                if let Some(opened) = &self.opened {
+                    if opened != state.opened() {
+                        state.close_all();
+                        for path in opened {
+                            state.open(path.to_vec());
+                        }
+                    }
+                }
+                if let Some(selected) = self.selected {
+                    state.select(selected.clone());
+                }
+                state
+            },
+        };
+
+        let mut items = vec![];
+        for item in self.items {
+            items.extend(item.rows());
+        }
+
+        let tree_style = if !area_focus && self.dim {
+            Style::default().dim()
+        } else {
+            Style::default()
+        };
+
+        let border_style = if area_focus && ui.has_focus {
+            ui.theme.focus_border_style
+        } else {
+            ui.theme.border_style
+        };
+
+        let area = render_block(frame, area, self.borders, border_style);
+
+        let tree = if show_scrollbar {
+            tui_tree_widget::Tree::new(&items)
+                .expect("all item identifiers are unique")
+                .block(
+                    Block::default()
+                        .borders(ratatui::widgets::Borders::RIGHT)
+                        .border_set(border::Set {
+                            vertical_right: " ",
+                            ..Default::default()
+                        })
+                        .border_style(if area_focus {
+                            Style::default()
+                        } else {
+                            Style::default().dim()
+                        }),
+                )
+                .experimental_scrollbar(Some(
+                    Scrollbar::new(ScrollbarOrientation::VerticalRight)
+                        .begin_symbol(None)
+                        .track_symbol(None)
+                        .end_symbol(None)
+                        .thumb_symbol("┃"),
+                ))
+                .highlight_style(style::highlight(ui.has_focus))
+                .style(tree_style)
+        } else {
+            tui_tree_widget::Tree::new(&items)
+                .expect("all item identifiers are unique")
+                .style(tree_style)
+                .highlight_style(style::highlight(ui.has_focus))
+        };
+
+        frame.render_stateful_widget(tree, area, &mut state.internal);
+
+        if let Some(key) = ui.get_input(|_| true) {
+            match key {
+                Key::Up | Key::Char('k') => {
+                    state.internal.key_up();
+                    response.changed = true;
+                }
+                Key::Down | Key::Char('j') => {
+                    state.internal.key_down();
+                    response.changed = true;
+                }
+                Key::Left | Key::Char('h')
+                    if !state.internal.selected().is_empty()
+                        && !state.internal.opened().is_empty() =>
+                {
+                    state.internal.key_left();
+                    response.changed = true;
+                }
+                Key::Right | Key::Char('l') => {
+                    state.internal.key_right();
+                    response.changed = true;
+                }
+                _ => {}
+            }
+        }
+
+        *self.selected = Some(state.internal.selected().to_vec());
 
         response
     }

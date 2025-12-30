@@ -1,7 +1,8 @@
 pub mod widget;
 
-use std::collections::VecDeque;
+use std::collections::{HashSet, VecDeque};
 use std::fmt::Debug;
+use std::hash::Hash;
 use std::rc::Rc;
 use std::time::Duration;
 
@@ -19,7 +20,7 @@ use crate::event::{Event, Key};
 use crate::store::Update;
 use crate::terminal::Terminal;
 use crate::ui::theme::Theme;
-use crate::ui::{Column, Spacing, ToRow};
+use crate::ui::{Column, Spacing, ToRow, ToTree};
 use crate::{Interrupted, Share};
 
 use crate::ui::im::widget::Widget;
@@ -567,6 +568,21 @@ where
         widget::Table::new(selected, items, columns, empty_message, borders)
             .spacing(spacing)
             .ui(self, frame)
+    }
+
+    pub fn tree<'a, R, Id>(
+        &mut self,
+        frame: &mut Frame,
+        items: &'a Vec<R>,
+        opened: &mut Option<HashSet<Vec<Id>>>,
+        selected: &mut Option<Vec<Id>>,
+        borders: Option<Borders>,
+    ) -> Response
+    where
+        R: ToTree<Id> + Clone,
+        Id: ToString + Clone + Eq + Hash,
+    {
+        widget::Tree::new(items, opened, selected, borders, false).ui(self, frame)
     }
 
     pub fn shortcuts(
