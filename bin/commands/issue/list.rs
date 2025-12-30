@@ -827,9 +827,10 @@ pub mod v2 {
 
     use anyhow::{bail, Result};
 
+    use radicle_tui::ui::ToRow;
     use ratatui::layout::{Alignment, Constraint, Layout, Position};
     use ratatui::style::Stylize;
-    use ratatui::text::{Span, Text};
+    use ratatui::text::{Line, Span, Text};
     use ratatui::{Frame, Viewport};
 
     use radicle::cob::thread::CommentId;
@@ -857,7 +858,7 @@ pub mod v2 {
     use crate::ui::items::filter::Filter;
     use crate::ui::items::issue::{Issue, IssueFilter};
     use crate::ui::items::HasId;
-    use crate::ui::TerminalInfo;
+    use crate::ui::{format, TerminalInfo};
 
     use crate::tui_issue::common::IssueOperation;
 
@@ -1504,13 +1505,133 @@ pub mod v2 {
             );
         }
 
-        pub fn show_issue(&self, frame: &mut Frame, ui: &mut im::Ui<Message>) {}
+        pub fn show_issue(&self, frame: &mut Frame, ui: &mut im::Ui<Message>) {
+            #[derive(Clone)]
+            struct Property<'a>(Span<'a>, Text<'a>);
+
+            impl<'a> ToRow<3> for Property<'a> {
+                fn to_row(&self) -> [ratatui::widgets::Cell<'_>; 3] {
+                    ["".into(), self.0.clone().into(), self.1.clone().into()]
+                }
+            }
+
+            let issues = self.issues.lock().unwrap();
+            let issues = issues
+                .iter()
+                .filter(|issue| self.state.filter.matches(issue))
+                .collect::<Vec<_>>();
+            let issue = self.state.browser.selected().and_then(|i| issues.get(i));
+            let properties = issue
+                .map(|issue| {
+                    use radicle::issue;
+
+                    let author: Text<'_> = match &issue.author.alias {
+                        Some(alias) => {
+                            if issue.author.you {
+                                Line::from(
+                                    [
+                                        span::alias(alias.as_ref()),
+                                        Span::raw(" "),
+                                        span::alias("(you)").dim().italic(),
+                                    ]
+                                    .to_vec(),
+                                )
+                                .into()
+                            } else {
+                                Line::from(
+                                    [
+                                        span::alias(alias.as_ref()),
+                                        Span::raw(" "),
+                                        span::alias(&format!(
+                                            "({})",
+                                            issue.author.human_nid.clone().unwrap_or_default()
+                                        ))
+                                        .dim()
+                                        .italic(),
+                                    ]
+                                    .to_vec(),
+                                )
+                                .into()
+                            }
+                        }
+                        None => match &issue.author.human_nid {
+                            Some(nid) => span::alias(nid).dim().into(),
+                            None => span::blank().into(),
+                        },
+                    };
+
+                    let status = match issue.state {
+                        issue::State::Open => Text::from("open").green(),
+                        issue::State::Closed { reason } => match reason {
+                            issue::CloseReason::Solved => Line::from(
+                                [
+                                    Span::from("closed").red(),
+                                    Span::raw(" "),
+                                    Span::from("(solved)").red().italic().dim(),
+                                ]
+                                .to_vec(),
+                            )
+                            .into(),
+                            issue::CloseReason::Other => Text::from("closed").red(),
+                        },
+                    };
+
+                    vec![
+                        Property(Span::from("Title"), Text::from(issue.title.clone()).bold()),
+                        Property(Span::from("Issue"), Text::from(issue.id.to_string()).cyan()),
+                        Property(Span::from("Author"), Text::from(author).magenta()),
+                        Property(
+                            Span::from("Labels"),
+                            Text::from(format::labels(&issue.labels)).blue(),
+                        ),
+                        Property(Span::from("Status"), status),
+                    ]
+                })
+                .unwrap_or_default();
+
+            ui.layout(
+                Layout::vertical([Constraint::Length(7), Constraint::Fill(1)]),
+                Some(1),
+                |ui| {
+                    ui.table(
+                        frame,
+                        &mut None,
+                        &properties,
+                        vec![
+                            Column::new("", Constraint::Length(1)),
+                            Column::new("", Constraint::Length(12)),
+                            Column::new("", Constraint::Fill(1)),
+                        ],
+                        None,
+                        Spacing::from(0),
+                        Some(Borders::Top),
+                    );
+                    ui.table(
+                        frame,
+                        &mut None,
+                        &Vec::<Property>::new(),
+                        vec![],
+                        None,
+                        Spacing::from(0),
+                        Some(Borders::BottomSides),
+                    );
+                },
+            );
+        }
 
         pub fn show_issue_context(&self, frame: &mut Frame, ui: &mut im::Ui<Message>) {}
 
         pub fn show_issue_shortcuts(&self, frame: &mut Frame, ui: &mut im::Ui<Message>) {}
 
-        pub fn show_comment(&self, frame: &mut Frame, ui: &mut im::Ui<Message>) {}
+        pub fn show_comment(&self, frame: &mut Frame, ui: &mut im::Ui<Message>) {
+            let (text, mut cursor) = { ("", self.state.preview.comment.clone().cursor()) };
+            let text_view = ui.text_view(frame, text, &mut cursor, Some(Borders::All));
+            // if text_view.changed {
+            //     ui.send_message(Message::Changed(Change::Help {
+            //         state: TextViewState::new(cursor),
+            //     }))
+            // }
+        }
 
         pub fn show_comment_context(&self, frame: &mut Frame, ui: &mut im::Ui<Message>) {}
 
