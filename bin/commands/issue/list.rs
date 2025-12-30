@@ -827,6 +827,7 @@ pub mod v2 {
 
     use anyhow::{bail, Result};
 
+    use radicle_tui::ui::im::widget::TreeState;
     use radicle_tui::ui::ToRow;
     use ratatui::layout::{Alignment, Constraint, Layout, Position};
     use ratatui::style::Stylize;
@@ -857,7 +858,7 @@ pub mod v2 {
     use crate::settings::{self, ThemeBundle, ThemeMode};
     use crate::ui::items::filter::Filter;
     use crate::ui::items::issue::{Issue, IssueFilter};
-    use crate::ui::items::HasId;
+    use crate::ui::items::{CommentItem, HasId};
     use crate::ui::{format, TerminalInfo};
 
     use crate::tui_issue::common::IssueOperation;
@@ -1026,6 +1027,8 @@ pub mod v2 {
         Page { page: state::Page },
         Section { state: ContainerState },
         Issues { state: TableState },
+        Comments { state: TreeState<String> },
+        CommentBody { state: TextViewState },
         ShowSearch { state: bool, apply: bool },
         ShowPreview { state: bool },
         Search { state: BufferedValue<TextEditState> },
@@ -1130,7 +1133,17 @@ pub mod v2 {
 
             let preview = Preview {
                 show: true,
-                issue: browser.selected().and_then(|s| issues.get(s)).cloned(),
+                issue: browser
+                    .selected()
+                    .and_then(|s| {
+                        issues
+                            .iter()
+                            .filter(|item| filter.matches(item))
+                            .collect::<Vec<_>>()
+                            .get(s)
+                            .cloned()
+                    })
+                    .cloned(),
                 selected_comments,
                 comment: TextViewState::new(Position::default()),
             };
@@ -1138,7 +1151,7 @@ pub mod v2 {
             let section = if context.comment.is_some() {
                 state::Section::Issue
             } else {
-                state::Section::Browser
+                state::Section::Comment
             };
 
             Ok(Self {
@@ -1177,15 +1190,42 @@ pub mod v2 {
                         None
                     }
                     Change::Issues { state } => {
+                        let issues = self.issues.lock().unwrap();
+                        let issues = issues
+                            .clone()
+                            .into_iter()
+                            .filter(|issue| self.state.filter.matches(issue))
+                            .collect::<Vec<_>>();
+
                         self.state.browser.issues = state;
+                        self.state.preview.issue = self
+                            .state
+                            .browser
+                            .selected()
+                            .and_then(|s| issues.get(s).cloned());
+                        self.state.preview.comment = TextViewState::new(Position::default());
                         None
                     }
                     Change::ShowSearch { state, apply } => {
                         if state {
-                            self.state.sections = ContainerState::new(3, None);
+                            self.state.sections =
+                                ContainerState::new(self.state.sections.len(), None);
                             self.state.browser.show_search = true;
                         } else {
-                            self.state.sections = ContainerState::new(3, Some(0));
+                            let issues = self.issues.lock().unwrap();
+                            let issues = issues
+                                .clone()
+                                .into_iter()
+                                .filter(|issue| self.state.filter.matches(issue))
+                                .collect::<Vec<_>>();
+
+                            self.state.preview.issue = self
+                                .state
+                                .browser
+                                .selected()
+                                .and_then(|s| issues.get(s).cloned());
+                            self.state.sections =
+                                ContainerState::new(self.state.sections.len(), Some(0));
                             self.state.browser.show_search = false;
 
                             if apply {
@@ -1202,13 +1242,48 @@ pub mod v2 {
                     }
                     Change::ShowPreview { state } => {
                         self.state.preview.show = state;
+                        self.state.sections =
+                            ContainerState::new(if state { 3 } else { 1 }, Some(0));
                         None
                     }
                     Change::Search { state } => {
+                        let issues = self.issues.lock().unwrap();
+                        let issues = issues
+                            .clone()
+                            .into_iter()
+                            .filter(|issue| self.state.filter.matches(issue))
+                            .collect::<Vec<_>>();
+
                         self.state.browser.search = state.clone();
                         self.state.filter =
                             IssueFilter::from_str(&state.read().text).unwrap_or_default();
                         self.state.browser.issues.select_first();
+
+                        self.state.preview.issue = self
+                            .state
+                            .browser
+                            .selected()
+                            .and_then(|s| issues.get(s).cloned());
+                        None
+                    }
+                    Change::Comments { state } => {
+                        log::info!("Change::Comments: {state:?}");
+                        if let Some(item) = &self.state.preview.issue {
+                            self.state.preview.selected_comments.insert(
+                                item.id,
+                                state
+                                    .internal
+                                    .selected()
+                                    .iter()
+                                    .map(|s| CommentId::from_str(s).unwrap())
+                                    .collect(),
+                            );
+                        }
+                        self.state.preview.comment = TextViewState::new(Position::default());
+                        None
+                    }
+                    Change::CommentBody { state } => {
+                        self.state.preview.comment = state;
                         None
                     }
                     Change::Help { state } => {
@@ -1226,28 +1301,33 @@ pub mod v2 {
                 match self.state.page.clone() {
                     state::Page::Main => {
                         let show_search = self.state.browser.show_search;
-                        let mut page_focus = if show_search { Some(1) } else { Some(0) };
+                        let page_focus = if show_search { Some(1) } else { Some(0) };
 
-                        ui.container(
+                        ui.layout(
                             Layout::vertical([Constraint::Fill(1), Constraint::Length(2)]),
-                            &mut page_focus,
+                            page_focus,
                             |ui| {
-                                let mut section_focus = self.state.sections.focus();
+                                let (mut focus, count) =
+                                    { (self.state.sections.focus(), self.state.sections.len()) };
 
                                 let group = ui.container(
                                     im::Layout::Expandable3 {
                                         left_only: !self.state.preview.show,
                                     },
-                                    &mut section_focus,
+                                    &mut focus,
                                     |ui| {
                                         self.show_browser(frame, ui);
                                         self.show_issue(frame, ui);
                                         self.show_comment(frame, ui);
                                     },
                                 );
+
                                 if group.response.changed {
+                                    log::info!("section: {:?}", focus);
+                                    log::info!("response: {:?}", group.response);
+
                                     ui.send_message(Message::Changed(Change::Section {
-                                        state: ContainerState::new(3, section_focus),
+                                        state: ContainerState::new(count, focus),
                                     }));
                                 }
 
@@ -1258,7 +1338,7 @@ pub mod v2 {
                                     }),
                                     Some(0),
                                     |ui| {
-                                        if let Some(section) = section_focus {
+                                        if let Some(section) = focus {
                                             match Section::try_from(section).unwrap_or_default() {
                                                 Section::Browser => {
                                                     self.show_browser_context(frame, ui);
@@ -1589,6 +1669,10 @@ pub mod v2 {
                 })
                 .unwrap_or_default();
 
+            let root = self.state.preview.root_comments();
+            let mut opened = Some(self.state.preview.opened_comments());
+            let mut selected = Some(self.state.preview.selected_comment_ids());
+
             ui.layout(
                 Layout::vertical([Constraint::Length(7), Constraint::Fill(1)]),
                 Some(1),
@@ -1606,36 +1690,142 @@ pub mod v2 {
                         Spacing::from(0),
                         Some(Borders::Top),
                     );
-                    ui.table(
+                    let comments = ui.tree(
                         frame,
-                        &mut None,
-                        &Vec::<Property>::new(),
-                        vec![],
-                        None,
-                        Spacing::from(0),
+                        &root,
+                        &mut opened,
+                        &mut selected,
                         Some(Borders::BottomSides),
                     );
+                    if comments.changed {
+                        let mut state = tui_tree_widget::TreeState::default();
+                        if let Some(opened) = opened {
+                            for open in opened {
+                                state.open(open);
+                            }
+                        }
+                        if let Some(selected) = selected {
+                            state.select(selected);
+                        }
+
+                        ui.send_message(Message::Changed(Change::Comments {
+                            state: TreeState { internal: state },
+                        }));
+                    }
                 },
             );
         }
 
-        pub fn show_issue_context(&self, frame: &mut Frame, ui: &mut im::Ui<Message>) {}
-
-        pub fn show_issue_shortcuts(&self, frame: &mut Frame, ui: &mut im::Ui<Message>) {}
-
-        pub fn show_comment(&self, frame: &mut Frame, ui: &mut im::Ui<Message>) {
-            let (text, mut cursor) = { ("", self.state.preview.comment.clone().cursor()) };
-            let text_view = ui.text_view(frame, text, &mut cursor, Some(Borders::All));
-            // if text_view.changed {
-            //     ui.send_message(Message::Changed(Change::Help {
-            //         state: TextViewState::new(cursor),
-            //     }))
-            // }
+        pub fn show_issue_context(&self, frame: &mut Frame, ui: &mut im::Ui<Message>) {
+            ui.column_bar(
+                frame,
+                [
+                    Column::new(
+                        Span::raw(" ".to_string())
+                            .into_left_aligned_line()
+                            .style(ui.theme().bar_on_black_style),
+                        Constraint::Fill(1),
+                    ),
+                    Column::new(
+                        Span::raw(" ")
+                            .into_right_aligned_line()
+                            .cyan()
+                            .dim()
+                            .reversed(),
+                        Constraint::Length(6),
+                    ),
+                ]
+                .to_vec(),
+                Spacing::from(0),
+                Some(Borders::None),
+            );
         }
 
-        pub fn show_comment_context(&self, frame: &mut Frame, ui: &mut im::Ui<Message>) {}
+        pub fn show_issue_shortcuts(&self, frame: &mut Frame, ui: &mut im::Ui<Message>) {
+            let shortcuts = vec![("e", "edit"), ("c", "reply")];
+            let global_shortcuts = vec![("p", "toggle preview"), ("?", "help")];
 
-        pub fn show_comment_shortcuts(&self, frame: &mut Frame, ui: &mut im::Ui<Message>) {}
+            ui.layout(
+                Layout::horizontal([Constraint::Fill(1), Constraint::Length(30)]),
+                None,
+                |ui| {
+                    ui.shortcuts(frame, &shortcuts, '∙', Alignment::Left);
+                    ui.shortcuts(frame, &global_shortcuts, '∙', Alignment::Right);
+                },
+            );
+        }
+
+        pub fn show_comment(&self, frame: &mut Frame, ui: &mut im::Ui<Message>) {
+            let (text, footer, mut cursor) = {
+                let comment = self.state.preview.selected_comment();
+                let body: String = comment
+                    .map(|comment| comment.body.clone())
+                    .unwrap_or_default();
+                let reactions = comment
+                    .map(|comment| {
+                        let reactions = comment.accumulated_reactions().iter().fold(
+                            String::new(),
+                            |all, (r, acc)| {
+                                if *acc > 1_usize {
+                                    [all, format!("{r}{acc} ")].concat()
+                                } else {
+                                    [all, format!("{r} ")].concat()
+                                }
+                            },
+                        );
+                        reactions
+                    })
+                    .unwrap_or_default();
+
+                (body, reactions, self.state.preview.comment.clone().cursor())
+            };
+            let comment =
+                ui.text_view_with_footer(frame, text, footer, &mut cursor, Some(Borders::All));
+            if comment.changed {
+                ui.send_message(Message::Changed(Change::CommentBody {
+                    state: TextViewState::new(cursor),
+                }))
+            }
+        }
+
+        pub fn show_comment_context(&self, frame: &mut Frame, ui: &mut im::Ui<Message>) {
+            ui.column_bar(
+                frame,
+                [
+                    Column::new(
+                        Span::raw(" ".to_string())
+                            .into_left_aligned_line()
+                            .style(ui.theme().bar_on_black_style),
+                        Constraint::Fill(1),
+                    ),
+                    Column::new(
+                        Span::raw(" ")
+                            .into_right_aligned_line()
+                            .cyan()
+                            .dim()
+                            .reversed(),
+                        Constraint::Length(6),
+                    ),
+                ]
+                .to_vec(),
+                Spacing::from(0),
+                Some(Borders::None),
+            );
+        }
+
+        pub fn show_comment_shortcuts(&self, frame: &mut Frame, ui: &mut im::Ui<Message>) {
+            let shortcuts = vec![("e", "edit"), ("c", "reply")];
+            let global_shortcuts = vec![("p", "toggle preview"), ("?", "help")];
+
+            ui.layout(
+                Layout::horizontal([Constraint::Fill(1), Constraint::Length(30)]),
+                None,
+                |ui| {
+                    ui.shortcuts(frame, &shortcuts, '∙', Alignment::Left);
+                    ui.shortcuts(frame, &global_shortcuts, '∙', Alignment::Right);
+                },
+            );
+        }
 
         fn show_help_text(&self, frame: &mut Frame, ui: &mut im::Ui<Message>) {
             ui.column_bar(
