@@ -457,7 +457,7 @@ where
                 .rows(rows)
                 .widths(widths)
                 .column_spacing(self.spacing.into())
-                .row_highlight_style(style::highlight(area_focus));
+                .row_highlight_style(style::highlight(ui.has_focus));
 
             let table = if !area_focus && self.dim {
                 table.dim()
