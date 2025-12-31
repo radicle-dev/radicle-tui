@@ -375,7 +375,7 @@ where
             },
         };
 
-        let border_style = if area_focus && ui.has_focus {
+        let border_style = if ui.has_focus {
             ui.theme.focus_border_style
         } else {
             ui.theme.border_style
