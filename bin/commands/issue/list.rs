@@ -1026,8 +1026,8 @@ pub mod v2 {
     pub enum Change {
         Page { page: state::Page },
         Section { state: ContainerState },
-        Issues { state: TableState },
-        Comments { state: TreeState<String> },
+        Issue { state: TableState },
+        Comment { state: TreeState<String> },
         CommentBody { state: TextViewState },
         ShowSearch { state: bool, apply: bool },
         ShowPreview { state: bool },
@@ -1072,7 +1072,7 @@ pub mod v2 {
 
             let default_bundle = ThemeBundle::default();
             let theme_bundle = settings.theme.active_bundle().unwrap_or(&default_bundle);
-            let theme = match settings.theme.mode() {
+            let _theme = match settings.theme.mode() {
                 ThemeMode::Auto => {
                     if terminal_info.is_dark() {
                         theme_bundle.dark.clone()
@@ -1189,7 +1189,7 @@ pub mod v2 {
                         self.state.sections = state;
                         None
                     }
-                    Change::Issues { state } => {
+                    Change::Issue { state } => {
                         let issues = self.issues.lock().unwrap();
                         let issues = issues
                             .clone()
@@ -1266,7 +1266,7 @@ pub mod v2 {
                             .and_then(|s| issues.get(s).cloned());
                         None
                     }
-                    Change::Comments { state } => {
+                    Change::Comment { state } => {
                         log::info!("Change::Comments: {state:?}");
                         if let Some(item) = &self.state.preview.issue {
                             self.state.preview.selected_comments.insert(
@@ -1323,9 +1323,6 @@ pub mod v2 {
                                 );
 
                                 if group.response.changed {
-                                    log::info!("section: {:?}", focus);
-                                    log::info!("response: {:?}", group.response);
-
                                     ui.send_message(Message::Changed(Change::Section {
                                         state: ContainerState::new(count, focus),
                                     }));
@@ -1417,7 +1414,9 @@ pub mod v2 {
                 .filter(|patch| self.state.filter.matches(patch))
                 .cloned()
                 .collect::<Vec<_>>();
-            let mut selected = self.state.browser.issues.selected();
+            let browser = &self.state.browser;
+            let preview = &self.state.preview;
+            let mut selected = browser.issues.selected();
 
             let header = [
                 Column::new(" ● ", Constraint::Length(3)),
@@ -1446,14 +1445,13 @@ pub mod v2 {
                         Some(Borders::BottomSides),
                     );
                     if table.changed {
-                        ui.send_message(Message::Changed(Change::Issues {
+                        ui.send_message(Message::Changed(Change::Issue {
                             state: TableState::new(selected),
                         }));
                     }
                 },
             );
 
-            // TODO(erikli): Should only work if table has focus
             if ui.has_input(|key| key == Key::Char('/')) {
                 ui.send_message(Message::Changed(Change::ShowSearch {
                     state: true,
@@ -1467,16 +1465,34 @@ pub mod v2 {
                         operation: Some(IssueOperation::Show { id: issue.id }),
                     });
                 }
-                // if ui.has_input(|key| key == Key::Char('d')) {
-                //     ui.send_message(Message::Exit {
-                //         operation: Some(IssueOperation::Diff { id: issue.id }),
-                //     });
-                // }
-                // if ui.has_input(|key| key == Key::Char('c')) {
-                //     ui.send_message(Message::Exit {
-                //         operation: Some(IssueOperation::Checkout { id: issue.id }),
-                //     });
-                // }
+
+                if ui.has_input(|key| key == Key::Char('e')) {
+                    ui.send_message(Message::Exit {
+                        operation: Some(IssueOperation::Edit {
+                            id: issue.id,
+                            comment_id: preview.selected_comment().map(|c| c.id),
+                            search: browser.search.read().text,
+                        }),
+                    });
+                }
+
+                if ui.has_input(|key| key == Key::Char('s')) {
+                    ui.send_message(Message::Exit {
+                        operation: Some(IssueOperation::Solve { id: issue.id }),
+                    });
+                }
+
+                if ui.has_input(|key| key == Key::Char('l')) {
+                    ui.send_message(Message::Exit {
+                        operation: Some(IssueOperation::Close { id: issue.id }),
+                    });
+                }
+
+                if ui.has_input(|key| key == Key::Char('o')) {
+                    ui.send_message(Message::Exit {
+                        operation: Some(IssueOperation::Reopen { id: issue.id }),
+                    });
+                }
             }
         }
 
@@ -1669,9 +1685,14 @@ pub mod v2 {
                 })
                 .unwrap_or_default();
 
-            let root = self.state.preview.root_comments();
-            let mut opened = Some(self.state.preview.opened_comments());
-            let mut selected = Some(self.state.preview.selected_comment_ids());
+            let browser = &self.state.browser;
+            let search = browser.search.read();
+
+            let preview = &self.state.preview;
+            let comment = preview.selected_comment();
+            let root = preview.root_comments();
+            let mut opened = Some(preview.opened_comments());
+            let mut selected = Some(preview.selected_comment_ids());
 
             ui.layout(
                 Layout::vertical([Constraint::Length(7), Constraint::Fill(1)]),
@@ -1708,9 +1729,31 @@ pub mod v2 {
                             state.select(selected);
                         }
 
-                        ui.send_message(Message::Changed(Change::Comments {
+                        ui.send_message(Message::Changed(Change::Comment {
                             state: TreeState { internal: state },
                         }));
+                    }
+
+                    if let Some(issue) = issue {
+                        if ui.has_input(|key| key == Key::Char('c')) {
+                            ui.send_message(Message::Exit {
+                                operation: Some(IssueOperation::Comment {
+                                    id: issue.id,
+                                    reply_to: comment.map(|c| c.id),
+                                    search: search.text.clone(),
+                                }),
+                            });
+                        }
+
+                        if ui.has_input(|key| key == Key::Char('e')) {
+                            ui.send_message(Message::Exit {
+                                operation: Some(IssueOperation::Edit {
+                                    id: issue.id,
+                                    comment_id: comment.map(|c| c.id),
+                                    search: search.text,
+                                }),
+                            });
+                        }
                     }
                 },
             );
