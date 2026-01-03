@@ -562,6 +562,7 @@ where
         )
     }
 
+    #[allow(clippy::too_many_arguments)]
     pub fn table<'a, R, const W: usize>(
         &mut self,
         frame: &mut Frame,
@@ -580,10 +581,10 @@ where
             .ui(self, frame)
     }
 
-    pub fn tree<'a, R, Id>(
+    pub fn tree<R, Id>(
         &mut self,
         frame: &mut Frame,
-        items: &'a Vec<R>,
+        items: &'_ Vec<R>,
         opened: &mut Option<HashSet<Vec<Id>>>,
         selected: &mut Option<Vec<Id>>,
         borders: Option<Borders>,

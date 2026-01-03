@@ -581,13 +581,6 @@ where
         M: Clone,
     {
         let mut response = Response::default();
-
-        let (area, area_focus) = ui.next_area().unwrap_or_default();
-
-        // let show_scrollbar = self.show_scrollbar && self.items.len() >= area.height.into();
-        let show_scrollbar = true;
-        let has_items = !self.items.is_empty();
-
         let mut state = TreeState {
             internal: {
                 let mut state = tui_tree_widget::TreeState::default();
@@ -612,20 +605,21 @@ where
             items.extend(item.rows());
         }
 
+        let (area, area_focus) = ui.next_area().unwrap_or_default();
+        let border_style = if area_focus && ui.has_focus {
+            ui.theme.focus_border_style
+        } else {
+            ui.theme.border_style
+        };
+        let area = render_block(frame, area, self.borders, border_style);
+
         let tree_style = if !area_focus && self.dim {
             Style::default().dim()
         } else {
             Style::default()
         };
 
-        let border_style = if area_focus && ui.has_focus {
-            ui.theme.focus_border_style
-        } else {
-            ui.theme.border_style
-        };
-
-        let area = render_block(frame, area, self.borders, border_style);
-
+        let show_scrollbar = self.show_scrollbar && self.items.len() >= area.height.into();
         let tree = if show_scrollbar {
             tui_tree_widget::Tree::new(&items)
                 .expect("all item identifiers are unique")
