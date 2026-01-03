@@ -2,7 +2,6 @@ pub mod format;
 pub mod im;
 pub mod items;
 pub mod layout;
-pub mod rm;
 pub mod span;
 
 #[derive(Clone, Debug)]
