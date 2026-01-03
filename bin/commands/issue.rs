@@ -210,7 +210,7 @@ pub async fn run(options: Options, ctx: impl Context) -> anyhow::Result<()> {
                 let rid = options.repo.unwrap_or(rid);
                 let repository = profile.storage.repository(rid)?;
 
-                let context = list::v2::Context {
+                let context = list::Context {
                     profile,
                     repository,
                     filter: opts.filter.clone(),
@@ -219,7 +219,7 @@ pub async fn run(options: Options, ctx: impl Context) -> anyhow::Result<()> {
                     comment: state.comment_id,
                 };
 
-                let tui = list::v2::Tui::new(context, terminal_info.clone());
+                let tui = list::Tui::new(context, terminal_info.clone());
                 let selection = tui.run().await?;
 
                 if opts.json {
