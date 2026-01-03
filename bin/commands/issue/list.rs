@@ -1532,22 +1532,41 @@ pub mod v2 {
         }
 
         fn show_browser_context(&self, frame: &mut Frame, ui: &mut im::Ui<Message>) {
+            use radicle::issue::{CloseReason, State};
+
             let context = {
                 let issues = self.issues.lock().unwrap();
-                let search = self.state.browser.search.read().text;
-                let total_count = issues.len();
-                let filtered_count = issues
+                let filter = &self.state.filter;
+                let all = issues.iter().collect::<Vec<_>>();
+                let filtered = issues
                     .iter()
-                    .filter(|issue| self.state.filter.matches(issue))
-                    .collect::<Vec<_>>()
-                    .len();
+                    .filter(|issue| filter.matches(issue))
+                    .collect::<Vec<_>>();
 
-                let filtered_counts = format!(" {filtered_count}/{total_count} ");
+                let browser = &self.state.browser;
+                let search = browser.search.read().text;
 
-                vec![
+                let mut open = 0;
+                let mut other = 0;
+                let mut solved = 0;
+                for issue in &filtered {
+                    match issue.state {
+                        State::Open => open += 1,
+                        State::Closed {
+                            reason: CloseReason::Other,
+                        } => other += 1,
+                        State::Closed {
+                            reason: CloseReason::Solved,
+                        } => solved += 1,
+                    }
+                }
+                let closed = solved + other;
+
+                let filtered_counts = format!(" {}/{} ", filtered.len(), issues.len());
+                let mut columns = vec![
                     Column::new(
-                        Span::raw(" Search ".to_string()).cyan().dim().reversed(),
-                        Constraint::Length(8),
+                        Span::raw(" Issue ".to_string()).cyan().dim().reversed(),
+                        Constraint::Length(7),
                     ),
                     Column::new(
                         Span::raw(format!(" {search} "))
@@ -1557,15 +1576,56 @@ pub mod v2 {
                             .dim(),
                         Constraint::Fill(1),
                     ),
-                    Column::new(
-                        Span::raw(filtered_counts.clone())
-                            .into_right_aligned_line()
-                            .cyan()
-                            .dim()
-                            .reversed(),
-                        Constraint::Length(filtered_counts.chars().count() as u16),
-                    ),
-                ]
+                ];
+
+                if filter.state().is_none() {
+                    columns.extend_from_slice(&[
+                        Column::new(
+                            Span::raw(" ● ")
+                                .into_right_aligned_line()
+                                .style(ui.theme().bar_on_black_style)
+                                .green()
+                                .dim(),
+                            Constraint::Length(3),
+                        ),
+                        Column::new(
+                            Span::from(open.to_string())
+                                .style(ui.theme().bar_on_black_style)
+                                .into_right_aligned_line(),
+                            Constraint::Length(open.to_string().chars().count() as u16),
+                        ),
+                        Column::new(
+                            Span::raw(" ● ")
+                                .style(ui.theme().bar_on_black_style)
+                                .into_right_aligned_line()
+                                .red()
+                                .dim(),
+                            Constraint::Length(3),
+                        ),
+                        Column::new(
+                            Span::from(closed.to_string())
+                                .style(ui.theme().bar_on_black_style)
+                                .into_right_aligned_line(),
+                            Constraint::Length(closed.to_string().chars().count() as u16),
+                        ),
+                        Column::new(
+                            Span::from(" ")
+                                .style(ui.theme().bar_on_black_style)
+                                .into_right_aligned_line(),
+                            Constraint::Length(1),
+                        ),
+                    ]);
+                }
+
+                columns.extend_from_slice(&[Column::new(
+                    Span::raw(filtered_counts.clone())
+                        .into_right_aligned_line()
+                        .cyan()
+                        .dim()
+                        .reversed(),
+                    Constraint::Length(filtered_counts.chars().count() as u16),
+                )]);
+                columns
             };
 
             ui.column_bar(frame, context, Spacing::from(0), Some(Borders::None));
@@ -1764,18 +1824,14 @@ pub mod v2 {
                 frame,
                 [
                     Column::new(
+                        Span::raw(" Comment ".to_string()).cyan().dim().reversed(),
+                        Constraint::Length(9),
+                    ),
+                    Column::new(
                         Span::raw(" ".to_string())
                             .into_left_aligned_line()
                             .style(ui.theme().bar_on_black_style),
                         Constraint::Fill(1),
-                    ),
-                    Column::new(
-                        Span::raw(" ")
-                            .into_right_aligned_line()
-                            .cyan()
-                            .dim()
-                            .reversed(),
-                        Constraint::Length(6),
                     ),
                 ]
                 .to_vec(),
@@ -1836,18 +1892,14 @@ pub mod v2 {
                 frame,
                 [
                     Column::new(
+                        Span::raw(" Comment ".to_string()).cyan().dim().reversed(),
+                        Constraint::Length(9),
+                    ),
+                    Column::new(
                         Span::raw(" ".to_string())
                             .into_left_aligned_line()
                             .style(ui.theme().bar_on_black_style),
                         Constraint::Fill(1),
-                    ),
-                    Column::new(
-                        Span::raw(" ")
-                            .into_right_aligned_line()
-                            .cyan()
-                            .dim()
-                            .reversed(),
-                        Constraint::Length(6),
                     ),
                 ]
                 .to_vec(),
