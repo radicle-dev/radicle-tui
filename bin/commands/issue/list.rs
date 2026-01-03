@@ -835,20 +835,18 @@ pub mod v2 {
     use ratatui::{Frame, Viewport};
 
     use radicle::cob::thread::CommentId;
-    use radicle::git::Oid;
     use radicle::issue::IssueId;
     use radicle::storage::git::Repository;
     use radicle::Profile;
 
     use radicle_tui as tui;
 
-    use tui::event::{Event, Key};
+    use tui::event::Key;
     use tui::store;
     use tui::task::EmptyProcessors;
     use tui::ui::im;
     use tui::ui::im::widget::{ContainerState, TableState, TextEditState, TextViewState, Window};
     use tui::ui::im::{Borders, Show};
-    use tui::ui::theme::Theme;
     use tui::ui::Column;
     use tui::ui::{span, BufferedValue, Spacing};
     use tui::{Channel, Exit};
@@ -858,7 +856,7 @@ pub mod v2 {
     use crate::settings::{self, ThemeBundle, ThemeMode};
     use crate::ui::items::filter::Filter;
     use crate::ui::items::issue::{Issue, IssueFilter};
-    use crate::ui::items::{CommentItem, HasId};
+    use crate::ui::items::HasId;
     use crate::ui::{format, TerminalInfo};
 
     use crate::tui_issue::common::IssueOperation;
@@ -1350,10 +1348,8 @@ pub mod v2 {
                                                     self.show_comment_shortcuts(frame, ui);
                                                 }
                                             }
-                                        } else {
-                                            if show_search {
-                                                self.show_browser_search(frame, ui);
-                                            }
+                                        } else if show_search {
+                                            self.show_browser_search(frame, ui);
                                         }
                                     },
                                 );
@@ -1537,7 +1533,6 @@ pub mod v2 {
             let context = {
                 let issues = self.issues.lock().unwrap();
                 let filter = &self.state.filter;
-                let all = issues.iter().collect::<Vec<_>>();
                 let filtered = issues
                     .iter()
                     .filter(|issue| filter.matches(issue))
@@ -1735,7 +1730,7 @@ pub mod v2 {
                     vec![
                         Property(Span::from("Title"), Text::from(issue.title.clone()).bold()),
                         Property(Span::from("Issue"), Text::from(issue.id.to_string()).cyan()),
-                        Property(Span::from("Author"), Text::from(author).magenta()),
+                        Property(Span::from("Author"), author.magenta()),
                         Property(
                             Span::from("Labels"),
                             Text::from(format::labels(&issue.labels)).blue(),
