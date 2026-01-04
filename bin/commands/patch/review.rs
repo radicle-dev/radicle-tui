@@ -23,10 +23,10 @@ use radicle_tui as tui;
 use tui::event::Key;
 use tui::store;
 use tui::task::EmptyProcessors;
+use tui::ui::layout::Spacing;
 use tui::ui::span;
-use tui::ui::widget::{ContainerState, TableState, TextViewState, Window};
-use tui::ui::{Borders, Context, Show, Ui};
-use tui::ui::{Column, Spacing};
+use tui::ui::widget::{Borders, Column, ContainerState, TableState, TextViewState, Window};
+use tui::ui::{Context, Show, Ui};
 use tui::{Channel, Exit};
 
 use crate::git::HunkState;

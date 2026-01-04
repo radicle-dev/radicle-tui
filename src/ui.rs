@@ -26,14 +26,10 @@ use tui_tree_widget::TreeItem;
 use crate::event::{Event, Key};
 use crate::store::Update;
 use crate::terminal::Terminal;
+use crate::ui::layout::Spacing;
 use crate::ui::theme::Theme;
-use crate::ui::widget::{AddContentFn, Widget};
+use crate::ui::widget::{AddContentFn, Borders, Column, Widget};
 use crate::{Interrupted, Share};
-
-pub const RENDER_WIDTH_XSMALL: usize = 50;
-pub const RENDER_WIDTH_SMALL: usize = 70;
-pub const RENDER_WIDTH_MEDIUM: usize = 150;
-pub const RENDER_WIDTH_LARGE: usize = usize::MAX;
 
 const RENDERING_TICK_RATE: Duration = Duration::from_millis(250);
 
@@ -186,17 +182,6 @@ impl<M> Context<M> {
     pub fn clear_inputs(&mut self) {
         self.inputs.clear();
     }
-}
-
-/// `Borders` defines which borders should be drawn around a widget.
-pub enum Borders {
-    None,
-    Spacer { top: usize, left: usize },
-    All,
-    Top,
-    Sides,
-    Bottom,
-    BottomSides,
 }
 
 /// A `Layout` is used to support pre-defined layouts. It either represents
@@ -666,99 +651,6 @@ where
                 .ui(self, frame),
             _ => widget::TextEdit::new(text, cursor, borders).ui(self, frame),
         }
-    }
-}
-
-#[derive(Clone, Debug, Default)]
-pub struct ColumnView {
-    small: bool,
-    medium: bool,
-    large: bool,
-}
-
-impl ColumnView {
-    pub fn all() -> Self {
-        Self {
-            small: true,
-            medium: true,
-            large: true,
-        }
-    }
-
-    pub fn small(mut self) -> Self {
-        self.small = true;
-        self
-    }
-
-    pub fn medium(mut self) -> Self {
-        self.medium = true;
-        self
-    }
-
-    pub fn large(mut self) -> Self {
-        self.large = true;
-        self
-    }
-}
-
-#[derive(Clone, Debug)]
-pub struct Column<'a> {
-    pub text: Text<'a>,
-    pub width: Constraint,
-    pub skip: bool,
-    pub view: ColumnView,
-}
-
-impl<'a> Column<'a> {
-    pub fn new(text: impl Into<Text<'a>>, width: Constraint) -> Self {
-        Self {
-            text: text.into(),
-            width,
-            skip: false,
-            view: ColumnView::all(),
-        }
-    }
-
-    pub fn skip(mut self, skip: bool) -> Self {
-        self.skip = skip;
-        self
-    }
-
-    pub fn hide_small(mut self) -> Self {
-        self.view = ColumnView::default().medium().large();
-        self
-    }
-
-    pub fn hide_medium(mut self) -> Self {
-        self.view = ColumnView::default().large();
-        self
-    }
-
-    pub fn displayed(&self, area_width: usize) -> bool {
-        if area_width < RENDER_WIDTH_SMALL {
-            self.view.small
-        } else if area_width < RENDER_WIDTH_MEDIUM {
-            self.view.medium
-        } else if area_width < RENDER_WIDTH_LARGE {
-            self.view.large
-        } else {
-            true
-        }
-    }
-}
-
-#[derive(Default)]
-pub struct Spacing(u16);
-
-impl From<u16> for Spacing {
-    fn from(value: u16) -> Self {
-        Self(value)
-    }
-}
-
-impl From<Spacing> for u16 {
-    fn from(spacing: Spacing) -> Self {
-        spacing.0
     }
 }
 

@@ -22,8 +22,11 @@ use tui::event::Key;
 use tui::store;
 use tui::task::{Process, Task};
 use tui::ui;
-use tui::ui::widget::{ContainerState, TableState, TextEditState, TextViewState, Window};
-use tui::ui::{Borders, BufferedValue, Column, Show, Spacing, Ui};
+use tui::ui::layout::Spacing;
+use tui::ui::widget::{
+    Borders, Column, ContainerState, TableState, TextEditState, TextViewState, Window,
+};
+use tui::ui::{BufferedValue, Show, Ui};
 use tui::{Channel, Exit};
 
 use super::common::RepositoryMode;

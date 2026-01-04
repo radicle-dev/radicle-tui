@@ -3,17 +3,16 @@ pub mod items;
 pub mod layout;
 pub mod span;
 
-use radicle_tui::ui::Spacing;
-
 use ratatui::layout::{Constraint, Layout};
 use ratatui::Frame;
 
 use radicle_tui as tui;
 
 use tui::event::Key;
-use tui::ui::widget::{TableState, TextEditState, Widget};
-use tui::ui::{Borders, Response, Ui};
-use tui::ui::{BufferedValue, Column, ToRow};
+use tui::ui::layout::Spacing;
+use tui::ui::widget::{Borders, Column, TableState, TextEditState, Widget};
+use tui::ui::{BufferedValue, ToRow};
+use tui::ui::{Response, Ui};
 
 #[derive(Clone, Debug)]
 pub struct TerminalInfo {

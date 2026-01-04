@@ -20,11 +20,12 @@ use tui::event::Key;
 use tui::store;
 use tui::task::EmptyProcessors;
 use tui::ui;
+use tui::ui::layout::Spacing;
 use tui::ui::span;
 use tui::ui::widget::{
-    ContainerState, TableState, TextEditState, TextViewState, TreeState, Window,
+    Borders, Column, ContainerState, TableState, TextEditState, TextViewState, TreeState, Window,
 };
-use tui::ui::{Borders, BufferedValue, Column, Show, Spacing, ToRow, Ui};
+use tui::ui::{BufferedValue, Show, ToRow, Ui};
 use tui::{Channel, Exit};
 
 use crate::cob::issue;

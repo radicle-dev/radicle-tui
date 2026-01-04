@@ -54,3 +54,18 @@ pub fn centered_rect(r: Rect, percent_x: u16, percent_y: u16) -> Rect {
 pub fn fill() -> Layout {
     Layout::vertical([Constraint::Fill(1)].to_vec())
 }
+
+#[derive(Default)]
+pub struct Spacing(u16);
+
+impl From<u16> for Spacing {
+    fn from(value: u16) -> Self {
+        Self(value)
+    }
+}
+
+impl From<Spacing> for u16 {
+    fn from(spacing: Spacing) -> Self {
+        spacing.0
+    }
+}

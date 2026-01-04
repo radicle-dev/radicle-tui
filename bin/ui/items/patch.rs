@@ -30,7 +30,8 @@ use radicle_tui as tui;
 use tui::ui::span;
 use tui::ui::utils::LineMerger;
 use tui::ui::utils::MergeLocation;
-use tui::ui::{Column, ToRow};
+use tui::ui::widget::Column;
+use tui::ui::ToRow;
 
 use crate::git::{self, Blobs, DiffStats, HunkDiff, HunkState, HunkStats};
 use crate::ui;

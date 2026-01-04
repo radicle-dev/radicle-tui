@@ -13,8 +13,9 @@ use radicle_tui as tui;
 use tui::event::Key;
 use tui::store::Update;
 use tui::task::EmptyProcessors;
-use tui::ui::widget::{TableState, Window};
-use tui::ui::{Borders, Column, Context, Show, Spacing, ToRow};
+use tui::ui::layout::Spacing;
+use tui::ui::widget::{Borders, Column, TableState, Window};
+use tui::ui::{Context, Show, ToRow};
 use tui::Channel;
 use tui::Exit;
 
