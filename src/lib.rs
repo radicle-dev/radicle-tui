@@ -20,8 +20,7 @@ use ratatui::Viewport;
 
 use store::Update;
 use terminal::StdinReader;
-use ui::im;
-use ui::im::Show;
+use ui::{Frontend, Show};
 
 use crate::task::Process;
 
@@ -176,7 +175,7 @@ where
 
     let store = store::Store::<S, M, R>::new(state_tx.clone());
     let worker = task::Worker::<T, M, R>::new(work_tx.clone());
-    let frontend = im::Frontend::default();
+    let frontend = Frontend::default();
     let stdin_reader = StdinReader::default();
 
     // TODO(erikli): Handle errors

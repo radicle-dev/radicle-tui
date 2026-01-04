@@ -3,6 +3,8 @@ use std::sync::{Arc, Mutex};
 
 use anyhow::Result;
 
+use serde::Serialize;
+
 use radicle::patch::cache::Patches;
 use radicle::patch::PatchId;
 use radicle::storage::git::Repository;
@@ -15,15 +17,12 @@ use ratatui::{Frame, Viewport};
 
 use radicle_tui as tui;
 
-use serde::Serialize;
 use tui::event::Key;
 use tui::store;
 use tui::task::EmptyProcessors;
-use tui::ui::im;
-use tui::ui::im::widget::{ContainerState, TableState, TextEditState, TextViewState, Window};
-use tui::ui::im::Borders;
-use tui::ui::im::Show;
-use tui::ui::{BufferedValue, Column, Spacing};
+use tui::ui;
+use tui::ui::widget::{ContainerState, TableState, TextEditState, TextViewState, Window};
+use tui::ui::{Borders, BufferedValue, Column, Show, Spacing, Ui};
 use tui::{Channel, Exit};
 
 use crate::ui::items::filter::Filter;
@@ -238,7 +237,7 @@ impl store::Update<Message> for App {
 }
 
 impl Show<Message> for App {
-    fn show(&self, ctx: &im::Context<Message>, frame: &mut Frame) -> Result<()> {
+    fn show(&self, ctx: &ui::Context<Message>, frame: &mut Frame) -> Result<()> {
         Window::default().show(ctx, |ui| {
             match self.state.page {
                 Page::Main => {
@@ -252,7 +251,7 @@ impl Show<Message> for App {
                             let mut group_focus = self.state.main_group.focus();
 
                             let group = ui.container(
-                                im::Layout::Expandable3 { left_only: true },
+                                ui::Layout::Expandable3 { left_only: true },
                                 &mut group_focus,
                                 |ui| {
                                     self.show_browser(frame, ui);
@@ -310,7 +309,7 @@ impl Show<Message> for App {
 }
 
 impl App {
-    pub fn show_browser(&self, frame: &mut Frame, ui: &mut im::Ui<Message>) {
+    pub fn show_browser(&self, frame: &mut Frame, ui: &mut Ui<Message>) {
         let patches = self.patches.lock().unwrap();
         let patches = patches
             .iter()
@@ -378,14 +377,14 @@ impl App {
         }
     }
 
-    fn show_browser_footer(&self, frame: &mut Frame, ui: &mut im::Ui<Message>) {
+    fn show_browser_footer(&self, frame: &mut Frame, ui: &mut Ui<Message>) {
         ui.layout(Layout::vertical([1, 1]), None, |ui| {
             self.show_browser_context(frame, ui);
             self.show_browser_shortcuts(frame, ui);
         });
     }
 
-    pub fn show_browser_search(&self, frame: &mut Frame, ui: &mut im::Ui<Message>) {
+    pub fn show_browser_search(&self, frame: &mut Frame, ui: &mut Ui<Message>) {
         let (mut search_text, mut search_cursor) = (
             self.state.search.clone().read().text,
             self.state.search.clone().read().cursor,
@@ -416,7 +415,7 @@ impl App {
         }
     }
 
-    fn show_browser_context(&self, frame: &mut Frame, ui: &mut im::Ui<Message>) {
+    fn show_browser_context(&self, frame: &mut Frame, ui: &mut Ui<Message>) {
         let context = {
             let patches = self.patches.lock().unwrap();
             let search = self.state.search.read().text;
@@ -560,7 +559,7 @@ impl App {
         ui.column_bar(frame, context, Spacing::from(0), Some(Borders::None));
     }
 
-    pub fn show_browser_shortcuts(&self, frame: &mut Frame, ui: &mut im::Ui<Message>) {
+    pub fn show_browser_shortcuts(&self, frame: &mut Frame, ui: &mut Ui<Message>) {
         ui.shortcuts(
             frame,
             &[
@@ -575,7 +574,7 @@ impl App {
         );
     }
 
-    fn show_help_text(&self, frame: &mut Frame, ui: &mut im::Ui<Message>) {
+    fn show_help_text(&self, frame: &mut Frame, ui: &mut Ui<Message>) {
         ui.column_bar(
             frame,
             [Column::new(Span::raw(" Help ").bold(), Constraint::Fill(1))].to_vec(),
@@ -597,7 +596,7 @@ impl App {
         }
     }
 
-    fn show_help_context(&self, frame: &mut Frame, ui: &mut im::Ui<Message>) {
+    fn show_help_context(&self, frame: &mut Frame, ui: &mut Ui<Message>) {
         ui.column_bar(
             frame,
             [

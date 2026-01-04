@@ -4,8 +4,6 @@ use std::sync::{Arc, Mutex};
 
 use anyhow::{bail, Result};
 
-use radicle_tui::ui::im::widget::TreeState;
-use radicle_tui::ui::ToRow;
 use ratatui::layout::{Alignment, Constraint, Layout, Position};
 use ratatui::style::Stylize;
 use ratatui::text::{Line, Span, Text};
@@ -21,11 +19,12 @@ use radicle_tui as tui;
 use tui::event::Key;
 use tui::store;
 use tui::task::EmptyProcessors;
-use tui::ui::im;
-use tui::ui::im::widget::{ContainerState, TableState, TextEditState, TextViewState, Window};
-use tui::ui::im::{Borders, Show};
-use tui::ui::Column;
-use tui::ui::{span, BufferedValue, Spacing};
+use tui::ui;
+use tui::ui::span;
+use tui::ui::widget::{
+    ContainerState, TableState, TextEditState, TextViewState, TreeState, Window,
+};
+use tui::ui::{Borders, BufferedValue, Column, Show, Spacing, ToRow, Ui};
 use tui::{Channel, Exit};
 
 use crate::cob::issue;
@@ -476,7 +475,7 @@ impl store::Update<Message> for App {
 }
 
 impl Show<Message> for App {
-    fn show(&self, ctx: &im::Context<Message>, frame: &mut Frame) -> Result<()> {
+    fn show(&self, ctx: &ui::Context<Message>, frame: &mut Frame) -> Result<()> {
         Window::default().show(ctx, |ui| {
             match self.state.page.clone() {
                 state::Page::Main => {
@@ -491,7 +490,7 @@ impl Show<Message> for App {
                                 { (self.state.sections.focus(), self.state.sections.len()) };
 
                             let group = ui.container(
-                                im::Layout::Expandable3 {
+                                ui::Layout::Expandable3 {
                                     left_only: !self.state.preview.show,
                                 },
                                 &mut focus,
@@ -586,7 +585,7 @@ impl Show<Message> for App {
 }
 
 impl App {
-    pub fn show_browser(&self, frame: &mut Frame, ui: &mut im::Ui<Message>) {
+    pub fn show_browser(&self, frame: &mut Frame, ui: &mut Ui<Message>) {
         let issues = self.issues.lock().unwrap();
         let issues = issues
             .iter()
@@ -675,7 +674,7 @@ impl App {
         }
     }
 
-    pub fn show_browser_search(&self, frame: &mut Frame, ui: &mut im::Ui<Message>) {
+    pub fn show_browser_search(&self, frame: &mut Frame, ui: &mut Ui<Message>) {
         let mut search = self.state.browser.search.clone();
         let (mut search_text, mut search_cursor) =
             (search.clone().read().text, search.clone().read().cursor);
@@ -710,7 +709,7 @@ impl App {
         }
     }
 
-    fn show_browser_context(&self, frame: &mut Frame, ui: &mut im::Ui<Message>) {
+    fn show_browser_context(&self, frame: &mut Frame, ui: &mut Ui<Message>) {
         use radicle::issue::{CloseReason, State};
 
         let context = {
@@ -809,7 +808,7 @@ impl App {
         ui.column_bar(frame, context, Spacing::from(0), Some(Borders::None));
     }
 
-    pub fn show_browser_shortcuts(&self, frame: &mut Frame, ui: &mut im::Ui<Message>) {
+    pub fn show_browser_shortcuts(&self, frame: &mut Frame, ui: &mut Ui<Message>) {
         use radicle::issue::State;
 
         let issues = self.issues.lock().unwrap();
@@ -839,7 +838,7 @@ impl App {
         );
     }
 
-    pub fn show_issue(&self, frame: &mut Frame, ui: &mut im::Ui<Message>) {
+    pub fn show_issue(&self, frame: &mut Frame, ui: &mut Ui<Message>) {
         #[derive(Clone)]
         struct Property<'a>(Span<'a>, Text<'a>);
 
@@ -997,7 +996,7 @@ impl App {
         );
     }
 
-    pub fn show_issue_context(&self, frame: &mut Frame, ui: &mut im::Ui<Message>) {
+    pub fn show_issue_context(&self, frame: &mut Frame, ui: &mut Ui<Message>) {
         ui.column_bar(
             frame,
             [
@@ -1018,7 +1017,7 @@ impl App {
         );
     }
 
-    pub fn show_issue_shortcuts(&self, frame: &mut Frame, ui: &mut im::Ui<Message>) {
+    pub fn show_issue_shortcuts(&self, frame: &mut Frame, ui: &mut Ui<Message>) {
         let shortcuts = vec![("e", "edit"), ("c", "reply")];
         let global_shortcuts = vec![("p", "toggle preview"), ("?", "help")];
 
@@ -1032,7 +1031,7 @@ impl App {
         );
     }
 
-    pub fn show_comment(&self, frame: &mut Frame, ui: &mut im::Ui<Message>) {
+    pub fn show_comment(&self, frame: &mut Frame, ui: &mut Ui<Message>) {
         let (text, footer, mut cursor) = {
             let comment = self.state.preview.selected_comment();
             let body: String = comment
@@ -1065,7 +1064,7 @@ impl App {
         }
     }
 
-    pub fn show_comment_context(&self, frame: &mut Frame, ui: &mut im::Ui<Message>) {
+    pub fn show_comment_context(&self, frame: &mut Frame, ui: &mut Ui<Message>) {
         ui.column_bar(
             frame,
             [
@@ -1086,7 +1085,7 @@ impl App {
         );
     }
 
-    pub fn show_comment_shortcuts(&self, frame: &mut Frame, ui: &mut im::Ui<Message>) {
+    pub fn show_comment_shortcuts(&self, frame: &mut Frame, ui: &mut Ui<Message>) {
         let shortcuts = vec![("e", "edit"), ("c", "reply")];
         let global_shortcuts = vec![("p", "toggle preview"), ("?", "help")];
 
@@ -1100,7 +1099,7 @@ impl App {
         );
     }
 
-    fn show_help_text(&self, frame: &mut Frame, ui: &mut im::Ui<Message>) {
+    fn show_help_text(&self, frame: &mut Frame, ui: &mut Ui<Message>) {
         ui.column_bar(
             frame,
             [Column::new(Span::raw(" Help ").bold(), Constraint::Fill(1))].to_vec(),
@@ -1122,7 +1121,7 @@ impl App {
         }
     }
 
-    fn show_help_context(&self, frame: &mut Frame, ui: &mut im::Ui<Message>) {
+    fn show_help_context(&self, frame: &mut Frame, ui: &mut Ui<Message>) {
         ui.column_bar(
             frame,
             [

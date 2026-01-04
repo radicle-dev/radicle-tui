@@ -9,9 +9,8 @@ use radicle_tui as tui;
 use tui::event::Key;
 use tui::store;
 use tui::task::EmptyProcessors;
-use tui::ui::im::widget::Window;
-use tui::ui::im::Show;
-use tui::ui::im::{Borders, Context};
+use tui::ui::widget::Window;
+use tui::ui::{Borders, Context, Show};
 use tui::{Channel, Exit};
 
 const ALIEN: &str = r#"

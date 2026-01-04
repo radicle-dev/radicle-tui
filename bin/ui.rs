@@ -1,8 +1,19 @@
 pub mod format;
-pub mod im;
 pub mod items;
 pub mod layout;
 pub mod span;
+
+use radicle_tui::ui::Spacing;
+
+use ratatui::layout::{Constraint, Layout};
+use ratatui::Frame;
+
+use radicle_tui as tui;
+
+use tui::event::Key;
+use tui::ui::widget::{TableState, TextEditState, Widget};
+use tui::ui::{Borders, Response, Ui};
+use tui::ui::{BufferedValue, Column, ToRow};
 
 #[derive(Clone, Debug)]
 pub struct TerminalInfo {
@@ -12,5 +23,182 @@ pub struct TerminalInfo {
 impl TerminalInfo {
     pub fn is_dark(&self) -> bool {
         self.luma.unwrap_or_default() <= 0.6
+    }
+}
+
+pub struct UiExt<'a, M>(&'a mut Ui<M>);
+
+impl<'a, M> UiExt<'a, M> {
+    pub fn new(ui: &'a mut Ui<M>) -> Self {
+        Self(ui)
+    }
+}
+
+impl<'a, M> From<&'a mut Ui<M>> for UiExt<'a, M> {
+    fn from(ui: &'a mut Ui<M>) -> Self {
+        Self::new(ui)
+    }
+}
+
+#[allow(dead_code)]
+impl<'a, M> UiExt<'a, M>
+where
+    M: Clone,
+{
+    #[allow(clippy::too_many_arguments)]
+    pub fn browser<R, const W: usize>(
+        &mut self,
+        frame: &mut Frame,
+        selected: &'a mut Option<usize>,
+        items: &'a Vec<R>,
+        header: impl IntoIterator<Item = Column<'a>>,
+        footer: impl IntoIterator<Item = Column<'a>>,
+        show_search: &'a mut bool,
+        search: &'a mut BufferedValue<TextEditState>,
+    ) -> Response
+    where
+        R: ToRow<W> + Clone,
+    {
+        Browser::<R, W>::new(selected, items, header, footer, show_search, search).ui(self.0, frame)
+    }
+}
+
+#[allow(dead_code)]
+#[derive(Clone, Debug)]
+pub struct BrowserState {
+    items: TableState,
+    search: BufferedValue<TextEditState>,
+    show_search: bool,
+}
+
+#[allow(dead_code)]
+impl BrowserState {
+    pub fn new(items: TableState, search: BufferedValue<TextEditState>, show_search: bool) -> Self {
+        Self {
+            items,
+            search,
+            show_search,
+        }
+    }
+
+    pub fn selected(&self) -> Option<usize> {
+        self.items.selected()
+    }
+}
+
+pub struct Browser<'a, R, const W: usize> {
+    items: &'a Vec<R>,
+    selected: &'a mut Option<usize>,
+    header: Vec<Column<'a>>,
+    footer: Vec<Column<'a>>,
+    show_search: &'a mut bool,
+    search: &'a mut BufferedValue<TextEditState>,
+}
+
+#[allow(dead_code)]
+impl<'a, R, const W: usize> Browser<'a, R, W> {
+    pub fn new(
+        selected: &'a mut Option<usize>,
+        items: &'a Vec<R>,
+        header: impl IntoIterator<Item = Column<'a>>,
+        footer: impl IntoIterator<Item = Column<'a>>,
+        show_search: &'a mut bool,
+        search: &'a mut BufferedValue<TextEditState>,
+    ) -> Self {
+        Self {
+            items,
+            selected,
+            header: header.into_iter().collect(),
+            footer: footer.into_iter().collect(),
+            show_search,
+            search,
+        }
+    }
+
+    pub fn items(&self) -> &Vec<R> {
+        self.items
+    }
+}
+
+/// TODO(erikli): Implement `show` that returns an `InnerResponse` such that it can
+/// used like a group.
+impl<R, const W: usize> Widget for Browser<'_, R, W>
+where
+    R: ToRow<W> + Clone,
+{
+    fn ui<M>(self, ui: &mut Ui<M>, frame: &mut Frame) -> Response
+    where
+        M: Clone,
+    {
+        let mut response = Response::default();
+        let (mut text, mut cursor) = (self.search.read().text, self.search.read().cursor);
+
+        ui.layout(
+            Layout::vertical([
+                Constraint::Length(3),
+                Constraint::Min(1),
+                Constraint::Length(if *self.show_search { 2 } else { 3 }),
+            ]),
+            Some(1),
+            |ui| {
+                ui.column_bar(
+                    frame,
+                    self.header.clone().to_vec(),
+                    Spacing::default(),
+                    Some(Borders::Top),
+                );
+
+                let table = ui.table(
+                    frame,
+                    self.selected,
+                    self.items,
+                    self.header.to_vec(),
+                    None,
+                    Spacing::from(1),
+                    if *self.show_search {
+                        Some(Borders::BottomSides)
+                    } else {
+                        Some(Borders::Sides)
+                    },
+                );
+                response.changed |= table.changed;
+
+                if *self.show_search {
+                    let text_edit = ui.text_edit_singleline(
+                        frame,
+                        &mut text,
+                        &mut cursor,
+                        Some("Search".to_string()),
+                        Some(Borders::Spacer { top: 0, left: 1 }),
+                    );
+                    self.search.write(TextEditState { text, cursor });
+                    response.changed |= text_edit.changed;
+                } else {
+                    ui.column_bar(
+                        frame,
+                        self.footer.clone().to_vec(),
+                        Spacing::from(0),
+                        Some(Borders::Bottom),
+                    );
+                }
+            },
+        );
+
+        if !*self.show_search {
+            if ui.has_input(|key| key == Key::Char('/')) {
+                *self.show_search = true;
+            }
+        } else {
+            if ui.has_input(|key| key == Key::Esc) {
+                *self.show_search = false;
+                self.search.reset();
+            }
+            if ui.has_input(|key| key == Key::Enter) {
+                *self.show_search = false;
+                self.search.apply();
+            }
+        }
+
+        response
     }
 }

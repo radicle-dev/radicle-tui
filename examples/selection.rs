@@ -11,17 +11,12 @@ use ratatui::{Frame, Viewport};
 use radicle_tui as tui;
 
 use tui::event::Key;
+use tui::store::Update;
 use tui::task::EmptyProcessors;
-use tui::ui::im::widget::Window;
-use tui::ui::im::{Borders, Context};
-use tui::ui::Spacing;
-use tui::ui::{Column, ToRow};
+use tui::ui::widget::{TableState, Window};
+use tui::ui::{Borders, Column, Context, Show, Spacing, ToRow};
 use tui::Channel;
-use tui::{
-    store::Update,
-    ui::im::{widget::TableState, Show},
-    Exit,
-};
+use tui::Exit;
 
 #[derive(Clone, Debug)]
 struct Item {

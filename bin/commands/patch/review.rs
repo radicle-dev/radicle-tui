@@ -23,9 +23,9 @@ use radicle_tui as tui;
 use tui::event::Key;
 use tui::store;
 use tui::task::EmptyProcessors;
-use tui::ui::im::widget::{ContainerState, TableState, TextViewState, Window};
-use tui::ui::im::{Borders, Context, Show, Ui};
 use tui::ui::span;
+use tui::ui::widget::{ContainerState, TableState, TextViewState, Window};
+use tui::ui::{Borders, Context, Show, Ui};
 use tui::ui::{Column, Spacing};
 use tui::{Channel, Exit};
 
