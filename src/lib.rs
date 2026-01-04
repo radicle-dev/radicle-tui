@@ -22,7 +22,6 @@ use store::Update;
 use terminal::StdinReader;
 use ui::im;
 use ui::im::Show;
-use ui::rm;
 
 use crate::task::Process;
 
@@ -150,68 +149,6 @@ impl<M: Clone> Default for Channel<M> {
     fn default() -> Self {
         let (tx, rx) = broadcast::channel(1000);
         Self { tx, rx }
-    }
-}
-
-/// Initialize a `Store` with the `State` given and a `Frontend` with the `Widget` given,
-/// and run their main loops in parallel. Connect them to the `Channel` and also to
-/// an interrupt broadcast channel also initialized in this function.
-/// Additionally, a list of processors can be passed. Processors will also receive all
-/// applications messages and can emit new ones. They will be executed by an internal worker.
-pub async fn rm<S, T, M, R>(
-    state: S,
-    root: rm::widget::Widget<S, M>,
-    viewport: Viewport,
-    channel: Channel<M>,
-    processors: Vec<T>,
-) -> Result<Option<R>>
-where
-    S: Update<M, Return = R> + Share,
-    T: Process<M> + Share,
-    M: Share,
-    R: Share,
-{
-    let (terminator, mut interrupt_rx) = create_termination();
-    let (state_tx, state_rx) = unbounded_channel();
-    let (event_tx, event_rx) = unbounded_channel();
-    let (work_tx, work_rx) = unbounded_channel();
-
-    let store = store::Store::<S, M, R>::new(state_tx.clone());
-    let worker = task::Worker::<T, M, R>::new(work_tx.clone());
-    let frontend = rm::Frontend::default();
-    let stdin_reader = StdinReader::default();
-
-    // TODO(erikli): Handle errors
-    let _ = tokio::try_join!(
-        worker.run(
-            processors,
-            channel.rx.resubscribe(),
-            interrupt_rx.resubscribe()
-        ),
-        store.run(
-            state,
-            terminator,
-            channel.rx.resubscribe(),
-            work_rx,
-            interrupt_rx.resubscribe(),
-        ),
-        frontend.run(
-            root,
-            state_rx,
-            event_rx,
-            interrupt_rx.resubscribe(),
-            viewport
-        ),
-        stdin_reader.run(event_tx, interrupt_rx.resubscribe()),
-    )?;
-
-    if let Ok(reason) = interrupt_rx.recv().await {
-        match reason {
-            Interrupted::User { payload } => Ok(payload),
-            Interrupted::OsSignal => anyhow::bail!("exited because of an os sig int"),
-        }
-    } else {
-        anyhow::bail!("exited because of an unexpected error");
     }
 }
 
