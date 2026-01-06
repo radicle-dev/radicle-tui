@@ -333,7 +333,7 @@ impl TryFrom<(&Context, &TerminalInfo)> for App {
         let section = if context.comment.is_some() {
             state::Section::Issue
         } else {
-            state::Section::Comment
+            state::Section::Browser
         };
 
         Ok(Self {
