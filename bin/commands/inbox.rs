@@ -1,5 +1,3 @@
-#[path = "inbox/common.rs"]
-mod common;
 #[path = "inbox/list.rs"]
 mod list;
 
@@ -11,11 +9,10 @@ use radicle::storage::{HasRepoId, ReadRepository};
 
 use radicle_cli::terminal::{Args, Error, Help};
 
-use crate::commands::tui_inbox::common::InboxOperation;
 use crate::terminal;
 use crate::ui::items::notification::filter::{NotificationFilter, SortBy};
 
-use self::common::RepositoryMode;
+use self::list::{InboxOperation, RepositoryMode};
 
 pub const HELP: Help = Help {
     name: "inbox",

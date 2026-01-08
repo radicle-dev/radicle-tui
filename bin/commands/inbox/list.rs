@@ -6,6 +6,9 @@ use std::vec;
 
 use anyhow::Result;
 
+use serde::Serialize;
+
+use radicle::node::notifications::NotificationId;
 use ratatui::layout::{Constraint, Layout};
 use ratatui::prelude::*;
 use ratatui::text::Span;
@@ -29,11 +32,25 @@ use tui::ui::widget::{
 use tui::ui::{BufferedValue, Show, Ui};
 use tui::{Channel, Exit};
 
-use super::common::RepositoryMode;
-use crate::commands::tui_inbox::common::InboxOperation;
 use crate::ui::items::filter::Filter;
 use crate::ui::items::notification::filter::{NotificationFilter, SortBy};
 use crate::ui::items::notification::{Notification, NotificationKind};
+
+#[derive(Clone, Default, Debug, PartialEq, Eq)]
+pub enum RepositoryMode {
+    #[default]
+    Contextual,
+    All,
+    ByRepo((RepoId, Option<String>)),
+}
+
+/// The selected issue operation returned by the operation
+/// selection widget.
+#[derive(Clone, Debug, Eq, PartialEq, Serialize)]
+pub enum InboxOperation {
+    Show { id: NotificationId },
+    Clear { id: NotificationId },
+}
 
 type Selection = tui::Selection<InboxOperation>;
 
