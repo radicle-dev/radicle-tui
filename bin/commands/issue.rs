@@ -1,5 +1,3 @@
-#[path = "issue/common.rs"]
-mod common;
 #[path = "issue/list.rs"]
 mod list;
 
@@ -21,7 +19,7 @@ use cli::terminal::Context;
 use cli::terminal::{Args, Error, Help};
 
 use crate::cob;
-use crate::commands::tui_issue::common::IssueOperation;
+use crate::commands::tui_issue::list::IssueOperation;
 use crate::terminal;
 use crate::ui::TerminalInfo;
 

@@ -2,6 +2,8 @@ use std::collections::{HashMap, HashSet};
 use std::str::FromStr;
 use std::sync::{Arc, Mutex};
 
+use serde::Serialize;
+
 use anyhow::{bail, Result};
 
 use ratatui::layout::{Alignment, Constraint, Layout, Position};
@@ -35,9 +37,38 @@ use crate::ui::items::issue::{Issue, IssueFilter};
 use crate::ui::items::HasId;
 use crate::ui::{format, TerminalInfo};
 
-use crate::tui_issue::common::IssueOperation;
-
 type Selection = tui::Selection<IssueOperation>;
+
+/// The selected issue operation returned by the operation
+/// selection widget.
+#[derive(Clone, Debug, Eq, PartialEq, Serialize)]
+pub enum IssueOperation {
+    Edit {
+        id: IssueId,
+        comment_id: Option<CommentId>,
+        search: String,
+    },
+    Show {
+        id: IssueId,
+    },
+    Close {
+        id: IssueId,
+        search: String,
+    },
+    Solve {
+        id: IssueId,
+        search: String,
+    },
+    Reopen {
+        id: IssueId,
+        search: String,
+    },
+    Comment {
+        id: IssueId,
+        reply_to: Option<CommentId>,
+        search: String,
+    },
+}
 
 const HELP: &str = r#"# Generic keybindings
 
