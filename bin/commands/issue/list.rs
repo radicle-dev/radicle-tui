@@ -783,7 +783,6 @@ impl App {
             let closed = solved + other;
 
             let filtered_counts = format!(" {}/{} ", filtered.len(), issues.len());
-
             if !self.state.filter.has_state() {
                 [
                     Column::new(
@@ -811,12 +810,6 @@ impl App {
                             .style(ui.theme().bar_on_black_style)
                             .into_right_aligned_line(),
                         Constraint::Length(open.to_string().chars().count() as u16),
-                    ),
-                    Column::new(
-                        Span::from(" ")
-                            .style(ui.theme().bar_on_black_style)
-                            .into_right_aligned_line(),
-                        Constraint::Length(1),
                     ),
                     Column::new(
                         Span::raw(" ● ")
