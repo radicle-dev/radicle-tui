@@ -449,7 +449,7 @@ impl App {
                         } => (counts.0, counts.1, counts.2, counts.3 + 1),
                     });
 
-            if self.state.filter.is_default() {
+            if !self.state.filter.has_state() {
                 let draft = format!(" {} ", state_counts.0);
                 let open = format!(" {} ", state_counts.1);
                 let archived = format!(" {} ", state_counts.2);

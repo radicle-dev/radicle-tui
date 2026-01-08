@@ -170,6 +170,16 @@ pub mod filter {
         pub fn is_default(&self) -> bool {
             *self == PatchFilter::default()
         }
+
+        pub fn has_state(&self) -> bool {
+            match self {
+                PatchFilter::State(_) => true,
+                PatchFilter::And(filters) => {
+                    filters.iter().any(|f| matches!(f, PatchFilter::State(_)))
+                }
+                _ => false,
+            }
+        }
     }
 
     impl fmt::Display for PatchFilter {
