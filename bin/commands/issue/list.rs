@@ -1095,31 +1095,36 @@ impl App {
     }
 
     pub fn show_comment(&self, frame: &mut Frame, ui: &mut Ui<Message>) {
-        let (text, footer, mut cursor) = {
+        let (text, reactions, mut cursor) = {
             let comment = self.state.preview.selected_comment();
             let body: String = comment
                 .map(|comment| comment.body.clone())
                 .unwrap_or_default();
-            let reactions = comment
-                .map(|comment| {
-                    let reactions = comment.accumulated_reactions().iter().fold(
-                        String::new(),
-                        |all, (r, acc)| {
-                            if *acc > 1_usize {
-                                [all, format!("{r}{acc} ")].concat()
-                            } else {
-                                [all, format!("{r} ")].concat()
-                            }
-                        },
-                    );
-                    reactions
-                })
-                .unwrap_or_default();
+            let reactions = comment.and_then(|comment| {
+                let reactions = comment.accumulated_reactions();
+                if !reactions.is_empty() {
+                    let reactions = reactions.iter().fold(String::new(), |all, (r, acc)| {
+                        if *acc > 1_usize {
+                            [all, format!("{r}{acc} ")].concat()
+                        } else {
+                            [all, format!("{r} ")].concat()
+                        }
+                    });
+                    Some(reactions)
+                } else {
+                    None
+                }
+            });
 
             (body, reactions, self.state.preview.comment.clone().cursor())
         };
-        let comment =
-            ui.text_view_with_footer(frame, text, footer, &mut cursor, Some(Borders::All));
+        let comment = match reactions {
+            Some(reactions) => {
+                ui.text_view_with_footer(frame, text, reactions, &mut cursor, Some(Borders::All))
+            }
+            None => ui.text_view(frame, text, &mut cursor, Some(Borders::All)),
+        };
+
         if comment.changed {
             ui.send_message(Message::Changed(Change::CommentBody {
                 state: TextViewState::new(cursor),
