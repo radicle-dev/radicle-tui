@@ -274,8 +274,10 @@ impl Show<Message> for App {
                         },
                     );
 
-                    if ui.has_input(|key| key == Key::Char('?')) {
-                        ui.send_message(Message::Changed(Change::Page { page: Page::Help }));
+                    if !show_search {
+                        if ui.has_input(|key| key == Key::Char('?')) {
+                            ui.send_message(Message::Changed(Change::Page { page: Page::Help }));
+                        }
                     }
                 }
 
