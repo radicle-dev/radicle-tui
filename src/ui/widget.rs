@@ -980,9 +980,6 @@ impl Widget for TextView<'_> {
             ui.theme.border_style
         };
         let length = self.text.lines.len();
-        // let virtual_length = length * ((length as f64).log2() as usize) / 100;
-        // let content_length = area.height as usize + virtual_length;
-        // let content_length = length;
         let content_length = area.height as usize;
 
         let area = render_block(frame, area, self.borders, border_style);
