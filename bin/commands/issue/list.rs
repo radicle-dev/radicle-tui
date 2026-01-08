@@ -33,7 +33,8 @@ use tui::{Channel, Exit};
 use crate::cob::issue;
 use crate::settings::{self, ThemeBundle, ThemeMode};
 use crate::ui::items::filter::Filter;
-use crate::ui::items::issue::{Issue, IssueFilter};
+use crate::ui::items::issue::filter::IssueFilter;
+use crate::ui::items::issue::Issue;
 use crate::ui::items::HasId;
 use crate::ui::{format, TerminalInfo};
 
@@ -98,7 +99,7 @@ const HELP: &str = r#"# Generic keybindings
 pub struct Context {
     pub profile: Profile,
     pub repository: Repository,
-    pub filter: issue::Filter,
+    pub filter: IssueFilter,
     pub search: Option<String>,
     pub issue: Option<IssueId>,
     pub comment: Option<CommentId>,
@@ -478,7 +479,6 @@ impl store::Update<Message> for App {
                     None
                 }
                 Change::Comment { state } => {
-                    log::info!("Change::Comments: {state:?}");
                     if let Some(item) = &self.state.preview.issue {
                         self.state.preview.selected_comments.insert(
                             item.id,
@@ -781,23 +781,21 @@ impl App {
             let closed = solved + other;
 
             let filtered_counts = format!(" {}/{} ", filtered.len(), issues.len());
-            let mut columns = vec![
-                Column::new(
-                    Span::raw(" Issue ".to_string()).cyan().dim().reversed(),
-                    Constraint::Length(7),
-                ),
-                Column::new(
-                    Span::raw(format!(" {search} "))
-                        .into_left_aligned_line()
-                        .style(ui.theme().bar_on_black_style)
-                        .cyan()
-                        .dim(),
-                    Constraint::Fill(1),
-                ),
-            ];
 
-            if filter.state().is_none() {
-                columns.extend_from_slice(&[
+            if !self.state.filter.has_state() {
+                [
+                    Column::new(
+                        Span::raw(" Search ".to_string()).cyan().dim().reversed(),
+                        Constraint::Length(8),
+                    ),
+                    Column::new(
+                        Span::raw(format!(" {search} "))
+                            .into_left_aligned_line()
+                            .style(ui.theme().bar_on_black_style)
+                            .cyan()
+                            .dim(),
+                        Constraint::Fill(1),
+                    ),
                     Column::new(
                         Span::raw(" ● ")
                             .into_right_aligned_line()
@@ -811,6 +809,12 @@ impl App {
                             .style(ui.theme().bar_on_black_style)
                             .into_right_aligned_line(),
                         Constraint::Length(open.to_string().chars().count() as u16),
+                    ),
+                    Column::new(
+                        Span::from(" ")
+                            .style(ui.theme().bar_on_black_style)
+                            .into_right_aligned_line(),
+                        Constraint::Length(1),
                     ),
                     Column::new(
                         Span::raw(" ● ")
@@ -832,18 +836,41 @@ impl App {
                             .into_right_aligned_line(),
                         Constraint::Length(1),
                     ),
-                ]);
+                    Column::new(
+                        Span::raw(filtered_counts.clone())
+                            .into_right_aligned_line()
+                            .cyan()
+                            .dim()
+                            .reversed(),
+                        Constraint::Length(filtered_counts.chars().count() as u16),
+                    ),
+                ]
+                .to_vec()
+            } else {
+                [
+                    Column::new(
+                        Span::raw(" Search ".to_string()).cyan().dim().reversed(),
+                        Constraint::Length(8),
+                    ),
+                    Column::new(
+                        Span::raw(format!(" {search} "))
+                            .into_left_aligned_line()
+                            .style(ui.theme().bar_on_black_style)
+                            .cyan()
+                            .dim(),
+                        Constraint::Fill(1),
+                    ),
+                    Column::new(
+                        Span::raw(filtered_counts.clone())
+                            .into_right_aligned_line()
+                            .cyan()
+                            .dim()
+                            .reversed(),
+                        Constraint::Length(filtered_counts.chars().count() as u16),
+                    ),
+                ]
+                .to_vec()
             }
-
-            columns.extend_from_slice(&[Column::new(
-                Span::raw(filtered_counts.clone())
-                    .into_right_aligned_line()
-                    .cyan()
-                    .dim()
-                    .reversed(),
-                Constraint::Length(filtered_counts.chars().count() as u16),
-            )]);
-            columns
         };
 
         ui.column_bar(frame, context, Spacing::from(0), Some(Borders::None));

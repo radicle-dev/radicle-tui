@@ -9,7 +9,8 @@ use lazy_static::lazy_static;
 
 use radicle::cob::thread::CommentId;
 use radicle::identity::RepoId;
-use radicle::issue::IssueId;
+use radicle::issue::{IssueId, State};
+use radicle::prelude::Did;
 use radicle::{issue, storage, Profile};
 
 use radicle_cli as cli;
@@ -18,9 +19,10 @@ use cli::terminal::patch::Message;
 use cli::terminal::Context;
 use cli::terminal::{Args, Error, Help};
 
-use crate::cob;
 use crate::commands::tui_issue::list::IssueOperation;
 use crate::terminal;
+use crate::ui::items::filter::DidFilter;
+use crate::ui::items::issue::filter::IssueFilter;
 use crate::ui::TerminalInfo;
 
 lazy_static! {
@@ -68,9 +70,67 @@ pub enum OperationName {
     Unknown,
 }
 
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct ListFilter {
+    state: Option<State>,
+    assigned: bool,
+    assignees: Vec<Did>,
+}
+
+impl Default for ListFilter {
+    fn default() -> Self {
+        Self {
+            state: Some(State::default()),
+            assigned: false,
+            assignees: vec![],
+        }
+    }
+}
+
+impl ListFilter {
+    pub fn with_state(mut self, state: Option<State>) -> Self {
+        self.state = state;
+        self
+    }
+
+    pub fn with_assgined(mut self, assigned: bool) -> Self {
+        self.assigned = assigned;
+        self
+    }
+
+    pub fn with_assginee(mut self, assignee: Did) -> Self {
+        self.assignees.push(assignee);
+        self
+    }
+}
+
+#[allow(clippy::from_over_into)]
+impl Into<IssueFilter> for (Did, ListFilter) {
+    fn into(self) -> IssueFilter {
+        let (me, mut filter) = self;
+        let mut and = filter
+            .state
+            .map(|s| vec![IssueFilter::State(s)])
+            .unwrap_or(vec![]);
+
+        let mut assignees = filter.assigned.then_some(vec![me]).unwrap_or_default();
+        assignees.append(&mut filter.assignees);
+
+        if assignees.len() == 1 {
+            and.push(IssueFilter::Assignee(DidFilter::Single(
+                *assignees.first().unwrap(),
+            )));
+        } else if assignees.len() > 1 {
+            and.push(IssueFilter::Assignee(DidFilter::Or(assignees)));
+        }
+
+        IssueFilter::And(and)
+    }
+}
+
 #[derive(Debug, Default, Clone, PartialEq, Eq)]
 pub struct ListOptions {
-    filter: cob::issue::Filter,
+    filter: ListFilter,
     json: bool,
 }
 
@@ -205,13 +265,14 @@ pub async fn run(options: Options, ctx: impl Context) -> anyhow::Result<()> {
 
             loop {
                 let profile = ctx.profile()?;
+                let me = profile.did();
                 let rid = options.repo.unwrap_or(rid);
                 let repository = profile.storage.repository(rid)?;
 
                 let context = list::Context {
                     profile,
                     repository,
-                    filter: opts.filter.clone(),
+                    filter: (me, opts.filter.clone()).into(),
                     search: state.search.clone(),
                     issue: state.issue_id,
                     comment: state.comment_id,

@@ -1,15 +1,9 @@
 use std::fmt::Debug;
-use std::str::FromStr;
-
-use nom::bytes::complete::{tag, take};
-use nom::multi::separated_list0;
-use nom::sequence::{delimited, preceded};
-use nom::{IResult, Parser};
 
 use radicle::cob::thread::CommentId;
 use radicle::cob::{Label, ObjectId, Timestamp};
-use radicle::issue::{CloseReason, IssueId};
-use radicle::prelude::Did;
+use radicle::issue::IssueId;
+
 use radicle::Profile;
 
 use ratatui::style::{Style, Stylize};
@@ -21,7 +15,6 @@ use tui::ui::span;
 use tui::ui::ToRow;
 
 use crate::ui::format;
-use crate::ui::items::filter::Filter;
 use crate::ui::items::{AuthorItem, CommentItem, HasId};
 
 #[derive(Clone, Debug)]
@@ -149,168 +142,306 @@ impl HasId for Issue {
     }
 }
 
-#[derive(Clone, Default, Debug, Eq, PartialEq)]
-pub(crate) struct IssueFilter {
-    pub(crate) state: Option<radicle::issue::State>,
-    pub(crate) authored: bool,
-    pub(crate) authors: Vec<Did>,
-    pub(crate) assigned: bool,
-    pub(crate) assignees: Vec<Did>,
-    pub(crate) search: Option<String>,
-}
+pub mod filter {
+    use std::fmt;
+    use std::fmt::Debug;
+    use std::fmt::Write as _;
+    use std::str::FromStr;
 
-impl IssueFilter {
-    pub fn state(&self) -> Option<radicle::issue::State> {
-        self.state
+    use nom::branch::alt;
+    use nom::bytes::complete::{tag_no_case, take_while1};
+    use nom::character::complete::multispace0;
+    use nom::combinator::{map, value};
+    use nom::multi::many0;
+    use nom::sequence::preceded;
+    use nom::IResult;
+
+    use radicle::issue::CloseReason;
+    use radicle::issue::State;
+
+    use crate::ui::items::filter;
+    use crate::ui::items::filter::DidFilter;
+    use crate::ui::items::filter::Filter;
+
+    use super::Issue;
+
+    #[derive(Clone, Debug, Eq, PartialEq)]
+    pub enum IssueFilter {
+        State(State),
+        Author(DidFilter),
+        Assignee(DidFilter),
+        Search(String),
+        And(Vec<IssueFilter>),
+        Empty,
+        Invalid,
     }
-}
 
-impl Filter<Issue> for IssueFilter {
-    fn matches(&self, issue: &Issue) -> bool {
-        use fuzzy_matcher::skim::SkimMatcherV2;
-        use fuzzy_matcher::FuzzyMatcher;
-        use radicle::issue::State;
-
-        let matcher = SkimMatcherV2::default();
-
-        let matches_state = match self.state {
-            Some(State::Closed {
-                reason: CloseReason::Other,
-            }) => matches!(issue.state, State::Closed { .. }),
-            Some(state) => issue.state == state,
-            None => true,
-        };
-
-        let matches_authored = if self.authored {
-            issue.author.you
-        } else {
-            true
-        };
-
-        let matches_authors = if !self.authors.is_empty() {
-            {
-                self.authors
-                    .iter()
-                    .any(|other| issue.author.nid == Some(**other))
-            }
-        } else {
-            true
-        };
-
-        let matches_assigned = if self.assigned {
-            issue.assignees.iter().any(|assignee| assignee.you)
-        } else {
-            true
-        };
-
-        let matches_assignees = if !self.assignees.is_empty() {
-            {
-                self.assignees.iter().any(|other| {
-                    issue
-                        .assignees
-                        .iter()
-                        .filter_map(|author| author.nid)
-                        .collect::<Vec<_>>()
-                        .contains(other)
-                })
-            }
-        } else {
-            true
-        };
-
-        let matches_search = match &self.search {
-            Some(search) => match matcher.fuzzy_match(&issue.title, search) {
-                Some(score) => score == 0 || score > 60,
-                _ => false,
-            },
-            None => true,
-        };
-
-        matches_state
-            && matches_authored
-            && matches_authors
-            && matches_assigned
-            && matches_assignees
-            && matches_search
+    impl Default for IssueFilter {
+        fn default() -> Self {
+            IssueFilter::State(State::Open)
+        }
     }
-}
 
-impl FromStr for IssueFilter {
-    type Err = anyhow::Error;
-
-    fn from_str(value: &str) -> Result<Self, Self::Err> {
-        use radicle::issue::State;
-
-        let mut state = None;
-        let mut search = String::new();
-        let mut authored = false;
-        let mut authors = vec![];
-        let mut assigned = false;
-        let mut assignees = vec![];
-
-        let mut authors_parser = |input| -> IResult<&str, Vec<&str>> {
-            preceded(
-                tag("authors:"),
-                delimited(
-                    tag("["),
-                    separated_list0(tag(","), take(56_usize)),
-                    tag("]"),
-                ),
-            )
-            .parse(input)
-        };
-
-        let mut assignees_parser = |input| -> IResult<&str, Vec<&str>> {
-            preceded(
-                tag("assignees:"),
-                delimited(
-                    tag("["),
-                    separated_list0(tag(","), take(56_usize)),
-                    tag("]"),
-                ),
-            )
-            .parse(input)
-        };
-
-        let parts = value.split(' ');
-        for part in parts {
-            match part {
-                "is:open" => state = Some(State::Open),
-                "is:closed" => {
-                    state = Some(State::Closed {
-                        reason: CloseReason::Other,
-                    })
-                }
-                "is:solved" => {
-                    state = Some(State::Closed {
-                        reason: CloseReason::Solved,
-                    })
-                }
-                "is:authored" => authored = true,
-                "is:assigned" => assigned = true,
-                other => {
-                    if let Ok((_, dids)) = assignees_parser.parse(other) {
-                        for did in dids {
-                            assignees.push(Did::from_str(did)?);
-                        }
-                    } else if let Ok((_, dids)) = authors_parser.parse(other) {
-                        for did in dids {
-                            authors.push(Did::from_str(did)?);
-                        }
-                    } else {
-                        search.push_str(other);
-                    }
-                }
-            }
+    impl IssueFilter {
+        pub fn is_default(&self) -> bool {
+            *self == IssueFilter::default()
         }
 
-        Ok(Self {
-            state,
-            authored,
-            authors,
-            assigned,
-            assignees,
-            search: Some(search),
-        })
+        pub fn has_state(&self) -> bool {
+            match self {
+                IssueFilter::State(_) => true,
+                IssueFilter::And(filters) => {
+                    filters.iter().any(|f| matches!(f, IssueFilter::State(_)))
+                }
+                _ => false,
+            }
+        }
+    }
+
+    impl fmt::Display for IssueFilter {
+        fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+            match self {
+                IssueFilter::State(state) => {
+                    let state = match state {
+                        State::Open => "open",
+                        State::Closed { reason } => match reason {
+                            CloseReason::Solved => "solved",
+                            CloseReason::Other => "closed",
+                        },
+                    };
+                    write!(f, "state={state}")?;
+                    f.write_char(' ')?;
+                }
+                IssueFilter::Author(filter) => {
+                    write!(f, "author={filter}")?;
+                    f.write_char(' ')?;
+                }
+                IssueFilter::Assignee(filter) => {
+                    write!(f, "assignee={filter}")?;
+                    f.write_char(' ')?;
+                }
+                IssueFilter::Search(search) => {
+                    write!(f, "{search}")?;
+                    f.write_char(' ')?;
+                }
+                IssueFilter::And(filters) => {
+                    let mut it = filters.iter().peekable();
+                    while let Some(filter) = it.next() {
+                        write!(f, "{filter}")?;
+                        if it.peek().is_none() {
+                            f.write_char(' ')?;
+                        }
+                    }
+                }
+                IssueFilter::Empty | IssueFilter::Invalid => {}
+            }
+
+            Ok(())
+        }
+    }
+
+    impl Filter<Issue> for IssueFilter {
+        fn matches(&self, issue: &Issue) -> bool {
+            use fuzzy_matcher::skim::SkimMatcherV2;
+            use fuzzy_matcher::FuzzyMatcher;
+
+            let matcher = SkimMatcherV2::default();
+
+            match self {
+                IssueFilter::State(state) => issue.state == *state,
+                IssueFilter::Author(author_filter) => match author_filter {
+                    DidFilter::Single(author) => issue.author.nid == Some(**author),
+                    DidFilter::Or(authors) => authors
+                        .iter()
+                        .any(|other| issue.author.nid == Some(**other)),
+                },
+                IssueFilter::Assignee(assignee_filter) => match assignee_filter {
+                    DidFilter::Single(assignee) => issue
+                        .assignees
+                        .iter()
+                        .any(|other| other.nid == Some(**assignee)),
+                    DidFilter::Or(assignees) => issue.assignees.iter().any(|other| {
+                        assignees
+                            .iter()
+                            .any(|assignee| other.nid == Some(**assignee))
+                    }),
+                },
+                IssueFilter::Search(search) => {
+                    match matcher.fuzzy_match(
+                        &format!(
+                            "{} {} {}",
+                            &issue.id.to_string(),
+                            &issue.title,
+                            &issue
+                                .author
+                                .alias
+                                .as_ref()
+                                .map(|a| a.to_string())
+                                .unwrap_or_default()
+                        ),
+                        search,
+                    ) {
+                        Some(score) => score == 0 || score > filter::FUZZY_MIN_SCORE,
+                        _ => false,
+                    }
+                }
+                IssueFilter::And(filters) => filters.iter().all(|f| f.matches(issue)),
+                IssueFilter::Empty => true,
+                IssueFilter::Invalid => false,
+            }
+        }
+    }
+
+    impl FromStr for IssueFilter {
+        type Err = anyhow::Error;
+
+        fn from_str(filter_exp: &str) -> Result<Self, Self::Err> {
+            use nom::Parser;
+
+            fn parse_state(input: &str) -> IResult<&str, State> {
+                alt((
+                    value(State::Open, tag_no_case("open")),
+                    value(
+                        State::Closed {
+                            reason: radicle::issue::CloseReason::Other,
+                        },
+                        tag_no_case("closed"),
+                    ),
+                    value(
+                        State::Closed {
+                            reason: radicle::issue::CloseReason::Solved,
+                        },
+                        tag_no_case("solved"),
+                    ),
+                ))
+                .parse(input)
+            }
+
+            fn parse_state_filter(input: &str) -> IResult<&str, IssueFilter> {
+                map(
+                    preceded(
+                        (
+                            tag_no_case("state"),
+                            multispace0,
+                            tag_no_case("="),
+                            multispace0,
+                        ),
+                        parse_state,
+                    ),
+                    IssueFilter::State,
+                )
+                .parse(input)
+            }
+
+            fn parse_assignee_filter(input: &str) -> IResult<&str, IssueFilter> {
+                map(
+                    preceded(
+                        (
+                            tag_no_case("assignee"),
+                            multispace0,
+                            tag_no_case("="),
+                            multispace0,
+                        ),
+                        alt((filter::parse_did_single, filter::parse_did_or)),
+                    ),
+                    IssueFilter::Assignee,
+                )
+                .parse(input)
+            }
+
+            fn parse_author_filter(input: &str) -> IResult<&str, IssueFilter> {
+                map(
+                    preceded(
+                        (
+                            tag_no_case("author"),
+                            multispace0,
+                            tag_no_case("="),
+                            multispace0,
+                        ),
+                        alt((filter::parse_did_single, filter::parse_did_or)),
+                    ),
+                    IssueFilter::Author,
+                )
+                .parse(input)
+            }
+
+            fn parse_search_filter(input: &str) -> IResult<&str, IssueFilter> {
+                map(
+                    take_while1(|c: char| c.is_alphanumeric() || c == '_' || c == '-'),
+                    |s: &str| IssueFilter::Search(s.to_string()),
+                )
+                .parse(input)
+            }
+
+            fn parse_single_filter(input: &str) -> IResult<&str, IssueFilter> {
+                alt((
+                    parse_state_filter,
+                    parse_assignee_filter,
+                    parse_author_filter,
+                    parse_search_filter,
+                ))
+                .parse(input)
+            }
+
+            fn parse_filters(input: &str) -> IResult<&str, Vec<IssueFilter>> {
+                many0(preceded(multispace0, parse_single_filter)).parse(input)
+            }
+
+            let parse_filter_expression = |input: &str| -> Result<IssueFilter, String> {
+                match parse_filters(input) {
+                    Ok((remaining, filters)) => {
+                        let remaining = remaining.trim();
+                        if !remaining.is_empty() {
+                            return Err(format!("Unparsed input remaining: '{remaining}'"));
+                        }
+
+                        if filters.is_empty() {
+                            return Ok(IssueFilter::Empty);
+                        }
+
+                        if filters.len() == 1 {
+                            Ok(filters.into_iter().next().unwrap())
+                        } else {
+                            Ok(IssueFilter::And(filters))
+                        }
+                    }
+                    Err(e) => Err(format!("Parse error: {e}")),
+                }
+            };
+
+            parse_filter_expression(filter_exp).map_err(|err| anyhow::format_err!(err))
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use anyhow::Result;
+    use std::str::FromStr;
+
+    use radicle::{issue::State, prelude::Did};
+
+    use crate::ui::items::{filter::DidFilter, issue::filter::IssueFilter};
+
+    #[test]
+    fn issue_item_filter_from_str_should_succeed() -> Result<()> {
+        let search = r#"state=open assignee=(did:key:z6MkkpTPzcq1ybmjQyQpyre15JUeMvZY6toxoZVpLZ8YarsB or did:key:z6Mku8hpprWTmCv3BqkssCYDfr2feUdyLSUnycVajFo9XVAx) author=did:key:z6Mku8hpprWTmCv3BqkssCYDfr2feUdyLSUnycVajFo9XVAx cli"#;
+        let actual = IssueFilter::from_str(search)?;
+
+        let expected = IssueFilter::And(vec![
+            IssueFilter::State(State::Open),
+            IssueFilter::Assignee(DidFilter::Or(vec![
+                Did::from_str("did:key:z6MkkpTPzcq1ybmjQyQpyre15JUeMvZY6toxoZVpLZ8YarsB")?,
+                Did::from_str("did:key:z6Mku8hpprWTmCv3BqkssCYDfr2feUdyLSUnycVajFo9XVAx")?,
+            ])),
+            IssueFilter::Author(DidFilter::Single(Did::from_str(
+                "did:key:z6Mku8hpprWTmCv3BqkssCYDfr2feUdyLSUnycVajFo9XVAx",
+            )?)),
+            IssueFilter::Search("cli".to_string()),
+        ]);
+
+        assert_eq!(expected, actual);
+
+        Ok(())
     }
 }

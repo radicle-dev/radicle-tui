@@ -250,39 +250,3 @@ impl ToTree<String> for CommentItem {
         vec![item]
     }
 }
-
-#[cfg(test)]
-mod tests {
-    use anyhow::Result;
-    use std::str::FromStr;
-
-    use radicle::issue::State;
-
-    use crate::ui::items::issue::IssueFilter;
-
-    use super::*;
-
-    #[test]
-    fn issue_item_filter_from_str_should_succeed() -> Result<()> {
-        let search = r#"is:open is:assigned assignees:[did:key:z6MkkpTPzcq1ybmjQyQpyre15JUeMvZY6toxoZVpLZ8YarsB,did:key:z6Mku8hpprWTmCv3BqkssCYDfr2feUdyLSUnycVajFo9XVAx] is:authored authors:[did:key:z6Mku8hpprWTmCv3BqkssCYDfr2feUdyLSUnycVajFo9XVAx] cli"#;
-        let actual = IssueFilter::from_str(search)?;
-
-        let expected = IssueFilter {
-            state: Some(State::Open),
-            authors: vec![Did::from_str(
-                "did:key:z6Mku8hpprWTmCv3BqkssCYDfr2feUdyLSUnycVajFo9XVAx",
-            )?],
-            authored: true,
-            assigned: true,
-            assignees: vec![
-                Did::from_str("did:key:z6MkkpTPzcq1ybmjQyQpyre15JUeMvZY6toxoZVpLZ8YarsB")?,
-                Did::from_str("did:key:z6Mku8hpprWTmCv3BqkssCYDfr2feUdyLSUnycVajFo9XVAx")?,
-            ],
-            search: Some("cli".to_string()),
-        };
-
-        assert_eq!(expected, actual);
-
-        Ok(())
-    }
-}
