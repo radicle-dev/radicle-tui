@@ -16,12 +16,15 @@ pub enum IssueOperation {
     },
     Close {
         id: IssueId,
+        search: String,
     },
     Solve {
         id: IssueId,
+        search: String,
     },
     Reopen {
         id: IssueId,
+        search: String,
     },
     Comment {
         id: IssueId,

@@ -295,17 +295,17 @@ impl TryFrom<(&Context, &TerminalInfo)> for App {
             .collect();
 
         let browser = state::Browser {
-            issues: TableState::new(
+            issues: TableState::new(Some(
                 context
                     .issue
-                    .map(|id| {
+                    .and_then(|id| {
                         issues
                             .iter()
                             .filter(|item| filter.matches(item))
                             .position(|item| item.id() == id)
                     })
-                    .unwrap_or(issues.first().map(|_| 0)),
-            ),
+                    .unwrap_or(0),
+            )),
             search: BufferedValue::new(TextEditState {
                 text: search.read().clone(),
                 cursor: search.read().len(),
@@ -657,19 +657,28 @@ impl App {
 
             if ui.has_input(|key| key == Key::Char('s')) {
                 ui.send_message(Message::Exit {
-                    operation: Some(IssueOperation::Solve { id: issue.id }),
+                    operation: Some(IssueOperation::Solve {
+                        id: issue.id,
+                        search: browser.search.read().text,
+                    }),
                 });
             }
 
             if ui.has_input(|key| key == Key::Char('l')) {
                 ui.send_message(Message::Exit {
-                    operation: Some(IssueOperation::Close { id: issue.id }),
+                    operation: Some(IssueOperation::Close {
+                        id: issue.id,
+                        search: browser.search.read().text,
+                    }),
                 });
             }
 
             if ui.has_input(|key| key == Key::Char('o')) {
                 ui.send_message(Message::Exit {
-                    operation: Some(IssueOperation::Reopen { id: issue.id }),
+                    operation: Some(IssueOperation::Reopen {
+                        id: issue.id,
+                        search: browser.search.read().text,
+                    }),
                 });
             }
         }

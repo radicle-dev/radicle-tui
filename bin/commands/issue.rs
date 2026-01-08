@@ -270,19 +270,34 @@ pub async fn run(options: Options, ctx: impl Context) -> anyhow::Result<()> {
                                     }
                                 }
                             }
-                            IssueOperation::Solve { id } => {
+                            IssueOperation::Solve { id, search } => {
+                                state = PreviousState {
+                                    issue_id: Some(id),
+                                    comment_id: None,
+                                    search: Some(search),
+                                };
                                 terminal::run_rad(
                                     Some("issue"),
                                     &["state".into(), id.to_string().into(), "--solved".into()],
                                 )?;
                             }
-                            IssueOperation::Close { id } => {
+                            IssueOperation::Close { id, search } => {
+                                state = PreviousState {
+                                    issue_id: Some(id),
+                                    comment_id: None,
+                                    search: Some(search),
+                                };
                                 terminal::run_rad(
                                     Some("issue"),
                                     &["state".into(), id.to_string().into(), "--closed".into()],
                                 )?;
                             }
-                            IssueOperation::Reopen { id } => {
+                            IssueOperation::Reopen { id, search } => {
+                                state = PreviousState {
+                                    issue_id: Some(id),
+                                    comment_id: None,
+                                    search: Some(search),
+                                };
                                 terminal::run_rad(
                                     Some("issue"),
                                     &["state".into(), id.to_string().into(), "--open".into()],
