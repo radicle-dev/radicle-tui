@@ -53,8 +53,8 @@ const HELP: &str = r#"# Generic keybindings
 
 # Searching
 
-Pattern:    is:<state> | is:authored | authors:[<did>, <did>] | <search>
-Example:    is:open is:authored improve"#;
+Examples:   state=open bugfix
+            state=merged author=(did:key:... or did:key:...)"#;
 
 /// The selected patch operation returned by the operation
 /// selection widget.
