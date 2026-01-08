@@ -570,15 +570,17 @@ impl Show<Message> for App {
                         },
                     );
 
-                    if ui.has_input(|key| key == Key::Char('p')) {
-                        ui.send_message(Message::Changed(Change::ShowPreview {
-                            state: !self.state.preview.show,
-                        }));
-                    }
-                    if ui.has_input(|key| key == Key::Char('?')) {
-                        ui.send_message(Message::Changed(Change::Page {
-                            page: state::Page::Help,
-                        }));
+                    if !show_search {
+                        if ui.has_input(|key| key == Key::Char('p')) {
+                            ui.send_message(Message::Changed(Change::ShowPreview {
+                                state: !self.state.preview.show,
+                            }));
+                        }
+                        if ui.has_input(|key| key == Key::Char('?')) {
+                            ui.send_message(Message::Changed(Change::Page {
+                                page: state::Page::Help,
+                            }));
+                        }
                     }
                 }
                 state::Page::Help => {
