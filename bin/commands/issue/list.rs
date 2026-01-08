@@ -7,7 +7,7 @@ use serde::Serialize;
 use anyhow::{bail, Result};
 
 use ratatui::layout::{Alignment, Constraint, Layout, Position};
-use ratatui::style::Stylize;
+use ratatui::style::{Style, Stylize};
 use ratatui::text::{Line, Span, Text};
 use ratatui::{Frame, Viewport};
 
@@ -280,8 +280,10 @@ impl TryFrom<(&Context, &TerminalInfo)> for App {
         let settings = settings::Settings::default();
 
         let issues = issue::all(&context.profile, &context.repository)?;
-        let search =
-            BufferedValue::new(context.search.clone().unwrap_or(context.filter.to_string()));
+        let search = {
+            let raw = context.filter.to_string();
+            BufferedValue::new(raw.trim().to_string())
+        };
         let filter = IssueFilter::from_str(&search.read()).unwrap_or_default();
 
         let default_bundle = ThemeBundle::default();
@@ -340,7 +342,7 @@ impl TryFrom<(&Context, &TerminalInfo)> for App {
             )),
             search: BufferedValue::new(TextEditState {
                 text: search.read().clone(),
-                cursor: search.read().len(),
+                cursor: search.read().chars().count(),
             }),
             show_search: false,
         };
@@ -790,7 +792,13 @@ impl App {
                         Constraint::Length(8),
                     ),
                     Column::new(
-                        Span::raw(format!(" {search} "))
+                        Span::from(" ")
+                            .style(ui.theme().bar_on_black_style)
+                            .into_right_aligned_line(),
+                        Constraint::Length(1),
+                    ),
+                    Column::new(
+                        Span::raw(format!("{search}"))
                             .into_left_aligned_line()
                             .style(ui.theme().bar_on_black_style)
                             .cyan()
@@ -848,7 +856,13 @@ impl App {
                         Constraint::Length(8),
                     ),
                     Column::new(
-                        Span::raw(format!(" {search} "))
+                        Span::from(" ")
+                            .style(ui.theme().bar_on_black_style)
+                            .into_right_aligned_line(),
+                        Constraint::Length(1),
+                    ),
+                    Column::new(
+                        Span::raw(format!("{search}"))
                             .into_left_aligned_line()
                             .style(ui.theme().bar_on_black_style)
                             .cyan()
