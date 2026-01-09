@@ -5,12 +5,13 @@ use std::ffi::OsString;
 
 use anyhow::anyhow;
 
+use radicle::node::notifications::NotificationId;
 use radicle::storage::{HasRepoId, ReadRepository};
 
 use radicle_cli::terminal::{Args, Error, Help};
 
 use crate::terminal;
-use crate::ui::items::notification::filter::{NotificationFilter, SortBy};
+use crate::ui::items::notification::filter::SortBy;
 
 use self::list::{InboxOperation, RepositoryMode};
 
@@ -58,7 +59,6 @@ pub enum OperationName {
 #[derive(Debug, Default, Clone, PartialEq)]
 pub struct ListOptions {
     mode: RepositoryMode,
-    filter: NotificationFilter,
     sort_by: SortBy,
     json: bool,
 }
@@ -179,11 +179,18 @@ pub async fn run(options: Options, ctx: impl radicle_cli::terminal::Context) -> 
 
     match options.op {
         Operation::List { opts } => {
+            #[derive(Default)]
+            struct PreviousState {
+                notif_id: Option<NotificationId>,
+                search: Option<String>,
+            }
+
             if let Err(err) = crate::log::enable() {
                 println!("{err}");
             }
             log::info!("Starting inbox listing interface in project {rid}..");
 
+            let mut state = PreviousState::default();
             loop {
                 let profile = ctx.profile()?;
                 let repository = profile.storage.repository(rid)?;
@@ -193,8 +200,9 @@ pub async fn run(options: Options, ctx: impl radicle_cli::terminal::Context) -> 
                     project: repository.identity_doc()?.project()?,
                     rid: repository.rid(),
                     mode: opts.mode.clone(),
-                    filter: opts.filter.clone(),
+                    search: state.search.clone(),
                     sort_by: opts.sort_by,
+                    _notif_id: state.notif_id,
                 };
 
                 let app = list::Tui::new(context);
@@ -212,13 +220,21 @@ pub async fn run(options: Options, ctx: impl radicle_cli::terminal::Context) -> 
                 } else if let Some(selection) = selection {
                     if let Some(operation) = selection.operation.clone() {
                         match operation {
-                            InboxOperation::Show { id } => {
+                            InboxOperation::Show { id, search } => {
+                                state = PreviousState {
+                                    notif_id: Some(id),
+                                    search: Some(search),
+                                };
                                 terminal::run_rad(
                                     Some("inbox"),
                                     &["show".into(), id.to_string().into()],
                                 )?;
                             }
-                            InboxOperation::Clear { id } => {
+                            InboxOperation::Clear { id, search } => {
+                                state = PreviousState {
+                                    notif_id: Some(id),
+                                    search: Some(search),
+                                };
                                 terminal::run_rad(
                                     Some("inbox"),
                                     &["clear".into(), id.to_string().into()],

@@ -48,8 +48,8 @@ pub enum RepositoryMode {
 /// selection widget.
 #[derive(Clone, Debug, Eq, PartialEq, Serialize)]
 pub enum InboxOperation {
-    Show { id: NotificationId },
-    Clear { id: NotificationId },
+    Show { id: NotificationId, search: String },
+    Clear { id: NotificationId, search: String },
 }
 
 type Selection = tui::Selection<InboxOperation>;
@@ -85,8 +85,9 @@ pub struct Context {
     pub project: Project,
     pub rid: RepoId,
     pub mode: RepositoryMode,
-    pub filter: NotificationFilter,
     pub sort_by: SortBy,
+    pub _notif_id: Option<NotificationId>,
+    pub search: Option<String>,
 }
 
 pub struct Tui {
@@ -174,12 +175,17 @@ impl TryFrom<&Context> for App {
     type Error = anyhow::Error;
 
     fn try_from(context: &Context) -> Result<Self, Self::Error> {
-        let search = {
-            let raw = context.filter.to_string();
-            raw.trim().to_string()
+        let search = context.search.as_ref().map(|s| s.trim().to_string());
+        let (search, filter) = match search {
+            Some(search) => (
+                search.clone(),
+                NotificationFilter::from_str(search.trim()).unwrap_or(NotificationFilter::Invalid),
+            ),
+            None => {
+                let filter = NotificationFilter::default();
+                (filter.to_string().trim().to_string(), filter)
+            }
         };
-        let filter = NotificationFilter::from_str(&context.filter.to_string())
-            .unwrap_or(NotificationFilter::Invalid);
 
         Ok(App {
             context: Arc::new(Mutex::new(context.clone())),
@@ -189,8 +195,8 @@ impl TryFrom<&Context> for App {
                 main_group: ContainerState::new(3, Some(0)),
                 patches: TableState::new(Some(0)),
                 search: BufferedValue::new(TextEditState {
-                    text: search.clone(),
-                    cursor: search.len(),
+                    text: search.to_string(),
+                    cursor: search.chars().count(),
                 }),
                 show_search: false,
                 help: TextViewState::new(Position::default()),
@@ -421,6 +427,7 @@ impl App {
                 ui.send_message(Message::Exit {
                     operation: Some(InboxOperation::Show {
                         id: notification.id,
+                        search: self.state.search.read().text,
                     }),
                 });
             }
@@ -428,6 +435,7 @@ impl App {
                 ui.send_message(Message::Exit {
                     operation: Some(InboxOperation::Clear {
                         id: notification.id,
+                        search: self.state.search.read().text,
                     }),
                 });
             }
@@ -554,7 +562,8 @@ impl App {
                     Column::new(
                         Span::raw(format!(" {search} "))
                             .into_left_aligned_line()
-                            .style(ui.theme().bar_on_black_style),
+                            .style(ui.theme().bar_on_black_style)
+                            .cyan(),
                         Constraint::Fill(1),
                     ),
                     Column::new(

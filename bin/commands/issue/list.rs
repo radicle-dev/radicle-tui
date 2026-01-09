@@ -7,7 +7,7 @@ use serde::Serialize;
 use anyhow::{bail, Result};
 
 use ratatui::layout::{Alignment, Constraint, Layout, Position};
-use ratatui::style::{Style, Stylize};
+use ratatui::style::Stylize;
 use ratatui::text::{Line, Span, Text};
 use ratatui::{Frame, Viewport};
 
