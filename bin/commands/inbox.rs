@@ -217,7 +217,6 @@ pub async fn run(options: Options, ctx: impl radicle_cli::terminal::Context) -> 
                                     Some("inbox"),
                                     &["show".into(), id.to_string().into()],
                                 )?;
-                                break;
                             }
                             InboxOperation::Clear { id } => {
                                 terminal::run_rad(
