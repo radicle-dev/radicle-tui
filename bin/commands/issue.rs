@@ -297,7 +297,6 @@ pub async fn run(options: Options, ctx: impl Context) -> anyhow::Result<()> {
                                     Some("issue"),
                                     &["show".into(), id.to_string().into()],
                                 )?;
-                                break;
                             }
                             IssueOperation::Edit {
                                 id,
