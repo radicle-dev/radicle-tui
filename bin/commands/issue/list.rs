@@ -2,9 +2,10 @@ use std::collections::{HashMap, HashSet};
 use std::str::FromStr;
 use std::sync::{Arc, Mutex};
 
+use radicle::cob::ObjectId;
 use serde::Serialize;
 
-use anyhow::{bail, Result};
+use anyhow::{anyhow, bail, Result};
 
 use ratatui::layout::{Alignment, Constraint, Layout, Position};
 use ratatui::style::Stylize;
@@ -40,34 +41,61 @@ use crate::ui::{format, TerminalInfo};
 
 type Selection = tui::Selection<IssueOperation>;
 
+#[derive(Clone, Debug, Eq, PartialEq, Serialize)]
+pub struct RequiredArguments {
+    id: IssueId,
+    search: String,
+}
+
+impl RequiredArguments {
+    pub fn id(&self) -> ObjectId {
+        self.id
+    }
+
+    pub fn search(&self) -> String {
+        self.search.clone()
+    }
+}
+
+impl TryFrom<&App> for RequiredArguments {
+    type Error = anyhow::Error;
+
+    fn try_from(app: &App) -> Result<Self> {
+        let selected = app.state.browser.selected();
+        let issues = app.issues.lock().unwrap();
+        let id = selected
+            .and_then(|s| issues.get(s))
+            .ok_or(anyhow!("No issue selected"))?
+            .id;
+        let search = app.state.browser.search.read().text;
+
+        Ok(Self { id, search })
+    }
+}
+
 /// The selected issue operation returned by the operation
 /// selection widget.
 #[derive(Clone, Debug, Eq, PartialEq, Serialize)]
 pub enum IssueOperation {
     Edit {
-        id: IssueId,
+        args: RequiredArguments,
         comment_id: Option<CommentId>,
-        search: String,
     },
     Show {
-        id: IssueId,
+        args: RequiredArguments,
     },
     Close {
-        id: IssueId,
-        search: String,
+        args: RequiredArguments,
     },
     Solve {
-        id: IssueId,
-        search: String,
+        args: RequiredArguments,
     },
     Reopen {
-        id: IssueId,
-        search: String,
+        args: RequiredArguments,
     },
     Comment {
-        id: IssueId,
+        args: RequiredArguments,
         reply_to: Option<CommentId>,
-        search: String,
     },
 }
 
@@ -131,7 +159,7 @@ impl Tui {
     }
 }
 
-mod state {
+mod args {
     use super::*;
     use crate::ui::items::CommentItem;
 
@@ -238,7 +266,7 @@ mod state {
 
 #[derive(Clone, Debug)]
 pub enum Change {
-    Page { page: state::Page },
+    Page { page: args::Page },
     Section { state: ContainerState },
     Issue { state: TableState },
     Comment { state: TreeState<String> },
@@ -258,10 +286,10 @@ pub enum Message {
 
 #[derive(Clone, Debug)]
 pub struct AppState {
-    page: state::Page,
+    page: args::Page,
     sections: ContainerState,
-    browser: state::Browser,
-    preview: state::Preview,
+    browser: args::Browser,
+    preview: args::Preview,
     help: TextViewState,
     filter: IssueFilter,
 }
@@ -334,7 +362,7 @@ impl TryFrom<(&Context, &TerminalInfo)> for App {
             })
             .collect();
 
-        let browser = state::Browser {
+        let browser = args::Browser {
             issues: TableState::new(Some(
                 context
                     .issue
@@ -353,7 +381,7 @@ impl TryFrom<(&Context, &TerminalInfo)> for App {
             show_search: false,
         };
 
-        let preview = state::Preview {
+        let preview = args::Preview {
             show: true,
             issue: browser
                 .selected()
@@ -371,15 +399,15 @@ impl TryFrom<(&Context, &TerminalInfo)> for App {
         };
 
         let section = if context.comment.is_some() {
-            state::Section::Issue
+            args::Section::Issue
         } else {
-            state::Section::Browser
+            args::Section::Browser
         };
 
         Ok(Self {
             issues: Arc::new(Mutex::new(issues)),
             state: AppState {
-                page: state::Page::Main,
+                page: args::Page::Main,
                 sections: ContainerState::new(3, Some(section as usize)),
                 browser,
                 preview,
@@ -518,7 +546,7 @@ impl Show<Message> for App {
     fn show(&self, ctx: &ui::Context<Message>, frame: &mut Frame) -> Result<()> {
         Window::default().show(ctx, |ui| {
             match self.state.page.clone() {
-                state::Page::Main => {
+                args::Page::Main => {
                     let show_search = self.state.browser.show_search;
                     let page_focus = if show_search { Some(1) } else { Some(0) };
 
@@ -554,7 +582,7 @@ impl Show<Message> for App {
                                 }),
                                 Some(0),
                                 |ui| {
-                                    use state::Section;
+                                    use args::Section;
                                     if let Some(section) = focus {
                                         match Section::try_from(section).unwrap_or_default() {
                                             Section::Browser => {
@@ -586,12 +614,12 @@ impl Show<Message> for App {
                         }
                         if ui.has_input(|key| key == Key::Char('?')) {
                             ui.send_message(Message::Changed(Change::Page {
-                                page: state::Page::Help,
+                                page: args::Page::Help,
                             }));
                         }
                     }
                 }
-                state::Page::Help => {
+                args::Page::Help => {
                     let layout = Layout::vertical([
                         Constraint::Length(3),
                         Constraint::Fill(1),
@@ -608,7 +636,7 @@ impl Show<Message> for App {
 
                     if ui.has_input(|key| key == Key::Char('?')) {
                         ui.send_message(Message::Changed(Change::Page {
-                            page: state::Page::Main,
+                            page: args::Page::Main,
                         }));
                     }
                 }
@@ -679,47 +707,37 @@ impl App {
             }));
         }
 
-        if let Some(issue) = selected.and_then(|s| issues.get(s)) {
+        if let Ok(args) = RequiredArguments::try_from(self) {
             if ui.has_input(|key| key == Key::Enter) {
                 ui.send_message(Message::Exit {
-                    operation: Some(IssueOperation::Show { id: issue.id }),
+                    operation: Some(IssueOperation::Show { args: args.clone() }),
                 });
             }
 
             if ui.has_input(|key| key == Key::Char('e')) {
                 ui.send_message(Message::Exit {
                     operation: Some(IssueOperation::Edit {
-                        id: issue.id,
+                        args: args.clone(),
                         comment_id: preview.selected_comment().map(|c| c.id),
-                        search: browser.search.read().text,
                     }),
                 });
             }
 
             if ui.has_input(|key| key == Key::Char('s')) {
                 ui.send_message(Message::Exit {
-                    operation: Some(IssueOperation::Solve {
-                        id: issue.id,
-                        search: browser.search.read().text,
-                    }),
+                    operation: Some(IssueOperation::Solve { args: args.clone() }),
                 });
             }
 
             if ui.has_input(|key| key == Key::Char('l')) {
                 ui.send_message(Message::Exit {
-                    operation: Some(IssueOperation::Close {
-                        id: issue.id,
-                        search: browser.search.read().text,
-                    }),
+                    operation: Some(IssueOperation::Close { args: args.clone() }),
                 });
             }
 
             if ui.has_input(|key| key == Key::Char('o')) {
                 ui.send_message(Message::Exit {
-                    operation: Some(IssueOperation::Reopen {
-                        id: issue.id,
-                        search: browser.search.read().text,
-                    }),
+                    operation: Some(IssueOperation::Reopen { args }),
                 });
             }
         }
@@ -1005,9 +1023,6 @@ impl App {
             })
             .unwrap_or_default();
 
-        let browser = &self.state.browser;
-        let search = browser.search.read();
-
         let preview = &self.state.preview;
         let comment = preview.selected_comment();
         let root = preview.root_comments();
@@ -1054,13 +1069,12 @@ impl App {
                     }));
                 }
 
-                if let Some(issue) = issue {
+                if let Ok(args) = RequiredArguments::try_from(self) {
                     if ui.has_input(|key| key == Key::Char('c')) {
                         ui.send_message(Message::Exit {
                             operation: Some(IssueOperation::Comment {
-                                id: issue.id,
+                                args: args.clone(),
                                 reply_to: comment.map(|c| c.id),
-                                search: search.text.clone(),
                             }),
                         });
                     }
@@ -1068,9 +1082,8 @@ impl App {
                     if ui.has_input(|key| key == Key::Char('e')) {
                         ui.send_message(Message::Exit {
                             operation: Some(IssueOperation::Edit {
-                                id: issue.id,
+                                args,
                                 comment_id: comment.map(|c| c.id),
-                                search: search.text,
                             }),
                         });
                     }

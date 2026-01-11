@@ -292,21 +292,22 @@ pub async fn run(options: Options, ctx: impl Context) -> anyhow::Result<()> {
                 } else if let Some(selection) = selection {
                     if let Some(operation) = selection.operation.clone() {
                         match operation {
-                            IssueOperation::Show { id } => {
+                            IssueOperation::Show { args } => {
+                                state = PreviousState {
+                                    issue_id: Some(args.id()),
+                                    comment_id: None,
+                                    search: Some(args.search()),
+                                };
                                 terminal::run_rad(
                                     Some("issue"),
-                                    &["show".into(), id.to_string().into()],
+                                    &["show".into(), args.id().to_string().into()],
                                 )?;
                             }
-                            IssueOperation::Edit {
-                                id,
-                                comment_id,
-                                search,
-                            } => {
+                            IssueOperation::Edit { args, comment_id } => {
                                 state = PreviousState {
-                                    issue_id: Some(id),
+                                    issue_id: Some(args.id()),
                                     comment_id,
-                                    search: Some(search),
+                                    search: Some(args.search()),
                                 };
                                 match comment_id {
                                     Some(comment_id) => {
@@ -314,7 +315,7 @@ pub async fn run(options: Options, ctx: impl Context) -> anyhow::Result<()> {
                                             Some("issue"),
                                             &[
                                                 "comment".into(),
-                                                id.to_string().into(),
+                                                args.id().to_string().into(),
                                                 "--edit".into(),
                                                 comment_id.to_string().into(),
                                             ],
@@ -323,60 +324,68 @@ pub async fn run(options: Options, ctx: impl Context) -> anyhow::Result<()> {
                                     _ => {
                                         terminal::run_rad(
                                             Some("issue"),
-                                            &["edit".into(), id.to_string().into()],
+                                            &["edit".into(), args.id().to_string().into()],
                                         )?;
                                     }
                                 }
                             }
-                            IssueOperation::Solve { id, search } => {
+                            IssueOperation::Solve { args } => {
                                 state = PreviousState {
-                                    issue_id: Some(id),
+                                    issue_id: Some(args.id()),
                                     comment_id: None,
-                                    search: Some(search),
+                                    search: Some(args.search()),
                                 };
                                 terminal::run_rad(
                                     Some("issue"),
-                                    &["state".into(), id.to_string().into(), "--solved".into()],
+                                    &[
+                                        "state".into(),
+                                        args.id().to_string().into(),
+                                        "--solved".into(),
+                                    ],
                                 )?;
                             }
-                            IssueOperation::Close { id, search } => {
+                            IssueOperation::Close { args } => {
                                 state = PreviousState {
-                                    issue_id: Some(id),
+                                    issue_id: Some(args.id()),
                                     comment_id: None,
-                                    search: Some(search),
+                                    search: Some(args.search()),
                                 };
                                 terminal::run_rad(
                                     Some("issue"),
-                                    &["state".into(), id.to_string().into(), "--closed".into()],
+                                    &[
+                                        "state".into(),
+                                        args.id().to_string().into(),
+                                        "--closed".into(),
+                                    ],
                                 )?;
                             }
-                            IssueOperation::Reopen { id, search } => {
+                            IssueOperation::Reopen { args } => {
                                 state = PreviousState {
-                                    issue_id: Some(id),
+                                    issue_id: Some(args.id()),
                                     comment_id: None,
-                                    search: Some(search),
+                                    search: Some(args.search()),
                                 };
                                 terminal::run_rad(
                                     Some("issue"),
-                                    &["state".into(), id.to_string().into(), "--open".into()],
+                                    &[
+                                        "state".into(),
+                                        args.id().to_string().into(),
+                                        "--open".into(),
+                                    ],
                                 )?;
                             }
-                            IssueOperation::Comment {
-                                id,
-                                reply_to,
-                                search,
-                            } => {
+                            IssueOperation::Comment { args, reply_to } => {
                                 let comment_id = comment(
                                     &tui.context().profile,
                                     &tui.context().repository,
-                                    id,
+                                    args.id(),
                                     Message::Edit,
                                     reply_to,
                                 )?;
                                 state = PreviousState {
-                                    issue_id: Some(id),
+                                    issue_id: Some(args.id()),
                                     comment_id: Some(comment_id),
-                                    search: Some(search),
+                                    search: Some(args.search()),
                                 };
                             }
                         }
