@@ -287,7 +287,7 @@ impl TryFrom<(&Context, &TerminalInfo)> for App {
                 IssueFilter::from_str(search.trim()).unwrap_or(IssueFilter::Invalid),
             ),
             None => {
-                let filter = IssueFilter::default();
+                let filter = context.filter.clone();
                 (filter.to_string().trim().to_string(), filter)
             }
         };
