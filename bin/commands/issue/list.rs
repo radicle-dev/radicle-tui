@@ -280,11 +280,17 @@ impl TryFrom<(&Context, &TerminalInfo)> for App {
         let settings = settings::Settings::default();
 
         let issues = issue::all(&context.profile, &context.repository)?;
-        let search = {
-            let raw = context.filter.to_string();
-            BufferedValue::new(raw.trim().to_string())
+        let search = context.search.as_ref().map(|s| s.trim().to_string());
+        let (search, filter) = match search {
+            Some(search) => (
+                search.clone(),
+                IssueFilter::from_str(search.trim()).unwrap_or(IssueFilter::Invalid),
+            ),
+            None => {
+                let filter = IssueFilter::default();
+                (filter.to_string().trim().to_string(), filter)
+            }
         };
-        let filter = IssueFilter::from_str(&search.read()).unwrap_or_default();
 
         let default_bundle = ThemeBundle::default();
         let theme_bundle = settings.theme.active_bundle().unwrap_or(&default_bundle);
@@ -341,8 +347,8 @@ impl TryFrom<(&Context, &TerminalInfo)> for App {
                     .unwrap_or(0),
             )),
             search: BufferedValue::new(TextEditState {
-                text: search.read().clone(),
-                cursor: search.read().chars().count(),
+                text: search.clone(),
+                cursor: search.chars().count(),
             }),
             show_search: false,
         };
