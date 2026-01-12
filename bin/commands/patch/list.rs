@@ -1,7 +1,7 @@
 use std::str::FromStr;
 use std::sync::{Arc, Mutex};
 
-use anyhow::Result;
+use anyhow::{anyhow, Result};
 
 use serde::Serialize;
 
@@ -56,14 +56,46 @@ const HELP: &str = r#"# Generic keybindings
 Examples:   state=open bugfix
             state=merged author=(did:key:... or did:key:...)"#;
 
+#[derive(Clone, Debug, Eq, PartialEq, Serialize)]
+pub struct OperationArguments {
+    id: PatchId,
+    search: String,
+}
+
+impl OperationArguments {
+    pub fn id(&self) -> PatchId {
+        self.id
+    }
+
+    pub fn search(&self) -> String {
+        self.search.clone()
+    }
+}
+
+impl TryFrom<(&Vec<Patch>, &AppState)> for OperationArguments {
+    type Error = anyhow::Error;
+
+    fn try_from(value: (&Vec<Patch>, &AppState)) -> Result<Self> {
+        let (patches, state) = value;
+        let selected = state.patches.selected();
+        let id = selected
+            .and_then(|s| patches.get(s))
+            .ok_or(anyhow!("No patch selected"))?
+            .id;
+        let search = state.search.read().text;
+
+        Ok(Self { id, search })
+    }
+}
+
 /// The selected patch operation returned by the operation
 /// selection widget.
 #[derive(Clone, Debug, Eq, PartialEq, Serialize)]
 pub enum PatchOperation {
-    Checkout { id: PatchId },
-    Diff { id: PatchId },
-    Show { id: PatchId },
-    _Review { id: PatchId },
+    Checkout { args: OperationArguments },
+    Diff { args: OperationArguments },
+    Show { args: OperationArguments },
+    _Review { args: OperationArguments },
 }
 
 type Selection = tui::Selection<PatchOperation>;
@@ -72,6 +104,8 @@ pub struct Context {
     pub profile: Profile,
     pub repository: Repository,
     pub filter: PatchFilter,
+    pub patch_id: Option<PatchId>,
+    pub search: Option<String>,
 }
 
 pub struct Tui {
@@ -155,9 +189,16 @@ impl TryFrom<&Context> for App {
             .collect::<Vec<_>>();
         patches.sort_by(|a, b| b.timestamp.cmp(&a.timestamp));
 
-        let search = {
-            let raw = context.filter.to_string();
-            raw.trim().to_string()
+        let search = context.search.as_ref().map(|s| s.trim().to_string());
+        let (search, filter) = match search {
+            Some(search) => (
+                search.clone(),
+                PatchFilter::from_str(search.trim()).unwrap_or(PatchFilter::Invalid),
+            ),
+            None => {
+                let filter = context.filter.clone();
+                (filter.to_string().trim().to_string(), filter)
+            }
         };
 
         Ok(App {
@@ -165,14 +206,24 @@ impl TryFrom<&Context> for App {
             state: AppState {
                 page: Page::Main,
                 main_group: ContainerState::new(3, Some(0)),
-                patches: TableState::new(Some(0)),
+                patches: TableState::new(Some(
+                    context
+                        .patch_id
+                        .and_then(|id| {
+                            patches
+                                .iter()
+                                .filter(|item| filter.matches(item))
+                                .position(|item| item.id == id)
+                        })
+                        .unwrap_or(0),
+                )),
                 search: BufferedValue::new(TextEditState {
                     text: search.clone(),
                     cursor: search.len(),
                 }),
                 show_search: false,
                 help: TextViewState::new(Position::default()),
-                filter: context.filter.clone(),
+                filter,
             },
         })
     }
@@ -361,20 +412,20 @@ impl App {
             ui.send_message(Message::ShowSearch);
         }
 
-        if let Some(patch) = selected.and_then(|s| patches.get(s)) {
+        if let Ok(args) = OperationArguments::try_from((&patches, &self.state)) {
             if ui.has_input(|key| key == Key::Enter) {
                 ui.send_message(Message::Exit {
-                    operation: Some(PatchOperation::Show { id: patch.id }),
+                    operation: Some(PatchOperation::Show { args: args.clone() }),
                 });
             }
             if ui.has_input(|key| key == Key::Char('d')) {
                 ui.send_message(Message::Exit {
-                    operation: Some(PatchOperation::Diff { id: patch.id }),
+                    operation: Some(PatchOperation::Diff { args: args.clone() }),
                 });
             }
             if ui.has_input(|key| key == Key::Char('c')) {
                 ui.send_message(Message::Exit {
-                    operation: Some(PatchOperation::Checkout { id: patch.id }),
+                    operation: Some(PatchOperation::Checkout { args }),
                 });
             }
         }

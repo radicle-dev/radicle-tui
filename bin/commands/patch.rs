@@ -9,7 +9,6 @@ use anyhow::anyhow;
 
 use radicle::cob::ObjectId;
 use radicle::identity::RepoId;
-use radicle::patch::cache::Patches;
 use radicle::patch::{Patch, Revision, RevisionId, Status};
 use radicle::prelude::Did;
 use radicle::storage::git::Repository;
@@ -297,7 +296,6 @@ impl Args for Options {
 
 #[tokio::main]
 pub async fn run(options: Options, ctx: impl radicle_cli::terminal::Context) -> anyhow::Result<()> {
-    use crate::tui_patch::list::PatchOperation;
     use radicle::storage::ReadStorage;
 
     let (_, rid) = radicle::rad::cwd()
@@ -309,53 +307,10 @@ pub async fn run(options: Options, ctx: impl radicle_cli::terminal::Context) -> 
 
     match options.op {
         Operation::List { opts } => {
-            let profile = ctx.profile()?;
+            log::info!("Starting patch selection interface in project {rid}..");
+
             let rid = options.repo.unwrap_or(rid);
-
-            // Run TUI with patch list interface
-            let selection = interface::list(opts.clone(), profile.clone(), rid).await?;
-
-            if opts.json {
-                let selection = selection
-                    .map(|o| serde_json::to_string(&o).unwrap_or_default())
-                    .unwrap_or_default();
-
-                log::info!("About to print to `stderr`: {selection}");
-                log::info!("Exiting patch list interface..");
-
-                eprint!("{selection}");
-            } else if let Some(selection) = selection {
-                if let Some(operation) = selection.operation.clone() {
-                    match operation {
-                        PatchOperation::Show { id } => {
-                            terminal::run_rad(
-                                Some("patch"),
-                                &["show".into(), id.to_string().into()],
-                            )?;
-                        }
-                        PatchOperation::Diff { id } => {
-                            let repo = profile.storage.repository(rid)?;
-                            let cache = profile.patches(&repo)?;
-                            let patch = cache
-                                .get(&id)?
-                                .ok_or_else(|| anyhow!("unknown patch '{id}'"))?;
-                            let range = format!("{}..{}", patch.base(), patch.head());
-
-                            terminal::run_git(Some("diff"), &[range.into()])?;
-                        }
-                        PatchOperation::Checkout { id } => {
-                            terminal::run_rad(
-                                Some("patch"),
-                                &["checkout".into(), id.to_string().into()],
-                            )?;
-                        }
-                        PatchOperation::_Review { id } => {
-                            let opts = ReviewOptions::default();
-                            interface::review(opts, profile, rid, id).await?;
-                        }
-                    }
-                }
-            }
+            interface::list(opts.clone(), ctx.profile()?, rid).await?;
         }
         Operation::Review { ref opts } => {
             log::info!("Starting patch review interface in project {rid}..");
@@ -395,11 +350,8 @@ mod interface {
     use radicle::storage::ReadStorage;
     use radicle::Profile;
 
-    use radicle_cli::terminal;
-
-    use radicle_tui::Selection;
-
     use crate::cob;
+    use crate::terminal;
     use crate::tui_patch::list;
     use crate::tui_patch::review::builder::CommentBuilder;
     use crate::tui_patch::review::ReviewAction;
@@ -409,23 +361,96 @@ mod interface {
     use super::review::builder::ReviewBuilder;
     use super::{ListOptions, ReviewOptions};
 
-    pub async fn list(
-        opts: ListOptions,
-        profile: Profile,
-        rid: RepoId,
-    ) -> anyhow::Result<Option<Selection<list::PatchOperation>>> {
-        let repository = profile.storage.repository(rid).unwrap();
+    pub async fn list(opts: ListOptions, profile: Profile, rid: RepoId) -> anyhow::Result<()> {
         let me = profile.did();
 
-        log::info!("Starting patch selection interface in project {rid}..");
+        #[derive(Default)]
+        struct PreviousState {
+            patch_id: Option<PatchId>,
+            search: Option<String>,
+        }
 
-        let context = list::Context {
-            profile,
-            repository,
-            filter: (me, opts.filter.clone()).into(),
-        };
+        // Store issue and comment selection across app runs in order to
+        // preselect them when re-running the app.
+        let mut state = PreviousState::default();
 
-        list::Tui::new(context).run().await
+        loop {
+            let context = list::Context {
+                profile: profile.clone(),
+                repository: profile.storage.repository(rid).unwrap(),
+                filter: (me, opts.filter.clone()).into(),
+                search: state.search.clone(),
+                patch_id: state.patch_id,
+            };
+
+            // Run TUI with patch list interface
+            let selection = list::Tui::new(context).run().await?;
+
+            if opts.json {
+                let selection = selection
+                    .map(|o| serde_json::to_string(&o).unwrap_or_default())
+                    .unwrap_or_default();
+
+                log::info!("About to print to `stderr`: {selection}");
+                log::info!("Exiting patch list interface..");
+
+                eprint!("{selection}");
+
+                break;
+            } else if let Some(selection) = selection {
+                if let Some(operation) = selection.operation.clone() {
+                    match operation {
+                        list::PatchOperation::Show { args } => {
+                            state = PreviousState {
+                                patch_id: Some(args.id()),
+                                search: Some(args.search()),
+                            };
+                            terminal::run_rad(
+                                Some("patch"),
+                                &["show".into(), args.id().to_string().into()],
+                            )?;
+                        }
+                        list::PatchOperation::Diff { args } => {
+                            let repo = profile.clone().storage.repository(rid)?;
+                            let cache = profile.patches(&repo)?;
+                            let patch = cache
+                                .get(&args.id())?
+                                .ok_or_else(|| anyhow!("unknown patch '{}'", args.id()))?;
+                            let range = format!("{}..{}", patch.base(), patch.head());
+
+                            state = PreviousState {
+                                patch_id: Some(args.id()),
+                                search: Some(args.search()),
+                            };
+
+                            terminal::run_git(Some("diff"), &[range.into()])?;
+                        }
+                        list::PatchOperation::Checkout { args } => {
+                            state = PreviousState {
+                                patch_id: Some(args.id()),
+                                search: Some(args.search()),
+                            };
+                            terminal::run_rad(
+                                Some("patch"),
+                                &["checkout".into(), args.id().to_string().into()],
+                            )?;
+                        }
+                        list::PatchOperation::_Review { args } => {
+                            state = PreviousState {
+                                patch_id: Some(args.id()),
+                                search: Some(args.search()),
+                            };
+                            let opts = ReviewOptions::default();
+                            review(opts, profile.clone(), rid, args.id()).await?;
+                        }
+                    }
+                }
+            } else {
+                break;
+            }
+        }
+
+        Ok(())
     }
 
     pub async fn review(
@@ -434,6 +459,8 @@ mod interface {
         rid: RepoId,
         patch_id: PatchId,
     ) -> anyhow::Result<()> {
+        use radicle_cli::terminal;
+
         let repo = profile.storage.repository(rid)?;
         let signer = terminal::signer(&profile)?;
         let cache = profile.patches(&repo)?;
