@@ -4,7 +4,6 @@ pub mod task;
 pub mod terminal;
 pub mod ui;
 
-use std::any::Any;
 use std::fmt::Debug;
 
 use anyhow::Result;
@@ -77,66 +76,6 @@ pub trait Share: Clone + Debug + Send + Sync + 'static {}
 /// Blanket implementation for all types that implement the required
 /// traits.
 impl<T: Clone + Debug + Send + Sync + 'static> Share for T {}
-
-/// Provide implementations for conversions to and from `Box<dyn Any>`.
-pub trait BoxedAny {
-    fn from_boxed_any(any: Box<dyn Any>) -> Option<Self>
-    where
-        Self: Sized + Clone + 'static;
-
-    fn to_boxed_any(self) -> Box<dyn Any>
-    where
-        Self: Sized + Clone + 'static;
-}
-
-impl<T> BoxedAny for T
-where
-    T: Sized + Clone + 'static,
-{
-    fn from_boxed_any(any: Box<dyn Any>) -> Option<Self>
-    where
-        Self: Sized + Clone + 'static,
-    {
-        any.downcast::<Self>().ok().map(|b| *b)
-    }
-
-    fn to_boxed_any(self) -> Box<dyn Any>
-    where
-        Self: Sized + Clone + 'static,
-    {
-        Box::new(self)
-    }
-}
-
-/// A 'PageStack' for applications. Page identifier can be pushed to and
-/// popped from the stack.
-#[derive(Clone, Default, Debug)]
-pub struct PageStack<T> {
-    pages: Vec<T>,
-}
-
-impl<T> PageStack<T> {
-    pub fn new(pages: Vec<T>) -> Self {
-        Self { pages }
-    }
-
-    pub fn push(&mut self, page: T) {
-        self.pages.push(page);
-    }
-
-    pub fn pop(&mut self) -> Option<T> {
-        self.pages.pop()
-    }
-
-    pub fn peek(&self) -> Result<&T> {
-        match self.pages.last() {
-            Some(page) => Ok(page),
-            None => Err(anyhow::anyhow!(
-                "Could not peek active page. Page stack is empty."
-            )),
-        }
-    }
-}
 
 /// A multi-producer, multi-consumer message channel.
 pub struct Channel<M> {
