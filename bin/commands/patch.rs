@@ -423,7 +423,7 @@ mod interface {
                                 search: Some(args.search()),
                             };
 
-                            terminal::run_git(Some("diff"), &[range.into()])?;
+                            let _ = terminal::run_git(Some("diff"), &[range.into()]);
                         }
                         list::PatchOperation::Checkout { args } => {
                             state = PreviousState {
