@@ -6,45 +6,16 @@
 
 # Table of Contents
 
-1. [Getting Started](#getting-started)
-   - [Installation](#installation)
-   - [Usage](#usage)
-2. [Application framework](#application-framework)
-   - [Design](#design)
-   - [Example](#example)
-3. [Roadmap](#roadmap)
-4. [Contributing](#contributing)
-5. [Contact](#contact)
-6. [License](#license)
+1. [Getting Started](#Getting-started)
+   - [Installation](#Installation)
+   - [Usage](#Usage)
+2. [Build with `radicle-tui`](#Build-with-radicle-tui)
+   - [Example](#Example)
+3. [Contributing](#Contributing)
+4. [Contact](#Contact)
+5. [License](#License)
 
 ## Getting started
-
-This crate provides a binary called `rad-tui` which can be used as a drop-in replacement for `rad`. It maps known commands and operations to internal ones, running the corresponding interface, e.g.
-
-```
-rad-tui patch
-```
-
-runs the patch list interface and calls `rad` with the operation and id selected. Commands or operations not known to `rad-tui` will be forwarded to `rad`, e.g. the following just calls `rad node`:
-
-```
-rad-tui node
-```
-
-The default forwarding behaviour can be overridden with a flag, e.g.
-
-```
-rad-tui help --no-forward
-```
-runs the internal help command instead of forwarding to `rad help`.
-
-### Using a shell alias
-
-In order to make the CLI integration opaque, a shell alias can be used:
-
-```
-alias rad="rad-tui"
-```
 
 ### Installation
 
@@ -114,13 +85,31 @@ home.packages = [
 
 ### Usage
 
-#### List
-
-Select a patch, an issue or a notification and an operation:
+This crate provides a binary called `rad-tui` which can be used as a drop-in replacement for `rad`. It maps known commands and operations to internal ones, running the corresponding interface, e.g.
 
 ```
-rad-tui <patch | issue | inbox>
-rad-tui <patch | issue | inbox> list
+rad-tui patch
+```
+
+runs the patch list interface and calls `rad` with the operation and id selected. Commands or operations not known to `rad-tui` will be forwarded to `rad`, e.g. the following just calls `rad node`:
+
+```
+rad-tui node
+```
+
+The default forwarding behaviour can be overridden with a flag, e.g.
+
+```
+rad-tui help --no-forward
+```
+runs the internal help command instead of forwarding to `rad help`.
+
+### Using a shell alias
+
+In order to make the CLI integration opaque, a shell alias can be used:
+
+```
+alias rad="rad-tui"
 ```
 
 #### CLI integration via JSON
@@ -137,27 +126,13 @@ runs the patch list interface and return a JSON object specifying the operation 
 { "operation": "show", "ids": ["546443226b300484a97a2b2d7c7000af6e8169ba"], args:[] }
 ```
 
-## Application framework
+## Build with `radicle-tui`
 
-The library portion of this crate is a framework that is the foundation for all `radicle-tui` binaries. It supports building concurrent applications with an immediate mode UI. It comes with a widget library that provides low-level widgets such as lists, text fields etc. as well as higher-level application widgets such as windows, pages and various other containers.
+The library portion of this crate is a framework that is the foundation for all `radicle-tui` binaries. Although it evolved from the work on Radicle-specific applications and is far from being complete, it can serve as a general purpose framework to build applications on top already.
 
-> **Note:** The framework is under heavy development and still missing some required concepts / components as well as some common low-level widgets. These will be added where needed by the `radicle-tui` binaries.
+Find out more about the [framework](./FRAMEWORK.md).
 
-### Design
-
-The framework was built first and foremost with developer experience in mind:
-
-- **easy-to-use**: building new or changing existing applications should be as easy as possible; ready-made widgets should come with defaults for user interactions and rendering
-- **extensibility**: extending existing and building new widgets should be straight-forward; custom application logic components should be easy to implement
-- **flexibility**: widgets and application logic should be easy to change and compose; it should be all about changing and composing functions and not about writing boilerplate code
-
-#### Components
-
-The central pieces of the framework are the `Store`, the `Frontend` and a message passing system that let both communicate with each other. The `Store` handles the centralized application state and sends updates to the `Frontend`, whereas the `Frontend` handles user-interactions and sends messages to the `Store`, which updates the state accordingly.
-
-The `Frontend` drives an _immediate mode_ `Ui`. In _immediate mode_, widgets are rendered the moment they're created and events are handled right before the actual drawing happens (in _retained mode_, you'd create stateful widgets once and later modify their properties or handle their events).
-
-> **Note:** The first versions of the framework provided a retained mode UI (rmUI) which was then replaced in favor of an immediate mode UI (imUI). The Retained mode UI is still supported, but it's recommended to use the new immediate mode UI.
+> **Note:** The framework is under heavy development and is missing some common low-level widgets. These will be added where needed by the `radicle-tui` binaries.
 
 ### Example
 
@@ -222,25 +197,6 @@ pub async fn main() -> Result<()> {
 }
 ```
 
-## ROADMAP
-
-The project roadmap is largely defined by the requirements of the [Radicle](https://radicle.xyz) team. If you're missing something or have any suggestions that would make this better, please feel free to [get in touch](#contact).
-
-### Now
-
-- [ ] Patch review
-
-### Next
-
-- [ ] Support for multiple selected list and tree items
-- [ ] Read configuration from file
-- [ ] Support user-defined keybindings
-
-### Later
-
-- [ ] Read COBs from JSON input
-- [ ] Add support for custom themes
-
 ## Contributing
 
 Contributions are what make the open source community such an amazing place to learn, inspire, and create. Any contributions you make are greatly appreciated.
@@ -251,11 +207,11 @@ If you have any suggestions that would make this better, please clone the repo a
 
 `radicle-tui` is distributed under the terms of both the MIT license and the Apache License (Version 2.0).
 
-See [LICENSE-APACHE](https://app.radicle.xyz/nodes/seed.radicle.xyz/rad:z39mP9rQAaGmERfUMPULfPUi473tY/tree/LICENSE-APACHE) and [LICENSE-MIT](https://app.radicle.xyz/nodes/seed.radicle.xyz/rad:z39mP9rQAaGmERfUMPULfPUi473tY/tree/LICENSE-MIT) for details.
+See [LICENSE-APACHE](./LICENSE-APACHE) and [LICENSE-MIT](./LICENSE-MIT) for details.
 
 ## Contact
 
-Please get in touch on [Zulip](https://radicle.zulipchat.com).
+Please get in touch on [Zulip](https://radicle.zulipchat.com/#narrow/channel/522964-TUI).
 
 ## Acknowledgments
 
