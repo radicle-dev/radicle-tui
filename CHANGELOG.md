@@ -4,9 +4,58 @@
 
 ### Added
 
-**Library features**
+- Support for Radicle CI
 
-- imUI: Support for popups
+**Applications**
+
+- `issue/list`: Support for edit, comment and state actions
+- `inbox/list`: Notifications are now loaded asynchronously
+
+**Library**
+
+- Support asynchronous tasks via additional message processors
+- Support popup widgets
+- Support tree widgets
+- Support contextual and global shortcuts with separate alignment
+- Panic hook via `ratatui::init()`
+
+### Fixed
+
+**Library**
+
+- Table border when focussed
+- Properly terminate event listener thread
+
+### Changed
+
+- Releases can be build locally
+- CLI tests do not require a binary anymore
+
+**Applications**
+
+- Filter expression grammar to better reflect item fields
+- Fuzzy search on additional item fields
+- Applications are relaunched after operation execution by default
+- `issue/list`: Port to imUI
+- `inbox/list`: Port to imUI
+- `inbox/list`: Improved notification loading times
+- `patch/list`: Improved patch loading times
+
+**Library**
+
+- Switched terminal backend from `termion` to `crossterm`
+- Unified panes and container widget
+- Text widget interface improvements
+
+### Removed
+
+**Applications**
+
+- Legacy selection mode (id-only / operation)
+
+**Library**
+
+- rmUI: Support for retained-mode UIs
 
 ## [0.6.0] - 2025-01-29
 
