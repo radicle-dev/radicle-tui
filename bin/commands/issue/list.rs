@@ -42,12 +42,12 @@ use crate::ui::{format, TerminalInfo};
 type Selection = tui::Selection<IssueOperation>;
 
 #[derive(Clone, Debug, Eq, PartialEq, Serialize)]
-pub struct RequiredArguments {
+pub struct OperationArguments {
     id: IssueId,
     search: String,
 }
 
-impl RequiredArguments {
+impl OperationArguments {
     pub fn id(&self) -> ObjectId {
         self.id
     }
@@ -57,17 +57,17 @@ impl RequiredArguments {
     }
 }
 
-impl TryFrom<&App> for RequiredArguments {
+impl TryFrom<(&Vec<Issue>, &AppState)> for OperationArguments {
     type Error = anyhow::Error;
 
-    fn try_from(app: &App) -> Result<Self> {
-        let selected = app.state.browser.selected();
-        let issues = app.issues.lock().unwrap();
+    fn try_from(value: (&Vec<Issue>, &AppState)) -> Result<Self> {
+        let (issues, state) = value;
+        let selected = state.browser.selected();
         let id = selected
             .and_then(|s| issues.get(s))
             .ok_or(anyhow!("No issue selected"))?
             .id;
-        let search = app.state.browser.search.read().text;
+        let search = state.browser.search.read().text;
 
         Ok(Self { id, search })
     }
@@ -78,23 +78,23 @@ impl TryFrom<&App> for RequiredArguments {
 #[derive(Clone, Debug, Eq, PartialEq, Serialize)]
 pub enum IssueOperation {
     Edit {
-        args: RequiredArguments,
+        args: OperationArguments,
         comment_id: Option<CommentId>,
     },
     Show {
-        args: RequiredArguments,
+        args: OperationArguments,
     },
     Close {
-        args: RequiredArguments,
+        args: OperationArguments,
     },
     Solve {
-        args: RequiredArguments,
+        args: OperationArguments,
     },
     Reopen {
-        args: RequiredArguments,
+        args: OperationArguments,
     },
     Comment {
-        args: RequiredArguments,
+        args: OperationArguments,
         reply_to: Option<CommentId>,
     },
 }
@@ -707,7 +707,7 @@ impl App {
             }));
         }
 
-        if let Ok(args) = RequiredArguments::try_from(self) {
+        if let Ok(args) = OperationArguments::try_from((&issues, &self.state)) {
             if ui.has_input(|key| key == Key::Enter) {
                 ui.send_message(Message::Exit {
                     operation: Some(IssueOperation::Show { args: args.clone() }),
@@ -816,13 +816,7 @@ impl App {
                         Constraint::Length(8),
                     ),
                     Column::new(
-                        Span::from(" ")
-                            .style(ui.theme().bar_on_black_style)
-                            .into_right_aligned_line(),
-                        Constraint::Length(1),
-                    ),
-                    Column::new(
-                        Span::raw(format!("{search}"))
+                        Span::raw(format!(" {search}"))
                             .into_left_aligned_line()
                             .style(ui.theme().bar_on_black_style)
                             .cyan()
@@ -886,7 +880,7 @@ impl App {
                         Constraint::Length(1),
                     ),
                     Column::new(
-                        Span::raw(format!("{search}"))
+                        Span::raw(search.to_string())
                             .into_left_aligned_line()
                             .style(ui.theme().bar_on_black_style)
                             .cyan()
@@ -953,6 +947,7 @@ impl App {
         let issues = issues
             .iter()
             .filter(|issue| self.state.filter.matches(issue))
+            .cloned()
             .collect::<Vec<_>>();
         let issue = self.state.browser.selected().and_then(|i| issues.get(i));
         let properties = issue
@@ -1069,7 +1064,7 @@ impl App {
                     }));
                 }
 
-                if let Ok(args) = RequiredArguments::try_from(self) {
+                if let Ok(args) = OperationArguments::try_from((&issues, &self.state)) {
                     if ui.has_input(|key| key == Key::Char('c')) {
                         ui.send_message(Message::Exit {
                             operation: Some(IssueOperation::Comment {
