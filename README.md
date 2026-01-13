@@ -139,16 +139,16 @@ Find out more about the [framework](./FRAMEWORK.md).
 ```rust
 use anyhow::Result;
 
-use termion::event::Key;
-
+use ratatui::layout::Position;
 use ratatui::{Frame, Viewport};
 
 use radicle_tui as tui;
 
+use tui::event::Key;
 use tui::store;
-use tui::ui::im::widget::Window;
-use tui::ui::im::Show;
-use tui::ui::im::{Borders, Context};
+use tui::task::EmptyProcessors;
+use tui::ui::widget::{Borders, Window};
+use tui::ui::{Context, Show};
 use tui::{Channel, Exit};
 
 #[derive(Clone, Debug)]
@@ -174,9 +174,14 @@ impl store::Update<Message> for App {
 impl Show<Message> for App {
     fn show(&self, ctx: &Context<Message>, frame: &mut Frame) -> Result<()> {
         Window::default().show(ctx, |ui| {
-            ui.text_view(frame, self.hello.clone(), &mut (0, 0), Some(Borders::None));
+            ui.text_view(
+                frame,
+                self.hello.clone(),
+                &mut Position::default(),
+                Some(Borders::None),
+            );
 
-            if ui.input_global(|key| key == Key::Char('q')) {
+            if ui.has_input(|key| key == Key::Char('q')) {
                 ui.send_message(Message::Quit);
             }
         });
@@ -191,7 +196,13 @@ pub async fn main() -> Result<()> {
         hello: "Hello World!".to_string(),
     };
 
-    tui::im(app, Viewport::default(), Channel::default()).await?;
+    tui::im(
+        app,
+        Viewport::default(),
+        Channel::default(),
+        EmptyProcessors::new(),
+    )
+    .await?;
 
     Ok(())
 }
