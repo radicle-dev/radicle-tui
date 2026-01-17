@@ -52,9 +52,9 @@ pub struct Patch {
     /// Head of the latest revision.
     pub head: Oid,
     /// Lines added by the latest revision.
-    pub added: u16,
+    pub added: Option<usize>,
     /// Lines removed by the latest revision.
-    pub removed: u16,
+    pub removed: Option<usize>,
     /// Time when patch was opened.
     pub timestamp: Timestamp,
 }
@@ -76,8 +76,27 @@ impl Patch {
             title: patch.title().into(),
             author: AuthorItem::new(Some(*patch.author().id), profile),
             head: revision.head(),
-            added: stats.insertions() as u16,
-            removed: stats.deletions() as u16,
+            added: Some(stats.insertions()),
+            removed: Some(stats.deletions()),
+            timestamp: patch.updated_at(),
+        })
+    }
+
+    pub fn without_stats(
+        profile: &Profile,
+        patch: (PatchId, radicle::patch::Patch),
+    ) -> Result<Self, anyhow::Error> {
+        let (id, patch) = patch;
+        let (_, revision) = patch.latest();
+
+        Ok(Self {
+            id,
+            state: patch.state().clone(),
+            title: patch.title().into(),
+            author: AuthorItem::new(Some(*patch.author().id), profile),
+            head: revision.head(),
+            added: None,
+            removed: None,
             timestamp: patch.updated_at(),
         })
     }
@@ -110,8 +129,16 @@ impl ToRow<9> for Patch {
         };
 
         let head = span::ternary(&format::oid(self.head));
-        let added = span::positive(&format!("+{}", self.added));
-        let removed = span::negative(&format!("-{}", self.removed));
+        let added = span::positive(&format!(
+            "+{}",
+            self.added.map(|a| a.to_string()).unwrap_or("?".to_string())
+        ));
+        let removed = span::negative(&format!(
+            "+{}",
+            self.removed
+                .map(|r| r.to_string())
+                .unwrap_or("?".to_string())
+        ));
         let updated = span::timestamp(&format::timestamp(&self.timestamp));
 
         [
