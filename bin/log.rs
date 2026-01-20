@@ -1,32 +1,23 @@
 use std::fs;
-use std::time::SystemTime;
-
-use anyhow::bail;
-
-use homedir::my_home;
 
 use log::LevelFilter;
 
-const PATH: &str = ".radicle-tui/logs";
-const PREFIX: &str = "rad-tui-";
+use crate::settings;
 
-/// Enables logging to `$HOME/.radicle-tui/logs/`. Creates folder if it does not
-/// exist.
+const FILE_PREFIX: &str = "rad-tui";
+
 pub fn enable() -> Result<(), anyhow::Error> {
-    match my_home()? {
-        Some(home) => {
-            let path = format!("{}/{}", home.to_string_lossy(), PATH);
-            let now = SystemTime::now().duration_since(SystemTime::UNIX_EPOCH)?;
-
+    match settings::get_state_path() {
+        Ok(path) => {
             fs::create_dir_all(path.clone())?;
 
-            simple_logging::log_to_file(
-                format!("{path}/{PREFIX}{}.log", now.as_millis()),
-                LevelFilter::Info,
-            )?;
+            let file = fs::OpenOptions::new()
+                .append(true)
+                .open(format!("{}/{FILE_PREFIX}.log", path.to_string_lossy()))?;
+            simple_logging::log_to(file, LevelFilter::Info);
 
             Ok(())
         }
-        None => bail!("Failed to read home directory"),
+        Err(err) => Err(anyhow::Error::from(err)),
     }
 }

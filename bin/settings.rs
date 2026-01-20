@@ -1,4 +1,10 @@
 use std::collections::HashMap;
+use std::env;
+use std::path::PathBuf;
+
+use thiserror::Error;
+
+use homedir::my_home;
 
 use radicle_tui as tui;
 use tui::ui::theme::Theme;
@@ -6,6 +12,14 @@ use tui::ui::theme::Theme;
 static THEME_RADICLE: &str = "Radicle";
 
 pub type ThemeBundleId = String;
+
+#[derive(Error, Debug)]
+pub enum Error {
+    #[error(
+        "could not resolve home directory ($HOME is not set and `/etc/passwd` does not resolve)"
+    )]
+    Home,
+}
 
 /// `ThemeMode` defines which theme is selected from a `ThemeBundle`. It can
 /// be either `light``, `dark`` or `auto``, which sets the mode depending on
@@ -71,4 +85,20 @@ impl Default for Settings {
             },
         }
     }
+}
+
+pub fn get_state_path() -> Result<PathBuf, Error> {
+    let base = match env::var("XDG_STATE_HOME") {
+        Ok(path) => PathBuf::from(path),
+        Err(err) => {
+            log::debug!("Could not read `XDG_STATE_HOME`: {err}");
+            my_home()
+                .ok()
+                .flatten()
+                .ok_or(Error::Home)?
+                .join(".local/state")
+        }
+    };
+
+    Ok(base.join("radicle-tui"))
 }
