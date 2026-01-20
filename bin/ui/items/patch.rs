@@ -613,7 +613,7 @@ impl From<(&Repository, &Review, &HunkDiff)> for HunkItem<'_> {
                             let ranges = DiffLineRanges::from(hunk);
                             let index = DiffLineIndex::from(location);
 
-                            log::warn!("Checking comment {comment:?} at {index:?}");
+                            log::debug!("Checking comment {comment:?} at {index:?}");
 
                             return index.is_start_of(&ranges)
                                 || index.is_inside_of(&ranges)

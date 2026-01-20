@@ -188,7 +188,7 @@ pub async fn run(options: Options, ctx: impl radicle_cli::terminal::Context) -> 
             if let Err(err) = crate::log::enable() {
                 println!("{err}");
             }
-            log::info!("Starting inbox listing interface in project {rid}..");
+            log::info!("Starting inbox listing app in project {rid}..");
 
             let mut state = PreviousState::default();
             loop {
@@ -213,9 +213,7 @@ pub async fn run(options: Options, ctx: impl radicle_cli::terminal::Context) -> 
                         .map(|o| serde_json::to_string(&o).unwrap_or_default())
                         .unwrap_or_default();
 
-                    log::info!("About to print to `stderr`: {selection}");
-                    log::info!("Exiting inbox listing interface..");
-
+                    log::info!("Exiting inbox listing app..");
                     eprint!("{selection}");
                 } else if let Some(selection) = selection {
                     if let Some(operation) = selection.operation.clone() {

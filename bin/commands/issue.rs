@@ -250,7 +250,7 @@ pub async fn run(options: Options, ctx: impl Context) -> anyhow::Result<()> {
             if let Err(err) = crate::log::enable() {
                 println!("{err}");
             }
-            log::info!("Starting issue listing interface in project {rid}..");
+            log::info!("Starting issue listing app in project {rid}..");
 
             #[derive(Default)]
             struct PreviousState {
@@ -286,8 +286,7 @@ pub async fn run(options: Options, ctx: impl Context) -> anyhow::Result<()> {
                         .map(|o| serde_json::to_string(&o).unwrap_or_default())
                         .unwrap_or_default();
 
-                    log::info!("Exiting issue listing interface..");
-
+                    log::info!("Exiting issue listing app..");
                     eprint!("{selection}");
                 } else if let Some(selection) = selection {
                     if let Some(operation) = selection.operation.clone() {

@@ -307,13 +307,13 @@ pub async fn run(options: Options, ctx: impl radicle_cli::terminal::Context) -> 
 
     match options.op {
         Operation::List { opts } => {
-            log::info!("Starting patch selection interface in project {rid}..");
+            log::info!("Starting patch listing app in project {rid}..");
 
             let rid = options.repo.unwrap_or(rid);
             interface::list(opts.clone(), ctx.profile()?, rid).await?;
         }
         Operation::Review { ref opts } => {
-            log::info!("Starting patch review interface in project {rid}..");
+            log::info!("Starting patch review app in project {rid}..");
 
             let profile = ctx.profile()?;
             let rid = options.repo.unwrap_or(rid);
@@ -391,8 +391,7 @@ mod interface {
                     .map(|o| serde_json::to_string(&o).unwrap_or_default())
                     .unwrap_or_default();
 
-                log::info!("About to print to `stderr`: {selection}");
-                log::info!("Exiting patch list interface..");
+                log::info!("Exiting patch list app..");
 
                 eprint!("{selection}");
 

@@ -595,8 +595,6 @@ impl store::Update<Message> for App<'_> {
     type Return = Response;
 
     fn update(&mut self, message: Message) -> Option<Exit<Self::Return>> {
-        log::info!("Received message: {message:?}");
-
         match message {
             Message::ShowMain => {
                 let mut state = self.state.lock().unwrap();
@@ -641,15 +639,15 @@ impl store::Update<Message> for App<'_> {
             }
             Message::Accept => {
                 match self.accept_selected_hunk() {
-                    Ok(()) => log::info!("Accepted selected hunk."),
-                    Err(err) => log::info!("An error occured while accepting hunk: {err}"),
+                    Ok(()) => log::debug!("Accepted selected hunk ({:?}).", self.selected_hunk()),
+                    Err(err) => log::error!("An error occured while accepting hunk: {err}"),
                 }
                 None
             }
             Message::Reject => {
                 match self.reject_selected_hunk() {
-                    Ok(()) => log::info!("Rejected selected hunk."),
-                    Err(err) => log::info!("An error occured while rejecting hunk: {err}"),
+                    Ok(()) => log::debug!("Rejected selected hunk ({:?}).", self.selected_hunk()),
+                    Err(err) => log::error!("An error occured while rejecting hunk: {err}"),
                 }
                 None
             }

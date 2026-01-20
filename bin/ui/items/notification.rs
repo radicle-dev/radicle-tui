@@ -176,8 +176,8 @@ impl NotificationKind {
                 } else if typed_id.is_identity() {
                     let Ok(identity) = Identity::get(id, repo) else {
                         log::error!(
-                            target: "items",
-                            "Error retrieving identity {id} for notification {}", notification.id
+                            "Error retrieving identity {id} for notification {}",
+                            notification.id
                         );
                         return Ok(None);
                     };
@@ -187,8 +187,8 @@ impl NotificationKind {
                         .and_then(|id| identity.revision(&id))
                     else {
                         log::error!(
-                            target: "items",
-                            "Error retrieving identity revision for notification {}", notification.id
+                            "Error retrieving identity revision for notification {}",
+                            notification.id
                         );
                         return Ok(None);
                     };
