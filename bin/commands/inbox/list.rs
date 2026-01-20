@@ -6,6 +6,7 @@ use std::vec;
 
 use anyhow::Result;
 
+use ratatui::widgets::Clear;
 use serde::Serialize;
 
 use radicle::node::notifications::NotificationId;
@@ -609,16 +610,19 @@ impl App {
                         None,
                         |ui| {
                             ui.label(frame, "");
-                            ui.column_bar(
-                                frame,
-                                [Column::new(
-                                    Span::raw(" Loading ").magenta().slow_blink(),
-                                    Constraint::Fill(1),
-                                )]
-                                .to_vec(),
-                                Spacing::from(0),
-                                Some(Borders::All),
-                            );
+                            ui.layout(Layout::vertical([Constraint::Min(1)]), None, |ui| {
+                                frame.render_widget(Clear, ui.area());
+                                ui.column_bar(
+                                    frame,
+                                    [Column::new(
+                                        Span::raw(" Loading ").magenta().rapid_blink(),
+                                        Constraint::Fill(1),
+                                    )]
+                                    .to_vec(),
+                                    Spacing::from(0),
+                                    Some(Borders::All),
+                                );
+                            });
                         },
                     );
                 },
