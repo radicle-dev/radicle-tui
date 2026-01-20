@@ -185,7 +185,7 @@ impl TryFrom<&Context> for App {
         let mut patches = cache
             .list()?
             .filter_map(|patch| patch.ok())
-            .flat_map(|patch| Patch::new(&context.profile, &context.repository, patch.clone()).ok())
+            .flat_map(|patch| Patch::without_stats(&context.profile, patch.clone()).ok())
             .collect::<Vec<_>>();
         patches.sort_by(|a, b| b.timestamp.cmp(&a.timestamp));
 
