@@ -20,7 +20,7 @@ use radicle_tui as tui;
 
 use tui::event::Key;
 use tui::store;
-use tui::task::EmptyProcessors;
+use tui::task::{Process, Task};
 use tui::ui;
 use tui::ui::layout::Spacing;
 use tui::ui::widget::{
@@ -101,12 +101,66 @@ pub enum PatchOperation {
 
 type Selection = tui::Selection<PatchOperation>;
 
+#[derive(Clone, Debug)]
 pub struct Context {
     pub profile: Profile,
     pub rid: RepoId,
     pub filter: PatchFilter,
     pub patch_id: Option<PatchId>,
     pub search: Option<String>,
+}
+
+#[derive(Clone, Debug)]
+pub struct Loader {
+    context: Context,
+}
+
+impl Loader {
+    fn new(context: Context) -> Self {
+        Self { context }
+    }
+}
+
+#[derive(Debug)]
+pub struct PatchLoader {
+    context: Context,
+}
+
+impl PatchLoader {
+    fn new(context: Context) -> Self {
+        PatchLoader { context }
+    }
+}
+
+impl Task for PatchLoader {
+    type Return = Message;
+
+    fn run(&self) -> anyhow::Result<Vec<Self::Return>> {
+        let context = &self.context;
+        let profile = context.profile.clone();
+        let repo = profile.storage.repository(context.rid)?;
+        let cache = profile.patches(&repo)?;
+        let patches = cache
+            .list()?
+            .filter_map(|patch| patch.ok())
+            .flat_map(|patch| Patch::new(&context.profile, &repo, patch.clone()).ok())
+            .collect::<Vec<_>>();
+
+        Ok(vec![Message::Loaded(patches)])
+    }
+}
+
+impl Process<Message> for Loader {
+    async fn process(&mut self, message: Message) -> anyhow::Result<Vec<Message>> {
+        match message {
+            Message::Initialize | Message::Reload => {
+                let loader = PatchLoader::new(self.context.clone());
+                let messages = tokio::spawn(async move { loader.run() }).await.unwrap()?;
+                Ok(messages)
+            }
+            _ => Ok(vec![]),
+        }
+    }
 }
 
 pub struct Tui {
@@ -123,7 +177,13 @@ impl Tui {
         let channel = Channel::default();
         let state = App::try_from(&self.context)?;
 
-        tui::im(state, viewport, channel, EmptyProcessors::new()).await
+        tui::im(
+            state,
+            viewport,
+            channel,
+            vec![Loader::new(self.context.clone())],
+        )
+        .await
     }
 }
 
@@ -148,9 +208,12 @@ pub enum Change {
 
 #[derive(Clone, Debug)]
 pub enum Message {
+    Initialize,
     Changed(Change),
     ShowSearch,
     HideSearch { apply: bool },
+    Reload,
+    Loaded(Vec<Patch>),
     Exit { operation: Option<PatchOperation> },
     Quit,
 }
@@ -170,6 +233,8 @@ pub struct AppState {
     show_search: bool,
     help: TextViewState,
     filter: PatchFilter,
+    loading: bool,
+    initialized: bool,
 }
 
 #[derive(Clone, Debug)]
@@ -226,6 +291,8 @@ impl TryFrom<&Context> for App {
                 show_search: false,
                 help: TextViewState::new(Position::default()),
                 filter,
+                loading: false,
+                initialized: false,
             },
         })
     }
@@ -236,6 +303,21 @@ impl store::Update<Message> for App {
 
     fn update(&mut self, message: Message) -> Option<tui::Exit<Selection>> {
         match message {
+            Message::Initialize => {
+                self.state.loading = true;
+                self.state.initialized = true;
+                None
+            }
+            Message::Reload => {
+                self.state.loading = true;
+                None
+            }
+            Message::Loaded(patches) => {
+                self.apply_patches(patches);
+                self.apply_sorting();
+                self.state.loading = false;
+                None
+            }
             Message::Quit => Some(Exit { value: None }),
             Message::Exit { operation } => Some(Exit {
                 value: Some(Selection {
@@ -295,6 +377,11 @@ impl store::Update<Message> for App {
 impl Show<Message> for App {
     fn show(&self, ctx: &ui::Context<Message>, frame: &mut Frame) -> Result<()> {
         Window::default().show(ctx, |ui| {
+            // Initialize
+            if !self.state.initialized {
+                ui.send_message(Message::Initialize);
+            }
+
             match self.state.page {
                 Page::Main => {
                     let show_search = self.state.show_search;
@@ -406,12 +493,19 @@ impl App {
                         state: TableState::new(selected),
                     }));
                 }
+
+                if self.state.loading {
+                    self.show_loading_popup(frame, ui);
+                }
             },
         );
 
         // TODO(erikli): Should only work if table has focus
         if ui.has_input(|key| key == Key::Char('/')) {
             ui.send_message(Message::ShowSearch);
+        }
+        if ui.has_input(|key| key == Key::Char('r')) {
+            ui.send_message(Message::Reload);
         }
 
         if let Ok(args) = OperationArguments::try_from((&patches, &self.state)) {
@@ -623,11 +717,41 @@ impl App {
                 ("c", "checkout"),
                 ("d", "diff"),
                 ("/", "search"),
+                ("r", "reload"),
                 ("?", "help"),
             ],
             '∙',
             Alignment::Left,
         );
+    }
+
+    fn show_loading_popup(&self, frame: &mut Frame, ui: &mut Ui<Message>) {
+        ui.popup(Layout::vertical([Constraint::Min(1)]), |ui| {
+            ui.layout(
+                Layout::vertical([Constraint::Min(1), Constraint::Length(3)]).margin(1),
+                None,
+                |ui| {
+                    ui.label(frame, "");
+                    ui.layout(
+                        Layout::horizontal([Constraint::Min(1), Constraint::Length(11)]),
+                        None,
+                        |ui| {
+                            ui.label(frame, "");
+                            ui.column_bar(
+                                frame,
+                                [Column::new(
+                                    Span::raw(" Loading ").magenta().rapid_blink(),
+                                    Constraint::Fill(1),
+                                )]
+                                .to_vec(),
+                                Spacing::from(0),
+                                Some(Borders::All),
+                            );
+                        },
+                    );
+                },
+            );
+        });
     }
 
     fn show_help_text(&self, frame: &mut Frame, ui: &mut Ui<Message>) {
@@ -675,5 +799,17 @@ impl App {
             Spacing::from(0),
             Some(Borders::None),
         );
+    }
+}
+
+impl App {
+    fn apply_patches(&mut self, patches: Vec<Patch>) {
+        let mut items = self.patches.lock().unwrap();
+        *items = patches;
+    }
+
+    fn apply_sorting(&mut self) {
+        let mut items = self.patches.lock().unwrap();
+        items.sort_by(|a, b| b.timestamp.cmp(&a.timestamp));
     }
 }
