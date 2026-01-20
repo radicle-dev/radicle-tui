@@ -3,14 +3,12 @@ use std::{fmt::Display, fs};
 
 use anyhow::Result;
 
-use homedir::my_home;
-
 use serde::{Deserialize, Serialize};
 
 use radicle::cob::ObjectId;
 use radicle::identity::RepoId;
 
-const PATH: &str = ".radicle-tui/states";
+use crate::settings;
 
 /// Converts bytes to a deserializable type.
 pub fn from_json<'a, D>(bytes: &'a [u8]) -> Result<D>
@@ -44,18 +42,20 @@ pub struct FileStore {
 }
 
 impl FileStore {
-    pub fn new(filename: impl ToString) -> Result<Self> {
-        let folder = match my_home()? {
-            Some(home) => format!("{}/{}", home.to_string_lossy(), PATH),
-            _ => anyhow::bail!("Failed to read home directory"),
-        };
-        let path = format!("{folder}/{}.json", filename.to_string());
-
-        fs::create_dir_all(folder.clone())?;
-
-        Ok(Self {
-            path: PathBuf::from(path),
-        })
+    pub fn new(filename: impl ToString) -> Result<Self, anyhow::Error> {
+        match settings::get_state_path() {
+            Ok(path) => {
+                fs::create_dir_all(path.clone())?;
+                Ok(Self {
+                    path: PathBuf::from(format!(
+                        "{}/{}.json",
+                        path.to_string_lossy(),
+                        filename.to_string()
+                    )),
+                })
+            }
+            Err(err) => Err(anyhow::Error::from(err)),
+        }
     }
 }
 
