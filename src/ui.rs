@@ -69,15 +69,15 @@ impl Frontend {
                 Some(event) = event_rx.recv() => {
                     match event {
                         Event::Key(key) => {
-                            log::debug!(target: "frontend", "Received key event: {key:?}");
+                            log::debug!("Received key event: {key:?}");
                             ctx.store_input(event)
                         }
                         Event::Resize(x, y) => {
-                            log::debug!(target: "frontend", "Received resize event: {x},{y}");
+                            log::debug!("Received resize event: {x},{y}");
                             terminal.clear()?;
                         },
                         Event::Unknown => {
-                            log::debug!(target: "frontend", "Received unknown event")
+                            log::debug!("Received unknown event")
                         }
                     }
                 },
@@ -94,7 +94,7 @@ impl Frontend {
                 let ctx = ctx.clone().with_frame_size(frame.area());
 
                 if let Err(err) = state.show(&ctx, frame) {
-                    log::warn!("Drawing failed: {err}");
+                    log::error!("Drawing failed: {err}");
                 }
             })?;
 

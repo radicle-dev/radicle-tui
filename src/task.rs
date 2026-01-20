@@ -62,7 +62,7 @@ where
                     for mut p in processors.clone() {
                         for m in p.process(message.clone()).await? {
                             if let Err(err) = self.work_tx.send(m) {
-                                log::error!(target: "worker", "Unable to send message: {err}")
+                                log::error!("Unable to send message: {err}")
                             }
                         }
                     }

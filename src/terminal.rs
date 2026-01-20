@@ -111,7 +111,7 @@ impl StdinReader {
                             }
                         }
                         Err(err) => {
-                            log::error!(target: "terminal", "Could not read from stdin: {err}");
+                            log::error!("Could not read from stdin: {err}");
                         }
                     },
                     _ => {
