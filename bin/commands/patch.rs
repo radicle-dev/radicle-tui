@@ -377,7 +377,7 @@ mod interface {
         loop {
             let context = list::Context {
                 profile: profile.clone(),
-                repository: profile.storage.repository(rid).unwrap(),
+                rid,
                 filter: (me, opts.filter.clone()).into(),
                 search: state.search.clone(),
                 patch_id: state.patch_id,

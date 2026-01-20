@@ -3,11 +3,12 @@ use std::sync::{Arc, Mutex};
 
 use anyhow::{anyhow, Result};
 
+use radicle::prelude::RepoId;
+use radicle::storage::ReadStorage;
 use serde::Serialize;
 
 use radicle::patch::cache::Patches;
 use radicle::patch::PatchId;
-use radicle::storage::git::Repository;
 use radicle::Profile;
 
 use ratatui::layout::{Alignment, Constraint, Layout, Position};
@@ -102,7 +103,7 @@ type Selection = tui::Selection<PatchOperation>;
 
 pub struct Context {
     pub profile: Profile,
-    pub repository: Repository,
+    pub rid: RepoId,
     pub filter: PatchFilter,
     pub patch_id: Option<PatchId>,
     pub search: Option<String>,
@@ -181,7 +182,8 @@ impl TryFrom<&Context> for App {
     type Error = anyhow::Error;
 
     fn try_from(context: &Context) -> Result<Self, Self::Error> {
-        let cache = &context.profile.patches(&context.repository)?;
+        let repo = &context.profile.storage.repository(context.rid)?;
+        let cache = &context.profile.patches(repo)?;
         let mut patches = cache
             .list()?
             .filter_map(|patch| patch.ok())
