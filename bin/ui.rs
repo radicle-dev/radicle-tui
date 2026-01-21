@@ -14,17 +14,6 @@ use tui::ui::widget::{Borders, Column, TableState, TextEditState, Widget};
 use tui::ui::{BufferedValue, ToRow};
 use tui::ui::{Response, Ui};
 
-#[derive(Clone, Debug)]
-pub struct TerminalInfo {
-    pub luma: Option<f32>,
-}
-
-impl TerminalInfo {
-    pub fn is_dark(&self) -> bool {
-        self.luma.unwrap_or_default() <= 0.6
-    }
-}
-
 pub struct UiExt<'a, M>(&'a mut Ui<M>);
 
 impl<'a, M> UiExt<'a, M> {

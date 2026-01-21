@@ -2,14 +2,34 @@ use std::collections::HashMap;
 use std::env;
 use std::path::PathBuf;
 
+use lazy_static::lazy_static;
+
 use thiserror::Error;
 
 use homedir::my_home;
 
 use radicle_tui as tui;
+
 use tui::ui::theme::Theme;
 
 static THEME_RADICLE: &str = "Radicle";
+
+#[derive(Clone, Debug)]
+pub struct TerminalInfo {
+    pub luma: Option<f32>,
+}
+
+impl TerminalInfo {
+    pub fn is_dark(&self) -> bool {
+        self.luma.unwrap_or_default() <= 0.6
+    }
+}
+
+lazy_static! {
+    static ref TERMINAL_INFO: TerminalInfo = TerminalInfo {
+        luma: Some(terminal_light::luma().unwrap_or_default())
+    };
+}
 
 pub type ThemeBundleId = String;
 
@@ -84,6 +104,23 @@ impl Default for Settings {
                 bundles: HashMap::from([(THEME_RADICLE.to_string(), ThemeBundle::default())]),
             },
         }
+    }
+}
+
+pub fn configure_theme(settings: &Settings) -> Theme {
+    let default_bundle = ThemeBundle::default();
+    let theme_bundle = settings.theme.active_bundle().unwrap_or(&default_bundle);
+
+    match settings.theme.mode() {
+        ThemeMode::Auto => {
+            if TERMINAL_INFO.is_dark() {
+                theme_bundle.dark.clone()
+            } else {
+                theme_bundle.light.clone()
+            }
+        }
+        ThemeMode::Light => theme_bundle.light.clone(),
+        ThemeMode::Dark => theme_bundle.dark.clone(),
     }
 }
 

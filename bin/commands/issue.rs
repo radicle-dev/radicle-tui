@@ -5,8 +5,6 @@ use std::ffi::OsString;
 
 use anyhow::anyhow;
 
-use lazy_static::lazy_static;
-
 use radicle::cob::thread::CommentId;
 use radicle::identity::RepoId;
 use radicle::issue::{IssueId, State};
@@ -23,13 +21,6 @@ use crate::commands::tui_issue::list::IssueOperation;
 use crate::terminal;
 use crate::ui::items::filter::DidFilter;
 use crate::ui::items::issue::filter::IssueFilter;
-use crate::ui::TerminalInfo;
-
-lazy_static! {
-    static ref TERMINAL_INFO: TerminalInfo = TerminalInfo {
-        luma: Some(terminal_light::luma().unwrap_or_default())
-    };
-}
 
 pub const HELP: Help = Help {
     name: "issue",
@@ -243,8 +234,6 @@ pub async fn run(options: Options, ctx: impl Context) -> anyhow::Result<()> {
     let (_, rid) = radicle::rad::cwd()
         .map_err(|_| anyhow!("this command must be run in the context of a project"))?;
 
-    let terminal_info = TERMINAL_INFO.clone();
-
     match options.op {
         Operation::List { opts } => {
             if let Err(err) = crate::log::enable() {
@@ -278,7 +267,7 @@ pub async fn run(options: Options, ctx: impl Context) -> anyhow::Result<()> {
                     comment: state.comment_id,
                 };
 
-                let tui = list::Tui::new(context, terminal_info.clone());
+                let tui = list::Tui::new(context);
                 let selection = tui.run().await?;
 
                 if opts.json {

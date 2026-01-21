@@ -25,6 +25,7 @@ use tui::task::EmptyProcessors;
 use tui::ui;
 use tui::ui::layout::Spacing;
 use tui::ui::span;
+use tui::ui::theme::Theme;
 use tui::ui::widget::{
     Borders, Column, ContainerState, TableState, TextEditState, TextViewState, TreeState, Window,
 };
@@ -32,12 +33,12 @@ use tui::ui::{BufferedValue, Show, ToRow, Ui};
 use tui::{Channel, Exit};
 
 use crate::cob::issue;
-use crate::settings::{self, ThemeBundle, ThemeMode};
+use crate::settings;
+use crate::ui::format;
 use crate::ui::items::filter::Filter;
 use crate::ui::items::issue::filter::IssueFilter;
 use crate::ui::items::issue::Issue;
 use crate::ui::items::HasId;
-use crate::ui::{format, TerminalInfo};
 
 type Selection = tui::Selection<IssueOperation>;
 
@@ -135,21 +136,17 @@ pub struct Context {
 
 pub(crate) struct Tui {
     pub(crate) context: Context,
-    pub(crate) terminal_info: TerminalInfo,
 }
 
 impl Tui {
-    pub fn new(context: Context, terminal_info: TerminalInfo) -> Self {
-        Self {
-            context,
-            terminal_info,
-        }
+    pub fn new(context: Context) -> Self {
+        Self { context }
     }
 
     pub async fn run(&self) -> Result<Option<Selection>> {
         let viewport = Viewport::Inline(20);
         let channel = Channel::default();
-        let state = App::try_from((&self.context, &self.terminal_info))?;
+        let state = App::try_from(&self.context)?;
 
         tui::im(state, viewport, channel, EmptyProcessors::new()).await
     }
@@ -292,6 +289,7 @@ pub struct AppState {
     preview: args::Preview,
     help: TextViewState,
     filter: IssueFilter,
+    theme: Theme,
 }
 
 #[derive(Clone, Debug)]
@@ -300,12 +298,12 @@ pub struct App {
     state: AppState,
 }
 
-impl TryFrom<(&Context, &TerminalInfo)> for App {
+impl TryFrom<&Context> for App {
     type Error = anyhow::Error;
 
-    fn try_from(value: (&Context, &TerminalInfo)) -> Result<Self, Self::Error> {
-        let (context, terminal_info) = value;
+    fn try_from(context: &Context) -> Result<Self, Self::Error> {
         let settings = settings::Settings::default();
+        let theme = settings::configure_theme(&settings);
 
         let issues = issue::all(&context.profile, &context.repository)?;
         let search = context.search.as_ref().map(|s| s.trim().to_string());
@@ -318,20 +316,6 @@ impl TryFrom<(&Context, &TerminalInfo)> for App {
                 let filter = context.filter.clone();
                 (filter.to_string().trim().to_string(), filter)
             }
-        };
-
-        let default_bundle = ThemeBundle::default();
-        let theme_bundle = settings.theme.active_bundle().unwrap_or(&default_bundle);
-        let _theme = match settings.theme.mode() {
-            ThemeMode::Auto => {
-                if terminal_info.is_dark() {
-                    theme_bundle.dark.clone()
-                } else {
-                    theme_bundle.light.clone()
-                }
-            }
-            ThemeMode::Light => theme_bundle.light.clone(),
-            ThemeMode::Dark => theme_bundle.dark.clone(),
         };
 
         // Convert into UI items
@@ -413,6 +397,7 @@ impl TryFrom<(&Context, &TerminalInfo)> for App {
                 preview,
                 filter,
                 help: TextViewState::new(Position::default()),
+                theme,
             },
         })
     }
@@ -544,7 +529,7 @@ impl store::Update<Message> for App {
 
 impl Show<Message> for App {
     fn show(&self, ctx: &ui::Context<Message>, frame: &mut Frame) -> Result<()> {
-        Window::default().show(ctx, |ui| {
+        Window::default().show(ctx, self.state.theme.clone(), |ui| {
             match self.state.page.clone() {
                 args::Page::Main => {
                     let show_search = self.state.browser.show_search;

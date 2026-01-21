@@ -27,12 +27,14 @@ use tui::store;
 use tui::task::{Process, Task};
 use tui::ui;
 use tui::ui::layout::Spacing;
+use tui::ui::theme::Theme;
 use tui::ui::widget::{
     Borders, Column, ContainerState, TableState, TextEditState, TextViewState, Window,
 };
 use tui::ui::{BufferedValue, Show, Ui};
 use tui::{Channel, Exit};
 
+use crate::settings;
 use crate::ui::items::filter::Filter;
 use crate::ui::items::notification::filter::{NotificationFilter, SortBy};
 use crate::ui::items::notification::{Notification, NotificationKind};
@@ -163,6 +165,7 @@ pub struct AppState {
     filter: NotificationFilter,
     loading: bool,
     initialized: bool,
+    theme: Theme,
 }
 
 #[derive(Clone, Debug)]
@@ -176,6 +179,9 @@ impl TryFrom<&Context> for App {
     type Error = anyhow::Error;
 
     fn try_from(context: &Context) -> Result<Self, Self::Error> {
+        let settings = settings::Settings::default();
+        let theme = settings::configure_theme(&settings);
+
         let search = context.search.as_ref().map(|s| s.trim().to_string());
         let (search, filter) = match search {
             Some(search) => (
@@ -204,6 +210,7 @@ impl TryFrom<&Context> for App {
                 filter,
                 loading: false,
                 initialized: false,
+                theme,
             },
         })
     }
@@ -288,7 +295,7 @@ impl store::Update<Message> for App {
 
 impl Show<Message> for App {
     fn show(&self, ctx: &ui::Context<Message>, frame: &mut Frame) -> Result<()> {
-        Window::default().show(ctx, |ui| {
+        Window::default().show(ctx, self.state.theme.clone(), |ui| {
             // Initialize
             if !self.state.initialized {
                 ui.send_message(Message::Initialize);

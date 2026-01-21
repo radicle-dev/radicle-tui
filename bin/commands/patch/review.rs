@@ -25,11 +25,13 @@ use tui::store;
 use tui::task::EmptyProcessors;
 use tui::ui::layout::Spacing;
 use tui::ui::span;
+use tui::ui::theme::Theme;
 use tui::ui::widget::{Borders, Column, ContainerState, TableState, TextViewState, Window};
 use tui::ui::{Context, Show, Ui};
 use tui::{Channel, Exit};
 
 use crate::git::HunkState;
+use crate::settings;
 use crate::state::{self, FileIdentifier, FileStore, ReadState, WriteState};
 use crate::ui::format;
 use crate::ui::items::patch::{HunkItem, StatefulHunkItem};
@@ -173,6 +175,8 @@ pub struct AppState {
     views: Vec<DiffViewState>,
     /// State of text view widget on the help page.
     help: TextViewState,
+    /// The active theme
+    theme: Theme,
 }
 
 impl AppState {
@@ -184,6 +188,9 @@ impl AppState {
         revision: RevisionId,
         hunks: &Hunks,
     ) -> Self {
+        let settings = settings::Settings::default();
+        let theme = settings::configure_theme(&settings);
+
         Self {
             mode,
             rid,
@@ -198,6 +205,7 @@ impl AppState {
             ),
             views: vec![DiffViewState::default(); hunks.len()],
             help: TextViewState::new(Position::default()),
+            theme,
         }
     }
 
@@ -516,12 +524,12 @@ impl App<'_> {
 
 impl Show<Message> for App<'_> {
     fn show(&self, ctx: &Context<Message>, frame: &mut Frame) -> Result<(), anyhow::Error> {
-        Window::default().show(ctx, |ui| {
-            let page = {
-                let state = self.state.lock().unwrap();
-                state.page.clone()
-            };
+        let (page, theme) = {
+            let state = self.state.lock().unwrap();
+            (state.page.clone(), state.theme.clone())
+        };
 
+        Window::default().show(ctx, theme, |ui| {
             match page {
                 AppPage::Main => {
                     let (mut focus, count) = {
