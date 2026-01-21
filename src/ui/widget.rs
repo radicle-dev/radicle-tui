@@ -572,10 +572,10 @@ where
                     .track_symbol(None)
                     .end_symbol(None)
                     .thumb_symbol("┃")
-                    .style(if area_focus {
-                        Style::default()
+                    .style(if ui.has_focus {
+                        ui.theme.focus_scroll_style
                     } else {
-                        Style::default().dim()
+                        ui.theme.scroll_style
                     });
 
                 let mut state = ScrollbarState::default()
@@ -739,7 +739,12 @@ where
                         .begin_symbol(None)
                         .track_symbol(None)
                         .end_symbol(None)
-                        .thumb_symbol("┃"),
+                        .thumb_symbol("┃")
+                        .style(if area_focus {
+                            ui.theme.focus_scroll_style
+                        } else {
+                            ui.theme.scroll_style
+                        }),
                 ))
                 .highlight_style(style::highlight(ui.has_focus))
                 .style(tree_style)
@@ -1016,9 +1021,9 @@ impl Widget for TextView<'_> {
             .end_symbol(None)
             .thumb_symbol("┃")
             .style(if area_focus {
-                Style::default()
+                ui.theme.focus_scroll_style
             } else {
-                Style::default().dim()
+                ui.theme.scroll_style
             });
 
         let mut scroller_state = ScrollbarState::default()

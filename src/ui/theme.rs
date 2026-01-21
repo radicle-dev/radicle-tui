@@ -6,11 +6,11 @@ use ratatui::style::{Color, Style, Stylize};
 pub struct Theme {
     pub border_style: Style,
     pub focus_border_style: Style,
+    pub scroll_style: Style,
+    pub focus_scroll_style: Style,
     pub shortcuts_keys_style: Style,
     pub shortcuts_action_style: Style,
     pub textview_style: Style,
-    pub textview_scroll_style: Style,
-    pub textview_focus_scroll_style: Style,
     pub bar_on_black_style: Style,
     pub dim_no_focus: bool,
 }
@@ -26,11 +26,11 @@ impl Theme {
         Self {
             border_style: Style::default().fg(Color::Rgb(170, 170, 170)),
             focus_border_style: Style::default(),
+            scroll_style: Style::default().fg(Color::Rgb(170, 170, 170)),
+            focus_scroll_style: Style::default(),
             shortcuts_keys_style: style::yellow(),
             shortcuts_action_style: style::reset(),
             textview_style: style::reset(),
-            textview_scroll_style: style::cyan().dim(),
-            textview_focus_scroll_style: style::cyan(),
             bar_on_black_style: Style::default().on_gray(),
             dim_no_focus: false,
         }
@@ -39,12 +39,12 @@ impl Theme {
     pub fn default_dark() -> Self {
         Self {
             border_style: Style::default().fg(Color::Indexed(240)),
-            focus_border_style: Style::default().fg(Color::Indexed(246)),
+            focus_border_style: Style::default().cyan(),
+            scroll_style: Style::default().fg(Color::Indexed(240)),
+            focus_scroll_style: style::cyan(),
             shortcuts_keys_style: style::yellow().dim(),
             shortcuts_action_style: style::gray().dim(),
             textview_style: style::reset(),
-            textview_scroll_style: style::cyan().dim(),
-            textview_focus_scroll_style: style::cyan(),
             bar_on_black_style: Style::default().on_black(),
             dim_no_focus: false,
         }

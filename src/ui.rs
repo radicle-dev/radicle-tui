@@ -472,6 +472,7 @@ where
             .with_area(area)
             .with_layout(layout.into())
             .with_ctx(self.ctx.clone())
+            .with_theme(self.theme.clone())
     }
 
     pub fn layout<R>(
