@@ -39,9 +39,9 @@ impl Theme {
     pub fn default_dark() -> Self {
         Self {
             border_style: Style::default().fg(Color::Indexed(240)),
-            focus_border_style: Style::default().cyan(),
+            focus_border_style: Style::default().fg(Color::Indexed(249)),
             scroll_style: Style::default().fg(Color::Indexed(240)),
-            focus_scroll_style: style::cyan(),
+            focus_scroll_style: Style::default().fg(Color::Indexed(249)),
             shortcuts_keys_style: style::yellow().dim(),
             shortcuts_action_style: style::gray().dim(),
             textview_style: style::reset(),
@@ -49,10 +49,18 @@ impl Theme {
             dim_no_focus: false,
         }
     }
+
+    pub fn highlight(&self, focus: bool) -> Style {
+        if focus {
+            style::cyan().not_dim().reversed()
+        } else {
+            style::cyan().dim().reversed()
+        }
+    }
 }
 
 pub mod style {
-    use ratatui::style::{Color, Style, Stylize};
+    use ratatui::style::{Color, Style};
 
     pub fn reset() -> Style {
         Style::default().fg(Color::Reset)
@@ -92,13 +100,5 @@ pub mod style {
 
     pub fn darkgray() -> Style {
         Style::default().fg(Color::DarkGray)
-    }
-
-    pub fn highlight(focus: bool) -> Style {
-        if focus {
-            cyan().not_dim().reversed()
-        } else {
-            cyan().dim().reversed()
-        }
     }
 }

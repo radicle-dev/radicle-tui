@@ -555,7 +555,7 @@ where
                 .rows(rows)
                 .widths(widths)
                 .column_spacing(self.spacing.into())
-                .row_highlight_style(style::highlight(ui.has_focus));
+                .row_highlight_style(ui.theme.highlight(ui.has_focus));
 
             let table = if !area_focus && self.dim {
                 table.dim()
@@ -746,13 +746,13 @@ where
                             ui.theme.scroll_style
                         }),
                 ))
-                .highlight_style(style::highlight(ui.has_focus))
+                .highlight_style(ui.theme.highlight(ui.has_focus))
                 .style(tree_style)
         } else {
             tui_tree_widget::Tree::new(&items)
                 .expect("all item identifiers are unique")
                 .style(tree_style)
-                .highlight_style(style::highlight(ui.has_focus))
+                .highlight_style(ui.theme.highlight(ui.has_focus))
         };
 
         frame.render_stateful_widget(tree, area, &mut state.internal);

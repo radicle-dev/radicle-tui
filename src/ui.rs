@@ -248,7 +248,7 @@ impl Layout {
                     ])
                     .areas(area);
                     let [right_top, right_bottom] =
-                        Layout::vertical([Constraint::Percentage(65), Constraint::Percentage(35)])
+                        Layout::vertical([Constraint::Percentage(60), Constraint::Percentage(40)])
                             .areas(right);
 
                     [left, right_top, right_bottom].into()
