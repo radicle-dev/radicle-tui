@@ -1,5 +1,5 @@
+mod apps;
 mod cob;
-mod commands;
 mod git;
 mod log;
 mod settings;
@@ -20,7 +20,7 @@ use radicle::version::Version;
 
 use radicle_cli::terminal as cli_term;
 
-use commands::*;
+use apps::*;
 use terminal as term;
 
 use crate::terminal::ForwardError;

@@ -17,7 +17,7 @@ use cli::terminal::patch::Message;
 use cli::terminal::Context;
 use cli::terminal::{Args, Error, Help};
 
-use crate::commands::tui_issue::list::IssueOperation;
+use crate::apps::tui_issue::list::IssueOperation;
 use crate::terminal;
 use crate::ui::items::filter::DidFilter;
 use crate::ui::items::issue::filter::IssueFilter;

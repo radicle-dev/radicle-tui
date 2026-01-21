@@ -85,13 +85,13 @@ home.packages = [
 
 ### Usage
 
-This crate provides a binary called `rad-tui` which can be used as a drop-in replacement for `rad`. It maps known commands and operations to internal ones, running the corresponding interface, e.g.
+This crate provides a binary called `rad-tui` which can be used as a drop-in replacement for `rad`. It maps known commands and operations to internal ones, running the corresponding app, e.g.
 
 ```
 rad-tui patch
 ```
 
-runs the patch list interface and calls `rad` with the operation and id selected. Commands or operations not known to `rad-tui` will be forwarded to `rad`, e.g. the following just calls `rad node`:
+runs the patch list app and calls `rad` with the operation and id selected. Commands or operations not known to `rad-tui` will be forwarded to `rad`, e.g. the following just calls `rad node`:
 
 ```
 rad-tui node
@@ -114,13 +114,13 @@ alias rad="rad-tui"
 
 #### CLI integration via JSON
 
-The interfaces are designed to be modular and could also be integrated with existing CLI tooling. The binary is can be called and its output collected and processed, e.g.
+The apps are designed to be modular and could also be integrated with existing CLI tooling. The binary is can be called and its output collected and processed, e.g.
 
 ```
 rad-tui patch list --json
 ```
 
-runs the patch list interface and return a JSON object specifying the operation and id selected:
+runs the patch list app and return a JSON object specifying the operation and id selected:
 
 ```
 { "operation": "show", "ids": ["546443226b300484a97a2b2d7c7000af6e8169ba"], args:[] }
