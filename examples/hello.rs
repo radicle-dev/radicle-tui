@@ -9,6 +9,7 @@ use radicle_tui as tui;
 use tui::event::Key;
 use tui::store;
 use tui::task::EmptyProcessors;
+use tui::ui::theme::Theme;
 use tui::ui::widget::{Borders, Window};
 use tui::ui::{Context, Show};
 use tui::{Channel, Exit};
@@ -50,7 +51,7 @@ impl store::Update<Message> for App {
 
 impl Show<Message> for App {
     fn show(&self, ctx: &Context<Message>, frame: &mut Frame) -> Result<()> {
-        Window::default().show(ctx, |ui| {
+        Window::default().show(ctx, Theme::default(), |ui| {
             ui.text_view(
                 frame,
                 self.alien.clone(),

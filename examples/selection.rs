@@ -14,6 +14,7 @@ use tui::event::Key;
 use tui::store::Update;
 use tui::task::EmptyProcessors;
 use tui::ui::layout::Spacing;
+use tui::ui::theme::Theme;
 use tui::ui::widget::{Borders, Column, TableState, Window};
 use tui::ui::{Context, Show, ToRow};
 use tui::Channel;
@@ -75,7 +76,7 @@ impl Update<Message> for App {
 
 impl Show<Message> for App {
     fn show(&self, ctx: &Context<Message>, frame: &mut Frame) -> Result<()> {
-        Window::default().show(ctx, |ui| {
+        Window::default().show(ctx, Theme::default(), |ui| {
             ui.layout(
                 Layout::vertical([
                     Constraint::Length(1),

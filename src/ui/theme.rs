@@ -1,6 +1,8 @@
+use serde::{Deserialize, Serialize};
+
 use ratatui::style::{Color, Style, Stylize};
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct Theme {
     pub border_style: Style,
     pub focus_border_style: Style,

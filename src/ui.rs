@@ -397,6 +397,11 @@ impl<M> Ui<M> {
         self
     }
 
+    pub fn with_theme(mut self, theme: Theme) -> Self {
+        self.theme = theme;
+        self
+    }
+
     pub fn theme(&self) -> &Theme {
         &self.theme
     }

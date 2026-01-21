@@ -15,7 +15,7 @@ use ratatui::{layout::Constraint, widgets::Paragraph};
 use crate::event::Key;
 use crate::ui::ext::{FooterBlock, FooterBlockType, HeaderBlock};
 use crate::ui::layout::Spacing;
-use crate::ui::theme::style;
+use crate::ui::theme::{style, Theme};
 use crate::ui::ToRow;
 use crate::ui::{layout, span, ToTree};
 
@@ -131,17 +131,19 @@ impl Window {
     pub fn show<M, R>(
         self,
         ctx: &Context<M>,
+        theme: Theme,
         add_contents: impl FnOnce(&mut Ui<M>) -> R,
     ) -> Option<InnerResponse<Option<R>>>
     where
         M: Clone,
     {
-        self.show_dyn(ctx, Box::new(add_contents))
+        self.show_dyn(ctx, theme, Box::new(add_contents))
     }
 
     fn show_dyn<M, R>(
         self,
         ctx: &Context<M>,
+        theme: Theme,
         add_contents: Box<AddContentFn<M, R>>,
     ) -> Option<InnerResponse<Option<R>>>
     where
@@ -152,7 +154,8 @@ impl Window {
             .with_area(ctx.frame_size())
             .with_ctx(ctx.clone())
             .with_layout(Layout::horizontal([Constraint::Min(1)]).into())
-            .with_area_focus(Some(0));
+            .with_area_focus(Some(0))
+            .with_theme(theme);
 
         let inner = add_contents(&mut ui);
 
