@@ -145,7 +145,7 @@ impl Tui {
     }
 
     pub async fn run(&self) -> Result<Option<Selection>> {
-        let viewport = Viewport::Inline(20);
+        let viewport = Viewport::Fullscreen;
         let channel = Channel::default();
         let state = App::try_from(&self.context)?;
 

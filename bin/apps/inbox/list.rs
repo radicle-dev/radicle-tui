@@ -106,7 +106,7 @@ impl Tui {
     }
 
     pub async fn run(&self) -> Result<Option<Selection>> {
-        let viewport = Viewport::Inline(20);
+        let viewport = Viewport::Fullscreen;
         let channel = Channel::default();
         let state = App::try_from(&self.context)?;
 
@@ -594,17 +594,21 @@ impl App {
     }
 
     pub fn show_browser_shortcuts(&self, frame: &mut Frame, ui: &mut Ui<Message>) {
-        ui.shortcuts(
-            frame,
-            &[
-                ("enter", "show"),
-                ("r", "reload"),
-                ("c", "clear"),
-                ("/", "search"),
-                ("?", "help"),
-            ],
-            '∙',
-            Alignment::Left,
+        let shortcuts = vec![
+            ("/", "search"),
+            ("enter", "show"),
+            ("c", "clear"),
+            ("r", "reload"),
+        ];
+        let global_shortcuts = vec![("?", "help")];
+
+        ui.layout(
+            Layout::horizontal([Constraint::Fill(1), Constraint::Length(30)]),
+            None,
+            |ui| {
+                ui.shortcuts(frame, &shortcuts, '∙', Alignment::Left);
+                ui.shortcuts(frame, &global_shortcuts, '∙', Alignment::Right);
+            },
         );
     }
 
