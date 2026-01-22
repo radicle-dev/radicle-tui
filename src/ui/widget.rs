@@ -274,30 +274,6 @@ impl<'a> Container<'a> {
     }
 }
 
-#[derive(Clone, Debug, Serialize, Deserialize)]
-pub struct CompositeState {
-    len: usize,
-    focus: usize,
-}
-
-impl CompositeState {
-    pub fn new(len: usize, focus: usize) -> Self {
-        Self { len, focus }
-    }
-
-    pub fn focus(&self) -> usize {
-        self.focus
-    }
-
-    pub fn len(&self) -> usize {
-        self.len
-    }
-
-    pub fn is_empty(&self) -> bool {
-        self.len == 0
-    }
-}
-
 #[derive(Default)]
 pub struct Popup {}
 
