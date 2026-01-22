@@ -798,7 +798,7 @@ impl App {
             if !self.state.filter.has_state() {
                 [
                     Column::new(
-                        Span::raw(" Search ".to_string()).cyan().dim().reversed(),
+                        Span::raw(" Issues ".to_string()).cyan().dim().reversed(),
                         Constraint::Length(8),
                     ),
                     Column::new(
@@ -856,7 +856,7 @@ impl App {
             } else {
                 [
                     Column::new(
-                        Span::raw(" Search ".to_string()).cyan().dim().reversed(),
+                        Span::raw(" Issues ".to_string()).cyan().dim().reversed(),
                         Constraint::Length(8),
                     ),
                     Column::new(

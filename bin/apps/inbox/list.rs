@@ -515,8 +515,8 @@ impl App {
                 let unseen = format!(" {} ", seen_counts.1);
                 [
                     Column::new(
-                        Span::raw(" Search ".to_string()).cyan().dim().reversed(),
-                        Constraint::Length(8),
+                        Span::raw(" Inbox ".to_string()).cyan().dim().reversed(),
+                        Constraint::Length(7),
                     ),
                     Column::new(
                         Span::raw(format!(" {search} "))
@@ -567,7 +567,7 @@ impl App {
             } else {
                 [
                     Column::new(
-                        Span::raw(" Search ".to_string()).cyan().dim().reversed(),
+                        Span::raw(" Inbox ".to_string()).cyan().dim().reversed(),
                         Constraint::Length(8),
                     ),
                     Column::new(

@@ -614,8 +614,8 @@ impl App {
                 let merged = format!(" {} ", state_counts.3);
                 [
                     Column::new(
-                        Span::raw(" Search ".to_string()).cyan().dim().reversed(),
-                        Constraint::Length(8),
+                        Span::raw(" Patches ").cyan().dim().reversed(),
+                        Constraint::Length(9),
                     ),
                     Column::new(
                         Span::raw(format!(" {search} "))
@@ -693,8 +693,8 @@ impl App {
             } else {
                 [
                     Column::new(
-                        Span::raw(" Search ".to_string()).cyan().dim().reversed(),
-                        Constraint::Length(8),
+                        Span::raw(" Patches ".to_string()).cyan().dim().reversed(),
+                        Constraint::Length(9),
                     ),
                     Column::new(
                         Span::raw(format!(" {search} "))
