@@ -44,6 +44,9 @@ const HELP: &str = r#"# Generic keybindings
 `PageDown`: move cursor one page down
 `Home`:     move cursor to the first line
 `End`:      move cursor to the last line
+`1-9`:      focus section
+`Tab`:      focus next section
+`BackTab`:  focus previous section
 `Esc`:      Cancel
 `q`:        Quit
 
