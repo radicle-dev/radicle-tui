@@ -186,14 +186,42 @@ impl ContainerState {
         self.len == 0
     }
 
-    pub fn focus_next(&mut self) {
-        self.focus = self
+    pub fn focus_next(&mut self) -> bool {
+        let focus = self
             .focus
-            .map(|focus| cmp::min(focus.saturating_add(1), self.len.saturating_sub(1)))
+            .map(|focus| cmp::min(focus.saturating_add(1), self.len.saturating_sub(1)));
+        let changed = focus != self.focus;
+        if changed {
+            self.focus = focus;
+        }
+        changed
     }
 
-    pub fn focus_prev(&mut self) {
-        self.focus = self.focus.map(|focus| focus.saturating_sub(1))
+    pub fn focus_prev(&mut self) -> bool {
+        let focus = self.focus.map(|f| f.saturating_sub(1));
+        let changed = focus != self.focus;
+        if changed {
+            self.focus = focus;
+        }
+        changed
+    }
+
+    pub fn focus_index(&mut self, focus: usize) -> bool {
+        let focus = (focus < self.len).then_some(focus);
+        let changed = focus.is_some() && focus != self.focus;
+        if changed {
+            self.focus = focus;
+        }
+        changed
+    }
+}
+
+impl<'a> From<&Container<'a>> for ContainerState {
+    fn from(container: &Container<'a>) -> Self {
+        Self {
+            len: container.len,
+            focus: *container.focus,
+        }
     }
 }
 
@@ -227,30 +255,22 @@ impl<'a> Container<'a> {
         M: Clone,
     {
         let mut response = Response::default();
+        let mut state = ContainerState::from(&self);
 
-        let mut state = ContainerState {
-            focus: *self.focus,
-            len: self.len,
-        };
-
-        if ui.has_global_input(|key| key == Key::Tab) {
-            state.focus_next();
-            response.changed = true;
-        }
-        if ui.has_global_input(|key| key == Key::BackTab) {
-            state.focus_prev();
-            response.changed = true;
+        response.changed |= ui.has_global_input(|key| key == Key::Tab) && state.focus_next();
+        response.changed |= ui.has_global_input(|key| key == Key::BackTab) && state.focus_prev();
+        for index in 1..=self.len {
+            if let Some(c) = char::from_digit(index as u32, 10) {
+                response.changed |=
+                    ui.has_global_input(|key| key == Key::Char(c)) && state.focus_index(index - 1);
+            }
         }
         *self.focus = state.focus;
 
-        let mut ui = Ui {
-            focus_area: state.focus,
-            ..ui.clone()
-        };
-
-        let inner = add_contents(&mut ui);
-
-        InnerResponse::new(inner, response)
+        InnerResponse::new(
+            add_contents(&mut ui.clone().with_area_focus(state.focus)),
+            response,
+        )
     }
 }
 
