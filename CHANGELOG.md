@@ -1,6 +1,6 @@
 # Changelog
 
-## [0.7.0] - Unreleased
+## [0.7.0] - 2026-01-22
 
 ### Added
 
@@ -9,7 +9,6 @@
 **Applications**
 
 - `issue/list`: Support for edit, comment and state actions
-- `inbox/list`: Notifications are now loaded asynchronously
 
 **Library**
 
@@ -17,6 +16,8 @@
 - Support popup widgets
 - Support tree widgets
 - Support contextual and global shortcuts with separate alignment
+- Support for indexed container section focus
+- Support for app-defined themes
 - Panic hook via `ratatui::init()`
 
 ### Fixed
@@ -25,6 +26,7 @@
 
 - Table border when focussed
 - Properly terminate event listener thread
+- Properly select dark / light theme
 
 ### Changed
 
@@ -36,10 +38,12 @@
 - Filter expression grammar to better reflect item fields
 - Fuzzy search on additional item fields
 - Applications are relaunched after operation execution by default
+- Logs and states are now stored in XDG-conformant directory paths
+- Logs are now written to single append-only file
 - `issue/list`: Port to imUI
 - `inbox/list`: Port to imUI
-- `inbox/list`: Improved notification loading times
-- `patch/list`: Improved patch loading times
+- `inbox/list`: Improve notification loading
+- `patch/list`: Improve patch loading
 
 **Library**
 
